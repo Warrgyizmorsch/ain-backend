@@ -1,0 +1,5 @@
+[18-Mar-2025 10:21:32 Europe/London] PHP Fatal error:  Cannot redeclare generateSchema() (previously declared in /home/assignnment/public_html/routes/web.php:34) in /home/assignnment/public_html/routes/web.php on line 34
+[18-Mar-2025 10:21:33 Europe/London] PHP Fatal error:  Cannot redeclare generateSchema() (previously declared in /home/assignnment/public_html/routes/web.php:34) in /home/assignnment/public_html/routes/web.php on line 34
+[26-Mar-2025 15:12:36 Europe/London] PHP Fatal error:  Cannot redeclare generateSchema() (previously declared in /home/assignnment/public_html/routes/web.php:35) in /home/assignnment/public_html/routes/web.php on line 35
+[26-Mar-2025 15:12:59 Europe/London] PHP Fatal error:  Cannot redeclare generateSchema() (previously declared in /home/assignnment/public_html/routes/web.php:35) in /home/assignnment/public_html/routes/web.php on line 35
+[22-May-2025 11:34:46 Europe/London] PHP Fatal error:  Cannot redeclare generateSchema() (previously declared in /home/assignnment/public_html/routes/web.php:39) in /home/assignnment/public_html/routes/web.php on line 39
