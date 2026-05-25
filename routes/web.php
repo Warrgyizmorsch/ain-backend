@@ -20,7 +20,7 @@ use App\Http\Controllers\FaqUrlController;
 use App\Http\Controllers\ChatController;
 use App\Http\Controllers\ExpertController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
-use App\Models\Experts;
+use App\Models\Experts; 
 use App\Models\Review;
 use App\Models\WhatsappMessage;
 use App\Events\MessageSent;
