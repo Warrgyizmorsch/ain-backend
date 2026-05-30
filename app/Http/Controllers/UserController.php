@@ -12,7 +12,7 @@ use App\Models\LoginHistory;
 use App\Models\UserLog;
 use App\Models\Order;
 use Illuminate\Support\Facades\Hash;
-use DB;
+use Illuminate\Support\Facades\DB;
 
 class UserController extends Controller
 {
@@ -281,7 +281,7 @@ class UserController extends Controller
             $query->whereDate('created_at', $startDate);
         }
         if ($startDate && $endDate) {
-            $query->whereBetween('created_at', [$startDate, $endDate]);
+            $query->whereBetween('created_at', [$startDate, $endDate]); 
         }
         if ($roleId) {
             $query->where('role_id', $roleId);
@@ -676,25 +676,39 @@ class UserController extends Controller
         return view('back-end.working_time', compact('users', 'today'));
     }
 
-    public function saveReview(Request $request)
+    public function saveClientBehaviour(Request $request)
     {
-        $user = \App\Models\User::find($request->user_id);
-
-        if ($user) {
-            // Zaroori: Aapke 'users' table mein 'client_review' naam ka column hona chahiye
-            $user->client_review = $request->client_review;
-            $user->save();
-            logActivity('User', [
-                'type' => 'Client Review Updated',
-                'user_id' => $user->id,
-                'client_review' => $request->client_review,
-                'action_by' => auth()->user()->name,
-            ]);
-
-            return response()->json(['success' => true]);
+        if (!$request->filled('user_id') || !$request->filled('client_review')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'User ID and behaviour are required'
+            ], 422);
         }
 
-        return response()->json(['success' => false]);
+        DB::table('client_behaviours')->insert([
+            'uid' => $request->user_id,
+            'behaviour' => $request->client_review,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Behaviour saved successfully'
+        ]);
+    }
+
+    public function latestClientBehaviour($userId)
+    {
+        $behaviour = DB::table('client_behaviours')
+            ->where('uid', $userId)
+            ->latest('id')
+            ->first();
+
+        return response()->json([
+            'success' => true,
+            'behaviour' => $behaviour
+        ]);
     }
 
     // public function saveMarks(Request $request) 

@@ -71,4 +71,7 @@ create table additional (
 ALTER TABLE additional ADD COLUMN created_by INT NULL AFTER additional_price;
 CREATE TABLE user_break_times ( id INT(11) NOT NULL AUTO_INCREMENT, user_id INT(11) NULL, break_type VARCHAR(50) NULL, start_time DATETIME NULL, end_time DATETIME NULL, total_seconds INT(11) DEFAULT 0, created_at TIMESTAMP NULL DEFAULT NULL, updated_at TIMESTAMP NULL DEFAULT NULL, PRIMARY KEY (id) );
 
+-- Rahul 26-5-26
+CREATE TABLE client_behaviours ( id INT AUTO_INCREMENT PRIMARY KEY, uid INT NULL, behaviour TEXT NULL, created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP NULL DEFAULT NULL );
+
 

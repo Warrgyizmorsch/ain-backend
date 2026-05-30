@@ -291,7 +291,11 @@
 
                 <form id="clientReviewForm" class="form">
                     <input type="hidden" id="review_user_id">
-
+                    <div id="latestBehaviourBox" class="alert alert-light-info d-none mb-5">
+                        <div class="fw-bold mb-1">Last Behaviour</div>
+                        <div id="latestBehaviourText" class="text-gray-800 fs-7"></div>
+                        {{-- <div id="latestBehaviourDate" class="text-muted fs-8 mt-1"></div> --}}
+                    </div>
                     <div class="d-flex flex-column mb-8 fv-row">
                         <textarea class="form-control form-control-solid" rows="4" id="review_text" placeholder="Enter client behaviour details..."></textarea>
                     </div>
@@ -565,15 +569,15 @@
                 </div>
             `,
             didOpen: () => {
-    $('#swal-status').on('change', function () {
-        if ($(this).val() === 'Feedback') {
-            $('#feedback-date-wrapper').removeClass('d-none');
-        } else {
-            $('#feedback-date-wrapper').addClass('d-none');
-            $('#swal-feedback-date').val('');
-        }
-    });
-},
+                $('#swal-status').on('change', function () {
+                    if ($(this).val() === 'Feedback') {
+                        $('#feedback-date-wrapper').removeClass('d-none');
+                    } else {
+                        $('#feedback-date-wrapper').addClass('d-none');
+                        $('#swal-feedback-date').val('');
+                    }
+                });
+            },
             showCancelButton: true,
             confirmButtonText: 'Confirm Update',
             cancelButtonText: 'Cancel',
@@ -770,11 +774,38 @@
     }
 
     // Modal Open karne ka function
-    function openReviewModal(userId, existingReview) {
-        $('#review_user_id').val(userId);
-        $('#review_text').val(existingReview);
-        $('#clientReviewModal').modal('show');
-    }
+    // function openReviewModal(userId) {
+    //     $('#review_user_id').val(userId);
+    //     $('#review_text').val('');
+    //     $('#clientReviewModal').modal('show');
+    // }
+
+    function openReviewModal(userId) {
+    $('#review_user_id').val(userId);
+    $('#review_text').val('');
+
+    $('#latestBehaviourBox').addClass('d-none');
+    $('#latestBehaviourText').text('');
+    $('#latestBehaviourDate').text('');
+
+    $.ajax({
+        url: "/user/latest-behaviour/" + userId,
+        type: "GET",
+        success: function(response) {
+            if (response.success && response.behaviour) {
+                $('#latestBehaviourText').text(response.behaviour.behaviour);
+
+                if (response.behaviour.created_at) {
+                    $('#latestBehaviourDate').text('Added on: ' + response.behaviour.created_at);
+                }
+
+                $('#latestBehaviourBox').removeClass('d-none');
+            }
+        }
+    });
+
+    $('#clientReviewModal').modal('show');
+}
 
     function orderHistoryModel(feedbacks) {
 
@@ -851,19 +882,31 @@
         let userId = $('#review_user_id').val();
         let reviewText = $('#review_text').val();
 
+        if (!reviewText.trim()) {
+            Swal.fire('Warning', 'Please enter behaviour details', 'warning');
+            return;
+        }
+
         $.ajax({
             url: "{{ route('user.save.review') }}",
             type: "POST",
+            dataType: "json",
+            headers: {
+                'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content'),
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'application/json'
+            },
             data: {
-                _token: "{{ csrf_token() }}",
                 user_id: userId,
                 client_review: reviewText
             },
             success: function(response) {
                 if (response.success) {
                     $('#clientReviewModal').modal('hide');
+                    $('#review_text').val('');
+
                     Swal.fire({
-                        text: "Review saved successfully!",
+                        text: "Behaviour saved successfully!",
                         icon: "success",
                         buttonsStyling: false,
                         confirmButtonText: "Ok, got it!",
@@ -871,10 +914,21 @@
                             confirmButton: "btn btn-primary"
                         }
                     });
+                } else {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'Not Saved',
+                        text: response.message || 'Behaviour not saved'
+                    });
                 }
             },
-            error: function() {
-                alert("Something went wrong!");
+            error: function(xhr) {
+                console.log(xhr.responseText);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: xhr.responseJSON?.message ?? 'Something went wrong!'
+                });
             }
         });
     }

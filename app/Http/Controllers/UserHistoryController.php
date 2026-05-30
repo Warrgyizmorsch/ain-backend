@@ -2226,72 +2226,198 @@ foreach ($countQuery as $count) {
 ]);
 }
 
+// public function userRetentionReport(Request $request)
+// {
+//     $year = $request->input('year', now()->year);
+
+//     $latestOrders = DB::table('orders')
+//         ->select(
+//             'uid',
+//             DB::raw('MAX(created_at) as last_order_date'),
+//             DB::raw('COUNT(id) as total_orders')
+//         )
+//         ->whereNotNull('uid')
+//         ->where('uid', '!=', 0)
+//         ->groupBy('uid');
+
+//     $baseUsers = DB::table('users')
+//         ->joinSub($latestOrders, 'latest_orders', function ($join) {
+//             $join->on('users.id', '=', 'latest_orders.uid');
+//         })
+//         ->select(
+//             'users.id',
+//             'users.name',
+//             'users.email',
+//             'users.countrycode',
+//             'users.mobile_no',
+//             'latest_orders.last_order_date',
+//             'latest_orders.total_orders'
+//         );
+
+//     if ($request->filled('user')) {
+//         $search = $request->user;
+
+//         $baseUsers->where(function ($q) use ($search) {
+//             $q->where('users.name', 'like', "%$search%")
+//                 ->orWhere('users.email', 'like', "%$search%")
+//                 ->orWhere('users.mobile_no', 'like', "%$search%");
+//         });
+//     }
+//     $months = [];
+
+//     $currentMonth = now()->year == $year ? now()->month : 12;
+//     for ($m = 1; $m <= $currentMonth; $m++) {
+//         $monthStart = \Carbon\Carbon::create($year, $m, 1)->startOfMonth();
+//         $monthEnd   = \Carbon\Carbon::create($year, $m, 1)->endOfMonth();
+
+//         $retainStart = $monthStart->copy()->subMonths(2)->startOfMonth();
+//         $retainEnd   = $monthStart->copy()->subMonth()->endOfMonth();
+
+//         $notRetainStart = $monthStart->copy()->subMonths(9)->startOfMonth();
+//         $notRetainEnd   = $monthStart->copy()->subMonths(8)->endOfMonth();
+
+//         $newUsers = DB::table('users')
+//         ->leftJoinSub($latestOrders, 'latest_orders', function ($join) {
+//             $join->on('users.id', '=', 'latest_orders.uid');
+//         })
+//         ->select(
+//             'users.id',
+//             'users.name',
+//             'users.email',
+//             'users.countrycode',
+//             'users.mobile_no',
+//             'users.created_at',
+//             DB::raw('COALESCE(latest_orders.last_order_date, NULL) as last_order_date'),
+//             DB::raw('COALESCE(latest_orders.total_orders, 0) as total_orders')
+//         )
+//         ->whereDate('users.created_at', '>=', $monthStart)
+//         ->whereDate('users.created_at', '<=', $monthEnd)
+//         ->where(function ($q) use ($request) {
+//             if ($request->filled('user')) {
+//                 $search = $request->user;
+
+//                 $q->where('users.name', 'like', '%' . $search . '%')
+//                     ->orWhere('users.email', 'like', '%' . $search . '%')
+//                     ->orWhere('users.mobile_no', 'like', '%' . $search . '%');
+//             }
+//         })
+//         ->orderByDesc('users.created_at')
+//         ->get();
+
+//         $retainUsers = (clone $baseUsers)
+//             ->whereBetween('latest_orders.last_order_date', [$retainStart, $retainEnd])
+//             ->orderByDesc('latest_orders.last_order_date')
+//             ->get();
+
+//         $notRetainUsers = (clone $baseUsers)
+//             ->whereBetween('latest_orders.last_order_date', [$notRetainStart, $notRetainEnd])
+//             ->orderByDesc('latest_orders.last_order_date')
+//             ->get();
+
+//         $months[] = [
+//             'month_no' => $m,
+//             'month_name' => $monthStart->format('F'),
+//             'new_users' => $newUsers,
+//             'retain_users' => $retainUsers,
+//             'not_retain_users' => $notRetainUsers,
+//         ];
+//     }
+
+//     return view('back-end.reports.user-retention-report', compact('months', 'year'));
+// }
+
 public function userRetentionReport(Request $request)
 {
-    $type = $request->input('type', 'retain');
-
-    $currentMonthStart = \Carbon\Carbon::now()->startOfMonth();
-    $currentMonthEnd   = \Carbon\Carbon::now()->endOfMonth();
-
-    $retainStart = \Carbon\Carbon::now()->subMonths(2)->startOfMonth();
-    $retainEnd   = \Carbon\Carbon::now()->subMonth()->endOfMonth();
-
-    $notRetainEnd = \Carbon\Carbon::now()->subMonths(8)->endOfMonth();
+    $year = $request->input('year', now()->year);
 
     $latestOrders = DB::table('orders')
-        ->select('uid', DB::raw('MAX(order_date) as last_order_date'), DB::raw('COUNT(id) as total_orders'))
+        ->select(
+            'uid',
+            DB::raw('MAX(created_at) as last_order_date'),
+            DB::raw('COUNT(id) as total_orders')
+        )
         ->whereNotNull('uid')
         ->where('uid', '!=', 0)
         ->groupBy('uid');
 
-    $query = DB::table('users')
-        ->joinSub($latestOrders, 'latest_orders', function ($join) {
-            $join->on('users.id', '=', 'latest_orders.uid');
-        })
-        ->select(
-            'users.id',
-            'users.name',
-            'users.email',
-            'users.countrycode',
-            'users.mobile_no',
-            'latest_orders.last_order_date',
-            'latest_orders.total_orders'
-        );
+    $months = [];
 
-    if ($type == 'new') {
-        $query->whereBetween('latest_orders.last_order_date', [$currentMonthStart, $currentMonthEnd]);
+    $currentMonth = ($year == now()->year) ? now()->month : 12;
+    for ($m = 1; $m <= $currentMonth; $m++) {
+
+        $monthStart = \Carbon\Carbon::create($year, $m, 1)->startOfMonth();
+        $monthEnd   = \Carbon\Carbon::create($year, $m, 1)->endOfMonth();
+
+        // Jan users => Apr to Dec retain window
+        $retainStart = $monthStart->copy()->addMonths(3)->startOfMonth();
+        $retainEnd   = \Carbon\Carbon::create($year, 12, 31)->endOfDay();
+
+        // Jan users => no order till Sep means not retain
+        $notRetainEnd = $monthStart->copy()->addMonths(8)->endOfMonth();
+
+        $cohortUsers = DB::table('users')
+            ->leftJoinSub($latestOrders, 'latest_orders', function ($join) {
+                $join->on('users.id', '=', 'latest_orders.uid');
+            })
+            ->select(
+                'users.id',
+                'users.name',
+                'users.email',
+                'users.countrycode',
+                'users.mobile_no',
+                'users.created_at',
+                DB::raw('COALESCE(latest_orders.last_order_date, NULL) as last_order_date'),
+                DB::raw('COALESCE(latest_orders.total_orders, 0) as total_orders')
+            )
+            ->whereDate('users.created_at', '>=', $monthStart)
+            ->whereDate('users.created_at', '<=', $monthEnd);
+
+        if ($request->filled('user')) {
+            $search = $request->user;
+
+            $cohortUsers->where(function ($q) use ($search) {
+                $q->where('users.name', 'like', '%' . $search . '%')
+                    ->orWhere('users.email', 'like', '%' . $search . '%')
+                    ->orWhere('users.mobile_no', 'like', '%' . $search . '%');
+            });
+        }
+
+        $newUsers = (clone $cohortUsers)
+            ->orderByDesc('users.created_at')
+            ->get();
+
+        $retainUsers = (clone $cohortUsers)
+            ->whereExists(function ($q) use ($retainStart, $retainEnd) {
+                $q->select(DB::raw(1))
+                    ->from('orders')
+                    ->whereColumn('orders.uid', 'users.id')
+                    ->whereDate('orders.created_at', '>=', $retainStart)
+                    ->whereDate('orders.created_at', '<=', $retainEnd);
+            })
+            ->orderByDesc('users.created_at')
+            ->get();
+
+        $notRetainUsers = (clone $cohortUsers)
+            ->whereNotNull('latest_orders.last_order_date')
+            ->whereNotExists(function ($q) use ($monthEnd, $notRetainEnd) {
+                $q->select(DB::raw(1))
+                    ->from('orders')
+                    ->whereColumn('orders.uid', 'users.id')
+                    ->whereDate('orders.created_at', '>', $monthEnd)
+                    ->whereDate('orders.created_at', '<=', $notRetainEnd);
+            })
+            ->orderByDesc('users.created_at')
+            ->get();
+
+        $months[] = [
+            'month_no' => $m,
+            'month_name' => $monthStart->format('F'),
+            'new_users' => $newUsers,
+            'retain_users' => $retainUsers,
+            'not_retain_users' => $notRetainUsers,
+        ];
     }
 
-    if ($type == 'retain') {
-        $query->whereBetween('latest_orders.last_order_date', [$retainStart, $retainEnd]);
-    }
-
-    if ($type == 'not_retain') {
-        $query->whereDate('latest_orders.last_order_date', '<=', $notRetainEnd);
-    }
-
-    if ($request->filled('user')) {
-        $search = $request->user;
-
-        $query->where(function ($q) use ($search) {
-            $q->where('users.name', 'like', '%' . $search . '%')
-                ->orWhere('users.email', 'like', '%' . $search . '%')
-                ->orWhere('users.mobile_no', 'like', '%' . $search . '%');
-        });
-    }
-
-    if ($request->filled('from_date')) {
-        $query->whereDate('latest_orders.last_order_date', '>=', $request->from_date);
-    }
-
-    if ($request->filled('to_date')) {
-        $query->whereDate('latest_orders.last_order_date', '<=', $request->to_date);
-    }
-
-    $users = $query
-        ->orderByDesc('latest_orders.last_order_date')
-        ->get();
-
-    return view('back-end.reports.user-retention-report', compact('users', 'type'));
+    return view('back-end.reports.user-retention-report', compact('months', 'year'));
 }
 }

@@ -61,7 +61,8 @@
                         </div>
                         <div class="mb-3">
                             <label for="blogContent" class="form-label">Blog Content</label>
-                            <textarea id="summernote" name="blogContent" required>{!! $data['blog']['content'] !!}</textarea>                                                      
+                            {{-- <textarea id="summernote" name="blogContent" required>{!! $data['blog']['content'] !!}</textarea>--}}
+                            <textarea id="summernote" name="blogContent" required>{!! old('blogContent', $data['blog']->content) !!}</textarea>
                         </div>
                          <div class="mb-3">
                             <label for="blogTitle" class="form-label">Meta Tag</label>
@@ -74,7 +75,7 @@
                          <h2>FAQ</h2>
                            
                        
-                        <<div id="faq-container">
+                        <div id="faq-container">
                               @foreach($faqData as $faq)
                                 <div class="faq-entry mb-3">
                                     <label class="form-label">Question</label>
@@ -97,25 +98,27 @@
     </div>
 </div>
 
-<script src="https://code.jquery.com/jquery-3.4.1.slim.min.js" integrity="sha384-J6qa4849blE2+poT4WnyKhv5vZF5SrPo0iEjwBvKU7imGFAV0wwj1yYfoRSJoZ+n" crossorigin="anonymous"></script>
+{{-- <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script> --}}
+
 <link href="https://cdn.jsdelivr.net/npm/summernote@0.9.0/dist/summernote-lite.min.css" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/summernote@0.9.0/dist/summernote-lite.min.js"></script>
-<script>
-  $('#summernote').summernote({
-    placeholder: 'Hello stand alone ui',
-    tabsize: 2,
-    height: 120,
-    toolbar: [
-      ['style', ['style']],
-      ['font', ['bold', 'underline', 'clear']],
-      ['color', ['color']],
-      ['para', ['ul', 'ol', 'paragraph']],
-      ['table', ['table']],
-      ['insert', ['link', 'picture']],
-      ['view', ['codeview', 'help']]
-    ]
-  });
-</script>
+{{-- <script src="https://cdn.jsdelivr.net/npm/summernote@0.9.0/dist/summernote-lite.min.js"></script> --}}
+
+{{-- <script>
+$(document).ready(function () {
+    $('#summernote').summernote({
+        placeholder: 'Write blog content...',
+        tabsize: 2,
+        height: 400,
+        toolbar: [
+            ['style', ['style']],
+            ['font', ['bold', 'italic', 'underline', 'clear']],
+            ['para', ['ul', 'ol', 'paragraph']],
+            ['insert', ['link', 'picture']],
+            ['view', ['codeview']]
+        ]
+    });
+});
+</script> --}}
 
 <script>
     document.addEventListener("DOMContentLoaded", function () {
@@ -159,5 +162,33 @@
       });
   });
 </script>
+<link href="https://cdn.jsdelivr.net/npm/summernote@0.9.0/dist/summernote-lite.min.css" rel="stylesheet">
 
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    function loadScript(src, callback) {
+        let script = document.createElement('script');
+        script.src = src;
+        script.onload = callback;
+        document.body.appendChild(script);
+    }
+
+    loadScript('https://code.jquery.com/jquery-3.7.1.min.js', function () {
+        loadScript('https://cdn.jsdelivr.net/npm/summernote@0.9.0/dist/summernote-lite.min.js', function () {
+            $('#summernote').summernote({
+                placeholder: 'Write blog content...',
+                tabsize: 2,
+                height: 400,
+                toolbar: [
+                    ['style', ['style']],
+                    ['font', ['bold', 'italic', 'underline', 'clear']],
+                    ['para', ['ul', 'ol', 'paragraph']],
+                    ['insert', ['link', 'picture']],
+                    ['view', ['codeview']]
+                ]
+            });
+        });
+    });
+});
+</script>
 @endsection

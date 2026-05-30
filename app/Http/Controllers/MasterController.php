@@ -18,7 +18,7 @@ use App\Models\Status;
 use App\Models\User;
 use App\Models\College;
 use App\Models\Source;
-use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Hash; 
 
 
 class MasterController extends Controller
@@ -199,15 +199,22 @@ class MasterController extends Controller
         $p_name = $request->input('p_name');
 
         $query = Payment::with('order.user')
-            ->orderByRaw("
+        //     ->orderByRaw("
+        //     CASE
+        //         WHEN account_status = 1 AND (payee_name IS NULL OR payee_name = '') THEN 0
+        //         WHEN account_status = 1 THEN 1
+        //         WHEN account_status = 0 AND (payee_name IS NULL OR payee_name = '') THEN 2
+        //         ELSE 3
+        //     END
+        // ")
+        //     ->orderByDesc('id');
+        ->orderByRaw("
             CASE
-                WHEN account_status = 1 AND (payee_name IS NULL OR payee_name = '') THEN 0
-                WHEN account_status = 1 THEN 1
-                WHEN account_status = 0 AND (payee_name IS NULL OR payee_name = '') THEN 2
-                ELSE 3
+                WHEN account_status = 1 OR account_status IS NULL THEN 0
+                WHEN account_status = 0 THEN 1
+                ELSE 2
             END
-        ")
-            ->orderByDesc('id');
+        ")->orderByDesc('created_at')->orderByDesc('id');
 
 
         if ($OrderCode != '') {

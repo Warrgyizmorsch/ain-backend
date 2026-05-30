@@ -412,7 +412,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/admin/user-history/{userId}', [UserController::class, 'userHistory'])->name('user.history');
     Route::post('/admin/force-logout/{user}', [UserController::class, 'forceLogout'])->name('admin.force-logout');
     Route::get('/admin/ticket-report', [OrderController::class, 'ticketReport'])->name('admin.ticket-report');
-    Route::post('/user-save-review', [UserController::class, 'saveReview'])->name('user.save.review');
+    Route::post('/user-save-review', [UserController::class, 'saveClientBehaviour'])->name('user.save.review');
     // Route::post('/user-save-marks', [UserController::class, 'saveMarks'])->name('user.save.marks');
     Route::post('/order-rate-writer', [OrderController::class, 'rateWriter'])->name('order.rate.writer');
     Route::get('/user/report/{id}', [UserController::class, 'showUserProfile'])->name('user.report');
@@ -420,7 +420,6 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/user-report', [UserHistoryController::class, 'report'])->name('user.user-report');
     Route::get('/user-report/list', [UserHistoryController::class, 'getList'])->name('user.user-report');
     Route::get('/user/report-list/data', [UserHistoryController::class, 'getReportUsers'])->name('user.report.users'); //reporting list
-
 
     });
     // Route::get('/analytics-report', [UserHistoryController::class, 'analyticsReport'])->name('analytics.report');
@@ -463,6 +462,7 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/user/break/current', [HomeController::class, 'currentBreak'])->name('user.break.current');
         Route::get('/break-time-report', [HomeController::class, 'breakTimeReport'])->name('break.time.report');
         Route::get('/user-retention-report', [UserHistoryController::class, 'userRetentionReport'])->name('user.retention.report');
+        Route::get('/user/latest-behaviour/{userId}', [UserController::class, 'latestClientBehaviour'])->name('user.latest.behaviour');
     });
 
     

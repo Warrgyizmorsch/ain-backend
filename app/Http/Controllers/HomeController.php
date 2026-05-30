@@ -1441,6 +1441,24 @@ class HomeController extends Controller
 
         return view("frontend.header.blog-detail", compact('data'));
     }
+    
+    private function cleanBlogContent($html)
+{
+    // span remove karo but andar ka content + h2/h3/p/ul/ol safe rahe
+    $html = preg_replace('/<span[^>]*>/is', '', $html);
+    $html = preg_replace('/<\/span>/is', '', $html);
+
+    // inline CSS remove karo, tag mat badlo
+    $html = preg_replace('/\sstyle=("|\')(.*?)("|\')/is', '', $html);
+    $html = preg_replace('/\sclass=("|\')(.*?)("|\')/is', '', $html);
+    $html = preg_replace('/\sdir=("|\')(.*?)("|\')/is', '', $html);
+
+    $html = str_replace('&nbsp;', ' ', $html);
+    $html = preg_replace('/<p>\s*<\/p>/i', '', $html);
+    $html = preg_replace('/<p><br><\/p>/i', '', $html);
+
+    return trim($html);
+}
 
     public function blog_store(Request $request)
     {
@@ -1448,6 +1466,7 @@ class HomeController extends Controller
             // Validate the request data
             $request->validate([
                 'blogTitle' => 'required',
+                'blogUrl' => 'required',
                 'blogContent' => 'required',
                 'MetaTag' => 'required',
                 'Metadescription' => 'required',
@@ -1461,14 +1480,16 @@ class HomeController extends Controller
             }
 
             // Generate a unique slug for the blog title
-            $slug = Str::slug($request->input('blogTitle'), '-');
+            // $slug = Str::slug($request->input('blogTitle'), '-');
+            $slug = Str::slug($request->input('blogUrl'), '-');
             $existingSlugCount = Blog::where('slug', $slug)->count();
             if ($existingSlugCount > 0) {
                 $slug .= '-' . ($existingSlugCount + 1);
             }
 
             $blog = new Blog;
-            $blogContent = $request['blogContent'];
+            // $blogContent = $request['blogContent'];
+            $blogContent = $this->cleanBlogContent($request->input('blogContent'));
 
             // Process Base64 images in <img> tags within the content
             if (strpos($blogContent, '<img') !== false) {
@@ -1590,7 +1611,8 @@ class HomeController extends Controller
 
         // Update the blog attributes
         $blog->tittle = $request->input('blogTitle');
-        $blog->slug = Str::slug($request->input('blogTitle'), '-');
+        // $blog->slug = Str::slug($request->input('blogTitle'), '-');
+        $blog->slug = Str::slug($request->input('blogUrl'), '-');
         $blog->content = $blogContent;
         $blog->FAQ = $request->input('faq_data');
         $blog->meta_title = $request->input('MetaTag');

@@ -36,6 +36,10 @@
                             </div>
                         </div>
                         <div class="mb-3">
+                            <label for="blogUrl" class="form-label">Blog URL</label>
+                            <input type="text" class="form-control" id="blogUrl" name="blogUrl" required>
+                        </div>
+                        <div class="mb-3">
                             <label for="blogTitle" class="form-label">Blog Title</label>
                             <input type="text" class="form-control" id="blogTitle" name="blogTitle" required>
                             <input type="hidden" name="type" value="blog">
@@ -85,24 +89,66 @@
     </div>
 </div>
 
-<script src="https://code.jquery.com/jquery-3.4.1.slim.min.js" integrity="sha384-J6qa4849blE2+poT4WnyKhv5vZF5SrPo0iEjwBvKU7imGFAV0wwj1yYfoRSJoZ+n" crossorigin="anonymous"></script>
+{{-- <script src="https://code.jquery.com/jquery-3.4.1.slim.min.js" integrity="sha384-J6qa4849blE2+poT4WnyKhv5vZF5SrPo0iEjwBvKU7imGFAV0wwj1yYfoRSJoZ+n" crossorigin="anonymous"></script> --}}
 <link href="https://cdn.jsdelivr.net/npm/summernote@0.9.0/dist/summernote-lite.min.css" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/summernote@0.9.0/dist/summernote-lite.min.js"></script>
-<script>
-  $('#summernote').summernote({
-    placeholder: 'Hello stand alone ui',
+{{-- <script src="https://cdn.jsdelivr.net/npm/summernote@0.9.0/dist/summernote-lite.min.js"></script> --}}
+{{-- <script>
+$('#summernote').summernote({
+    placeholder: 'Write blog content...',
     tabsize: 2,
-    height: 120,
+    height: 400,
     toolbar: [
-      ['style', ['style']],
-      ['font', ['bold', 'underline', 'clear']],
-      ['color', ['color']],
-      ['para', ['ul', 'ol', 'paragraph']],
-      ['table', ['table']],
-      ['insert', ['link', 'picture']],
-      ['view', ['codeview', 'help']]
-    ]
-  });
+        ['style', ['style']],
+        ['font', ['bold', 'italic', 'underline', 'clear']],
+        ['para', ['ul', 'ol', 'paragraph']],
+        ['insert', ['link', 'picture']],
+        ['view', ['codeview']]
+    ],
+    callbacks: {
+        onPaste: function(e) {
+            setTimeout(function() {
+                let content = $('#summernote').summernote('code');
+
+                content = content
+                    .replace(/<span[^>]*>/gi, '')
+                    .replace(/<\/span>/gi, '')
+                    .replace(/\sstyle="[^"]*"/gi, '')
+                    .replace(/\sclass="[^"]*"/gi, '')
+                    .replace(/\sdir="[^"]*"/gi, '');
+
+                $('#summernote').summernote('code', content);
+            }, 100);
+        }
+    }
+});
+</script> --}}
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    function loadScript(src, callback) {
+        let script = document.createElement('script');
+        script.src = src;
+        script.onload = callback;
+        document.body.appendChild(script);
+    }
+
+    loadScript('https://code.jquery.com/jquery-3.7.1.min.js', function () {
+        loadScript('https://cdn.jsdelivr.net/npm/summernote@0.9.0/dist/summernote-lite.min.js', function () {
+            $('#summernote').summernote({
+                placeholder: 'Write blog content...',
+                tabsize: 2,
+                height: 400,
+                toolbar: [
+                    ['style', ['style']],
+                    ['font', ['bold', 'italic', 'underline', 'clear']],
+                    ['para', ['ul', 'ol', 'paragraph']],
+                    ['insert', ['link', 'picture']],
+                    ['view', ['codeview']]
+                ]
+            });
+        });
+    });
+});
 </script>
 
 <script>

@@ -215,7 +215,7 @@ if ($failedDate && $failedDate->diffInDays(now()) <= 365) {
                     {{ $order->team->team_name }}
                 </span>
             @endif
-                <br>
+                
             @endif
 
             @if($order->marks)
@@ -223,7 +223,7 @@ if ($failedDate && $failedDate->diffInDays(now()) <= 365) {
             @endif
 
             @if($order->semester)
-            <span class="badge badge-light-warning fs-7 fw-bold mb-1">{{ $order->semester }}</span><br>
+            <span class="badge badge-light-warning fs-7 fw-bold mb-1">{{ $order->semester }}</span>
             @endif
 
              @if($order->offer)
@@ -231,7 +231,7 @@ if ($failedDate && $failedDate->diffInDays(now()) <= 365) {
             @endif
 
             @if($order->feedback_ticket)
-            <span class="badge badge-light-danger fs-7 fw-bold mb-1">{{ $order->feedback_ticket }}</span><br>
+            <span class="badge badge-light-danger fs-7 fw-bold mb-1">{{ $order->feedback_ticket }}</span>
             @endif
 
             @if ($order->resit == 'on')
@@ -239,7 +239,7 @@ if ($failedDate && $failedDate->diffInDays(now()) <= 365) {
             @endif
 
             @if($order->services == 'First Class Work')
-            <span class="badge badge-light-info fs-7 fw-bold mb-1">First Class Work</span><br>
+            <span class="badge badge-light-info fs-7 fw-bold mb-1">First Class Work</span>
             @endif
 
             @if($order->is_fail == 1)
@@ -290,7 +290,7 @@ if ($failedDate && $failedDate->diffInDays(now()) <= 365) {
                 } else { 
                     $class = "badge-light-info"; 
                     $label = "Beginner"; 
-                }
+                } 
             @endphp
 
             <span class="badge {{ $class }} fw-bold fs-8" style="width: fit-content;">
@@ -300,8 +300,7 @@ if ($failedDate && $failedDate->diffInDays(now()) <= 365) {
             <span class="fs-7 fw-bold">{{ $order->user->email }}</span><br>
 
             <div class="d-flex justify-content-center align-items-center gap-2 mt-2">
-                <button type="button" class="btn btn-icon btn-sm btn-light-info" title="Add Review"
-                    onclick="openReviewModal({{ $order->user->id }}, '{{ addslashes($order->user->client_review ?? '') }}')">
+                <button type="button" class="btn btn-icon btn-sm btn-light-info" title="Add Review" onclick="openReviewModal({{ $order->user->id }})">
                     <span class="fw-bold fs-6">B</span>
                 </button>
 
