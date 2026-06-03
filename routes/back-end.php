@@ -24,6 +24,7 @@ use App\Http\Controllers\OrderController;
 use App\Http\Controllers\PrimeassimentController;
 use Illuminate\View\Concerns\ManagesFragments;
 use App\Http\Controllers\UserHistoryController; 
+use App\Http\Controllers\ReportController;
 
 Route::middleware(['auth'])->group(function () {
 
@@ -137,6 +138,7 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/update-payment-status/bulk', [MasterController::class, 'bulkUpdateStatus'])->name('payments.bulkUpdateStatus');
     Route::post('/Payments', [MasterController::class, 'update_payments'])->name('update_payments');
     Route::delete('/Payments/{id}', [MasterController::class, 'delete_payments'])->name('delete_payments');
+    Route::post('/payments/revoke/{id}', [MasterController::class, 'revokePayment'])->name('payments.revoke');
 
 
     // Writer Managment
@@ -463,6 +465,9 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/break-time-report', [HomeController::class, 'breakTimeReport'])->name('break.time.report');
         Route::get('/user-retention-report', [UserHistoryController::class, 'userRetentionReport'])->name('user.retention.report');
         Route::get('/user/latest-behaviour/{userId}', [UserController::class, 'latestClientBehaviour'])->name('user.latest.behaviour');
+        Route::get('/follow-up-report', [ReportController::class, 'followUpReport'])->name('follow.up.report');
+        Route::get('/revoke-payments', [OrderController::class, 'revokePayments'])->name('payments.revoke.list');
+        Route::get('/revoke-payments/filter', [OrderController::class, 'revokePaymentsFilter'])->name('payments.revoke.filter');
     });
 
     

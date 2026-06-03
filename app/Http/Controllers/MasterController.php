@@ -210,6 +210,7 @@ class MasterController extends Controller
         //     ->orderByDesc('id');
         ->orderByRaw("
             CASE
+                
                 WHEN account_status = 1 OR account_status IS NULL THEN 0
                 WHEN account_status = 0 THEN 1
                 ELSE 2
@@ -320,6 +321,46 @@ class MasterController extends Controller
             // Handle any exceptions
             return response()->json(['message' => 'Failed to delete payment'], 500);
         }
+    }
+    public function revokePayment(Request $request, $id)
+    {
+        $request->validate([
+            'revoke_comment' => 'required|string|max:1000',
+        ]);
+
+        $payment = Payment::find($id);
+
+        if (!$payment) {
+            return back()->with('error', 'Payment not found.');
+        }
+
+        if ($payment->is_revoked == 1) {
+            return back()->with('error', 'Payment already revoked.');
+        }
+
+        $payment->is_revoked = 1;
+        $payment->revoke_comment = $request->revoke_comment;
+        $payment->revoked_by = auth()->id();
+        $payment->revoked_at = now();
+
+        // optional: revoked payment ko approved/unapproved se alag rakhne ke liye
+        $payment->account_status = 2;
+
+        $payment->save();
+
+        // order received amount update
+        $totalPaidAmount = Payment::where('order_id', $payment->order_id)
+            ->where('is_revoked', 0)
+            ->sum('paid_amount');
+
+        $order = Order::find($payment->order_id);
+
+        if ($order) {
+            $order->received_amount = $totalPaidAmount;
+            $order->save();
+        }
+
+        return back()->with('success', 'Payment revoked successfully.');
     }
     // public function bulkUpdateStatus(Request $request)
     // {

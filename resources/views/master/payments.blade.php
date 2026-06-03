@@ -67,7 +67,11 @@
                                 </tbody >
                             
                                 @foreach($data['payments'] as $payment)
-                                  <tr @if ($payment->account_status == 1) style="font-weight: bold;" @endif>
+                                  {{-- <tr @if ($payment->account_status == 1) style="font-weight: bold;" @endif> --}}
+                                    <tr @if ($payment->is_revoked == 1) style="background:#fff5f5; opacity:0.7;"
+                                        @elseif ($payment->account_status == 1)
+                                            style="font-weight:bold;"
+                                        @endif>
 
                                     <td class='text-center'>{{$loop->index + 1 + ($data['payments']->perPage() * ($data['payments']->currentPage() - 1))}}</td>
                                         <td>{{$payment->payment_date  }}</td>
@@ -123,6 +127,17 @@
                                                     </svg>
                                                 </span>
                                             </a>
+                                            @if($payment->is_revoked == 0)
+                                                <a href="#"
+                                                data-bs-toggle="modal"
+                                                data-bs-target="#revokePaymentModal{{ $payment->id }}"
+                                                class="btn btn-icon btn-bg-warning btn-active-color-light btn-sm me-1"
+                                                title="Revoke Payment">
+                                                    <span class="svg-icon svg-icon-3">
+                                                        <i class="fa fa-undo fa-lg text-white"></i>
+                                                    </span>
+                                                </a>
+                                            @endif
                                             <!-- Add checkbox input -->
                                         @endif
                                             <a href="#" id="" style="color:white" class="btn btn-icon btn-bg-primary btn-active-color-light btn-sm me-1">
@@ -143,6 +158,38 @@
                                             </a>
                                         </td>
                                     </tr>
+
+                                    <div class="modal fade" id="revokePaymentModal{{ $payment->id }}" tabindex="-1" aria-hidden="true">
+                                        <div class="modal-dialog">
+                                            <form method="POST" action="{{ route('payments.revoke', $payment->id) }}">
+                                                @csrf
+
+                                                <div class="modal-content">
+                                                    <div class="modal-header">
+                                                        <h5 class="modal-title">Revoke Payment</h5>
+                                                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                                    </div>
+
+                                                    <div class="modal-body">
+                                                        <p class="fw-bold text-danger">
+                                                            Are you sure you want to revoke this payment?
+                                                        </p>
+
+                                                        <div class="mb-3">
+                                                            <label class="form-label">Comment</label>
+                                                            <textarea name="revoke_comment" class="form-control" rows="4" required
+                                                                placeholder="Enter revoke reason..."></textarea>
+                                                        </div>
+                                                    </div>
+
+                                                    <div class="modal-footer">
+                                                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                                                        <button type="submit" class="btn btn-danger">Yes, Revoke</button>
+                                                    </div>
+                                                </div>
+                                            </form>
+                                        </div>
+                                    </div>
                                 @endforeach
                                 </tbody>
                             </table>

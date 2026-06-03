@@ -74,4 +74,7 @@ CREATE TABLE user_break_times ( id INT(11) NOT NULL AUTO_INCREMENT, user_id INT(
 -- Rahul 26-5-26
 CREATE TABLE client_behaviours ( id INT AUTO_INCREMENT PRIMARY KEY, uid INT NULL, behaviour TEXT NULL, created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP NULL DEFAULT NULL );
 
+--Rahul 02-6-26
+ALTER TABLE payment_details ADD COLUMN is_revoked TINYINT(1) NOT NULL DEFAULT 0 AFTER account_status, ADD COLUMN revoke_comment TEXT NULL AFTER is_revoked, ADD COLUMN revoked_by INT NULL AFTER revoke_comment, ADD COLUMN revoked_at DATETIME NULL AFTER revoked_by;
+
 

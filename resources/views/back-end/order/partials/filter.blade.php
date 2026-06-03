@@ -3,6 +3,7 @@
         <h3 class="card-title align-items-start flex-column">
             <span id="filter-total" class="card-label fw-bolder fs-3 mb-1">Filter</span>
         </h3>
+        @if(empty($hideOrderQuickFilters))
         <div class="card-toolbar gap-2">
             <a href="javascript:void(0)" id="teamAlphaBtn" class="btn btn-sm btn-info">
                 Team-Alpha {{ $alphaCount ?? 0 }}
@@ -11,6 +12,7 @@
                 Team-Giga {{ $gigaCount ?? 0 }}
             </a>
         </div>
+        @endif
     </div>
     <div class="card-body py-3">
         <form action="">
@@ -286,6 +288,7 @@
                     <a onclick="applyFilters()" class="btn btn-sm btn-primary">Search</a>
                     <button type="button" id="resetFiltersBtn" class="btn btn-sm btn-danger" style="display: none;">Reset</button>
                     <button type="button" id="showMoreFilters" class="btn btn-sm btn-success">Show More Filters</button>
+                    @if(empty($hideOrderQuickFilters))
                     <a href="javascript:void(0)" id="overdueBtn" class="btn btn-sm btn-danger">
                         Overdue {{ $overdueCount }}
                     </a>
@@ -314,6 +317,7 @@
                         Team-Giga {{ $gigaCount ?? 0 }}
                     </a> --}}
                     <input type="hidden" id="filter_team_id" value="">
+                    @endif
                 </div>
                 @if( auth()->user()->role_id == 1)
                 <button type="button" class="btn btn-sm btn-danger" style="display: none;" id="export-order-btn">
@@ -561,6 +565,7 @@ resetFilters();
 </script> --}}
 
 <script>
+    let filterStorageKey = "{{ $filterStorageKey ?? 'order_filters' }}";
     let offset = 0;
     const limit = 50;
     let loading = false;
@@ -656,7 +661,8 @@ resetFilters();
         }
 
         $.ajax({
-            url: "{{ route('orders.filter') }}",
+            // url: "{{ route('orders.filter') }}",
+            url: "{{ $filterRoute ?? route('orders.filter') }}",
             type: "GET",
             data: {
                 ...filters,
@@ -698,7 +704,8 @@ resetFilters();
                 }
 
 
-                $('#filter-total').text(`Filtered Orders (${response.total ?? 0} total)`);
+                // $('#filter-total').text(`Filtered Orders (${response.total ?? 0} total)`);
+                $('#filter-total').text(`{{ $filterTitle ?? 'Filtered Orders' }} (${response.total ?? 0} total)`);
 
                 $('#spinner-row').hide();
                 $('#preloader2').hide();
@@ -752,7 +759,8 @@ resetFilters();
             today_writer_deadline_filter: $('#today_writer_deadline_filter').val()
             
         };
-        localStorage.setItem('order_filters', JSON.stringify(filters));
+        // localStorage.setItem('order_filters', JSON.stringify(filters));
+        localStorage.setItem(filterStorageKey, JSON.stringify(filters));
 
 
 
@@ -778,7 +786,8 @@ resetFilters();
     }
 
     function resetFilters() {
-        localStorage.removeItem('order_filters');
+        // localStorage.removeItem('order_filters');
+        localStorage.removeItem(filterStorageKey);
         // Clear filter values
         $('input[type=search], input[type=date], input[type=month], input[type=text], input[type=hidden]').val('');
         $('select').val('').trigger('change');
@@ -867,7 +876,8 @@ resetFilters();
             resetFilters();
         });
 
-        let savedFilters = localStorage.getItem('order_filters');
+        // let savedFilters = localStorage.getItem('order_filters');
+        let savedFilters = localStorage.getItem(filterStorageKey);
         if (savedFilters) {
             filters = JSON.parse(savedFilters);
 
