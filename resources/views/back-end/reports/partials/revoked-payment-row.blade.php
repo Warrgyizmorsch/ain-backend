@@ -19,15 +19,15 @@
 
                 <!-- Button to Open Unified Payment Page -->
                 <!-- Button to Open Unified Payment Page -->
-                <a href="{{ route('orders.payment.form', ['orderId' => $order->id]) }}"
+                {{-- <a href="{{ route('orders.payment.form', ['orderId' => $order->id]) }}"
                     target="_blank"
                     class="btn btn-icon btn-success btn-sm position-relative"
                     title="Add/Edit Payment">
 
-                    <i class="fa fa-money"></i>
+                    <i class="fa fa-money"></i> --}}
 
                     {{-- Check if any payment is missing payee_name or company_accounts --}}
-                    @if($order->payment->contains(function($p) {
+                    {{-- @if($order->payment->contains(function($p) {
                     return empty($p->payee_name) || empty($p->company_accounts);
                     }))
                     <i class="fa fa-question-circle text-danger bg-white"
@@ -35,6 +35,17 @@
                         style="position: absolute; top: -3px; right: -3px; font-size: 11px; border-radius: 50%;"></i>
                     @endif
 
+                </a> --}}
+
+                <a href="{{ route('orders.payment.form', [
+                        'orderId' => $order->id,
+                        'paymentId' => $payment->id
+                    ]) }}"
+                    target="_blank"
+                    class="btn btn-icon btn-success btn-sm position-relative"
+                    title="View Revoked Payment">
+
+                    <i class="fa fa-money"></i>
                 </a>
 
 
@@ -43,7 +54,15 @@
                     <i class="fa fa-times-circle"></i>
                 </a>
 
-                @if(auth()->user()->role_id == 1)
+                {{-- <a href="#"
+                data-bs-toggle="modal"
+                data-bs-target="#requestExtensionModal{{ $payment->id }}"
+                class="btn btn-icon btn-warning btn-sm"
+                title="Request Deadline Extension">
+                    <span class="fw-bold text-white">E</span>
+                </a> --}}
+
+                {{-- @if(auth()->user()->role_id == 1)
                     <button type="button" class="btn btn-icon btn-sm btn-light-danger" title="Looking For Refund" onclick="markLookingForRefund({{ $order->id }})">
                         <span class="fw-bold fs-6">R</span>
                     </button>
@@ -51,7 +70,7 @@
                     <button type="button" class="btn btn-icon btn-sm btn-light-primary" title="Add Additional" onclick="openAdditionalModal({{ $order->id }})">
                         <span class="fw-bold fs-6">A</span>
                     </button>
-                @endif
+                @endif --}}
 
                 @if(auth()->user()->role_id == 9)
                 <a onclick="CallToWriter('{{ $order->id }}')" class="btn btn-icon btn-bg-warning btn-active-color-dark btn-color-white btn-sm me-1 download-btn">
@@ -65,7 +84,7 @@
         </td>
 
     <td class="text-center">
-        <div style="background-color: #fff5f5; border-radius: 8px; padding: 12px; margin-top: 5px; border: 1px solid #f1416c; text-align: left; min-width: 220px;">
+        <div style="background-color: {{ $payment->revoke_resolved ? '#f0fff4' : '#fff5f5' }}; border-radius: 8px;padding: 12px; margin-top: 5px; border: 1px solid {{ $payment->revoke_resolved ? '#50cd89' : '#f1416c' }}; text-align: left; min-width: 220px;">
             <div class="d-flex justify-content-between align-items-center mb-2">
                 <span class="fw-bolder fs-6" style="color: #5e6278;">Revoked Payment</span>
                 <span class="text-muted fs-8 fw-bold">
@@ -77,10 +96,25 @@
                 {{ $payment->revoke_comment ?? 'No Comment Found' }}
             </div>
 
-            <div class="d-flex align-items-center fw-bolder fs-7" style="color: #f1416c;">
-                <i class="fa fa-calendar-alt me-2" style="color: #f1416c; font-size: 1.1rem;"></i>
+            <div class="d-flex align-items-center fw-bolder fs-7" style="color: {{ $payment->revoke_resolved ? '#50cd89' : '#f1416c' }};">
+                <i class="fa fa-calendar-alt me-2"
+                    style="color: {{ $payment->revoke_resolved ? '#50cd89' : '#f1416c' }};
+                    font-size:1.1rem;">
+                </i>
                 {{ $payment->revoked_at ? \Carbon\Carbon::parse($payment->revoked_at)->format('d M Y, h:i A') : 'Date N/A' }}
             </div>
+            @if($payment->revoke_deadline_at && $payment->revoke_resolved == 0)
+                <div class="mt-3">
+                    <span
+                        class="badge badge-light-warning revoke-countdown-badge"
+                        data-payment-id="{{ $payment->id }}"
+                        data-deadline="{{ \Carbon\Carbon::parse($payment->revoke_deadline_at)->toIso8601String() }}"
+                        style="font-size: 12px; padding: 8px 12px;"
+                    >
+                        Loading timer...
+                    </span>
+                </div>
+            @endif
         </div>
     </td>
 
@@ -211,3 +245,45 @@
         </td>
     @endif
 </tr>
+
+<div class="modal fade" id="requestExtensionModal{{ $payment->id }}" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <form method="POST" action="{{ route('revoke.extension.request', $payment->id) }}">
+            @csrf
+
+            <div class="modal-content">
+                <div class="modal-header bg-warning">
+                    <h5 class="modal-title text-white">Request Deadline Extension</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+
+                <div class="modal-body">
+                    <p class="fw-bold mb-3">
+                        Are you sure you want to request admin approval to extend this revoke payment deadline?
+                    </p>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Comment</label>
+                        <textarea name="comment"
+                                  class="form-control"
+                                  rows="4"
+                                  required
+                                  placeholder="Enter reason for deadline extension..."></textarea>
+                    </div>
+
+                    <input type="hidden" name="payment_id" value="{{ $payment->id }}">
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">
+                        Cancel
+                    </button>
+
+                    <button type="submit" class="btn btn-warning">
+                        Send Request
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>

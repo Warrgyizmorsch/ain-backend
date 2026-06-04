@@ -209,13 +209,14 @@ class MasterController extends Controller
         // ")
         //     ->orderByDesc('id');
         ->orderByRaw("
-            CASE
-                
-                WHEN account_status = 1 OR account_status IS NULL THEN 0
-                WHEN account_status = 0 THEN 1
-                ELSE 2
-            END
-        ")->orderByDesc('created_at')->orderByDesc('id');
+    CASE
+        WHEN account_status = 1 OR account_status IS NULL OR account_status = 2 THEN 0
+        WHEN account_status = 0 THEN 1
+        ELSE 2
+    END
+")
+->orderByDesc('created_at')
+->orderByDesc('id');
 
 
         if ($OrderCode != '') {
@@ -280,7 +281,10 @@ class MasterController extends Controller
         $payment->paid_amount = $request->price;
         $payment->company_accounts = $request->company_accounts;
         $payment->reference = $request->message;
-
+        
+        if ($payment->is_revoked == 1) {
+            $payment->revoke_resolved = 1;
+        }
         // Save the updated payment
         $payment->save();
 
@@ -322,7 +326,7 @@ class MasterController extends Controller
             return response()->json(['message' => 'Failed to delete payment'], 500);
         }
     }
-    public function revokePayment(Request $request, $id)
+   public function revokePayment(Request $request, $id)
     {
         $request->validate([
             'revoke_comment' => 'required|string|max:1000',
@@ -334,21 +338,63 @@ class MasterController extends Controller
             return back()->with('error', 'Payment not found.');
         }
 
-        if ($payment->is_revoked == 1) {
+        // Agar payment already revoked hai aur abhi resolve nahi hua
+        // to dobara revoke allow nahi karna
+        if ($payment->is_revoked == 1 && $payment->revoke_resolved == 0) {
             return back()->with('error', 'Payment already revoked.');
         }
 
+        /*
+        |--------------------------------------------------------------------------
+        | Start New Revoke Cycle
+        |--------------------------------------------------------------------------
+        | Agar payment first time revoke ho raha hai ya pehle resolved tha,
+        | dono cases me new revoke cycle start hoga.
+        */
+
         $payment->is_revoked = 1;
+        $payment->revoke_resolved = 0;
+
         $payment->revoke_comment = $request->revoke_comment;
         $payment->revoked_by = auth()->id();
         $payment->revoked_at = now();
 
-        // optional: revoked payment ko approved/unapproved se alag rakhne ke liye
-        $payment->account_status = 2;
+        // 3 days deadline excluding Sunday
+        $payment->revoke_deadline_at = $this->addDaysExcludingSunday(now(), 3);
+        $payment->revoke_last_action_at = now();
+
+        /*
+        |--------------------------------------------------------------------------
+        | Reset Old Alert Data
+        |--------------------------------------------------------------------------
+        | Agar pehle admin ne alert close kiya tha ya old cycle ka data bacha hua tha,
+        | to dobara revoke pe sab reset ho jayega.
+        */
+
+        $payment->revoke_alert_closed = 0;
+        $payment->revoke_alert_closed_by = null;
+        $payment->revoke_alert_closed_at = null;
+
+        /*
+        |--------------------------------------------------------------------------
+        | Account Status
+        |--------------------------------------------------------------------------
+        | Agar tum nahi chahte revoke payment list me niche chali jaye,
+        | to account_status ko 2 mat karo.
+        | Existing status ko as it is rehne do.
+        */
+
+        // $payment->account_status = 2; // Isko commented rakho
 
         $payment->save();
 
-        // order received amount update
+        /*
+        |--------------------------------------------------------------------------
+        | Recalculate Order Received Amount
+        |--------------------------------------------------------------------------
+        | Revoked payments ko received amount se exclude karna hai.
+        */
+
         $totalPaidAmount = Payment::where('order_id', $payment->order_id)
             ->where('is_revoked', 0)
             ->sum('paid_amount');
@@ -361,6 +407,24 @@ class MasterController extends Controller
         }
 
         return back()->with('success', 'Payment revoked successfully.');
+    }
+
+    private function addDaysExcludingSunday($startDate, $days = 3)
+    {
+        $date = \Carbon\Carbon::parse($startDate)->copy();
+
+        $addedDays = 0;
+
+        while ($addedDays < $days) {
+
+            $date->addDay();
+
+            if (!$date->isSunday()) {
+                $addedDays++;
+            }
+        }
+
+        return $date;
     }
     // public function bulkUpdateStatus(Request $request)
     // {
@@ -672,16 +736,47 @@ class MasterController extends Controller
             return redirect()->back()->with('error', 'Writer Team Leader not found');
         }
     }
+    // public function updateAccountStatus(Request $request, $id)
+    // {
+    //     try {
+    //         $payment = Payment::findOrFail($id);
+    //         $payment->account_status = $request->input('account_status');
+    //         $payment->save();
+
+    //         return response()->json(['success' => true, 'message' => 'Account status updated successfully']);
+    //     } catch (\Exception $e) {
+    //         return response()->json(['success' => false, 'message' => $e->getMessage()]);
+    //     }
+    // }
     public function updateAccountStatus(Request $request, $id)
     {
         try {
             $payment = Payment::findOrFail($id);
+
             $payment->account_status = $request->input('account_status');
+
+            // Agar revoked payment ko checkbox se approve kiya gaya
+            if (
+                $request->input('account_status') == 1 &&
+                $payment->is_revoked == 1
+            ) {
+                $payment->is_revoked = 0;
+                $payment->revoke_resolved = 1;
+            }
+
             $payment->save();
 
-            return response()->json(['success' => true, 'message' => 'Account status updated successfully']);
+            return response()->json([
+                'success' => true,
+                'message' => 'Account status updated successfully'
+            ]);
+
         } catch (\Exception $e) {
-            return response()->json(['success' => false, 'message' => $e->getMessage()]);
+
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage()
+            ]);
         }
     }
 

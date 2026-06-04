@@ -67,17 +67,45 @@
                                 </tbody >
                             
                                 @foreach($data['payments'] as $payment)
-                                  {{-- <tr @if ($payment->account_status == 1) style="font-weight: bold;" @endif> --}}
-                                    <tr @if ($payment->is_revoked == 1) style="background:#fff5f5; opacity:0.7;"
-                                        @elseif ($payment->account_status == 1)
-                                            style="font-weight:bold;"
-                                        @endif>
+                                <tr @if ($payment->account_status == 1) style="font-weight: bold;" @endif>
 
                                     <td class='text-center'>{{$loop->index + 1 + ($data['payments']->perPage() * ($data['payments']->currentPage() - 1))}}</td>
                                         <td>{{$payment->payment_date  }}</td>
-                                        <td>
+                                        {{-- <td>
                                             @if($payment->order && $payment->order->order_id)
                                                 {{$payment->order->order_id}}
+                                            @else
+                                                N/A
+                                            @endif
+                                        </td> --}}
+                                        <td>
+                                            @if($payment->order && $payment->order->order_id)
+
+                                                @if($payment->is_revoked == 1)
+
+                                                    <div style="
+                                                        background-color: {{ $payment->revoke_resolved ? '#f0fff4' : '#fff5f5' }};
+                                                        border: 1px solid {{ $payment->revoke_resolved ? '#50cd89' : '#f1416c' }};
+                                                        border-radius: 8px;
+                                                        padding: 8px;
+                                                        text-align: center;
+                                                        min-width: 120px;
+                                                    ">
+                                                        <div class="fw-bold">
+                                                            {{ $payment->order->order_id }}
+                                                        </div>
+
+                                                        <small style="color: {{ $payment->revoke_resolved ? '#50cd89' : '#f1416c' }}">
+                                                            {{ $payment->revoke_resolved ? 'Resolved' : 'Revoked' }}
+                                                        </small>
+                                                    </div>
+
+                                                @else
+
+                                                    {{ $payment->order->order_id }}
+
+                                                @endif
+
                                             @else
                                                 N/A
                                             @endif
@@ -127,14 +155,15 @@
                                                     </svg>
                                                 </span>
                                             </a>
-                                            @if($payment->is_revoked == 0)
+                                            {{-- @if($payment->is_revoked == 0) --}}
+                                            @if($payment->is_revoked == 0 || $payment->revoke_resolved == 1)
                                                 <a href="#"
                                                 data-bs-toggle="modal"
                                                 data-bs-target="#revokePaymentModal{{ $payment->id }}"
                                                 class="btn btn-icon btn-bg-warning btn-active-color-light btn-sm me-1"
                                                 title="Revoke Payment">
-                                                    <span class="svg-icon svg-icon-3">
-                                                        <i class="fa fa-undo fa-lg text-white"></i>
+                                                    <span class="fw-bold text-white">
+                                                        R
                                                     </span>
                                                 </a>
                                             @endif

@@ -13,7 +13,7 @@
         'filterRoute' => route('payments.revoke.filter'),
         'filterTitle' => 'Filtered Revoked Payments',
         'filterStorageKey' => 'revoke_payment_filters',
-        'hideOrderQuickFilters' => true
+        'hideOrderQuickFilters' => true 
     ])
     <div class="card">
         <div class="card-header border-0 pt-5">
@@ -48,7 +48,7 @@
                         </tr>
                     </thead>
 
-                    <tbody>
+                    {{-- <tbody>
                         @foreach($data['payments'] as $payment)
                             @php
                                 $order = $payment->order;
@@ -63,6 +63,34 @@
                                 ])
                             @endif
                         @endforeach
+                    </tbody> --}}
+                    <tbody id="initial-order-rows">
+                        @foreach($data['payments'] as $payment)
+                            @php
+                                $order = $payment->order;
+                                $index = $loop->index + ($data['payments']->perPage() * ($data['payments']->currentPage() - 1));
+                            @endphp
+
+                            @if($order)
+                                @include('back-end.reports.partials.revoked-payment-row', [
+                                    'order' => $order,
+                                    'payment' => $payment,
+                                    'index' => $index
+                                ])
+                            @endif
+                        @endforeach
+                    </tbody>
+
+                    <tbody id="lead-rows" style="display:none;"></tbody>
+
+                    <tbody>
+                        <tr id="spinner-row" style="display:none;">
+                            <td colspan="16" class="text-center">
+                                <div class="loading-container">
+                                    <div class="loading-spinner"></div>
+                                </div>
+                            </td>
+                        </tr>
                     </tbody>
                 </table>
 

@@ -468,6 +468,18 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/follow-up-report', [ReportController::class, 'followUpReport'])->name('follow.up.report');
         Route::get('/revoke-payments', [OrderController::class, 'revokePayments'])->name('payments.revoke.list');
         Route::get('/revoke-payments/filter', [OrderController::class, 'revokePaymentsFilter'])->name('payments.revoke.filter');
-    });
+        Route::get('/revoke-payments/active-alerts', [OrderController::class, 'activeRevokeAlerts'])
+            ->name('revoke.alerts.active');
 
-    
+        Route::post('/revoke-payments/request-extension/{paymentId}', [OrderController::class, 'requestRevokeExtension'])
+            ->name('revoke.extension.request');
+
+        Route::get('/admin/revoke-extension-requests', [OrderController::class, 'adminRevokeExtensionRequests'])
+            ->name('admin.revoke.extension.requests');
+
+        Route::post('/admin/revoke-extension-approve/{requestId}', [OrderController::class, 'approveRevokeExtension'])
+            ->name('admin.revoke.extension.approve');
+
+        Route::post('/admin/revoke-extension-reject/{requestId}', [OrderController::class, 'rejectRevokeExtension'])
+            ->name('admin.revoke.extension.reject');
+    });

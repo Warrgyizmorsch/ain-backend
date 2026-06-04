@@ -3405,12 +3405,32 @@ class OrderController extends Controller
         return view('back-end.order.partials.comment', compact('order'));
     }
 
+    // public function showPaymentForm($orderId, $paymentId = null)
+    // {
+    //     $order = Order::with('payment')->findOrFail($orderId);
+    //     $editPayment = $paymentId ? Payment::findOrFail($paymentId) : null;
+    //     return view('back-end.order.payment-page', compact('order', 'editPayment'));
+    // }
     public function showPaymentForm($orderId, $paymentId = null)
-    {
+{
+    if ($paymentId) {
+
+        $order = Order::with(['payment' => function ($q) use ($paymentId) {
+            $q->where('id', $paymentId);
+        }])->findOrFail($orderId);
+
+        $editPayment = Payment::where('id', $paymentId)
+            ->where('order_id', $orderId)
+            ->firstOrFail();
+
+    } else {
+
         $order = Order::with('payment')->findOrFail($orderId);
-        $editPayment = $paymentId ? Payment::findOrFail($paymentId) : null;
-        return view('back-end.order.payment-page', compact('order', 'editPayment'));
+        $editPayment = null;
     }
+
+    return view('back-end.order.payment-page', compact('order', 'editPayment'));
+}
 
     public function storePayment(Request $request, $orderId)
     {
@@ -3553,6 +3573,10 @@ class OrderController extends Controller
         $payment->company_accounts = $request->input('company_accounts') ?? '';
         $payment->reference = $request->input('message') ?? '';
         $payment->payment_update_by = auth()->user()->name;
+        if ($payment->is_revoked == 1) {
+            $payment->revoke_resolved = 1;
+            $payment->revoke_last_action_at = now();
+        }
         $payment->save();
 
         logActivity('Order', [
@@ -4410,4 +4434,396 @@ class OrderController extends Controller
 
     return response()->json(['html' => $html]);
 }
+
+    public function revokePayments(Request $request)
+{
+    $data = [
+        'Team' => Writer::all(),
+        'Status' => Status::all(),
+        'formatting' => Formatting::all(),
+        'service' => Services::all(),
+        'Writting' => Writting::all(),
+        'paper' => Paper::all(),
+        'user' => User::all(),
+        'college' => College::all(),
+        'admin' => User::where('role_id', 8)->where('flag', 0)->get(),
+        'writerTL' => User::where('role_id', 6)->where('flag', 0)->get(),
+        'SubWriter' => User::where('role_id', 7)->where('flag', 0)->get(),
+        'projectStatusCounts' => ProjectStatusCount::all()
+    ];
+
+    $data['payments'] = Payment::with([
+            'order.user',
+            'order.payment',
+            'order.team',
+            'order.feedback.user',
+            'order.feedback.order',
+            'order.lead.call.user',
+            'order.followupComments.user',
+            'order.followupComments.order',
+            'order.additionals'
+        ])
+        ->where('is_revoked', 1)
+        ->whereHas('order', function ($q) {
+            $q->where('uid', '!=', 0);
+        })
+        ->orderByDesc('revoked_at')
+        ->paginate(20);
+
+    $overdueCount = Order::whereNotIn('projectstatus', ['Delivered', 'Completed'])
+        ->whereNotNull('delivery_date')
+        ->where(function ($q) {
+            $q->whereRaw("STR_TO_DATE(CONCAT(delivery_date, ' ', IFNULL(delivery_time,'00:00')), '%Y-%m-%d %H:%i') < NOW()");
+        })
+        ->count();
+
+    $alphaCount = Order::where('team_id', 1)->count();
+    $gigaCount = Order::where('team_id', 2)->count();
+
+    $teams = Team::all();
+
+    return view('back-end.reports.revoke-payments', compact(
+        'data',
+        'overdueCount',
+        'alphaCount',
+        'gigaCount',
+        'teams'
+    ));
 }
+
+    public function revokePaymentsFilter(Request $request)
+{
+    $limit = $request->input('limit', 50);
+    $offset = $request->input('offset', 0);
+
+    $query = Payment::with([
+            'order.user',
+            'order.payment',
+            'order.team',
+            'order.feedback.user',
+            'order.feedback.order',
+            'order.lead.call.user',
+            'order.followupComments.user',
+            'order.followupComments.order',
+            'order.additionals'
+        ])
+        ->where('is_revoked', 1)
+        ->whereHas('order', function ($q) use ($request) {
+            $q->where('uid', '!=', 0);
+
+            if ($request->filled('search')) {
+                $search = $request->search;
+                $q->where(function ($qq) use ($search) {
+                    $qq->where('order_id', 'like', "%{$search}%")
+                       ->orWhere('title', 'like', "%{$search}%");
+                });
+            }
+
+            if ($request->filled('status')) {
+                $q->where('projectstatus', $request->status);
+            }
+
+            if ($request->filled('writer')) {
+                if ($request->writer == 'Not Assign') {
+                    $q->whereNull('writer_name')->orWhere('writer_name', '');
+                } else {
+                    $q->where('writer_name', $request->writer);
+                }
+            }
+
+            if ($request->filled('college')) {
+                $q->where('college_name', $request->college);
+            }
+
+            if ($request->filled('module_code')) {
+                $q->where('module_code', 'like', "%{$request->module_code}%");
+            }
+
+            if ($request->filled('paper_type')) {
+                $q->where('typeofpaper', $request->paper_type);
+            }
+
+            if ($request->filled('semester')) {
+                $q->where('semester', $request->semester);
+            }
+
+            if ($request->filled('team_id')) {
+                $q->where('team_id', $request->team_id);
+            }
+
+            if ($request->filled('offer')) {
+                $q->where('offer', $request->offer);
+            }
+
+            if ($request->filled('extra')) {
+                if ($request->extra == 'tech') {
+                    $q->where('tech', 1);
+                } elseif ($request->extra == 'resit') {
+                    $q->where('resit', 'on');
+                } elseif ($request->extra == '1') {
+                    $q->where('services', 'First Class Work');
+                } elseif ($request->extra == 'failedjob') {
+                    $q->where('is_fail', 1);
+                }
+            }
+
+            if ($request->filled('deadline_status') && $request->deadline_status == 'overdue') {
+                $q->whereNotIn('projectstatus', ['Delivered', 'Completed'])
+                    ->whereNotNull('delivery_date')
+                    ->whereRaw("STR_TO_DATE(CONCAT(delivery_date, ' ', IFNULL(delivery_time,'00:00')), '%Y-%m-%d %H:%i') < NOW()");
+            }
+
+            if ($request->filled('fromDate') && $request->filled('toDate') && $request->filled('dateStatus')) {
+                $q->whereBetween($request->dateStatus, [$request->fromDate, $request->toDate]);
+            }
+        });
+
+    if ($request->filled('uid')) {
+        $query->whereHas('order.user', function ($q) use ($request) {
+            $q->where('id', $request->uid);
+        });
+    }
+
+    if ($request->filled('user')) {
+        $user = $request->user;
+
+        $query->whereHas('order.user', function ($q) use ($user) {
+            $q->where('name', 'like', "%{$user}%")
+              ->orWhere('email', 'like', "%{$user}%")
+              ->orWhere('mobile_no', 'like', "%{$user}%");
+        });
+    }
+
+    $total = $query->count();
+
+    $payments = $query->orderByDesc('revoked_at')
+        ->skip($offset)
+        ->take($limit)
+        ->get();
+
+    $html = '';
+
+    foreach ($payments as $key => $payment) {
+        if ($payment->order) {
+            $html .= view('back-end.reports.partials.revoked-payment-row', [
+                'order' => $payment->order,
+                'payment' => $payment,
+                'index' => $offset + $key
+            ])->render();
+        }
+    }
+
+    return response()->json([
+        'html' => $html,
+        'count' => $payments->count(),
+        'total' => $total,
+        'has_more' => ($offset + $payments->count()) < $total,
+    ]);
+}
+
+public function activeRevokeAlerts()
+{
+    if (!in_array(auth()->user()->role_id, [4, 9])) {
+        return response()->json([]);
+    }
+
+    $payments = Payment::with('order')
+        ->where('is_revoked', 1)
+        ->where('revoke_resolved', 0)
+        ->whereNotNull('revoke_deadline_at')
+        ->get()
+        ->map(function ($payment) {
+            $deadline = \Carbon\Carbon::parse($payment->revoke_deadline_at);
+            $secondsLeft = now()->diffInSeconds($deadline, false);
+
+            $latestRequest = DB::table('revoke_payment_extension_requests')
+                ->where('payment_id', $payment->id)
+                ->latest('id')
+                ->first();
+
+            return [
+                'payment_id' => $payment->id,
+                'order_numeric_id' => optional($payment->order)->id,
+                'order_id' => optional($payment->order)->order_id,
+                'amount' => $payment->paid_amount,
+                'deadline_at' => $deadline->toIso8601String(),
+                'seconds_left' => $secondsLeft,
+                'extension_status' => $latestRequest->status ?? null,
+            ];
+        });
+
+    return response()->json($payments);
+}
+
+public function requestRevokeExtension(Request $request, $paymentId)
+{
+    if (!in_array(auth()->user()->role_id, [4, 9])) {
+        abort(403);
+    }
+
+    $request->validate([
+        'comment' => 'required|string|max:1000',
+    ]);
+
+    $payment = Payment::where('is_revoked', 1)
+        ->where('revoke_resolved', 0)
+        ->findOrFail($paymentId);
+
+    $exists = DB::table('revoke_payment_extension_requests')
+        ->where('payment_id', $payment->id)
+        ->where('status', 'pending')
+        ->first();
+
+    if ($exists) {
+        return back()->with('error', 'Extension request already pending.');
+    }
+
+    DB::table('revoke_payment_extension_requests')->insert([
+        'payment_id' => $payment->id,
+        'requested_by' => auth()->id(),
+        'status' => 'pending',
+        'admin_note' => $request->comment,
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    $payment->revoke_last_action_at = now();
+    $payment->save();
+
+    return back()->with('success', 'Extension request sent to admin.');
+}
+
+public function adminRevokeExtensionRequests()
+{
+    if (auth()->user()->role_id != 1) {
+        abort(403);
+    }
+
+    $requests = DB::table('revoke_payment_extension_requests')
+        ->join('payment_details', 'payment_details.id', '=', 'revoke_payment_extension_requests.payment_id')
+        ->leftJoin('orders', 'orders.id', '=', 'payment_details.order_id')
+        ->leftJoin('users', 'users.id', '=', 'revoke_payment_extension_requests.requested_by')
+        ->where('revoke_payment_extension_requests.status', 'pending')
+        ->where('payment_details.is_revoked', 1)
+        ->where('payment_details.revoke_resolved', 0)
+        ->select(
+            'revoke_payment_extension_requests.id',
+            'payment_details.id as payment_id',
+            'payment_details.paid_amount',
+            'orders.order_id',
+            'users.name as requested_by',
+            'revoke_payment_extension_requests.created_at'
+        )
+        ->latest('revoke_payment_extension_requests.id')
+        ->get();
+
+    return response()->json($requests);
+}
+
+// public function approveRevokeExtension($requestId)
+// {
+//     if (auth()->user()->role_id != 1) {
+//         abort(403);
+//     }
+
+//     $extensionRequest = DB::table('revoke_payment_extension_requests')
+//         ->where('id', $requestId)
+//         ->where('status', 'pending')
+//         ->first();
+
+//     if (!$extensionRequest) {
+//         return response()->json(['success' => false, 'message' => 'Request not found.']);
+//     }
+
+//     $payment = Payment::findOrFail($extensionRequest->payment_id);
+
+//     $payment->revoke_deadline_at = $this->addDaysExcludingSunday(now(), 3);
+//     $payment->revoke_last_action_at = now();
+//     $payment->save();
+
+//     DB::table('revoke_payment_extension_requests')
+//         ->where('id', $requestId)
+//         ->update([
+//             'status' => 'approved',
+//             'approved_by' => auth()->id(),
+//             'approved_at' => now(),
+//             'updated_at' => now(),
+//         ]);
+
+//     return response()->json([
+//         'success' => true,
+//         'message' => 'Extension approved.',
+//     ]);
+// }
+
+
+public function approveRevokeExtension($requestId)
+{
+    if (auth()->user()->role_id != 1) {
+        abort(403);
+    }
+
+    $extensionRequest = DB::table('revoke_payment_extension_requests')
+        ->where('id', $requestId)
+        ->where('status', 'pending')
+        ->first();
+
+    if (!$extensionRequest) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Request not found or already handled.'
+        ]);
+    }
+
+    $payment = Payment::find($extensionRequest->payment_id);
+
+    if (!$payment) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Payment not found.'
+        ]);
+    }
+
+    $payment->revoke_deadline_at = $this->addDaysExcludingSunday(now(), 3);
+    $payment->revoke_last_action_at = now();
+    $payment->revoke_alert_closed = 0;
+    $payment->save();
+
+    DB::table('revoke_payment_extension_requests')
+        ->where('id', $requestId)
+        ->update([
+            'status' => 'approved',
+            'approved_by' => auth()->id(),
+            'approved_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+    return response()->json([
+        'success' => true,
+        'message' => 'Deadline extended by 3 days.'
+    ]);
+}
+
+public function rejectRevokeExtension($requestId)
+{
+    if (auth()->user()->role_id != 1) {
+        abort(403);
+    }
+
+    DB::table('revoke_payment_extension_requests')
+        ->where('id', $requestId)
+        ->where('status', 'pending')
+        ->update([
+            'status' => 'rejected',
+            'approved_by' => auth()->id(),
+            'approved_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+    return response()->json([
+        'success' => true,
+        'message' => 'Extension rejected.',
+    ]);
+}
+}
+

@@ -70,6 +70,390 @@
     {{-- Scripts --}}
     @include('layouts.js')
 
+    @if(auth()->check() && in_array(auth()->user()->role_id, [4, 9]))
+    <script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const channel = new BroadcastChannel('revoke_payment_alert_channel');
+
+        let activeExpiredModalPaymentId = null;
+        let warningShown = {};
+        let snoozeTimers = {};
+
+        function formatTime(seconds) {
+            if (seconds <= 0) return '00:00:00';
+
+            const d = Math.floor(seconds / 86400);
+            seconds %= 86400;
+
+            const h = Math.floor(seconds / 3600);
+            seconds %= 3600;
+
+            const m = Math.floor(seconds / 60);
+            const s = seconds % 60;
+
+            return `${d}d ${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+        }
+
+        function updateCountdownBadges(alerts) {
+            alerts.forEach(item => {
+                const badge = document.querySelector(`.revoke-countdown-badge[data-payment-id="${item.payment_id}"]`);
+
+                if (!badge) return;
+
+                badge.innerText = formatTime(item.seconds_left);
+
+                if (item.seconds_left <= 0) {
+                    badge.className = 'badge badge-light-danger revoke-countdown-badge';
+                } else if (item.seconds_left <= 1800) {
+                    badge.className = 'badge badge-light-warning revoke-countdown-badge';
+                } else {
+                    badge.className = 'badge badge-light-success revoke-countdown-badge';
+                }
+            });
+        }
+
+        function requestExtension(paymentId) {
+            return fetch(`/revoke-payments/request-extension/${paymentId}`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                    'Content-Type': 'application/json'
+                }
+            }).then(res => res.json());
+        }
+
+        function showWarningPopup(item, minutes) {
+            const key = `payment_${item.payment_id}_${minutes}`;
+
+            if (warningShown[key]) return;
+            warningShown[key] = true;
+
+            channel.postMessage({
+                type: 'warning',
+                paymentId: item.payment_id,
+                minutes: minutes
+            });
+
+            Swal.fire({
+                title: 'Revoke Payment Deadline Alert',
+                html: `
+                    <div class="text-start">
+                        <p class="fw-bold text-danger">
+                            The revoke payment deadline is approaching. Only ${minutes} minutes remaining!
+                        </p>
+                        <p><b>Order ID:</b> ${item.order_id ?? 'N/A'}</p>
+                        <p><b>Amount:</b> £${item.amount}</p>
+                    </div>
+                `,
+                icon: 'warning',
+                allowOutsideClick: false,
+                allowEscapeKey: false,
+                showCancelButton: true,
+                confirmButtonText: 'Request Extension',
+                cancelButtonText: 'Dismiss',
+                confirmButtonColor: '#009ef7',
+                cancelButtonColor: '#6c757d'
+            }).then(result => {
+                if (result.isConfirmed) {
+                    requestExtension(item.payment_id).then(() => {
+                        Swal.fire('Request Sent', 'Extension request sent to Admin.', 'success');
+                    });
+                }
+            });
+        }
+
+        function showExpiredModal(item) {
+            if (activeExpiredModalPaymentId === item.payment_id) return;
+
+            const snoozeUntil = localStorage.getItem(`revoke_snooze_${item.payment_id}`);
+
+            if (snoozeUntil && Date.now() < parseInt(snoozeUntil)) {
+                return;
+            }
+
+            activeExpiredModalPaymentId = item.payment_id;
+
+            channel.postMessage({
+                type: 'expired',
+                paymentId: item.payment_id
+            });
+
+            Swal.fire({
+                title: 'Revoke Payment Deadline Expired',
+                html: `
+                    <div class="text-start">
+                        <p class="fw-bold text-danger">
+                            This revoke payment deadline has expired. You must take action.
+                        </p>
+                        <p><b>Order ID:</b> ${item.order_id ?? 'N/A'}</p>
+                        <p><b>Amount:</b> £${item.amount}</p>
+                    </div>
+                `,
+                icon: 'error',
+                allowOutsideClick: false,
+                allowEscapeKey: false,
+                showDenyButton: true,
+                showCancelButton: true,
+                confirmButtonText: 'Update Payment',
+                denyButtonText: 'Request Admin Extension',
+                cancelButtonText: 'Snooze',
+                confirmButtonColor: '#50cd89',
+                denyButtonColor: '#009ef7',
+                cancelButtonColor: '#ffc700'
+            }).then(result => {
+                activeExpiredModalPaymentId = null;
+
+                if (result.isConfirmed) {
+                    // window.location.href = `/payment/${item.order_id}/${item.payment_id}`;
+                    window.location.href = `/orders/payment/${item.order_numeric_id}/${item.payment_id}`;
+                }
+
+                if (result.isDenied) {
+                    if (item.extension_status === 'rejected') {
+                        Swal.fire('Rejected', 'Admin has rejected the extension request. Please update payment or snooze.', 'error');
+                        showExpiredModal(item);
+                        return;
+                    }
+
+                    requestExtension(item.payment_id).then(() => {
+                        Swal.fire('Request Sent', 'Extension request sent to Admin.', 'success');
+                    });
+                }
+
+                if (result.dismiss === Swal.DismissReason.cancel) {
+                    const snoozeTime = Date.now() + (5 * 60 * 1000);
+                    localStorage.setItem(`revoke_snooze_${item.payment_id}`, snoozeTime);
+
+                    setTimeout(() => {
+                        showExpiredModal(item);
+                    }, 5 * 60 * 1000);
+                }
+            });
+        }
+
+        function checkRevokeAlerts() {
+            fetch(`{{ route('revoke.alerts.active') }}`)
+                .then(res => res.json())
+                .then(alerts => {
+                    updateCountdownBadges(alerts);
+
+                    alerts.forEach(item => {
+                        if (item.seconds_left <= 0) {
+                            showExpiredModal(item);
+                            return;
+                        }
+
+                        if (item.seconds_left <= 1800 && item.seconds_left > 1740) {
+                            showWarningPopup(item, 30);
+                        }
+
+                        if (item.seconds_left <= 600 && item.seconds_left > 540) {
+                            showWarningPopup(item, 10);
+                        }
+                    });
+                });
+        }
+
+        channel.onmessage = function (event) {
+            const data = event.data;
+
+            if (data.type === 'refresh') {
+                checkRevokeAlerts();
+            }
+        };
+
+        setInterval(checkRevokeAlerts, 15000);
+        checkRevokeAlerts();
+    });
+    </script>
+    @endif
+
+    <script>
+    document.addEventListener("DOMContentLoaded", function () {
+
+        function formatCountdown(seconds) {
+            if (seconds <= 0) {
+                return "00:00:00";
+            }
+
+            let days = Math.floor(seconds / 86400);
+            seconds = seconds % 86400;
+
+            let hours = Math.floor(seconds / 3600);
+            seconds = seconds % 3600;
+
+            let minutes = Math.floor(seconds / 60);
+            let secs = seconds % 60;
+
+            return days + "d " +
+                String(hours).padStart(2, "0") + ":" +
+                String(minutes).padStart(2, "0") + ":" +
+                String(secs).padStart(2, "0");
+        }
+
+        function updateRevokeCountdowns() {
+            document.querySelectorAll(".revoke-countdown-badge").forEach(function (badge) {
+                let deadline = badge.getAttribute("data-deadline");
+
+                if (!deadline) {
+                    badge.innerText = "Deadline not set";
+                    return;
+                }
+
+                let deadlineTime = new Date(deadline).getTime();
+                let now = new Date().getTime();
+
+                let diffSeconds = Math.floor((deadlineTime - now) / 1000);
+
+                badge.innerText = formatCountdown(diffSeconds);
+
+                badge.classList.remove(
+                    "badge-light-success",
+                    "badge-light-warning",
+                    "badge-light-danger"
+                );
+
+                if (diffSeconds <= 0) {
+                    badge.classList.add("badge-light-danger");
+                } else if (diffSeconds <= 1800) {
+                    badge.classList.add("badge-light-warning");
+                } else {
+                    badge.classList.add("badge-light-success");
+                }
+            });
+        }
+
+        updateRevokeCountdowns();
+        setInterval(updateRevokeCountdowns, 1000);
+    });
+    </script>
+
+    @if(auth()->check() && auth()->user()->role_id == 1)
+    <script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const channel = new BroadcastChannel('revoke_payment_alert_channel');
+        let currentRequestId = null;
+
+        function approveRequest(requestId) {
+            return fetch(`/admin/revoke-extension-approve/${requestId}`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                    'Content-Type': 'application/json'
+                }
+            }).then(res => res.json());
+        }
+
+        function rejectRequest(requestId) {
+            return fetch(`/admin/revoke-extension-reject/${requestId}`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                    'Content-Type': 'application/json'
+                }
+            }).then(res => res.json());
+        }
+
+        function checkAdminRequests() {
+            fetch(`{{ route('admin.revoke.extension.requests') }}`)
+                .then(res => res.json())
+                .then(requests => {
+                    if (!requests.length) return;
+                    const req = requests[0];
+                    if (currentRequestId === req.id) return;
+                    currentRequestId = req.id;
+
+                    Swal.fire({
+                        title: 'Revoke Extension Request',
+                        html: `
+                            <div class="text-start">
+                                <p><b>Order ID:</b> ${req.order_id ?? 'N/A'}</p>
+                                <p><b>Amount:</b> £${req.paid_amount}</p>
+                                <p><b>Requested By:</b> ${req.requested_by ?? 'N/A'}</p>
+                            </div>
+                        `,
+                        icon: 'info',
+                        allowOutsideClick: false,
+                        allowEscapeKey: false,
+                        showCancelButton: true,
+                        confirmButtonText: 'Approve',
+                        cancelButtonText: 'Reject',
+                        confirmButtonColor: '#50cd89',
+                        cancelButtonColor: '#f1416c'
+                    }).then(result => {
+                        if (result.isConfirmed) {
+                            approveRequest(req.id).then((response) => {
+
+                                console.log('Approve Response:', response);
+
+                                if (!response.success) {
+                                    Swal.fire(
+                                        'Error',
+                                        response.message || 'Approval failed.',
+                                        'error'
+                                    );
+
+                                    currentRequestId = null;
+                                    return;
+                                }
+
+                                channel.postMessage({ type: 'refresh' });
+                                currentRequestId = null;
+                                Swal.fire(
+                                    'Approved',
+                                    response.message || 'Deadline extended by 3 days.',
+                                    'success'
+                                ).then(() => {
+                                    checkAdminRequests();
+                                });
+                            });
+
+                            return;
+                        }
+
+                        if (result.dismiss === Swal.DismissReason.cancel) {
+                            rejectRequest(req.id).then((response) => {
+
+                                console.log('Reject Response:', response);
+
+                                if (!response.success) {
+                                    Swal.fire(
+                                        'Error',
+                                        response.message || 'Reject failed.',
+                                        'error'
+                                    );
+
+                                    currentRequestId = null;
+                                    return;
+                                }
+
+                                channel.postMessage({ type: 'refresh' });
+
+                                currentRequestId = null;
+
+                                Swal.fire(
+                                    'Rejected',
+                                    response.message || 'Extension request rejected.',
+                                    'error'
+                                ).then(() => {
+                                    checkAdminRequests();
+                                });
+                            });
+
+                            return;
+                        }
+
+                        currentRequestId = null;
+                    });
+                });
+        }
+
+        setInterval(checkAdminRequests, 15000);
+        checkAdminRequests();
+    });
+    </script>
+    @endif
+
     {{-- Page-specific scripts --}}
     @stack('scripts')
     <!-- <script>

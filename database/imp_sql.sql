@@ -77,4 +77,8 @@ CREATE TABLE client_behaviours ( id INT AUTO_INCREMENT PRIMARY KEY, uid INT NULL
 --Rahul 02-6-26
 ALTER TABLE payment_details ADD COLUMN is_revoked TINYINT(1) NOT NULL DEFAULT 0 AFTER account_status, ADD COLUMN revoke_comment TEXT NULL AFTER is_revoked, ADD COLUMN revoked_by INT NULL AFTER revoke_comment, ADD COLUMN revoked_at DATETIME NULL AFTER revoked_by;
 
-
+-- Rahul 3-6-26
+ALTER TABLE payment_details ADD COLUMN revoke_resolved TINYINT(1) NOT NULL DEFAULT 0 AFTER revoked_at;
+ALTER TABLE payment_details ADD COLUMN revoke_alert_closed TINYINT(1) NOT NULL DEFAULT 0 AFTER revoke_resolved, ADD COLUMN revoke_alert_closed_by INT NULL AFTER revoke_alert_closed, ADD COLUMN revoke_alert_closed_at DATETIME NULL AFTER revoke_alert_closed_by;
+ALTER TABLE payment_details ADD COLUMN revoke_deadline_at DATETIME NULL AFTER revoked_at, ADD COLUMN revoke_last_action_at DATETIME NULL AFTER revoke_deadline_at;
+CREATE TABLE revoke_payment_extension_requests ( id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY, payment_id INT NOT NULL, requested_by INT NOT NULL, approved_by INT NULL, status ENUM('pending','approved','rejected') NOT NULL DEFAULT 'pending', admin_note TEXT NULL, approved_at DATETIME NULL, created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP );

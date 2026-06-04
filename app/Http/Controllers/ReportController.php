@@ -24,7 +24,7 @@ public function followUpReport(Request $request)
         $baseOrders = DB::table('orders')
             ->whereNotNull('uid')
             ->where('uid', '!=', 0)
-            ->whereBetween('created_at', [$monthStart, $monthEnd]);
+            ->whereBetween('orders.created_at', [$monthStart, $monthEnd]);
 
         $totalUsers = (clone $baseOrders)
             ->distinct('uid')
