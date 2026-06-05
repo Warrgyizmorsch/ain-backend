@@ -101,7 +101,7 @@
 											
 											<div class="menu-item">
 												<div style="display: inline-block; margin: 10px 5px;" class="form-check form-check-sm form-check-custom form-check-solid">
-													<input name="submenu_id[]" class="form-check-input submenu-checkbox" type="checkbox" value="{{$submenu->id}}" data-kt-check="true" data-kt-check-target=".widget-9-check">
+													<input name="submenu_id[]" class="form-check-input submenu-checkbox" type="checkbox" value="{{$submenu->id}}" data-menu-id="{{ $menu->id }}" data-kt-check="true" data-kt-check-target=".widget-9-check">
 												</div>
 												<span>{{ $submenu->sub_menu_name }}</span>
 											</div>
@@ -144,7 +144,7 @@
 <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
 
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<script>
+{{-- <script>
     $(document).ready(function () {
 
         // Handle the change event of the role select input
@@ -184,6 +184,47 @@
             });
         });
     });
+</script> --}}
+
+<script>
+	$(document).ready(function () {
+
+    $('#role_id').change(function () {
+        var selectedRoleId = $(this).val();
+
+        $('.menu-checkbox').prop('checked', false);
+        $('.submenu-checkbox').prop('checked', false);
+
+        if (!selectedRoleId) {
+            return;
+        }
+
+        $.ajax({
+            type: 'GET',
+            url: '{{ route("rolePermission") }}',
+            data: { role_id: selectedRoleId },
+            success: function (response) {
+
+                $.each(response.menuid || [], function (index, id) {
+                    $('.menu-checkbox[value="' + id + '"]').prop('checked', true);
+                });
+
+                $.each(response.submenuid || [], function (index, id) {
+                    $('.submenu-checkbox[value="' + id + '"]').prop('checked', true);
+                });
+            }
+        });
+    });
+
+    $('.submenu-checkbox').change(function () {
+        var menuId = $(this).data('menu-id');
+
+        if ($(this).is(':checked')) {
+            $('.menu-checkbox[value="' + menuId + '"]').prop('checked', true);
+        }
+    });
+
+});
 </script>
 
 

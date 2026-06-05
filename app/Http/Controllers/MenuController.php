@@ -114,42 +114,94 @@ public function submenu_update(Request $request, $id)
     }
 }
 
+// public function userright()
+// {
+//     $roles = Role::all(); 
+//     return view('master.userright', compact('roles')); 
+// }
+
 public function userright()
 {
-    $roles = Role::all(); 
-    return view('master.userright', compact('roles')); 
+    $roles = Role::all();
+
+    $menus = menu::with(['submenus' => function ($q) {
+        $q->where('show', 'Y')->orderBy('sort_order', 'asc');
+    }])
+    ->where('show_menu', 'Y')
+    ->orderBy('sort_order', 'asc')
+    ->get();
+
+    return view('master.userright', compact('roles', 'menus'));
 }
 
+// public function permission(Request $req)
+// {
+    
+//     $role = $req->input('role_id');
+//     $menu_id = json_encode($req->input('menu_id'));
+//     $submenu_id = json_encode($req->input('submenu_id'));
+
+//     Permission::updateOrCreate(
+//         ['role_id' => $role],
+//         ['menu_id' => $menu_id, 'submenu_id' => $submenu_id]
+//     );
+//     return redirect()->back()->with('success', 'Premission Granted Successfully');
+
+// }
 public function permission(Request $req)
 {
-    
     $role = $req->input('role_id');
-    $menu_id = json_encode($req->input('menu_id'));
-    $submenu_id = json_encode($req->input('submenu_id'));
+
+    $menuIds = $req->input('menu_id', []);
+    $submenuIds = $req->input('submenu_id', []);
+
+    // selected submenu ke parent menu auto add honge
+    if (!empty($submenuIds)) {
+        $parentMenuIds = Submenus::whereIn('id', $submenuIds)
+            ->pluck('menus_id')
+            ->toArray();
+
+        $menuIds = array_unique(array_merge($menuIds, $parentMenuIds));
+    }
 
     Permission::updateOrCreate(
         ['role_id' => $role],
-        ['menu_id' => $menu_id, 'submenu_id' => $submenu_id]
+        [
+            'menu_id' => json_encode(array_values($menuIds)),
+            'submenu_id' => json_encode(array_values($submenuIds)),
+        ]
     );
-    return redirect()->back()->with('success', 'Premission Granted Successfully');
 
+    return redirect()->back()->with('success', 'Permission Granted Successfully');
 }
-function rolePermission(Request $request){
+// function rolePermission(Request $request){
+//     $role_id = $request->input('role_id');
+//     $permission = Permission::where('role_id', $role_id)->first();
+
+//     if ($permission) {
+//         $menuid = json_decode($permission->menu_id);
+//         $submenuid = json_decode($permission->submenu_id);
+//         $data = [
+//             'menuid' => $menuid,
+//             'submenuid' => $submenuid,
+//         ];
+//         return response()->json($data);
+//     } else {
+//         // Handle the case where no permission is found for the given role_id
+//         return response()->json(['error' => 'No permission found for the given role_id'], 404);
+//     }
+// }
+
+public function rolePermission(Request $request)
+{
     $role_id = $request->input('role_id');
+
     $permission = Permission::where('role_id', $role_id)->first();
 
-    if ($permission) {
-        $menuid = json_decode($permission->menu_id);
-        $submenuid = json_decode($permission->submenu_id);
-        $data = [
-            'menuid' => $menuid,
-            'submenuid' => $submenuid,
-        ];
-        return response()->json($data);
-    } else {
-        // Handle the case where no permission is found for the given role_id
-        return response()->json(['error' => 'No permission found for the given role_id'], 404);
-    }
+    return response()->json([
+        'menuid' => $permission ? json_decode($permission->menu_id, true) ?? [] : [],
+        'submenuid' => $permission ? json_decode($permission->submenu_id, true) ?? [] : [],
+    ]);
 }
 
 

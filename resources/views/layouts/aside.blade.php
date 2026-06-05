@@ -56,7 +56,7 @@
                                 </span>
 
                                 <div class="menu-sub menu-sub-accordion menu-active-bg">
-                                    @foreach ($menu->submenus as $submenu)
+                                    {{-- @foreach ($menu->submenus as $submenu)
                                         <div class="menu-item">
                                             <a class="menu-link" href="{{ url($submenu->routes) }}">
                                                 <span class="menu-bullet">
@@ -65,6 +65,18 @@
                                                 <span class="menu-title">{{ $submenu->sub_menu_name }}</span>
                                             </a>
                                         </div>
+                                    @endforeach --}}
+                                    @foreach ($menu->submenus as $submenu)
+                                        @if($submenu->show == 'Y' && in_array($submenu->id, $submenuIds))
+                                            <div class="menu-item">
+                                                <a class="menu-link" href="{{ url($submenu->routes) }}">
+                                                    <span class="menu-bullet">
+                                                        <span class="bullet bullet-dot"></span>
+                                                    </span>
+                                                    <span class="menu-title">{{ $submenu->sub_menu_name }}</span>
+                                                </a>
+                                            </div>
+                                        @endif
                                     @endforeach
                                 </div>
                             </div>
