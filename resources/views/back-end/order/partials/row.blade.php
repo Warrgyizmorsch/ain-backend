@@ -60,7 +60,8 @@ if ($failedDate && $failedDate->diffInDays(now()) <= 365) {
 
                 <!-- Chat / Comment Button -->
                 <button onclick="loadCommentDrawer({{ $order->id }})" class="btn btn-icon btn-secondary btn-sm" title="Open Chat">
-                    <i class="fa fa-comment-alt"></i>
+                    {{-- <i class="fa fa-comment-alt"></i> --}}
+                    <span>T</span>
                 </button>
 
 
@@ -90,7 +91,8 @@ if ($failedDate && $failedDate->diffInDays(now()) <= 365) {
                     <i class="fa fa-times-circle"></i>
                 </a>
 
-                @if(auth()->user()->role_id == 1)
+                {{-- @if(auth()->user()->role_id == 1) --}}
+                @if(in_array(auth()->user()->role_id, [1, 4, 9]))
                     <button type="button" class="btn btn-icon btn-sm btn-light-danger" title="Looking For Refund" onclick="markLookingForRefund({{ $order->id }})">
                         <span class="fw-bold fs-6">R</span>
                     </button>
@@ -286,7 +288,7 @@ if ($failedDate && $failedDate->diffInDays(now()) <= 365) {
                     $label = "Loyal Customer"; 
                 } elseif($count >= 4) { 
                     $class = "badge-light-warning"; 
-                    $label = "Repeated"; 
+                    $label = "Retainer"; 
                 } else { 
                     $class = "badge-light-info"; 
                     $label = "Beginner"; 
@@ -308,6 +310,21 @@ if ($failedDate && $failedDate->diffInDays(now()) <= 365) {
                     onclick="openMarksModal({{$order->id }}, '{{ $order->marks ?? '' }}')">
                     <span class="fw-bold fs-6">M</span>
                 </button>
+                {{-- @if(!empty($order->marks))
+                    <button type="button"
+                        class="btn btn-sm btn-light-success fw-bold"
+                        title="Update Marks"
+                        onclick="openMarksModal({{ $order->id }}, '{{ $order->marks }}')">
+                        {{ $order->marks }}
+                    </button>
+                @else
+                    <button type="button"
+                        class="btn btn-icon btn-sm btn-light-primary"
+                        title="Assign Marks"
+                        onclick="openMarksModal({{ $order->id }}, '')">
+                        <span class="fw-bold fs-6">M</span>
+                    </button>
+                @endif --}}
 
                 @if($order->looking_for_refund == 1)
                     <span class="btn btn-icon btn-sm btn-light-danger" title="Looking For Refund">
@@ -629,14 +646,28 @@ if ($failedDate && $failedDate->diffInDays(now()) <= 365) {
         </td>
 
        @if(auth()->user()->role_id == 1)
-        <td class="text-center">
-            Convert By: {{ $order->l_converted_by ?: 'N/A' }}<br>
-            @if($order->failed_by)
-            Failed By: {{ $order->failed_by }} at {{ $order->failed_at }}
-            @else
-            Failed By: N/A
-            @endif
-           
+        <td style="min-width:220px;">
+            <div class="border rounded p-3 bg-light">
+
+                <div class="mb-2">
+                    <span class="fw-bold text-success">Convert By:</span>
+                    <span>{{ $order->l_converted_by ?: 'N/A' }}</span>
+                </div>
+
+                <div>
+                    <span class="fw-bold text-danger">Failed By:</span>
+
+                    @if($order->failed_by)
+                        <span>{{ $order->failed_by }}</span></br>
+                        <small class="text-muted">
+                            {{ date('d M Y h:i A', strtotime($order->failed_at)) }}
+                        </small>
+                    @else
+                        <span class="text-muted">N/A</span>
+                    @endif
+                </div>
+
+            </div>
         </td>
         @endif
     </tr>

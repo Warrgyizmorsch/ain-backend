@@ -934,9 +934,15 @@
     }
 
     // Modal Open function for Marks
+    // function openMarksModal(orderId, currentMarks) {
+    //     $('#marks_user_id').val(orderId);
+    //     $('#marks_dropdown').val(currentMarks); // Agar pehle se marks hain toh auto-select ho jayega
+    //     $('#clientMarksModal').modal('show');
+    // }
+
     function openMarksModal(orderId, currentMarks) {
         $('#marks_user_id').val(orderId);
-        $('#marks_dropdown').val(currentMarks); // Agar pehle se marks hain toh auto-select ho jayega
+        $('#marks_dropdown').val(currentMarks).trigger('change');
         $('#clientMarksModal').modal('show');
     }
 
@@ -969,6 +975,9 @@
                         customClass: {
                             confirmButton: "btn btn-primary"
                         }
+                    }).then((result) => {
+                        // Page refresh taaki marks update ho sake
+                        location.reload();
                     });
                 }
             },

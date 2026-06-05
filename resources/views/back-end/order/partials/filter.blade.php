@@ -1,8 +1,19 @@
 <div class="card card-xxl-stretch mb-5 mb-xl-8">
     <div class="card-header border-0 pt-5">
-        <h3 class="card-title align-items-start flex-column">
+        {{-- <h3 class="card-title align-items-start flex-column">
             <span id="filter-total" class="card-label fw-bolder fs-3 mb-1">Filter</span>
-        </h3>
+        </h3> --}}
+        <div class="d-flex align-items-center gap-3">
+            <h3 class="card-title align-items-start flex-column mb-0">
+                <span id="filter-total" class="card-label fw-bolder fs-3 mb-1">
+                    Filter
+                </span>
+            </h3>
+
+            <button type="button" id="toggleFilterBtn" class="btn btn-sm btn-primary">
+                Show Filters
+            </button>
+        </div>
         @if(empty($hideOrderQuickFilters))
         <div class="card-toolbar gap-2">
             <a href="javascript:void(0)" id="teamAlphaBtn" class="btn btn-sm btn-info">
@@ -14,7 +25,7 @@
         </div>
         @endif
     </div>
-    <div class="card-body py-3">
+    <div class="card-body py-3" id="filterBody" style="display:none;">
         <form action="">
             <div class="row mb-3">
                 <div class="col-md-3 fv-row">
@@ -1038,4 +1049,24 @@ resetFilters();
             }
         });
     });
+</script>
+<script>
+    $(document).ready(function () {
+
+    $('#toggleFilterBtn').on('click', function () {
+
+        $('#filterBody').slideToggle(300);
+
+        if ($('#filterBody').is(':visible')) {
+            $(this).text('Hide Filters')
+                   .removeClass('btn-primary')
+                   .addClass('btn-danger');
+        } else {
+            $(this).text('Show Filters')
+                   .removeClass('btn-danger')
+                   .addClass('btn-primary');
+        }
+    });
+
+});
 </script>

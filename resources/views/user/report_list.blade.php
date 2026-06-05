@@ -153,7 +153,7 @@
                                 if($count > 10) { 
                                     $class = "badge-light-success"; $label = "Loyal Customer"; 
                                 } elseif($count >= 4) { 
-                                    $class = "badge-light-warning"; $label = "Repeated"; 
+                                    $class = "badge-light-warning"; $label = "Retainer"; 
                                 } else { 
                                     $class = "badge-light-info"; $label = "Beginner"; 
                                 }

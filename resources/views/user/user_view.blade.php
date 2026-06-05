@@ -84,7 +84,7 @@
                                 <select name="order_category" class="form-select form-select-solid" data-control="select2" data-placeholder="Filter By Order Category">
                                     <option value="">All Categories</option>
                                     <option value="beginner" {{ request('order_category') == 'beginner' ? 'selected' : '' }}>Beginners</option>
-                                    <option value="repeated" {{ request('order_category') == 'repeated' ? 'selected' : '' }}>Repeated</option>
+                                    <option value="Retainer" {{ request('order_category') == 'Retainer' ? 'selected' : '' }}>Retainer</option>
                                     <option value="loyal" {{ request('order_category') == 'loyal' ? 'selected' : '' }}>Loyal Customers</option>
                                 </select>
                             </div>
@@ -199,7 +199,7 @@
                                                             if($count > 10) { 
                                                                 $class = "badge-light-success"; $label = "Loyal Customer"; 
                                                             } elseif($count >= 4) { 
-                                                                $class = "badge-light-warning"; $label = "Repeated"; 
+                                                                $class = "badge-light-warning"; $label = "Retainer"; 
                                                             } else { 
                                                                 $class = "badge-light-info"; $label = "Beginner"; 
                                                             }

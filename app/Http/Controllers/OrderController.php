@@ -4825,5 +4825,212 @@ public function rejectRevokeExtension($requestId)
         'message' => 'Extension rejected.',
     ]);
 }
+
+private function applyMyRevokePaymentAccess($query)
+{
+    $roleId = auth()->user()->role_id;
+
+    // role 1 aur 9 ko sab dikhega
+    if (in_array($roleId, [1, 9])) {
+        return $query;
+    }
+
+    // role 4 ko sirf khud ke payment_update_by wale dikhenge
+    if ($roleId == 4) {
+        return $query->where('payment_update_by', auth()->user()->name);
+    }
+
+    // baaki roles ko kuch nahi dikhega
+    return $query->whereRaw('1 = 0');
+}
+
+public function myRevokePayments(Request $request)
+{
+    $data = [
+        'Team' => Writer::all(),
+        'Status' => Status::all(),
+        'formatting' => Formatting::all(),
+        'service' => Services::all(),
+        'Writting' => Writting::all(),
+        'paper' => Paper::all(),
+        'user' => User::all(),
+        'college' => College::all(),
+        'admin' => User::where('role_id', 8)->where('flag', 0)->get(),
+        'writerTL' => User::where('role_id', 6)->where('flag', 0)->get(),
+        'SubWriter' => User::where('role_id', 7)->where('flag', 0)->get(),
+        'projectStatusCounts' => ProjectStatusCount::all()
+    ];
+
+    $query = Payment::with([
+            'order.user',
+            'order.payment',
+            'order.team',
+            'order.feedback.user',
+            'order.feedback.order',
+            'order.lead.call.user',
+            'order.followupComments.user',
+            'order.followupComments.order',
+            'order.additionals'
+        ])
+        ->where('is_revoked', 1)
+        ->whereHas('order', function ($q) {
+            $q->where('uid', '!=', 0);
+        });
+
+    $query = $this->applyMyRevokePaymentAccess($query);
+
+    $data['payments'] = $query
+        ->orderByDesc('revoked_at')
+        ->paginate(20);
+
+    $overdueCount = Order::whereNotIn('projectstatus', ['Delivered', 'Completed'])
+        ->whereNotNull('delivery_date')
+        ->whereRaw("STR_TO_DATE(CONCAT(delivery_date, ' ', IFNULL(delivery_time,'00:00')), '%Y-%m-%d %H:%i') < NOW()")
+        ->count();
+
+    $alphaCount = Order::where('team_id', 1)->count();
+    $gigaCount = Order::where('team_id', 2)->count();
+    $teams = Team::all();
+
+    return view('back-end.reports.my-revoke-payments', compact(
+        'data',
+        'overdueCount',
+        'alphaCount',
+        'gigaCount',
+        'teams'
+    ));
+}
+
+    public function myRevokePaymentsFilter(Request $request)
+{
+    $limit = $request->input('limit', 50);
+    $offset = $request->input('offset', 0);
+
+    $query = Payment::with([
+            'order.user',
+            'order.payment',
+            'order.team',
+            'order.feedback.user',
+            'order.feedback.order',
+            'order.lead.call.user',
+            'order.followupComments.user',
+            'order.followupComments.order',
+            'order.additionals'
+        ])
+        ->where('is_revoked', 1)
+        ->whereHas('order', function ($q) use ($request) {
+            $q->where('uid', '!=', 0);
+
+            if ($request->filled('search')) {
+                $search = $request->search;
+                $q->where(function ($qq) use ($search) {
+                    $qq->where('order_id', 'like', "%{$search}%")
+                       ->orWhere('title', 'like', "%{$search}%");
+                });
+            }
+
+            if ($request->filled('status')) {
+                $q->where('projectstatus', $request->status);
+            }
+
+            if ($request->filled('writer')) {
+                if ($request->writer == 'Not Assign') {
+                    $q->whereNull('writer_name')->orWhere('writer_name', '');
+                } else {
+                    $q->where('writer_name', $request->writer);
+                }
+            }
+
+            if ($request->filled('college')) {
+                $q->where('college_name', $request->college);
+            }
+
+            if ($request->filled('module_code')) {
+                $q->where('module_code', 'like', "%{$request->module_code}%");
+            }
+
+            if ($request->filled('paper_type')) {
+                $q->where('typeofpaper', $request->paper_type);
+            }
+
+            if ($request->filled('semester')) {
+                $q->where('semester', $request->semester);
+            }
+
+            if ($request->filled('team_id')) {
+                $q->where('team_id', $request->team_id);
+            }
+
+            if ($request->filled('offer')) {
+                $q->where('offer', $request->offer);
+            }
+
+            if ($request->filled('extra')) {
+                if ($request->extra == 'tech') {
+                    $q->where('tech', 1);
+                } elseif ($request->extra == 'resit') {
+                    $q->where('resit', 'on');
+                } elseif ($request->extra == '1') {
+                    $q->where('services', 'First Class Work');
+                } elseif ($request->extra == 'failedjob') {
+                    $q->where('is_fail', 1);
+                }
+            }
+
+            if ($request->filled('deadline_status') && $request->deadline_status == 'overdue') {
+                $q->whereNotIn('projectstatus', ['Delivered', 'Completed'])
+                    ->whereNotNull('delivery_date')
+                    ->whereRaw("STR_TO_DATE(CONCAT(delivery_date, ' ', IFNULL(delivery_time,'00:00')), '%Y-%m-%d %H:%i') < NOW()");
+            }
+
+            if ($request->filled('fromDate') && $request->filled('toDate') && $request->filled('dateStatus')) {
+                $q->whereBetween($request->dateStatus, [$request->fromDate, $request->toDate]);
+            }
+        });
+
+    $query = $this->applyMyRevokePaymentAccess($query);    
+
+    if ($request->filled('uid')) {
+        $query->whereHas('order.user', function ($q) use ($request) {
+            $q->where('id', $request->uid);
+        });
+    }
+
+    if ($request->filled('user')) {
+        $user = $request->user;
+
+        $query->whereHas('order.user', function ($q) use ($user) {
+            $q->where('name', 'like', "%{$user}%")
+              ->orWhere('email', 'like', "%{$user}%")
+              ->orWhere('mobile_no', 'like', "%{$user}%");
+        });
+    }
+
+    $total = $query->count();
+
+    $payments = $query->orderByDesc('revoked_at')
+        ->skip($offset)
+        ->take($limit)
+        ->get();
+
+    $html = '';
+
+    foreach ($payments as $key => $payment) {
+        if ($payment->order) {
+            $html .= view('back-end.reports.partials.revoked-payment-row', [
+                'order' => $payment->order,
+                'payment' => $payment,
+                'index' => $offset + $key
+            ])->render();
+        }
+    }
+
+    return response()->json([
+        'html' => $html,
+        'count' => $payments->count(),
+        'total' => $total,
+        'has_more' => ($offset + $payments->count()) < $total,
+    ]);
+}
 }
 

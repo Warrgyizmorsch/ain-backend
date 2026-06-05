@@ -482,4 +482,10 @@ Route::middleware(['auth'])->group(function () {
 
         Route::post('/admin/revoke-extension-reject/{requestId}', [OrderController::class, 'rejectRevokeExtension'])
             ->name('admin.revoke.extension.reject');
+
+        Route::get('/my-revoke-payments', [OrderController::class, 'myRevokePayments'])
+            ->name('payments.my.revoke.list');
+
+        Route::get('/my-revoke-payments/filter', [OrderController::class, 'myRevokePaymentsFilter'])
+            ->name('payments.my.revoke.filter');    
     });
