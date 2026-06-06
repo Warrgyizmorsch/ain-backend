@@ -94,6 +94,23 @@
             <label class="fs-6 fw-bold mb-2">Mobile Number 2</label>
             <input type="text" class="form-control user-detail" name="mobile2" value="{{ $lead->user->mobile_no2 }}" readonly>
         </div>
+        <div class="col-md-4 position-relative">
+            <label class="fs-6 fw-bold mb-2">Referred By</label>
+
+            <input type="text"
+                id="refer_search"
+                class="form-control"
+                placeholder="Name, Email, Mobile search"
+                value="{{ $referUser ? $referUser->name . ' - ' . $referUser->mobile_no . ' - ' . $referUser->email : '' }}"
+                {{ $referUser ? 'readonly' : '' }}>
+
+            <input type="hidden" name="refer_id" id="refer_id" value="{{ $referUser->id ?? '' }}">
+
+            <div id="refer_result"
+                class="bg-white border rounded shadow-sm position-absolute w-100"
+                style="display:none; z-index:9999; max-height:220px; overflow-y:auto;">
+            </div>
+        </div>
     </div>
 </div>
 
@@ -233,6 +250,8 @@
         <div id="statusMessage" class="mt-3"></div>
     </form>
 </div>
+
+<script src="https://code.jquery.com/jquery-3.6.4.min.js"></script>
 
 <script>
     function toggleDraftFields() {
@@ -411,5 +430,78 @@
     });
 </script>
 
+<script>
+$(document).ready(function () {
 
+    let referTimer = null;
+
+    $('#refer_search').on('keyup', function () {
+        if ($(this).prop('readonly')) {
+            return;
+        }
+
+        let search = $(this).val();
+
+        $('#refer_id').val('');
+
+        clearTimeout(referTimer);
+
+        if (search.length < 2) {
+            $('#refer_result').hide().html('');
+            return;
+        }
+
+        referTimer = setTimeout(function () {
+            $.ajax({
+                url: "{{ route('search.refer.users') }}",
+                type: "GET",
+                data: {
+                    search: search
+                },
+                success: function (users) {
+                    let html = '';
+
+                    if (users.length > 0) {
+                        users.forEach(function (user) {
+                            html += `
+                                <div class="refer-item px-3 py-2 border-bottom"
+                                    style="cursor:pointer;"
+                                    data-id="${user.id}"
+                                    data-name="${user.name ?? ''}"
+                                    data-email="${user.email ?? ''}"
+                                    data-mobile="${user.mobile_no ?? ''}">
+                                    <strong>${user.name ?? 'No Name'}</strong><br>
+                                    <small>${user.email ?? ''} | ${user.mobile_no ?? ''}</small>
+                                </div>
+                            `;
+                        });
+                    } else {
+                        html = `<div class="px-3 py-2 text-muted">No user found</div>`;
+                    }
+
+                    $('#refer_result').html(html).show();
+                }
+            });
+        }, 300);
+    });
+
+    $(document).on('click', '.refer-item', function () {
+        let id = $(this).data('id');
+        let name = $(this).data('name');
+        let email = $(this).data('email');
+        let mobile = $(this).data('mobile');
+
+        $('#refer_id').val(id);
+        $('#refer_search').val(name + ' - ' + mobile + ' - ' + email);
+        $('#refer_result').hide();
+    });
+
+    $(document).on('click', function (e) {
+        if (!$(e.target).closest('#refer_search, #refer_result').length) {
+            $('#refer_result').hide();
+        }
+    });
+
+});
+</script>
 @endsection

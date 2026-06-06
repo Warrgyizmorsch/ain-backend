@@ -74,10 +74,33 @@
                                                         <span class="bullet bullet-dot"></span>
                                                     </span>
                                                     <span class="menu-title">{{ $submenu->sub_menu_name }}</span>
+                                                    @if(trim($submenu->routes, '/') == 'revoke-payments')
+                                                        @if(isset($globalRevokeCount) && $globalRevokeCount > 0)
+                                                            <span class="menu-badge">
+                                                                <span class="badge badge-circle badge-danger fw-bold fs-8">{{ $globalRevokeCount }}</span>
+                                                            </span>
+                                                        @endif
+                                                    @elseif(trim($submenu->routes, '/') == 'my-revoke-payments')
+                                                        @if(isset($globalMyRevokeCount) && $globalMyRevokeCount > 0)
+                                                            <span class="menu-badge">
+                                                                <span class="badge badge-circle badge-danger fw-bold fs-8">{{ $globalMyRevokeCount }}</span>
+                                                            </span>
+                                                        @endif
+                                                    @endif
                                                 </a>
                                             </div>
                                         @endif
                                     @endforeach
+                                    @if(strtolower($menu['menu_name']) == 'reports' && auth()->check() && auth()->user()->role_id == 1)
+                                        <div class="menu-item">
+                                            <a class="menu-link" href="{{ url('payee-report') }}">
+                                                <span class="menu-bullet">
+                                                    <span class="bullet bullet-dot"></span>
+                                                </span>
+                                                <span class="menu-title">Payee Report</span>
+                                            </a>
+                                        </div>
+                                    @endif
                                 </div>
                             </div>
 

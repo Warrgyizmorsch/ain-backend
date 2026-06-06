@@ -492,23 +492,47 @@
 </script> --}}
 
 <script>
-    function filterByStatusTab(statusName, element) {
+//     function filterByStatusTab(statusName, element) {
+//     $('.nav-link').removeClass('active');
+//     $(element).addClass('active');
+
+//     if (statusName === 'All') {
+//         $('#lead_status_tab').val('All');
+//         $('#status_filter').val('').trigger('change');
+//     } 
+//     else if (statusName === 'Hot' || statusName === 'Warm' || statusName === 'Cold') {
+//         $('#lead_status_tab').val(statusName);
+//         $('#status_filter').val('').trigger('change');
+//     } 
+//     else {
+//         $('#lead_status_tab').val('');
+//         $('#status_filter').val(statusName).trigger('change');
+//     }
+
+//     $('#applyButton').click();
+// }
+
+function filterByStatusTab(status, element) {
     $('.nav-link').removeClass('active');
     $(element).addClass('active');
 
-    if (statusName === 'All') {
-        $('#lead_status_tab').val('All');
-        $('#status_filter').val('').trigger('change');
-    } 
-    else if (statusName === 'Hot' || statusName === 'Warm' || statusName === 'Cold') {
-        $('#lead_status_tab').val(statusName);
-        $('#status_filter').val('').trigger('change');
-    } 
-    else {
-        $('#lead_status_tab').val('');
-        $('#status_filter').val(statusName).trigger('change');
-    }
+    $('#lead_status_tab').val(status);
 
-    $('#applyButton').click();
+    const filters = {
+        order: $('#search_order').val(),
+        status: '',
+        lead_status_tab: status,
+        type: $('#type_filter').val(),
+        date_from: $('#date_from').val(),
+        date_to: $('#date_to').val(),
+        date_type: $('#date_type').val(),
+        assign_type: String($('#assign_type').val() ?? ''),
+        selectedValue: $('#selectedValue').val(),
+        lead_source: $('#lead_source').val()
+    };
+
+    localStorage.setItem('lead_filters', JSON.stringify(filters));
+
+    applyFilters(filters);
 }
 </script>

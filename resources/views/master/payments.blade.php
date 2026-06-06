@@ -206,7 +206,7 @@
 
                                                         <div class="mb-3">
                                                             <label class="form-label">Comment</label>
-                                                            <textarea name="revoke_comment" class="form-control" rows="4" required
+                                                            <textarea name="revoke_comment" class="form-control" rows="4"
                                                                 placeholder="Enter revoke reason..."></textarea>
                                                         </div>
                                                     </div>

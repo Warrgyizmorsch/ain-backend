@@ -2051,4 +2051,31 @@ class HomeController extends Controller
         return view('back-end.reports.break-time-report', compact('reports'));
     }
 
+    public function myBreakTimeReport(Request $request)
+    {
+        $query = DB::table('user_break_times')
+            ->select(
+                DB::raw('DATE(start_time) as break_date'),
+                DB::raw('SUM(total_seconds) as total_break_seconds'),
+                DB::raw('COUNT(id) as total_breaks')
+            )
+            ->where('user_id', auth()->id())
+            ->whereNotNull('end_time');
+
+        if ($request->filled('from_date')) {
+            $query->whereDate('start_time', '>=', $request->from_date);
+        }
+
+        if ($request->filled('to_date')) {
+            $query->whereDate('start_time', '<=', $request->to_date);
+        }
+
+        $reports = $query
+            ->groupBy(DB::raw('DATE(start_time)'))
+            ->orderByDesc('break_date')
+            ->get();
+
+        return view('back-end.reports.my-break-time-report', compact('reports'));
+    }
+
 }

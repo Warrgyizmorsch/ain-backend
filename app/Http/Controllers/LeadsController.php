@@ -1874,9 +1874,21 @@ class LeadsController extends Controller
             });
         }
 
+        // if ($request->filled('lead_status_tab')) {
+        //     if ($request->lead_status_tab != 'All') {
+        //         $query->where('lead_status', $request->lead_status_tab);
+        //     }
+        // }
+
         if ($request->filled('lead_status_tab')) {
-            if ($request->lead_status_tab != 'All') {
-                $query->where('lead_status', $request->lead_status_tab);
+            $tab = $request->lead_status_tab;
+
+            if ($tab != 'All') {
+                if (in_array($tab, ['Hot', 'Warm', 'Cold'])) {
+                    $query->where('lead_status', $tab);
+                } else {
+                    $query->where('l_status', $tab);
+                }
             }
         }
 
@@ -1967,12 +1979,27 @@ class LeadsController extends Controller
     }
 
 
+    // public function editLead($id)
+    // {
+    //     $lead = Leads::findOrFail($id);
+    //     $service = Services::all();
+    //     $papers = Paper::all();
+    //     return view('back-end.leads.edit', compact('lead', 'service', 'papers'));
+    // }
+
     public function editLead($id)
     {
-        $lead = Leads::findOrFail($id);
+        $lead = Leads::with('user')->findOrFail($id);
         $service = Services::all();
         $papers = Paper::all();
-        return view('back-end.leads.edit', compact('lead', 'service', 'papers'));
+
+        $referUser = null;
+
+        if ($lead->user && $lead->user->refer_id) {
+            $referUser = User::find($lead->user->refer_id);
+        }
+
+        return view('back-end.leads.edit', compact('lead', 'service', 'papers', 'referUser'));
     }
     public function update(Request $request, $id)
     {
@@ -1993,10 +2020,16 @@ class LeadsController extends Controller
             'semester' => 'nullable|string|max:255',         // e.g., Semester I, II...
             'tech' => 'required|in:on,off',
             'resit' => 'required|in:on,off',
+            'refer_id' => 'nullable|exists:users,id',
         ]);
 
         // Find lead
         $lead = Leads::findOrFail($id);
+
+        if ($lead->user && empty($lead->user->refer_id) && $request->filled('refer_id')) {
+            $lead->user->refer_id = $request->refer_id;
+            $lead->user->save();
+        }
 
         // Update lead values
         $lead->module_code = $validated['module_code'] ?? null;

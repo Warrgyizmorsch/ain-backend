@@ -12,9 +12,9 @@
                 </a>
 
                 <!-- Chat / Comment Button -->
-                <button onclick="loadCommentDrawer({{ $order->id }})" class="btn btn-icon btn-secondary btn-sm" title="Open Chat">
+                {{-- <button onclick="loadCommentDrawer({{ $order->id }})" class="btn btn-icon btn-secondary btn-sm" title="Open Chat">
                     <i class="fa fa-comment-alt"></i>
-                </button>
+                </button> --}}
 
 
                 <!-- Button to Open Unified Payment Page -->
@@ -50,9 +50,9 @@
 
 
                 <!-- Mark as Failed Button -->
-                <a href="javascript:void(0);" onclick="showConfirmation({{ $order->id }}, {{ $order->is_fail }})" class="btn btn-icon btn-danger btn-sm" title="Mark as Failed">
+                {{-- <a href="javascript:void(0);" onclick="showConfirmation({{ $order->id }}, {{ $order->is_fail }})" class="btn btn-icon btn-danger btn-sm" title="Mark as Failed">
                     <i class="fa fa-times-circle"></i>
-                </a>
+                </a> --}}
 
                 {{-- <a href="#"
                 data-bs-toggle="modal"

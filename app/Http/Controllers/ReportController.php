@@ -146,4 +146,67 @@ public function followUpReport(Request $request)
 
     return view('back-end.reports.follow-up-report', compact('months', 'year'));
 }
+
+public function sourceLeadReport(Request $request)
+{
+    // 1. Base Leads Query (Date Filters ke sath prepare karein taaki sahi counts milein)
+    $baseQuery = \App\Models\Leads::join('sources', 'sources.id', '=', 'leads.lead_source')
+        ->where('leads.duplicate_lead', 0)
+        ->where('sources.is_delete', 0);
+
+    if ($request->filled('from_date')) {
+        $baseQuery->whereDate('leads.created_at', '>=', $request->from_date);
+    }
+    if ($request->filled('to_date')) {
+        $baseQuery->whereDate('leads.created_at', '<=', $request->to_date);
+    }
+
+    // Saari filtered leads ek baar me collections me le aate hain counts match karne ke liye
+    $allFilteredLeads = clone $baseQuery;
+    $leadsCollection = $allFilteredLeads->select('leads.*')->get();
+
+    // 2. Active Sources list map counts ke sath
+    $sources = DB::table('sources')
+        ->where('is_delete', 0)
+        ->get()
+        ->map(function($source) use ($leadsCollection) {
+            // Har source ke liye filtered collection se matching counts filter karna
+            $source->leads_count = $leadsCollection->where('lead_source', $source->id)->count();
+            return $source;
+        });
+
+    // Total leads count "All Sources" tab ke liye
+    $allSourcesCount = $leadsCollection->count();
+
+    // 3. Current active selected filters apply karna final table result ke liye
+    if ($request->filled('source_id')) {
+        $baseQuery->where('leads.lead_source', $request->source_id);
+    }
+
+    // Status Tab filter
+    $leadsWithStatus = clone $baseQuery;
+    $leadsWithStatusCollection = $leadsWithStatus->select('leads.*')->get();
+
+    $counts = [
+        'All'              => $leadsWithStatusCollection->count(),
+        'Hot'              => $leadsWithStatusCollection->where('l_status', 'Hot')->count(),
+        'Cold'             => $leadsWithStatusCollection->where('l_status', 'Cold')->count(),
+        'Warm'             => $leadsWithStatusCollection->where('l_status', 'Warm')->count(),
+        'Price'            => $leadsWithStatusCollection->where('l_status', 'Price')->count(),
+        'Deadline'         => $leadsWithStatusCollection->where('l_status', 'Deadline')->count(),
+        'Serious Concern'  => $leadsWithStatusCollection->where('l_status', 'Serious Concern')->count(),
+        'Marks'            => $leadsWithStatusCollection->where('l_status', 'Marks')->count(),
+        'Quality'          => $leadsWithStatusCollection->where('l_status', 'Quality')->count(),
+        'Customer Service' => $leadsWithStatusCollection->where('l_status', 'Customer Service')->count(),
+        'Unknown'          => $leadsWithStatusCollection->where('l_status', 'Unknown')->count(),
+    ];
+
+    if ($request->filled('status_tab') && $request->status_tab !== 'All') {
+        $baseQuery->where('leads.l_status', $request->status_tab);
+    }
+
+    $reports = $baseQuery->select('leads.*')->orderByDesc('leads.created_at')->get();
+
+    return view('back-end.reports.source-lead-report', compact('reports', 'sources', 'counts', 'allSourcesCount'));
+}
 }

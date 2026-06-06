@@ -329,7 +329,7 @@ class MasterController extends Controller
    public function revokePayment(Request $request, $id)
     {
         $request->validate([
-            'revoke_comment' => 'required|string|max:1000',
+            'revoke_comment' => 'nullable|string|max:1000',
         ]);
 
         $payment = Payment::find($id);
@@ -355,7 +355,7 @@ class MasterController extends Controller
         $payment->is_revoked = 1;
         $payment->revoke_resolved = 0;
 
-        $payment->revoke_comment = $request->revoke_comment;
+        $payment->revoke_comment = $request->revoke_comment ?? null;
         $payment->revoked_by = auth()->id();
         $payment->revoked_at = now();
 

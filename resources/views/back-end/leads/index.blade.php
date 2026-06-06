@@ -77,6 +77,7 @@
 
                         </select>
                     </div>
+                    <input type="hidden" id="lead_status_tab" value="">
                     <div class="col-md-3 mt-2">
                         {{-- <a href="/1008/lead" class="btn btn-sm btn-light">Clear Filters</a> --}}
                         <a href="/lead" class="btn btn-sm btn-light" onclick="localStorage.removeItem('lead_filters')">

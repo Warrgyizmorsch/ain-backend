@@ -116,6 +116,7 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/sources', [MasterController::class, 'store_source'])->name('sources.store');
     Route::put('/sources/{id}', [MasterController::class, 'update_source'])->name('sources.update');
     Route::delete('/sources/{id}', [MasterController::class, 'delete_source'])->name('sources.delete');
+    Route::get('/source-lead-report', [ReportController::class, 'sourceLeadReport'])->name('source.lead.report');
 
     // College Managment Route
     Route::get('/college', [MasterController::class, 'college'])->name('college');
@@ -463,6 +464,7 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/user/break/end', [HomeController::class, 'endBreak'])->name('user.break.end');
         Route::get('/user/break/current', [HomeController::class, 'currentBreak'])->name('user.break.current');
         Route::get('/break-time-report', [HomeController::class, 'breakTimeReport'])->name('break.time.report');
+        Route::get('/my-break-time-report', [HomeController::class, 'myBreakTimeReport'])->name('my.break.time.report');
         Route::get('/user-retention-report', [UserHistoryController::class, 'userRetentionReport'])->name('user.retention.report');
         Route::get('/user/latest-behaviour/{userId}', [UserController::class, 'latestClientBehaviour'])->name('user.latest.behaviour');
         Route::get('/follow-up-report', [ReportController::class, 'followUpReport'])->name('follow.up.report');
@@ -488,4 +490,7 @@ Route::middleware(['auth'])->group(function () {
 
         Route::get('/my-revoke-payments/filter', [OrderController::class, 'myRevokePaymentsFilter'])
             ->name('payments.my.revoke.filter');    
+
+        Route::get('/payee-report', [OrderController::class, 'payeeReport'])
+            ->name('reports.payee');
     });
