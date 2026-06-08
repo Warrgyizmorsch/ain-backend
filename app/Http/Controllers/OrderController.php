@@ -1448,7 +1448,7 @@ class OrderController extends Controller
         }
         if ($order->feedbackissue != 1) {
             $order->status_issue = 'Issue Raised';
-            $order->feedback_ticket = substr(uniqid(), 0, 7);
+            $order->feedback_ticket = 'TCK-' . substr($order->order_id, 3);
         }
         $order->feedbackissue = 1;
         $order->comment = $req->input('comment');
@@ -1487,7 +1487,7 @@ class OrderController extends Controller
         $feedbackCount = Feedback::where('order_id', $request->order_id)->count();
 
         if ($feedbackCount >= 1 && empty($order->feedback_ticket)) {
-            $order->feedback_ticket = $order->writer_name . '-' . substr($order->order_id, 3);
+            $order->feedback_ticket = 'TCK-' . substr($order->order_id, 3);
             $order->status_issue = 'Issue Raised';
             $order->feedbackissue = 1;
         }
@@ -2540,8 +2540,10 @@ class OrderController extends Controller
             // }
             
             if ($currentStatusLog && $currentStatusLog->count >= 1 && empty($order->feedback_ticket)) {
-                    $skipDissertationFeedbackTicket = $statusName->status == 'Feedback' && $order->typeofpaper == 'Dissertation';
-                    if (!$skipDissertationFeedbackTicket && ($statusName->status == 'Feedback' || $statusName->status == 'Other')) {
+                $isFeedbackStatus = strcasecmp(trim($statusName->status), 'Feedback') === 0;
+                $isDissertation = strcasecmp(trim($order->typeofpaper), 'Dissertation') === 0;
+
+                if ($isFeedbackStatus && !$isDissertation) {
                     $order->feedback_ticket = 'TCK-' . substr($order->order_id, 3);
                     $order->status_issue = 'Issue Raised';
                     $order->feedbackissue = 1;
