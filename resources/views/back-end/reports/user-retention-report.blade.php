@@ -42,7 +42,7 @@
                 <thead>
                     <tr class="fw-bold bg-light">
                         <th>Month</th>
-                        {{-- <th>New Users</th> --}}
+                        <th>New Users</th>
                         <th>Users</th>
                         <th>Retain Users</th>
                         <th>Not Retain Users</th>
@@ -54,12 +54,12 @@
                         <tr>
                             <td class="fw-bold">{{ $month['month_name'] }}</td>
 
-                            {{-- <td>
+                            <td>
                                 <button class="btn btn-sm btn-light-primary"
                                     onclick="toggleUserList('new-{{ $month['month_no'] }}')">
                                     {{ $month['new_users']->count() }}
                                 </button>
-                            </td> --}}
+                            </td>
 
                             <td>
                                 @php

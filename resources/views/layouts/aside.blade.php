@@ -97,7 +97,7 @@
                                                 <span class="menu-bullet">
                                                     <span class="bullet bullet-dot"></span>
                                                 </span>
-                                                <span class="menu-title">Payee Report</span>
+                                                <span class="menu-title">Paayment Report</span>
                                             </a>
                                         </div>
                                     @endif

@@ -1,6 +1,6 @@
 <IfModule mod_rewrite.c>
     RewriteEngine On
-    RewriteBase /1008/
+    RewriteBase /ain-backend/
     # Disable MultiViews and Indexes
     <IfModule mod_negotiation.c>
         Options -MultiViews -Indexes
