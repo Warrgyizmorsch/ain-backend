@@ -8,6 +8,10 @@ use App\Http\Controllers\PublicLeadOtpController;
 use App\Http\Controllers\WhatsAppWebhookController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Api\AppDropdownController;
+use App\Http\Controllers\Api\AuthController;
+
+
 
 
 /*
@@ -35,3 +39,13 @@ Route::prefix('public/leads')->group(function () {
 });
 Route::post('/submit-feedback', [FeedbackController::class, 'submitFeedback']);
 Route::post('/save-order', [OrderApiController::class, 'store']);
+
+Route::prefix('app')->group(function () {
+    Route::get('/countries', [AppDropdownController::class, 'countries']);
+    Route::get('/services', [AppDropdownController::class, 'services']);
+    Route::get('/subjects', [AppDropdownController::class, 'subjects']);
+    Route::get('/urgencies', [AppDropdownController::class, 'urgencies']);
+    Route::get('/word-count', [AppDropdownController::class, 'wordCount']);
+    Route::post('/register', [AuthController::class, 'register']);
+    Route::post('/login', [AuthController::class, 'login']);
+});
