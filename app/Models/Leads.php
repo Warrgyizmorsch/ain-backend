@@ -33,7 +33,7 @@ class Leads extends Model
         'page_url' ,
         'assign_type',
         'lead_source',
-    
+        'is_app_lead',    
     ];
 
     public function call()
@@ -46,8 +46,13 @@ class Leads extends Model
         return $this->belongsTo(User::class, 'emp_id');
     }
    
+    // public function source()
+    // {
+    //     return $this->belongsTo(Source::class,'lead_source','id');
+    // }
+
     public function source()
     {
-        return $this->belongsTo(Source::class,'lead_source');
+        return $this->belongsTo(Source::class, 'lead_source', 'id');
     }
 }

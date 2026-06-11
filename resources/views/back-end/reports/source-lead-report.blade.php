@@ -154,9 +154,23 @@
 
                             {{-- ORDER DATE --}}
                             <td class="text-center">
-                                <div>{{ \Carbon\Carbon::parse($lead->create_at)->format('d M Y') }}</div>
-                                @if($lead->lead_source && !empty($lead->source))
-                                    <div class="text-muted fs-8 mt-1">{{ $lead->source->source_name }}</div>
+                                <div class="fw-bolder text-gray-800 fs-6">
+                                    {{ \Carbon\Carbon::parse($lead->create_at)->format('d M Y') }}
+                                </div>
+                                @if($lead->source)
+                                    <div class="d-flex justify-content-center align-items-center mt-1">
+                                        <span class="badge badge-light-info d-flex align-items-center gap-1 px-2 py-1" style="border: 1px solid rgba(0, 158, 247, 0.15); border-radius: 4px;">
+                                            @if(!empty($lead->source->source_icon))
+                                                <img src="{{ asset($lead->source->source_icon) }}"
+                                                    style="height:14px; width:14px; object-fit:cover; border-radius:3px;"
+                                                    title="{{ $lead->source->source_name }}"
+                                                    onerror="this.style.display='none'">
+                                            @endif
+                                            <span class="fw-bold fs-8" style="color: #009ef7;">
+                                                {{ $lead->source->source_name }}
+                                            </span>
+                                        </span>
+                                    </div>
                                 @endif
                             </td>
 

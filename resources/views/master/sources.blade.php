@@ -30,7 +30,7 @@
                         </h3>
                     </div>
 
-                    <form action="{{ route('sources.store') }}" method="POST">
+                    <form action="{{ route('sources.store') }}" method="POST" enctype="multipart/form-data">
                         @csrf
                         <div class="card-body">
                             <div class="fv-row mt-5">
@@ -38,6 +38,12 @@
                                 <input type="text" name="name" required
                                     class="form-control form-control-lg form-control-solid"
                                     placeholder="Source Name">
+                            </div>
+
+                            <div class="fv-row mt-5">
+                                <label class="fw-bold fs-6">Source Icon (Max 2MB)</label>
+                                <input type="file" name="icon" accept="image/*"
+                                    class="form-control form-control-lg form-control-solid">
                             </div>
 
                             <div class="mt-5">
@@ -62,6 +68,7 @@
                                 <thead>
                                     <tr class="fw-bolder text-muted">
                                         <th>Sr.No.</th>
+                                        <th>Icon</th>
                                         <th>Name</th>
                                         <th class="text-end">Actions</th>
                                     </tr>
@@ -75,6 +82,13 @@
 
                                     <tr>
                                         <td>{{ $counter++ }}</td>
+                                        <td>
+                                            @if($source->source_icon)
+                                                <img src="{{ asset($source->source_icon) }}" style="max-height: 30px; max-width: 30px; border-radius: 4px;">
+                                            @else
+                                                <span class="text-muted">No Icon</span>
+                                            @endif
+                                        </td>
                                         <td>{{ $source->source_name }}</td>
 
                                         <td class="text-end">
@@ -106,7 +120,8 @@
                                                     <div class="modal-content">
 
                                                         <form method="POST"
-                                                            action="{{ route('sources.update', $source->id) }}">
+                                                            action="{{ route('sources.update', $source->id) }}"
+                                                            enctype="multipart/form-data">
                                                             @csrf
                                                             @method('PUT')
 
@@ -114,10 +129,23 @@
                                                                 <h3>Edit Source</h3>
                                                             </div>
 
-                                                            <div class="modal-body">
-                                                                <input type="text" name="name"
-                                                                    value="{{ $source->source_name }}"
-                                                                    class="form-control form-control-solid">
+                                                            <div class="modal-body text-start">
+                                                                <div class="mb-5">
+                                                                    <label class="required fw-bold fs-6 mb-2">Source Name</label>
+                                                                    <input type="text" name="name"
+                                                                        value="{{ $source->source_name }}"
+                                                                        class="form-control form-control-solid">
+                                                                </div>
+                                                                <div class="mb-5">
+                                                                    <label class="fw-bold fs-6 mb-2">Source Icon (Max 2MB)</label>
+                                                                    <input type="file" name="icon" accept="image/*"
+                                                                        class="form-control form-control-solid">
+                                                                    @if($source->source_icon)
+                                                                        <div class="mt-2">
+                                                                            <img src="{{ asset($source->source_icon) }}" style="max-height: 40px; border-radius: 4px;">
+                                                                        </div>
+                                                                    @endif
+                                                                </div>
                                                             </div>
 
                                                             <div class="modal-footer">

@@ -112,13 +112,15 @@
             });
         }
 
-        function requestExtension(paymentId) {
+        function requestExtension(paymentId, comment) {
             return fetch(`/revoke-payments/request-extension/${paymentId}`, {
                 method: 'POST',
                 headers: {
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
-                    'Content-Type': 'application/json'
-                }
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({ comment: comment })
             }).then(res => res.json());
         }
 
@@ -155,14 +157,40 @@
                 cancelButtonColor: '#6c757d'
             }).then(result => {
                 if (result.isConfirmed) {
-                    requestExtension(item.payment_id).then(() => {
-                        Swal.fire('Request Sent', 'Extension request sent to Admin.', 'success');
+                    Swal.fire({
+                        title: 'Request Deadline Extension',
+                        text: 'Enter a comment/reason for the extension request:',
+                        input: 'textarea',
+                        inputPlaceholder: 'Enter reason here...',
+                        showCancelButton: true,
+                        confirmButtonText: 'Send Request',
+                        cancelButtonText: 'Cancel',
+                        confirmButtonColor: '#009ef7',
+                        preConfirm: (value) => {
+                            if (!value || value.trim() === "") {
+                                Swal.showValidationMessage('Comment is required');
+                                return false;
+                            }
+                            return value;
+                        }
+                    }).then(commentResult => {
+                        if (commentResult.isConfirmed) {
+                            requestExtension(item.payment_id, commentResult.value).then((res) => {
+                                if (res && res.success) {
+                                    Swal.fire('Request Sent', res.message || 'Extension request sent to Admin.', 'success');
+                                    channel.postMessage({ type: 'refresh' });
+                                } else {
+                                    Swal.fire('Error', (res && res.error) || 'Failed to send request.', 'error');
+                                }
+                            });
+                        }
                     });
                 }
             });
         }
 
         function showExpiredModal(item) {
+            if (item.extension_status === 'pending') return;
             if (activeExpiredModalPaymentId === item.payment_id) return;
 
             const snoozeUntil = localStorage.getItem(`revoke_snooze_${item.payment_id}`);
@@ -204,7 +232,6 @@
                 activeExpiredModalPaymentId = null;
 
                 if (result.isConfirmed) {
-                    // window.location.href = `/payment/${item.order_id}/${item.payment_id}`;
                     window.location.href = `/orders/payment/${item.order_numeric_id}/${item.payment_id}`;
                 }
 
@@ -215,8 +242,39 @@
                         return;
                     }
 
-                    requestExtension(item.payment_id).then(() => {
-                        Swal.fire('Request Sent', 'Extension request sent to Admin.', 'success');
+                    Swal.fire({
+                        title: 'Request Deadline Extension',
+                        text: 'Enter a comment/reason for the extension request:',
+                        input: 'textarea',
+                        inputPlaceholder: 'Enter reason here...',
+                        showCancelButton: true,
+                        confirmButtonText: 'Send Request',
+                        cancelButtonText: 'Cancel',
+                        confirmButtonColor: '#009ef7',
+                        preConfirm: (value) => {
+                            if (!value || value.trim() === "") {
+                                Swal.showValidationMessage('Comment is required');
+                                return false;
+                            }
+                            return value;
+                        }
+                    }).then(commentResult => {
+                        if (commentResult.isConfirmed) {
+                            requestExtension(item.payment_id, commentResult.value).then((res) => {
+                                if (res && res.success) {
+                                    Swal.fire('Request Sent', res.message || 'Extension request sent to Admin.', 'success');
+                                    channel.postMessage({ type: 'refresh' });
+                                } else {
+                                    Swal.fire('Error', (res && res.error) || 'Failed to send request.', 'error');
+                                    showExpiredModal(item);
+                                }
+                            }).catch(err => {
+                                Swal.fire('Error', 'An error occurred while sending the request.', 'error');
+                                showExpiredModal(item);
+                            });
+                        } else {
+                            showExpiredModal(item);
+                        }
                     });
                 }
 
@@ -236,6 +294,8 @@
                 .then(res => res.json())
                 .then(alerts => {
                     updateCountdownBadges(alerts);
+
+                    if (document.hidden) return;
 
                     alerts.forEach(item => {
                         if (item.seconds_left <= 0) {
@@ -355,6 +415,7 @@
         }
 
         function checkAdminRequests() {
+            if (document.hidden) return;
             fetch(`{{ route('admin.revoke.extension.requests') }}`)
                 .then(res => res.json())
                 .then(requests => {
@@ -370,6 +431,7 @@
                                 <p><b>Order ID:</b> ${req.order_id ?? 'N/A'}</p>
                                 <p><b>Amount:</b> £${req.paid_amount}</p>
                                 <p><b>Requested By:</b> ${req.requested_by ?? 'N/A'}</p>
+                                <p><b>Reason / Comment:</b> <br><span class="text-muted">${req.admin_note ?? 'No reason provided.'}</span></p>
                             </div>
                         `,
                         icon: 'info',
@@ -447,6 +509,13 @@
                     });
                 });
         }
+
+        channel.onmessage = function (event) {
+            const data = event.data;
+            if (data.type === 'refresh') {
+                checkAdminRequests();
+            }
+        };
 
         setInterval(checkAdminRequests, 15000);
         checkAdminRequests();

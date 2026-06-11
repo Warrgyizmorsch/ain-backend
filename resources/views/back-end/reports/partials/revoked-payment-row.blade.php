@@ -54,13 +54,13 @@
                     <i class="fa fa-times-circle"></i>
                 </a> --}}
 
-                {{-- <a href="#"
+                <a href="#"
                 data-bs-toggle="modal"
                 data-bs-target="#requestExtensionModal{{ $payment->id }}"
                 class="btn btn-icon btn-warning btn-sm"
                 title="Request Deadline Extension">
                     <span class="fw-bold text-white">E</span>
-                </a> --}}
+                </a>
 
                 {{-- @if(auth()->user()->role_id == 1)
                     <button type="button" class="btn btn-icon btn-sm btn-light-danger" title="Looking For Refund" onclick="markLookingForRefund({{ $order->id }})">

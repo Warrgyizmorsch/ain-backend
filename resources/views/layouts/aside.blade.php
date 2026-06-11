@@ -91,6 +91,7 @@
                                             </div>
                                         @endif
                                     @endforeach
+<<<<<<< Updated upstream
                                     @if(strtolower($menu['menu_name']) == 'reports' && auth()->check() && auth()->user()->role_id == 1)
                                         <div class="menu-item">
                                             <a class="menu-link" href="{{ url('payee-report') }}">
@@ -101,6 +102,8 @@
                                             </a>
                                         </div>
                                     @endif
+=======
+>>>>>>> Stashed changes
                                 </div>
                             </div>
 

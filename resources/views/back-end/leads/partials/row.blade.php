@@ -193,7 +193,7 @@
         </div>
 
     </td>
-    <td class="text-center">
+    <!-- <td class="text-center">
         @php
             $latestCall = \DB::table('calls')
                 ->where('lead_id', $lead->id)
@@ -229,7 +229,7 @@
         @else
             <span class="text-muted">No Comment</span>
         @endif
-    </td>
+    </td> -->
     <td class="text-center" style="{{ $orderIdStyle }}">
         @if ($lead['frontendorder'] == '1')
         <span class="badge badge-light-primary fs-7 fw-bold">{{ $lead->order_id }}</span>
@@ -303,9 +303,37 @@
         @endif
 
     </td>
-    <td class="text-center">{{ \Carbon\Carbon::parse($lead->create_at)->format('d M Y') }}</br>
-    @if($lead->lead_source)
-        <strong>Source:</strong><span>{{$lead->source->source_name}}</span>
+    <!-- <td class="text-center">{{ \Carbon\Carbon::parse($lead->create_at)->format('d M Y') }}</br>
+    @if($lead->lead_source && !empty($lead->source))
+        <strong>Source:</strong>
+        <span>
+            @if($lead->source && $lead->source->source_icon)
+                <img src="{{ asset($lead->source->source_icon) }}"
+                style="height:16px;width:16px;object-fit:cover;vertical-align:middle;border-radius:2px;margin-right:3px;"
+                title="{{ $lead->source->source_name }}">
+            @endif
+            {{ $lead->source->source_name }}
+        </span>
+    @endif
+    </td> -->
+    <td class="text-center">
+        <div class="fw-bolder text-gray-800 fs-6">
+            {{ \Carbon\Carbon::parse($lead->create_at)->format('d M Y') }}
+        </div>
+        @if($lead->source)
+            <div class="d-flex justify-content-center align-items-center mt-1">
+                <span class="badge badge-light-info d-flex align-items-center gap-1 px-2 py-1" style="border: 1px solid rgba(0, 158, 247, 0.15); border-radius: 4px;">
+                    @if(!empty($lead->source->source_icon))
+                        <img src="{{ asset($lead->source->source_icon) }}"
+                            style="height:14px; width:14px; object-fit:cover; border-radius:3px;"
+                            title="{{ $lead->source->source_name }}"
+                            onerror="this.style.display='none'">
+                    @endif
+                    <span class="fw-bold fs-8" style="color: #009ef7;">
+                        {{ $lead->source->source_name }}
+                    </span>
+                </span>
+            </div>
         @endif
     </td>
     <td class="text-center">

@@ -824,11 +824,29 @@ class MasterController extends Controller
     public function store_source(Request $req)
     {
         $req->validate([
-            'name' => 'required|string|max:255'
+            'name' => 'required|string|max:255',
+            'icon' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg|max:2048'
         ]);
 
+        $iconPath = null;
+        if ($req->hasFile('icon')) {
+    $uploadedFile = $req->file('icon');
+    $fileName = uniqid() . '_' . $uploadedFile->getClientOriginalName();
+
+    $destinationPathPublic = public_path('assets/media/sources');
+
+    if (!file_exists($destinationPathPublic)) {
+        mkdir($destinationPathPublic, 0777, true);
+    }
+
+    $uploadedFile->move($destinationPathPublic, $fileName);
+
+    $iconPath = 'assets/media/sources/' . $fileName;
+}
+
         Source::create([
-            'source_name' => $req->name
+            'source_name' => $req->name,
+            'source_icon' => $iconPath
         ]);
 
         return back()->with('success', 'Source Added Successfully');
@@ -838,13 +856,48 @@ class MasterController extends Controller
     public function update_source(Request $req, $id)
     {
         $req->validate([
-            'name' => 'required|string|max:255'
+            'name' => 'required|string|max:255',
+            'icon' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg|max:2048'
         ]);
 
         $source = Source::findOrFail($id);
-        $source->update([
+        
+        $updateData = [
             'source_name' => $req->name
-        ]);
+        ];
+
+        if ($req->hasFile('icon')) {
+            // Delete old icon if exists
+            if ($source->source_icon) {
+                if (file_exists(public_path($source->source_icon))) {
+                    @unlink(public_path($source->source_icon));
+                }
+                if (file_exists(base_path($source->source_icon))) {
+                    @unlink(base_path($source->source_icon));
+                }
+            }
+
+            $uploadedFile = $req->file('icon');
+            $fileName = uniqid() . '_' . $uploadedFile->getClientOriginalName();
+            
+            $destinationPathPublic = public_path('assets/media/sources');
+            $destinationPathRoot = base_path('assets/media/sources');
+
+            if (file_exists($destinationPathRoot) && !is_dir($destinationPathRoot)) {
+                @unlink($destinationPathRoot);
+            }
+
+            if (!file_exists($destinationPathRoot)) {
+                @mkdir($destinationPathRoot, 0777, true);
+            }
+
+            $uploadedFile->move($destinationPathPublic, $fileName);
+            @copy($destinationPathPublic . '/' . $fileName, $destinationPathRoot . '/' . $fileName);
+            
+            $updateData['source_icon'] = 'assets/media/sources/' . $fileName;
+        }
+
+        $source->update($updateData);
 
         return back()->with('success', 'Source Updated Successfully');
     }

@@ -10,6 +10,7 @@ class Source extends Model
 
     protected $fillable = [
         'source_name',
+        'source_icon',
         'is_delete'
     ];
 }

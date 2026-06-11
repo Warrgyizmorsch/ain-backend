@@ -4677,6 +4677,9 @@ public function requestRevokeExtension(Request $request, $paymentId)
         ->first();
 
     if ($exists) {
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json(['success' => false, 'error' => 'Extension request already pending.']);
+        }
         return back()->with('error', 'Extension request already pending.');
     }
 
@@ -4691,6 +4694,10 @@ public function requestRevokeExtension(Request $request, $paymentId)
 
     $payment->revoke_last_action_at = now();
     $payment->save();
+
+    if ($request->wantsJson() || $request->ajax()) {
+        return response()->json(['success' => true, 'message' => 'Extension request sent to admin.']);
+    }
 
     return back()->with('success', 'Extension request sent to admin.');
 }
@@ -4714,6 +4721,7 @@ public function adminRevokeExtensionRequests()
             'payment_details.paid_amount',
             'orders.order_id',
             'users.name as requested_by',
+            'revoke_payment_extension_requests.admin_note',
             'revoke_payment_extension_requests.created_at'
         )
         ->latest('revoke_payment_extension_requests.id')
@@ -4804,6 +4812,19 @@ public function approveRevokeExtension($requestId)
         'success' => true,
         'message' => 'Deadline extended by 3 days.'
     ]);
+}
+
+private function addDaysExcludingSunday($startDate, $days = 3)
+{
+    $date = \Carbon\Carbon::parse($startDate)->copy();
+    $addedDays = 0;
+    while ($addedDays < $days) {
+        $date->addDay();
+        if (!$date->isSunday()) {
+            $addedDays++;
+        }
+    }
+    return $date;
 }
 
 public function rejectRevokeExtension($requestId)

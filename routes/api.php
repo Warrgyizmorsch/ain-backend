@@ -48,4 +48,11 @@ Route::prefix('app')->group(function () {
     Route::get('/word-count', [AppDropdownController::class, 'wordCount']);
     Route::post('/register', [AuthController::class, 'register']);
     Route::post('/login', [AuthController::class, 'login']);
+    Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
+    Route::post('/reset-password', [AuthController::class, 'resetPassword']);
+});
+
+Route::middleware('auth:sanctum')->prefix('app')->group(function () {
+    Route::post('/place-order', [OrderApiController::class, 'placeOrder']);
+    Route::get('/orders', [OrderApiController::class, 'orderList']);
 });

@@ -82,3 +82,9 @@ ALTER TABLE payment_details ADD COLUMN revoke_resolved TINYINT(1) NOT NULL DEFAU
 ALTER TABLE payment_details ADD COLUMN revoke_alert_closed TINYINT(1) NOT NULL DEFAULT 0 AFTER revoke_resolved, ADD COLUMN revoke_alert_closed_by INT NULL AFTER revoke_alert_closed, ADD COLUMN revoke_alert_closed_at DATETIME NULL AFTER revoke_alert_closed_by;
 ALTER TABLE payment_details ADD COLUMN revoke_deadline_at DATETIME NULL AFTER revoked_at, ADD COLUMN revoke_last_action_at DATETIME NULL AFTER revoke_deadline_at;
 CREATE TABLE revoke_payment_extension_requests ( id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY, payment_id INT NOT NULL, requested_by INT NOT NULL, approved_by INT NULL, status ENUM('pending','approved','rejected') NOT NULL DEFAULT 'pending', admin_note TEXT NULL, approved_at DATETIME NULL, created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP );
+
+--Rahul 8-06-26
+ALTER TABLE `sources` ADD COLUMN `source_icon` VARCHAR(255) NULL DEFAULT NULL AFTER `source_name`;
+
+--Rahul 11-06-26 
+ALTER TABLE leads ADD COLUMN is_app_lead TINYINT(1) NOT NULL DEFAULT 0 AFTER frontendorder;
