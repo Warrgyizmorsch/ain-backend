@@ -197,90 +197,73 @@ class OrderApiController extends Controller
         ], 201);
     }
 
-    public function orderList(Request $request)
-    {
-        $user = $request->user();
+   public function orderList(Request $request)
+{
+    $user = $request->user();
 
-        $leads = DB::table('leads')
-            ->leftJoin('orders', 'orders.lead_id', '=', 'leads.id')
-            ->where(function ($query) use ($user) {
-                $query->where('leads.emp_id', $user->id)
-                    ->orWhere('leads.email', $user->email);
-            })
-            ->where('leads.is_app_lead', 1)
-            ->select(
-                'leads.id as lead_id',
-                'leads.order_id',
-                'leads.user_name',
-                'leads.email',
-                'leads.countrycode',
-                'leads.mobile',
-                'leads.project_title',
-                'leads.pages',
-                'leads.price',
-                'leads.deadline',
-                'leads.delivery_time',
-                'leads.message',
-                'leads.service_type',
-                'leads.frontendorder',
-                'leads.is_app_lead',
-                'leads.is_converted',
-                'leads.converted_at',
-                'leads.create_at',
+    $leads = DB::table('leads')
+        ->where('is_app_lead', 1)
+        ->where(function ($query) use ($user) {
+            $query->where('emp_id', $user->id)
+                ->orWhere('email', $user->email);
+        })
+        ->select(
+            'id',
+            'order_id',
+            'emp_id',
+            'user_name',
+            'email',
+            'countrycode',
+            'mobile',
+            'project_title',
+            'pages',
+            'price',
+            'deadline',
+            'delivery_time',
+            'message',
+            'service_type',
+            'frontendorder',
+            'is_app_lead',
+            'is_converted',
+            'converted_at',
+            'create_at'
+        )
+        ->orderByDesc('id')
+        ->limit(50)
+        ->get()
+        ->map(function ($lead) {
+            return [
+                'lead_id' => $lead->id,
+                'order_id' => $lead->order_id,
 
-                'orders.id as order_db_id',
-                'orders.projectstatus',
-                'orders.paymentstatus',
-                'orders.amount',
-                'orders.received_amount',
-                'orders.delivery_date',
-                'orders.order_date'
-            )
-            ->orderByDesc('leads.id')
-            ->get()
-            ->map(function ($item) {
-                return [
-                    'lead_id' => $item->lead_id,
-                    'order_id' => $item->order_id,
+                'name' => $lead->user_name,
+                'email' => $lead->email,
+                'mobile' => $lead->mobile,
+                'countrycode' => $lead->countrycode,
 
-                    'name' => $item->user_name,
-                    'email' => $item->email,
-                    'mobile' => $item->mobile,
-                    'countrycode' => $item->countrycode,
+                'service' => $lead->project_title,
+                'work_type' => $lead->service_type,
+                'word_count' => $lead->pages,
+                'price' => $lead->price,
+                'deadline' => $lead->deadline,
+                'delivery_time' => $lead->delivery_time,
+                'requirements' => $lead->message,
 
-                    'service' => $item->project_title,
-                    'work_type' => $item->service_type,
-                    'word_count' => $item->pages,
-                    'price' => $item->price,
-                    'deadline' => $item->deadline,
-                    'delivery_time' => $item->delivery_time,
-                    'requirements' => $item->message,
+                'is_app_lead' => (int) $lead->is_app_lead,
+                'is_converted' => (int) $lead->is_converted,
+                'converted_at' => $lead->converted_at,
 
-                    'is_app_lead' => (int) $item->is_app_lead,
-                    'is_converted' => (int) $item->is_converted,
-                    'converted_at' => $item->converted_at,
+                'conversion_status' => $lead->is_converted == 1
+                    ? 'Converted to Order'
+                    : 'Lead Pending',
 
-                    'order' => [
-                        'order_db_id' => $item->order_db_id,
-                        'status' => $item->projectstatus,
-                        'payment_status' => $item->paymentstatus,
-                        'amount' => $item->amount,
-                        'received_amount' => $item->received_amount,
-                        'order_date' => $item->order_date,
-                        'delivery_date' => $item->delivery_date,
-                    ],
+                'created_at' => $lead->create_at,
+            ];
+        });
 
-                    'conversion_status' => $item->is_converted == 1
-                        ? 'Converted to Order'
-                        : 'Lead Pending',
-
-                    'created_at' => $item->create_at,
-                ];
-            });
-
-        return response()->json([
-            'success' => true,
-            'data' => $leads
-        ]);
-    }
+    return response()->json([
+        'success' => true,
+        'data' => $leads
+    ]);
+}
 }

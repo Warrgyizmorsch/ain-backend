@@ -54,5 +54,5 @@ Route::prefix('app')->group(function () {
 
 Route::middleware('auth:sanctum')->prefix('app')->group(function () {
     Route::post('/place-order', [OrderApiController::class, 'placeOrder']);
-    Route::get('/orders', [OrderApiController::class, 'orderList']);
+    Route::get('/order-list', [OrderApiController::class, 'orderList']);
 });
