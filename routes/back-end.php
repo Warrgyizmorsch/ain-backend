@@ -188,6 +188,8 @@ Route::middleware(['auth'])->group(function () {
     route::delete('orderpayments/{id}', [OrderController::class, 'orderPayment_delete'])->name('orderpayments.delete');
     Route::post('/comment/{id}', [OrderController::class, 'insert_feedback'])->name('comment.insert');
     Route::post('/orderedit/{id}', [OrderController::class, 'OrderEditwriterAdmin'])->name('orderedit.update');
+    Route::post('/orders/save-referral', [OrderController::class, 'saveReferral'])->name('orders.save.referral');
+
 
 
     // Feedback Managmengment Route 
@@ -366,6 +368,7 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/urgent-orders', [OrderController::class, 'urgentOrders']);
         Route::get('/statuses/list', [OrderController::class, 'getStatuses']);
         Route::post('/order-save-marks', [OrderController::class, 'saveMarks'])->name('orders.save.marks');
+        Route::post('/save-referral', [OrderController::class, 'saveReferral'])->name('orders.save.referral');
     });
 
     // History Management 

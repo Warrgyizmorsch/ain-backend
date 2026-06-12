@@ -62,6 +62,7 @@
                                     style="position: sticky; left: 0; background: #F5F8FA; z-index: 6;">Action</th>
                                         <th class="min-w-150px text-center" style="background: #F5F8FA;">Comment</th>
                                 <th class="min-w-100px text-center" style="background: #F5F8FA;">Order ID</th>
+                                <th class="min-w-120px text-center" style="background: #F5F8FA;">Referral</th>
                                 <th class="min-w-150px text-center" style="background: #F5F8FA;">User</th>
                             
                                 <th class="min-w-150px text-center" style="background: #F5F8FA;">Order Date</th>
@@ -470,6 +471,45 @@
                 </button>
             </div>
 
+        </div>
+    </div>
+</div>
+
+<!-- Referral Modal -->
+<div class="modal fade" id="referralModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered mw-450px">
+        <div class="modal-content shadow-sm border-0">
+            <div class="modal-header pb-0 border-0 justify-content-end">
+                <div class="btn btn-sm btn-icon btn-active-color-primary" data-bs-dismiss="modal">
+                    <span class="svg-icon svg-icon-1">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
+                            <rect opacity="0.5" x="6" y="17.3137" width="16" height="2" rx="1" transform="rotate(-45 6 17.3137)" fill="black" />
+                            <rect x="7.41422" y="6" width="16" height="2" rx="1" transform="rotate(45 7.41422 6)" fill="black" />
+                        </svg>
+                    </span>
+                </div>
+            </div>
+
+            <div class="modal-body scroll-y pt-0 pb-10 mx-5">
+                <div class="mb-5 text-center">
+                    <h3 class="mb-2 fw-bolder text-gray-800">Add Referral Comments</h3>
+                    <div class="text-muted fw-bold fs-6">Order Code: <span id="referralOrderCode" class="text-primary fw-bolder"></span></div>
+                </div>
+
+                <div class="d-flex flex-column mb-6 fv-row">
+                    <label class="d-flex align-items-center fs-6 fw-bold mb-2">
+                        <span class="required">Referral Comment</span>
+                    </label>
+                    <textarea id="referral_comment" class="form-control form-control-solid" rows="4" placeholder="Enter referral details, client notes, or comments..."></textarea>
+                </div>
+
+                <input type="hidden" id="referral_order_id">
+
+                <div class="text-center pt-5">
+                    <button type="button" data-bs-dismiss="modal" class="btn btn-light me-3 btn-sm">Cancel</button>
+                    <button type="button" class="btn btn-primary btn-sm" onclick="saveReferralDetails()">Submit Comment</button>
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -1219,6 +1259,95 @@ function openAdditionalHistory(orderId) {
         error: function(xhr) {
             console.log(xhr.responseText);
             $('#additionalHistoryBody').html('<div class="text-danger text-center">History load nahi ho payi.</div>');
+        }
+    });
+}
+
+function openReferralModal(orderId, orderCode) {
+    $('#referral_order_id').val(orderId);
+    $('#referralOrderCode').text(orderCode);
+    $('#referral_comment').val('');
+    $('#referralModal').modal('show');
+}
+
+function submitReferral(orderId, status) {
+    if (status === 'no') {
+        Swal.fire({
+            title: 'Are you sure?',
+            text: "Do you want to mark this order as 'Not Referred'?",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#F1416C',
+            cancelButtonColor: '#F5F8FA',
+            confirmButtonText: 'Yes, Mark No!',
+            customClass: {
+                confirmButton: 'btn btn-danger btn-sm',
+                cancelButton: 'btn btn-light btn-sm'
+            }
+        }).then((result) => {
+            if (result.isConfirmed) {
+                saveReferralAjax(orderId, 'no', '');
+            }
+        });
+    }
+}
+
+function saveReferralDetails() {
+    let orderId = $('#referral_order_id').val();
+    let comment = $('#referral_comment').val().trim();
+
+    if (!comment) {
+        Swal.fire('Warning', 'Please enter referral comments', 'warning');
+        return;
+    }
+
+    saveReferralAjax(orderId, 'yes', comment);
+}
+
+function saveReferralAjax(orderId, status, comment) {
+    $.ajax({
+        url: "{{ route('orders.save.referral') }}",
+        type: "POST",
+        data: {
+            _token: "{{ csrf_token() }}",
+            order_id: orderId,
+            status: status,
+            comment: comment
+        },
+        success: function(response) {
+            $('#referralModal').modal('hide');
+
+            Swal.fire({
+                icon: 'success',
+                title: response.message,
+                timer: 1200,
+                showConfirmButton: false
+            });
+
+            let cell = $('#referral-cell-' + orderId);
+            if (cell.length) {
+                if (status === 'no') {
+                    let btn = cell.find('button.dropdown-toggle');
+                    if (btn.length) {
+                        btn.removeClass('btn-light btn-active-light-primary').addClass('btn-light-danger text-danger');
+                        btn.html('Not Referred');
+                    }
+                } else {
+                    cell.html('<span class="badge badge-light-success fs-7 fw-bold" data-bs-toggle="tooltip" data-bs-placement="top" title="' + comment + '">Referred</span>');
+                    if (typeof bootstrap !== 'undefined' && bootstrap.Tooltip) {
+                        let badge = cell.find('[data-bs-toggle="tooltip"]')[0];
+                        if (badge) new bootstrap.Tooltip(badge);
+                    }
+                }
+            }
+        },
+        error: function(xhr) {
+            console.log(xhr.responseText);
+            let msg = 'Referral status not updated';
+            if (xhr.responseJSON && xhr.responseJSON.message) {
+                msg = xhr.responseJSON.message;
+            }
+            Swal.fire('Error', msg, 'error');
         }
     });
 }

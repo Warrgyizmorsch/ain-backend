@@ -26,6 +26,7 @@ protected $table = 'orders';
         'team_assigned_at',
         'marks',
         'offer',
+        'referal',
     ];
     
      protected $casts = [

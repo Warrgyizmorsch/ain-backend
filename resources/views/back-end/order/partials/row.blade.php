@@ -250,6 +250,21 @@ if ($failedDate && $failedDate->diffInDays(now()) <= 365) {
             </span>
             @endif
         </td>
+         <td class="text-center" id="referral-cell-{{ $order->id }}">
+            @if($order->referal && strtolower($order->referal) !== 'no')
+                <span class="badge badge-light-success fs-7 fw-bold" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ $order->referal }}">Referred</span>
+            @else
+                <div class="dropdown d-inline-block">
+                    <button class="btn {{ $order->referal && strtolower($order->referal) === 'no' ? 'btn-light-danger text-danger' : 'btn-light btn-active-light-primary' }} btn-sm py-1 px-3 fs-7 fw-bold dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        {{ $order->referal && strtolower($order->referal) === 'no' ? 'Not Referred' : 'Referral' }}
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end shadow-sm border-0 fs-7 py-2" style="min-width: 100px;">
+                        <li><a class="dropdown-item py-2 text-success fw-bold" href="javascript:void(0)" onclick="openReferralModal('{{ $order->id }}', '{{ $order->order_id }}')">Yes</a></li>
+                        <li><a class="dropdown-item py-2 text-danger fw-bold" href="javascript:void(0)" onclick="submitReferral('{{ $order->id }}', 'no')">No</a></li>
+                    </ul>
+                </div>
+            @endif
+        </td>
 
         {{-- <td class="text-center">
         @if($order->user)

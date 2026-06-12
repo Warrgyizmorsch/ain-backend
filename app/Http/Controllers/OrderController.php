@@ -1470,6 +1470,72 @@ class OrderController extends Controller
         return response()->json(['status' => 'success', 'created_at' => $feedback->created_at->format('d M Y, h:i A'), 'message' => $feedback->comment, 'log' => $logResponse]);
     }
 
+    public function saveReferral(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'order_id' => 'required|exists:orders,id',
+            'status' => 'required|in:yes,no',
+            'comment' => 'required_if:status,yes|nullable|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'status' => 'error',
+                'message' => $validator->errors()->first()
+            ], 422);
+        }
+
+        $order = Order::find($request->order_id);
+        if (!$order) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Order not found'
+            ], 404);
+        }
+
+        if ($request->status === 'no') {
+            $order->referal = 'no';
+            $order->save();
+
+            logActivity('Order', [
+                'type' => 'Referral Rejected',
+                'order_id' => $order->order_id,
+                'message' => 'Order marked as Not Referred',
+            ]);
+
+            return response()->json([
+                'status' => 'success',
+                'referral_status' => 'no',
+                'message' => 'Referral status updated to No successfully'
+            ]);
+        } else {
+            $comment = $request->comment;
+            $order->referal = $comment;
+            $order->save();
+
+            $feedback = new Feedback;
+            $feedback->order_id = $order->id;
+            $feedback->comment = $comment;
+            $feedback->status = 'Referred';
+            $feedback->created_by = auth()->user()->id;
+            $feedback->save();
+
+            logActivity('Order', [
+                'type' => 'Referral Added',
+                'order_id' => $order->order_id,
+                'message' => $comment,
+            ]);
+
+            return response()->json([
+                'status' => 'success',
+                'referral_status' => 'yes',
+                'comment' => $comment,
+                'created_at' => $feedback->created_at->format('d M Y, h:i A'),
+                'message' => 'Referral details saved successfully'
+            ]);
+        }
+    }
+
     public function sendFeedback(Request $request)
     {
         // 1. Validation

@@ -90,6 +90,14 @@ class OrderApiController extends Controller
             ], 422);
         }
 
+        // Mobile and country code clean
+        $mobile = preg_replace('/\D/', '', $request->input('mobile'));
+        $countryCode = preg_replace('/\D/', '', $request->input('countrycode'));
+
+        if ($countryCode && substr($mobile, 0, strlen($countryCode)) === $countryCode) {
+            $mobile = substr($mobile, strlen($countryCode));
+        }
+
         // Calculate Delivery Date
         $today = now();
         $urgencyDays = $request->input('urgency');
@@ -107,43 +115,40 @@ class OrderApiController extends Controller
             ], 422);
         }
 
-        // Generate Order ID same as website
+        // Generate Order ID
         $latestOrder = Order::orderByDesc('id')->first();
-        $newOrderNumber = $latestOrder ? (intval(substr($latestOrder->order_id, 3)) + 1) : 1;
+
+        $newOrderNumber = 1;
+
+        if ($latestOrder && !empty($latestOrder->order_id)) {
+            $lastNumber = preg_replace('/\D/', '', $latestOrder->order_id);
+            $newOrderNumber = $lastNumber ? ((int) $lastNumber + 1) : 1;
+        }
+
         $newOrderId = 'UKS' . str_pad($newOrderNumber, 3, '0', STR_PAD_LEFT);
 
-        // Logged-in app user
-        $authUser = $request->user();
-
+        // Find or create user
         $user = User::where('email', $request->input('email'))->first();
 
         if ($user) {
-            if (empty($user->country) && $request->filled('country')) {
-                $user->country = $request->input('country');
-            }
-
-            if (empty($user->mobile_no) && $request->filled('mobile')) {
-                $user->mobile_no = $request->input('mobile');
-            }
-
-            if (empty($user->countrycode) && $request->filled('countrycode')) {
-                $user->countrycode = $request->input('countrycode');
-            }
-
+            $user->name = $user->name ?: $request->input('name');
+            $user->country = $request->input('country');
+            $user->mobile_no = $mobile;
+            $user->countrycode = $countryCode;
             $user->save();
         } else {
             $user = User::create([
                 'name'        => $request->input('name'),
                 'email'       => $request->input('email'),
-                'mobile_no'   => $request->input('mobile'),
-                'countrycode' => $request->input('countrycode'),
+                'mobile_no'   => $mobile,
+                'countrycode' => $countryCode,
                 'country'     => $request->input('country'),
                 'password'    => Hash::make('user@123'),
                 'role_id'     => 2
             ]);
         }
 
-        // File Upload same folder
+        // File upload
         $uploadedFiles = [];
 
         if ($request->hasFile('fileUpload')) {
@@ -154,34 +159,34 @@ class OrderApiController extends Controller
                     mkdir($destinationPath, 0755, true);
                 }
 
-                $fileName = time() . '_' . $file->getClientOriginalName();
+                $fileName = time() . '_' . uniqid() . '_' . $file->getClientOriginalName();
                 $file->move($destinationPath, $fileName);
 
                 $uploadedFiles[] = 'images/orders/' . $fileName;
             }
         }
 
-        // Lead Create
+        // Lead create
         $lead = Leads::create([
-            'order_id'       => $newOrderId,
-            'emp_id'         => $user->id,
-            'deadline'       => $deliveryDate->format('Y-m-d'),
-            'create_at'      => now(),
-            'message'        => $request->input('requirements'),
-            'email'          => $user->email,
-            'user_name'      => $user->name,
-            'countrycode'    => $user->countrycode,
-            'mobile'         => $user->mobile_no,
-            'frontendorder'  => 1,
-            'is_app_lead'    => 1,
-            'project_title'  => $request->input('service'),
-            'pages'          => $request->input('wordCount'),
-            'price'          => $request->input('finalPrice'),
-            'service_type'   => str_replace('FirstClass', 'First Class Work', $request->input('workType')),
-            'page_url'       => $request->source_page ?? 'Mobile App',
+            'order_id'      => $newOrderId,
+            'emp_id'        => $user->id,
+            'deadline'      => $deliveryDate->format('Y-m-d'),
+            'create_at'     => now(),
+            'message'       => $request->input('requirements'),
+            'email'         => $user->email,
+            'user_name'     => $user->name,
+            'countrycode'   => $countryCode,
+            'mobile'        => $mobile,
+            'frontendorder' => 1,
+            'is_app_lead'   => 1,
+            'project_title' => $request->input('service'),
+            'pages'         => $request->input('wordCount'),
+            'price'         => $request->input('finalPrice'),
+            'service_type'  => str_replace('FirstClass', 'First Class Work', $request->input('workType')),
+            'page_url'      => $request->source_page ?? 'Mobile App',
         ]);
 
-        // Pending Order Create
+        // Pending order create
         Order::create([
             'order_id'      => $newOrderId,
             'projectstatus' => 'Pending',
@@ -189,81 +194,358 @@ class OrderApiController extends Controller
         ]);
 
         return response()->json([
-            'success'  => true,
-            'message'  => 'Order placed successfully!',
-            'order_id' => $newOrderId,
-            'lead_id'  => $lead->id,
-            'is_app_lead' => 1
+            'success'     => true,
+            'message'     => 'Order placed successfully!',
+            'order_id'    => $newOrderId,
+            'lead_id'     => $lead->id,
+            'is_app_lead' => 1,
         ], 201);
     }
 
-   public function orderList(Request $request)
-{
-    $user = $request->user();
+  public function orderList(Request $request)
+    {
+        $user = $request->user();
 
-    $leads = DB::table('leads')
-        ->where('is_app_lead', 1)
-        ->where(function ($query) use ($user) {
-            $query->where('emp_id', $user->id)
-                ->orWhere('email', $user->email);
-        })
-        ->select(
-            'id',
-            'order_id',
-            'emp_id',
-            'user_name',
-            'email',
-            'countrycode',
-            'mobile',
-            'project_title',
-            'pages',
-            'price',
-            'deadline',
-            'delivery_time',
-            'message',
-            'service_type',
-            'frontendorder',
-            'is_app_lead',
-            'is_converted',
-            'converted_at',
-            'create_at'
-        )
-        ->orderByDesc('id')
-        ->limit(50)
-        ->get()
-        ->map(function ($lead) {
+        // Confirmed orders
+        $orders = DB::table('orders')
+            ->where('uid', $user->id)
+            ->orderByDesc('id')
+            ->limit(50)
+            ->select(
+                'id',
+                'order_id',
+                'uid',
+                'lead_id',
+                'order_date',
+                'delivery_date',
+                'title',
+                'module_code',
+                'projectstatus',
+                'pages',
+                'amount',
+                'received_amount',
+                'created_at'
+            )
+            ->get()
+            ->map(function ($order) {
+                $amount = is_numeric($order->amount) ? (float) $order->amount : 0;
+                $received = is_numeric($order->received_amount) ? (float) $order->received_amount : 0;
+
+                return [
+                    'type' => 'confirmed',
+                    'confirmed_status' => 'Confirmed',
+                    'order_db_id' => $order->id,
+                    'lead_id' => $order->lead_id,
+                    'order_id' => $order->order_id,
+                    'order_date' => $order->order_date,
+                    'delivery_date' => $order->delivery_date,
+                    'title' => $order->title,
+                    'module_code' => $order->module_code,
+                    'status' => $order->projectstatus,
+                    'word_count' => $order->pages,
+                    'amount' => $order->amount,
+                    'received_amount' => $order->received_amount,
+                    'due_amount' => $amount - $received,
+                    'created_at' => $order->created_at,
+                ];
+            });
+
+        // Non-confirmed leads
+        $leads = DB::table('leads')
+            ->where('emp_id', $user->id)
+            ->where('is_app_lead', 1)
+            ->orderByDesc('id')
+            ->limit(50)
+            ->select(
+                'id',
+                'order_id',
+                'emp_id',
+                'user_name',
+                'email',
+                'countrycode',
+                'mobile',
+                'project_title',
+                'pages',
+                'price',
+                'deadline',
+                'delivery_time',
+                'message',
+                'service_type',
+                'frontendorder',
+                'is_app_lead',
+                'is_converted',
+                'converted_at',
+                'create_at'
+            )
+            ->get()
+            ->map(function ($lead) {
+                return [
+                    'type' => 'non_confirmed',
+                    'confirmed_status' => $lead->is_converted == 1 ? 'Confirmed' : 'Not Confirmed',
+                    'lead_id' => $lead->id,
+                    'order_id' => $lead->order_id,
+                    'name' => $lead->user_name,
+                    'email' => $lead->email,
+                    'mobile' => $lead->mobile,
+                    'countrycode' => $lead->countrycode,
+                    'service' => $lead->project_title,
+                    'work_type' => $lead->service_type,
+                    'word_count' => $lead->pages,
+                    'price' => $lead->price,
+                    'deadline' => $lead->deadline,
+                    'delivery_time' => $lead->delivery_time,
+                    'requirements' => $lead->message,
+                    'is_app_lead' => (int) $lead->is_app_lead,
+                    'is_converted' => (int) $lead->is_converted,
+                    'converted_at' => $lead->converted_at,
+                    'created_at' => $lead->create_at,
+                ];
+            });
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'confirmed_orders' => $orders,
+                'non_confirmed_leads' => $leads,
+                'summary' => [
+                    'confirmed_count' => $orders->count(),
+                    'non_confirmed_count' => $leads->count(),
+                ]
+            ]
+        ]);
+    }
+
+    public function raiseTicket(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'order_id' => 'required',
+            'comment'  => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation error',
+                'errors'  => $validator->errors()
+            ], 422);
+        }
+
+        $orderIdInput = $request->input('order_id');
+        $order = Order::where('id', $orderIdInput)
+            ->orWhere('order_id', $orderIdInput)
+            ->first();
+
+        if (!$order) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Order not found'
+            ], 404);
+        }
+
+        $commentText = $request->input('comment');
+
+        // Logic same as web order comments (insert_feedback)
+        if ($order->feedbackissue == 1 && $order->status_issue == 'Case Resolved') {
+            $order->status_issue = 'Issues Raised Again';
+        }
+        if ($order->feedbackissue != 1) {
+            $order->status_issue = 'Issue Raised';
+            $order->feedback_ticket = 'TCK-' . substr($order->order_id, 3);
+        }
+        $order->feedbackissue = 1;
+        $order->comment = $commentText;
+        $order->feedback_date = Carbon::now();
+        $order->save();
+
+        $feedback = new \App\Models\Feedback;
+        $feedback->order_id = $order->id;
+        $feedback->comment = $commentText;
+        $feedback->created_by = $request->user()->id;
+        $feedback->save();
+
+        logActivity('Order', [
+            'type' => 'Feedback Added',
+            'order_id' => $order->order_id,
+            'message' => $commentText,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Ticket raised successfully!',
+            'data' => [
+                'feedback_id' => $feedback->id,
+                'feedback_ticket' => $order->feedback_ticket,
+                'status_issue' => $order->status_issue,
+                'comment' => $feedback->comment,
+                'created_at' => $feedback->created_at ? $feedback->created_at->format('d M Y, h:i A') : now()->format('d M Y, h:i A'),
+            ]
+        ], 200);
+    }
+
+    public function getTicket(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'order_id' => 'required',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation error',
+                'errors'  => $validator->errors()
+            ], 422);
+        }
+
+        $orderIdInput = $request->input('order_id');
+        $order = Order::with(['feedback.user'])
+            ->where('id', $orderIdInput)
+            ->orWhere('order_id', $orderIdInput)
+            ->first();
+
+        if (!$order) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Order not found'
+            ], 404);
+        }
+
+        // Fetch feedback entries
+        $comments = $order->feedback->sortBy('created_at')->map(function ($fb) {
+            $isCurrentUser = $fb->created_by == auth()->id();
+            
+            // Determine type of chat item
+            $type = 'Order Chat';
+            $messageText = $fb->comment;
+            
+            if ($fb->status === 'Referred') {
+                $type = 'Referral Chat';
+            } elseif (!empty($fb->action_comment)) {
+                $type = 'Ticket Chat';
+                $messageText = $fb->action_comment;
+            }
+
             return [
-                'lead_id' => $lead->id,
-                'order_id' => $lead->order_id,
+                'id' => $fb->id,
+                'type' => $type,
+                'message' => $messageText,
+                'status' => $fb->status,
+                'sender_id' => $fb->created_by,
+                'sender_name' => $isCurrentUser ? 'You' : ($fb->user->name ?? 'Agent'),
+                'is_current_user' => $isCurrentUser,
+                'created_at' => $fb->created_at ? $fb->created_at->format('d M Y, h:i A') : null,
+            ];
+        })->values();
 
-                'name' => $lead->user_name,
-                'email' => $lead->email,
-                'mobile' => $lead->mobile,
-                'countrycode' => $lead->countrycode,
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'order_id' => $order->id,
+                'order_code' => $order->order_id,
+                'ticket_no' => $order->feedback_ticket,
+                'ticket_status' => $order->status_issue,
+                'is_ticket_raised' => (int) $order->feedbackissue === 1,
+                'ticket_date' => $order->feedback_date ? Carbon::parse($order->feedback_date)->format('d M Y, h:i A') : null,
+                'messages' => $comments
+            ]
+        ], 200);
+    }
 
-                'service' => $lead->project_title,
-                'work_type' => $lead->service_type,
-                'word_count' => $lead->pages,
-                'price' => $lead->price,
-                'deadline' => $lead->deadline,
-                'delivery_time' => $lead->delivery_time,
-                'requirements' => $lead->message,
+    public function userTickets(Request $request)
+    {
+        $user = $request->user();
 
-                'is_app_lead' => (int) $lead->is_app_lead,
-                'is_converted' => (int) $lead->is_converted,
-                'converted_at' => $lead->converted_at,
+        // Get all orders belonging to the user that have raised tickets
+        $orders = Order::with(['feedback' => function ($q) {
+            $q->orderBy('created_at', 'desc');
+        }])
+        ->where('uid', $user->id)
+        ->where(function($q) {
+            $q->where('feedbackissue', 1)
+              ->orWhereNotNull('feedback_ticket');
+        })
+        ->orderByDesc('feedback_date')
+        ->get()
+        ->map(function ($order) {
+            $latestFeedback = $order->feedback->first();
+            $lastMessage = '';
+            if ($latestFeedback) {
+                $lastMessage = !empty($latestFeedback->action_comment) ? $latestFeedback->action_comment : $latestFeedback->comment;
+            }
 
-                'conversion_status' => $lead->is_converted == 1
-                    ? 'Converted to Order'
-                    : 'Lead Pending',
-
-                'created_at' => $lead->create_at,
+            return [
+                'order_db_id'      => $order->id,
+                'order_code'       => $order->order_id,
+                'ticket_no'        => $order->feedback_ticket,
+                'ticket_status'    => $order->status_issue ?? 'Pending',
+                'ticket_date'      => $order->feedback_date ? Carbon::parse($order->feedback_date)->format('d M Y, h:i A') : null,
+                'last_message'     => $lastMessage,
+                'last_message_at'  => $latestFeedback && $latestFeedback->created_at ? $latestFeedback->created_at->format('d M Y, h:i A') : null,
             ];
         });
 
-    return response()->json([
-        'success' => true,
-        'data' => $leads
-    ]);
-}
+        return response()->json([
+            'success' => true,
+            'data' => $orders
+        ], 200);
+    }
+
+    public function walletAmount(Request $request)
+    {
+        $user = $request->user();
+
+        $credits = \App\Models\WalletTransaction::where('user_id', $user->id)
+            ->where('type', 'credit')
+            ->sum('amount');
+
+        $debits = \App\Models\WalletTransaction::where('user_id', $user->id)
+            ->where('type', 'debit')
+            ->sum('amount');
+
+        $walletAmount = (float) ($credits - $debits);
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'wallet_amount' => $walletAmount,
+                // 'total_credit' => (float) $credits,
+                // 'total_debit' => (float) $debits,
+                'currency' => 'GBP'
+            ]
+        ], 200);
+    }
+
+    public function walletTransactions(Request $request)
+    {
+        $user = $request->user();
+
+        $transactions = \App\Models\WalletTransaction::where('user_id', $user->id)
+            ->orderByDesc('created_at')
+            ->paginate(15);
+
+        $mappedTransactions = collect($transactions->items())->map(function ($tx) {
+            return [
+                'id' => $tx->id,
+                'amount' => (float) $tx->amount,
+                'type' => $tx->type,
+                'description' => $tx->description,
+                'is_expired' => (int) $tx->is_expired === 1,
+                'expires_at' => $tx->expires_at ? Carbon::parse($tx->expires_at)->format('d M Y, h:i A') : null,
+                'created_at' => $tx->created_at ? $tx->created_at->format('d M Y, h:i A') : null,
+            ];
+        });
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'transactions' => $mappedTransactions,
+                'pagination' => [
+                    'current_page' => $transactions->currentPage(),
+                    'last_page' => $transactions->lastPage(),
+                    'per_page' => $transactions->perPage(),
+                    'total' => $transactions->total(),
+                    'has_more' => $transactions->hasMorePages(),
+                ]
+            ]
+        ], 200);
+    }
 }

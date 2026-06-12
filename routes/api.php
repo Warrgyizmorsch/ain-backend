@@ -55,4 +55,11 @@ Route::prefix('app')->group(function () {
 Route::middleware('auth:sanctum')->prefix('app')->group(function () {
     Route::post('/place-order', [OrderApiController::class, 'placeOrder']);
     Route::get('/order-list', [OrderApiController::class, 'orderList']);
+    Route::get('/profile', [AuthController::class, 'profile']);
+     Route::post('/profile-update', [AuthController::class, 'updateProfile']);
+     Route::post('/raise-ticket', [OrderApiController::class, 'raiseTicket']);
+     Route::get('/ticket-details', [OrderApiController::class, 'getTicket']);
+      Route::get('/get-ticket', [OrderApiController::class, 'userTickets']);
+      Route::get('/wallet-amount', [OrderApiController::class, 'walletAmount']);
+      Route::get('/wallet-history', [OrderApiController::class, 'walletTransactions']);
 });

@@ -67,7 +67,7 @@
                     Order Chat
                 </li>
                 @foreach($order->feedback->sortBy('created_at') as $feedback)
-                @if($feedback->comment != '')
+                @if($feedback->comment != '' && $feedback->status != 'Referred')
 
                 @php $isCurrentUser = $feedback->created_by == Auth::id(); @endphp
 
@@ -170,6 +170,32 @@
                 @endforeach
                 @endif
 
+                {{-- Referral Chat --}}
+                @if($order->feedback && $order->feedback->where('status', 'Referred')->count())
+                <li class="chat-heading referral-heading chat-item referral-chat fw-bold mb-6 text-center" style="background:#f3e8ff; color:#6b21a8; padding:6px; border-radius:6px;">
+                    Referral Chat
+                </li>
+                @foreach($order->feedback->where('status', 'Referred')->sortBy('created_at') as $feedback)
+                @if($feedback->comment != '')
+                @php $isCurrentUser = $feedback->created_by == Auth::id(); @endphp
+                <li class="feed-item {{ $isCurrentUser ? 'feed-item-success' : 'feed-item-primary' }} chat-item referral-chat">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <strong>{{ $isCurrentUser ? 'You' : ($feedback->user->name ?? 'User') }}</strong>
+                            <span class="badge ms-1 text-white" style="font-size:10px; background-color: #6b21a8;">
+                                Referral
+                            </span>
+                        </div>
+                        <small>{{ $feedback->created_at->format('d M Y, h:i A') }}</small>
+                    </div>
+                    <div class="text-muted mt-1">
+                        {{ $feedback->comment }}
+                    </div>
+                </li>
+                @endif
+                @endforeach
+                @endif
+
             </ul>
         </div>
 
@@ -182,6 +208,9 @@
             </button>
             <button class="btn btn-sm btn-light-warning" onclick="filterChat('followup', {{ $order->id }})">
                 Followup
+            </button>
+            <button class="btn btn-sm" style="color: #6b21a8; background-color: #f3e8ff;" onclick="filterChat('referral', {{ $order->id }})">
+                Referral
             </button>
         </div>
 
@@ -336,6 +365,8 @@
 
     } else if (type === 'followup') {
         container.find('.followup-chat').css('display', 'list-item');
+    } else if (type === 'referral') {
+        container.find('.referral-chat').css('display', 'list-item');
     }
 }
 
