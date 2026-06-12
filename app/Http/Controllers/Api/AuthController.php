@@ -100,6 +100,7 @@ class AuthController extends Controller
             $status = Password::sendResetLink(
                 $request->only('email')
             );
+            dd($status);
 
             return response()->json([
                 'success' => $status === Password::RESET_LINK_SENT,
