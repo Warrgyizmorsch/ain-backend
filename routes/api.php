@@ -50,6 +50,8 @@ Route::prefix('app')->group(function () {
     Route::post('/login', [AuthController::class, 'login']);
     Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
     Route::post('/reset-password', [AuthController::class, 'resetPassword']);
+    Route::post('/apply-coupon', [OrderApiController::class, 'applyCoupon']);
+    Route::get('/coupons', [OrderApiController::class, 'couponList']);
 });
 
 Route::middleware('auth:sanctum')->prefix('app')->group(function () {

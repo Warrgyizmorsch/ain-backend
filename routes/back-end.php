@@ -98,6 +98,14 @@ Route::middleware(['auth'])->group(function () {
     Route::put('/typeofpaper/{id}', [MasterController::class, 'paper_update'])->name('typeofpaper.update');
     Route::delete('/typeofpaper/{id}', [MasterController::class, 'delete_paper'])->name('typeofpaper.delete');
 
+    // Coupon Code Master
+    Route::get('/coupons', [MasterController::class, 'Coupons'])->name('coupons');
+    Route::post('/store_coupon', [MasterController::class, 'store_coupon'])->name('store.coupon');
+    Route::put('/update_coupon/{id}', [MasterController::class, 'update_coupon'])->name('update.coupon');
+    Route::delete('/delete_coupon/{id}', [MasterController::class, 'delete_coupon'])->name('delete.coupon');
+
+    Route::delete('/typeofpaper/{id}', [MasterController::class, 'delete_paper'])->name('typeofpaper.delete');
+
 
     // Formatting
     Route::get('/formatting', [MasterController::class, 'formatting'])->name('formatting');

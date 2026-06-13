@@ -605,4 +605,73 @@ class OrderApiController extends Controller
             ], 500);
         }
     }
+
+    public function applyCoupon(Request $request)
+    {
+        $data = $request->all();
+        if (empty($data) && $request->getContent()) {
+            $parsed = json_decode($request->getContent(), true);
+            if (is_array($parsed)) {
+                $data = $parsed;
+            }
+        }
+
+        $validator = Validator::make($data, [
+            'coupon_code' => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation error',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        $couponCode = trim($data['coupon_code']);
+
+        $coupon = \App\Models\Coupon::where('coupon_code', $couponCode)
+            ->where('is_active', 1)
+            ->first();
+
+        if (!$coupon) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid or inactive coupon code.'
+            ], 404);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Coupon applied successfully!',
+            'data' => [
+                'coupon_code' => $coupon->coupon_code,
+                'discount_type' => $coupon->discount_type,
+                'discount_value' => (float) $coupon->discount_value,
+            ]
+        ], 200);
+    }
+
+    public function couponList()
+    {
+        $coupons = \App\Models\Coupon::where('is_active', 1)
+            ->orderByDesc('id')
+            ->select('id', 'coupon_code', 'discount_type', 'discount_value', 'created_at')
+            ->get()
+            ->map(function ($coupon) {
+                return [
+                    'id' => $coupon->id,
+                    'coupon_code' => $coupon->coupon_code,
+                    'discount_type' => $coupon->discount_type,
+                    'discount_value' => (float) $coupon->discount_value,
+                    'created_at' => $coupon->created_at ? $coupon->created_at->format('Y-m-d H:i:s') : null,
+                ];
+            });
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Coupons fetched successfully',
+            'data' => $coupons
+        ], 200);
+    }
 }

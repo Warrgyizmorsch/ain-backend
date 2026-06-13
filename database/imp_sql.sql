@@ -88,3 +88,6 @@ ALTER TABLE `sources` ADD COLUMN `source_icon` VARCHAR(255) NULL DEFAULT NULL AF
 
 --Rahul 11-06-26 
 ALTER TABLE leads ADD COLUMN is_app_lead TINYINT(1) NOT NULL DEFAULT 0 AFTER frontendorder;
+
+--Rahul 13-06-26
+CREATE TABLE `coupons` ( `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT, `coupon_code` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL, `discount_type` enum('percentage','fixed') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'percentage', `discount_value` decimal(10,2) NOT NULL, `is_active` tinyint(1) NOT NULL DEFAULT '1', `created_at` timestamp NULL DEFAULT NULL, `updated_at` timestamp NULL DEFAULT NULL, PRIMARY KEY (`id`), UNIQUE KEY `coupons_coupon_code_unique` (`coupon_code`) ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

@@ -911,4 +911,58 @@ class MasterController extends Controller
 
         return back()->with('success', 'Source Deleted Successfully');
     }
+
+    // --- Coupon Code Master Methods ---
+    
+    public function Coupons()
+    {
+        $coupons = \App\Models\Coupon::orderByDesc('id')->get();
+        return view('master.coupons', compact('coupons'));
+    }
+
+    public function store_coupon(Request $req)
+    {
+        $req->validate([
+            'coupon_code' => 'required|string|unique:coupons,coupon_code',
+            'discount_type' => 'required|in:percentage,fixed',
+            'discount_value' => 'required|numeric|min:0',
+        ]);
+
+        $coupon = new \App\Models\Coupon();
+        $coupon->coupon_code = $req->input('coupon_code');
+        $coupon->discount_type = $req->input('discount_type');
+        $coupon->discount_value = $req->input('discount_value');
+        $coupon->is_active = $req->input('is_active') ? 1 : 0;
+        $coupon->save();
+
+        return redirect()->back()->with('success', "New Coupon Add Successfully");
+    }
+
+    public function update_coupon(Request $req, $id)
+    {
+        $req->validate([
+            'coupon_code' => 'required|string|unique:coupons,coupon_code,' . $id,
+            'discount_type' => 'required|in:percentage,fixed',
+            'discount_value' => 'required|numeric|min:0',
+        ]);
+
+        $coupon = \App\Models\Coupon::findOrFail($id);
+        $coupon->coupon_code = $req->input('coupon_code');
+        $coupon->discount_type = $req->input('discount_type');
+        $coupon->discount_value = $req->input('discount_value');
+        $coupon->is_active = $req->input('is_active') ? 1 : 0;
+        $coupon->save();
+
+        return redirect()->back()->with('success', "Coupon Updated Successfully");
+    }
+
+    public function delete_coupon($id)
+    {
+        $coupon = \App\Models\Coupon::find($id);
+        if (!$coupon) {
+            return redirect()->back()->with('error', 'Coupon not found');
+        }
+        $coupon->delete();
+        return redirect()->back()->with('success', 'Coupon deleted successfully');
+    }
 }
