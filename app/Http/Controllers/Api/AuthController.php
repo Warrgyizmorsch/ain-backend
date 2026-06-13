@@ -223,4 +223,21 @@ class AuthController extends Controller
             ]
         ]);
     }
+
+    // REFER LIST API
+    public function referList(Request $request)
+    {
+        $user = $request->user();
+
+        $referredUsers = \App\Models\User::where('refer_id', $user->id)
+            ->select('id', 'name', 'email', 'mobile_no', 'countrycode', 'created_at')
+            ->orderBy('id', 'desc')
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'count' => $referredUsers->count(),
+            'data' => $referredUsers
+        ]);
+    }
 }

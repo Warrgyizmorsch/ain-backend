@@ -548,4 +548,61 @@ class OrderApiController extends Controller
             ]
         ], 200);
     }
+
+    public function submitAppFeedback(Request $request)
+    {
+        $user = $request->user();
+
+        // Fallback for raw JSON if Content-Type header is missing
+        $data = $request->all();
+        if (empty($data) && $request->getContent()) {
+            $parsed = json_decode($request->getContent(), true);
+            if (is_array($parsed)) {
+                $data = $parsed;
+            }
+        }
+
+        $validator = Validator::make($data, [
+            'order_id' => 'required|string',
+            'experience' => 'nullable|string',
+            'feedback_scope' => 'nullable',
+            'your_suggestion' => 'nullable|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation error',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            $scopeInput = $data['feedback_scope'] ?? '';
+            $finalScope = is_array($scopeInput) ? implode(', ', $scopeInput) : $scopeInput;
+
+            DB::table('feedbacks')->insert([
+                'order_id'        => $data['order_id'] ?? '',
+                'experience'      => $data['experience'] ?? '',
+                'feedback_scope'  => $finalScope,
+                'your_suggestion' => $data['your_suggestion'] ?? '',
+                // Assuming you might want to track who submitted it from the app:
+                // 'user_id'         => $user->id,
+                'created_at'      => now(),
+                'updated_at'      => now()
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Feedback submitted successfully!'
+            ], 200);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to submit feedback.',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
 }
