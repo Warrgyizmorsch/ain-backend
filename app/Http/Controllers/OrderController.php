@@ -4022,6 +4022,9 @@ class OrderController extends Controller
             $ordersQuery->whereDate('delivery_date', '<=', $request->feedback_date_to);
         }
 
+        $sortDir = $request->input('sort_dir', 'desc');
+        $sortDir = in_array($sortDir, ['asc', 'desc']) ? $sortDir : 'desc';
+
         $collection = $ordersQuery
             ->orderByRaw("
             CASE 
@@ -4029,29 +4032,8 @@ class OrderController extends Controller
                 ELSE 0
             END ASC
         ")
-            ->orderBy('delivery_date', 'desc')
-            ->get()
-            ->groupBy('uid')
-            ->map(function ($userOrders) {
-                $sortedOrders = $userOrders
-                    ->sortBy(function ($order) {
-                        $status = strtolower($order->feedback_status ?? '');
-                        return in_array($status, ['yes', 'completed']) ? 1 : 0;
-                    })
-                    ->values();
-
-                return [
-                    'user' => $sortedOrders->first()->user,
-                    'uid' => $sortedOrders->first()->uid,
-                    'orders' => $sortedOrders,
-                    'is_completed_group' => $sortedOrders->every(function ($order) {
-                        $status = strtolower($order->feedback_status ?? '');
-                        return in_array($status, ['yes', 'completed']);
-                    }),
-                ];
-            })
-            ->sortBy('is_completed_group')
-            ->values();
+            ->orderBy('delivery_date', $sortDir)
+            ->get();
 
         $currentPage = LengthAwarePaginator::resolveCurrentPage();
         $perPage = 20;
@@ -5155,6 +5137,9 @@ public function myRevokePayments(Request $request)
         $grandTotalPayments = $grandTotals->total_payments ?? 0;
         $grandTotalPaidAmount = $grandTotals->total_paid_amount ?? 0;
 
+        $sortDir = $request->input('sort_dir', 'desc');
+        $sortDir = in_array($sortDir, ['asc', 'desc']) ? $sortDir : 'desc';
+
         // Group, sort, and paginate
         $payees = $baseQuery->select(
                 'payee_name',
@@ -5162,7 +5147,7 @@ public function myRevokePayments(Request $request)
                 \DB::raw('SUM(paid_amount) as total_paid_amount')
             )
             ->groupBy('payee_name')
-            ->orderByDesc('total_paid_amount')
+            ->orderBy('total_paid_amount', $sortDir)
             ->paginate(10)
             ->appends($request->query());
 

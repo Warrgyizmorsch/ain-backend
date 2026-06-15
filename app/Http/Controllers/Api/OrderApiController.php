@@ -62,8 +62,10 @@ class OrderApiController extends Controller
 
     public function placeOrder(Request $request)
     {
+        // Authenticated user info (from sanctum token)
+        $authUser = $request->user();
+
         $rules = [
-            'name'         => 'required|string',
             'service'      => 'required|string',
             'workType'     => 'required|string',
             'country'      => 'required|string',
@@ -72,9 +74,6 @@ class OrderApiController extends Controller
             'wordCount'    => 'required|integer|min:250',
             'topic'        => 'required|string',
             'requirements' => 'required|string',
-            'email'        => 'required|email',
-            'mobile'       => 'required|string',
-            'countrycode'  => 'required|string',
             'finalPrice'   => 'nullable',
             'source_page'  => 'nullable',
             'fileUpload.*' => 'nullable|file|max:10240',
@@ -90,9 +89,9 @@ class OrderApiController extends Controller
             ], 422);
         }
 
-        // Mobile and country code clean
-        $mobile = preg_replace('/\D/', '', $request->input('mobile'));
-        $countryCode = preg_replace('/\D/', '', $request->input('countrycode'));
+        // Get mobile and countrycode from authenticated user
+        $mobile      = preg_replace('/\D/', '', $authUser->mobile_no ?? '');
+        $countryCode = preg_replace('/\D/', '', $authUser->countrycode ?? '');
 
         if ($countryCode && substr($mobile, 0, strlen($countryCode)) === $countryCode) {
             $mobile = substr($mobile, strlen($countryCode));
@@ -115,9 +114,12 @@ class OrderApiController extends Controller
             ], 422);
         }
 
+        // Update user's country from order (optional field)
+        $authUser->country = $request->input('country');
+        $authUser->save();
+
         // Generate Order ID
         $latestOrder = Order::orderByDesc('id')->first();
-
         $newOrderNumber = 1;
 
         if ($latestOrder && !empty($latestOrder->order_id)) {
@@ -126,27 +128,6 @@ class OrderApiController extends Controller
         }
 
         $newOrderId = 'UKS' . str_pad($newOrderNumber, 3, '0', STR_PAD_LEFT);
-
-        // Find or create user
-        $user = User::where('email', $request->input('email'))->first();
-
-        if ($user) {
-            $user->name = $user->name ?: $request->input('name');
-            $user->country = $request->input('country');
-            $user->mobile_no = $mobile;
-            $user->countrycode = $countryCode;
-            $user->save();
-        } else {
-            $user = User::create([
-                'name'        => $request->input('name'),
-                'email'       => $request->input('email'),
-                'mobile_no'   => $mobile,
-                'countrycode' => $countryCode,
-                'country'     => $request->input('country'),
-                'password'    => Hash::make('user@123'),
-                'role_id'     => 2
-            ]);
-        }
 
         // File upload
         $uploadedFiles = [];
@@ -162,19 +143,28 @@ class OrderApiController extends Controller
                 $fileName = time() . '_' . uniqid() . '_' . $file->getClientOriginalName();
                 $file->move($destinationPath, $fileName);
 
-                $uploadedFiles[] = 'images/orders/' . $fileName;
+                $filePath = 'images/orders/' . $fileName;
+                $uploadedFiles[] = $filePath;
+
+                // Save to files table
+                $newFile = new \App\Models\Files();
+                $newFile->file_data = $filePath;
+                $newFile->order_id = $newOrderId;
+                $newFile->file_name = $fileName;
+                $newFile->file_type = $file->getClientMimeType();
+                $newFile->save();
             }
         }
 
         // Lead create
         $lead = Leads::create([
             'order_id'      => $newOrderId,
-            'emp_id'        => $user->id,
+            'emp_id'        => $authUser->id,
             'deadline'      => $deliveryDate->format('Y-m-d'),
             'create_at'     => now(),
             'message'       => $request->input('requirements'),
-            'email'         => $user->email,
-            'user_name'     => $user->name,
+            'email'         => $authUser->email,
+            'user_name'     => $authUser->name,
             'countrycode'   => $countryCode,
             'mobile'        => $mobile,
             'frontendorder' => 1,
@@ -183,7 +173,8 @@ class OrderApiController extends Controller
             'pages'         => $request->input('wordCount'),
             'price'         => $request->input('finalPrice'),
             'service_type'  => str_replace('FirstClass', 'First Class Work', $request->input('workType')),
-            'page_url'      => $request->source_page ?? 'Mobile App',
+            'page_url'      => $request->input('source_page') ?? 'Mobile App',
+            'module_code'   => $request->input('subject'),
         ]);
 
         // Pending order create
@@ -191,6 +182,9 @@ class OrderApiController extends Controller
             'order_id'      => $newOrderId,
             'projectstatus' => 'Pending',
             'lead_id'       => $lead->id,
+            'uid'           => $authUser->id,
+            'title'         => $request->input('topic'),
+            'module_code'   => $request->input('subject'),
         ]);
 
         return response()->json([
@@ -202,12 +196,12 @@ class OrderApiController extends Controller
         ], 201);
     }
 
-  public function orderList(Request $request)
+    public function orderList(Request $request)
     {
         $user = $request->user();
 
         // Confirmed orders
-        $orders = DB::table('orders')
+        $ordersRaw = DB::table('orders')
             ->where('uid', $user->id)
             ->orderByDesc('id')
             ->limit(50)
@@ -226,32 +220,10 @@ class OrderApiController extends Controller
                 'received_amount',
                 'created_at'
             )
-            ->get()
-            ->map(function ($order) {
-                $amount = is_numeric($order->amount) ? (float) $order->amount : 0;
-                $received = is_numeric($order->received_amount) ? (float) $order->received_amount : 0;
-
-                return [
-                    'type' => 'confirmed',
-                    'confirmed_status' => 'Confirmed',
-                    'order_db_id' => $order->id,
-                    'lead_id' => $order->lead_id,
-                    'order_id' => $order->order_id,
-                    'order_date' => $order->order_date,
-                    'delivery_date' => $order->delivery_date,
-                    'title' => $order->title,
-                    'module_code' => $order->module_code,
-                    'status' => $order->projectstatus,
-                    'word_count' => $order->pages,
-                    'amount' => $order->amount,
-                    'received_amount' => $order->received_amount,
-                    'due_amount' => $amount - $received,
-                    'created_at' => $order->created_at,
-                ];
-            });
+            ->get();
 
         // Non-confirmed leads
-        $leads = DB::table('leads')
+        $leadsRaw = DB::table('leads')
             ->where('emp_id', $user->id)
             ->where('is_app_lead', 1)
             ->orderByDesc('id')
@@ -275,32 +247,88 @@ class OrderApiController extends Controller
                 'is_app_lead',
                 'is_converted',
                 'converted_at',
-                'create_at'
+                'create_at',
+                'module_code'
             )
-            ->get()
-            ->map(function ($lead) {
-                return [
-                    'type' => 'non_confirmed',
-                    'confirmed_status' => $lead->is_converted == 1 ? 'Confirmed' : 'Not Confirmed',
-                    'lead_id' => $lead->id,
-                    'order_id' => $lead->order_id,
-                    'name' => $lead->user_name,
-                    'email' => $lead->email,
-                    'mobile' => $lead->mobile,
-                    'countrycode' => $lead->countrycode,
-                    'service' => $lead->project_title,
-                    'work_type' => $lead->service_type,
-                    'word_count' => $lead->pages,
-                    'price' => $lead->price,
-                    'deadline' => $lead->deadline,
-                    'delivery_time' => $lead->delivery_time,
-                    'requirements' => $lead->message,
-                    'is_app_lead' => (int) $lead->is_app_lead,
-                    'is_converted' => (int) $lead->is_converted,
-                    'converted_at' => $lead->converted_at,
-                    'created_at' => $lead->create_at,
-                ];
-            });
+            ->get();
+
+        // Get all unique order IDs
+        $orderIds = $ordersRaw->pluck('order_id')->merge($leadsRaw->pluck('order_id'))->unique()->filter()->toArray();
+
+        // Fetch files grouped by order_id
+        $filesGrouped = collect();
+        if (!empty($orderIds)) {
+            $filesGrouped = DB::table('files')
+                ->whereIn('order_id', $orderIds)
+                ->get()
+                ->groupBy('order_id');
+        }
+
+        $getFileUrls = function ($orderId) use ($filesGrouped) {
+            $files = $filesGrouped->get($orderId);
+            if ($files) {
+                return $files->map(function ($file) {
+                    return asset($file->file_data);
+                })->all();
+            }
+            return [];
+        };
+
+        // Confirmed orders map
+        $orders = $ordersRaw->map(function ($order) use ($getFileUrls) {
+            $amount = is_numeric($order->amount) ? (float) $order->amount : 0;
+            $received = is_numeric($order->received_amount) ? (float) $order->received_amount : 0;
+
+            return [
+                'type' => 'confirmed',
+                'confirmed_status' => 'Confirmed',
+                'order_db_id' => $order->id,
+                'lead_id' => $order->lead_id,
+                'order_id' => $order->order_id,
+                'order_date' => $order->order_date,
+                'delivery_date' => $order->delivery_date,
+                'title' => $order->title,
+                'module_code' => $order->module_code,
+                'subject' => $order->module_code,
+                'status' => $order->projectstatus,
+                'word_count' => $order->pages,
+                'amount' => $order->amount,
+                'received_amount' => $order->received_amount,
+                'due_amount' => $amount - $received,
+                'created_at' => $order->created_at,
+                'images' => $getFileUrls($order->order_id),
+                'files' => $getFileUrls($order->order_id),
+            ];
+        });
+
+        // Non-confirmed leads map
+        $leads = $leadsRaw->map(function ($lead) use ($getFileUrls) {
+            return [
+                'type' => 'non_confirmed',
+                'confirmed_status' => $lead->is_converted == 1 ? 'Confirmed' : 'Not Confirmed',
+                'lead_id' => $lead->id,
+                'order_id' => $lead->order_id,
+                'name' => $lead->user_name,
+                'email' => $lead->email,
+                'mobile' => $lead->mobile,
+                'countrycode' => $lead->countrycode,
+                'service' => $lead->project_title,
+                'work_type' => $lead->service_type,
+                'word_count' => $lead->pages,
+                'price' => $lead->price,
+                'deadline' => $lead->deadline,
+                'delivery_time' => $lead->delivery_time,
+                'requirements' => $lead->message,
+                'is_app_lead' => (int) $lead->is_app_lead,
+                'is_converted' => (int) $lead->is_converted,
+                'converted_at' => $lead->converted_at,
+                'created_at' => $lead->create_at,
+                'module_code' => $lead->module_code,
+                'subject' => $lead->module_code,
+                'images' => $getFileUrls($lead->order_id),
+                'files' => $getFileUrls($lead->order_id),
+            ];
+        });
 
         return response()->json([
             'success' => true,

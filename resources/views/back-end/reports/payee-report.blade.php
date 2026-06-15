@@ -55,6 +55,47 @@
     .summary-box.due strong {
         color: #f1416c;
     }
+
+    /* Sort Icon Styles - scoped to payee-report only */
+    .sort-th-link-pr {
+        color: #5e6278;
+        font-weight: 700;
+        font-size: 12px;
+        text-decoration: none;
+        transition: color 0.15s;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+    .sort-th-link-pr:hover {
+        color: #009ef7;
+    }
+
+    .sort-icon-wrap-pr {
+        display: inline-flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        line-height: 1;
+        gap: 1px;
+    }
+
+    .sort-icon-wrap-pr .si-up,
+    .sort-icon-wrap-pr .si-down {
+        opacity: 0.22;
+        display: block;
+    }
+
+    .sort-icon-wrap-pr.sort-asc .si-up {
+        opacity: 1;
+        color: #009ef7;
+    }
+
+    .sort-icon-wrap-pr.sort-desc .si-down {
+        opacity: 1;
+        color: #009ef7;
+    }
 </style>
 
 <div class="card card-flush mb-5">
@@ -110,7 +151,25 @@
                         <th class="w-80px text-center">Sr. No.</th>
                         <th>Payee Name</th>
                         <th class="text-center w-200px">Total Payments</th>
-                        <th class="text-end w-200px">Total Paid Amount</th>
+                        <th class="text-end w-200px">
+                            @php
+                                $prSortDir = request('sort_dir', 'desc');
+                                $prNextDir = $prSortDir === 'desc' ? 'asc' : 'desc';
+                                $prQuery = array_merge(request()->query(), ['sort_dir' => $prNextDir]);
+                                $prSortUrl = url()->current() . '?' . http_build_query($prQuery);
+                            @endphp
+                            <a href="{{ $prSortUrl }}" class="sort-th-link-pr">
+                                Total Paid Amount
+                                <span class="sort-icon-wrap-pr {{ $prSortDir === 'asc' ? 'sort-asc' : 'sort-desc' }}">
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" class="si-up" xmlns="http://www.w3.org/2000/svg">
+                                        <path d="M12 5L5 12H19L12 5Z" fill="currentColor"/>
+                                    </svg>
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" class="si-down" xmlns="http://www.w3.org/2000/svg">
+                                        <path d="M12 19L5 12H19L12 19Z" fill="currentColor"/>
+                                    </svg>
+                                </span>
+                            </a>
+                        </th>
                         <th class="text-center w-150px">Action</th>
                     </tr>
                 </thead>

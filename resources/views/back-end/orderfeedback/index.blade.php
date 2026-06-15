@@ -98,6 +98,47 @@
         color: #b45309;
         border: 1px solid #f5d59b;
     }
+
+    /* Sort Icon Styles */
+    .sort-th-link {
+        color: #5e6278;
+        font-weight: 700;
+        font-size: 12px;
+        transition: color 0.15s;
+    }
+
+    .sort-th-link:hover {
+        color: #009ef7;
+    }
+
+    .sort-icon-wrap {
+        display: inline-flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        line-height: 1;
+        gap: 1px;
+        margin-left: 2px;
+        vertical-align: middle;
+    }
+
+    .sort-icon-wrap .sort-up-arrow,
+    .sort-icon-wrap .sort-down-arrow {
+        opacity: 0.25;
+        display: block;
+    }
+
+    /* Ascending — up arrow active */
+    .sort-icon-wrap.sort-asc .sort-up-arrow {
+        opacity: 1;
+        color: #009ef7;
+    }
+
+    /* Descending — down arrow active */
+    .sort-icon-wrap.sort-desc .sort-down-arrow {
+        opacity: 1;
+        color: #009ef7;
+    }
 </style>
 
 <div id="kt_content">
@@ -169,79 +210,91 @@
                             <th class="text-center">User Details</th>
                             <th class="text-center">Title</th>
                             <th class="text-center">Order Date</th>
-                            <th class="text-center">Delivery Date</th>
+                            <th class="text-center" style="white-space: nowrap;">
+                                @php
+                                    $currentSortDir = request('sort_dir', 'desc');
+                                    $nextSortDir = $currentSortDir === 'desc' ? 'asc' : 'desc';
+                                    $sortQuery = array_merge(request()->query(), ['sort_dir' => $nextSortDir]);
+                                    $sortUrl = url()->current() . '?' . http_build_query($sortQuery);
+                                @endphp
+                                <a href="{{ $sortUrl }}" class="text-decoration-none d-inline-flex align-items-center gap-1 sort-th-link">
+                                    Delivery Date
+                                    <span class="sort-icon-wrap {{ $currentSortDir === 'asc' ? 'sort-asc' : 'sort-desc' }}">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" class="sort-up-arrow" xmlns="http://www.w3.org/2000/svg">
+                                            <path d="M12 5L5 12H19L12 5Z" fill="currentColor"/>
+                                        </svg>
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" class="sort-down-arrow" xmlns="http://www.w3.org/2000/svg">
+                                            <path d="M12 19L5 12H19L12 19Z" fill="currentColor"/>
+                                        </svg>
+                                    </span>
+                                </a>
+                            </th>
                             <th class="text-center">Project Status</th>
                             <th class="text-center">Feedback</th>
                         </tr>
                     </thead>
 
                     <tbody>
-                        @forelse($data as $item)
+                        @forelse($data as $order)
                             @php
-                                $user = $item['user'];
-                                $orders = $item['orders'];
+                                $user = $order->user;
+                                $status = strtolower($order->feedback_status ?? '');
+                                $isYes = in_array($status, ['yes', 'completed']);
                             @endphp
 
-                            @foreach($orders as $order)
-                                @php
-                                    $status = strtolower($order->feedback_status ?? '');
-                                    $isYes = in_array($status, ['yes', 'completed']);
-                                @endphp
+                            <tr>
+                                <td class="text-center order-id-cell">
+                                    <strong>{{ $order->order_code ?? $order->order_id ?? 'N/A' }}</strong>
+                                </td>
 
-                                <tr>
-                                    <td class="text-center order-id-cell">
-                                        <strong>{{ $order->order_code ?? $order->order_id ?? 'N/A' }}</strong>
-                                    </td>
+                                <td class="user-info-box">
+                                    @if($user)
+                                        <strong>{{ $user->name ?? 'N/A' }}</strong>
+                                        <span>{{ $user->email ?? 'N/A' }}</span><br>
 
-                                    <td class="user-info-box">
-                                        @if($user)
-                                            <strong>{{ $user->name ?? 'N/A' }}</strong>
-                                            <span>{{ $user->email ?? 'N/A' }}</span><br>
-
-                                            <span class="badge badge-light-danger fs-7 fw-bold mt-1">
-                                                +{{ $user->countrycode ?? $user->country_code ?? '' }}
-                                                {{ $user->mobile_no ?? $user->mobile ?? '' }}
-                                            </span>
-                                        @else
-                                            <span class="badge badge-light-danger">User Deleted</span>
-                                        @endif
-                                    </td>
-
-                                    <td class="title-cell">
-                                        {!! $order->title ?: '<span class="badge badge-light-danger">Not Available</span>' !!}
-                                    </td>
-
-                                    <td class="text-center date-cell">
-                                        @if($order->order_date)
-                                            {{ \Carbon\Carbon::parse($order->order_date)->format('d M Y') }}
-                                        @else
-                                            <span class="badge badge-light-danger">N/A</span>
-                                        @endif
-                                    </td>
-
-                                    <td class="text-center date-cell">
-                                        @if($order->delivery_date)
-                                            {{ \Carbon\Carbon::parse($order->delivery_date)->format('d M Y') }}
-                                        @else
-                                            <span class="badge badge-light-danger">N/A</span>
-                                        @endif
-                                    </td>
-
-                                    <td class="text-center">
-                                        <span class="badge badge-light-success fs-8 fw-bold">
-                                            {{ $order->projectstatus ?? 'N/A' }}
+                                        <span class="badge badge-light-danger fs-7 fw-bold mt-1">
+                                            +{{ $user->countrycode ?? $user->country_code ?? '' }}
+                                            {{ $user->mobile_no ?? $user->mobile ?? '' }}
                                         </span>
-                                    </td>
+                                    @else
+                                        <span class="badge badge-light-danger">User Deleted</span>
+                                    @endif
+                                </td>
 
-                                    <td class="text-center">
-                                        <button type="button"
-                                                class="btn feedback-toggle-btn {{ $isYes ? 'btn-feedback-yes' : 'btn-feedback-no' }}"
-                                                onclick="toggleFeedback({{ $order->id }}, '{{ $isYes ? 'no' : 'yes' }}', this)">
-                                            {{ $isYes ? 'Yes' : 'No' }}
-                                        </button>
-                                    </td>
-                                </tr>
-                            @endforeach
+                                <td class="title-cell">
+                                    {!! $order->title ?: '<span class="badge badge-light-danger">Not Available</span>' !!}
+                                </td>
+
+                                <td class="text-center date-cell">
+                                    @if($order->order_date)
+                                        {{ \Carbon\Carbon::parse($order->order_date)->format('d M Y') }}
+                                    @else
+                                        <span class="badge badge-light-danger">N/A</span>
+                                    @endif
+                                </td>
+
+                                <td class="text-center date-cell">
+                                    @if($order->delivery_date)
+                                        {{ \Carbon\Carbon::parse($order->delivery_date)->format('d M Y') }}
+                                    @else
+                                        <span class="badge badge-light-danger">N/A</span>
+                                    @endif
+                                </td>
+
+                                <td class="text-center">
+                                    <span class="badge badge-light-success fs-8 fw-bold">
+                                        {{ $order->projectstatus ?? 'N/A' }}
+                                    </span>
+                                </td>
+
+                                <td class="text-center">
+                                    <button type="button"
+                                            class="btn feedback-toggle-btn {{ $isYes ? 'btn-feedback-yes' : 'btn-feedback-no' }}"
+                                            onclick="toggleFeedback({{ $order->id }}, '{{ $isYes ? 'no' : 'yes' }}', this)">
+                                        {{ $isYes ? 'Yes' : 'No' }}
+                                    </button>
+                                </td>
+                            </tr>
 
                         @empty
                             <tr>
