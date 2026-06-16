@@ -174,7 +174,7 @@ class OrderApiController extends Controller
             'price'         => $request->input('finalPrice'),
             'service_type'  => str_replace('FirstClass', 'First Class Work', $request->input('workType')),
             'page_url'      => $request->input('source_page') ?? 'Mobile App',
-            'module_code'   => $request->input('subject'),
+            'subject'       => $request->input('subject'),
         ]);
 
         // Pending order create
@@ -248,7 +248,7 @@ class OrderApiController extends Controller
                 'is_converted',
                 'converted_at',
                 'create_at',
-                'module_code'
+                'subject'
             )
             ->get();
 
@@ -323,8 +323,7 @@ class OrderApiController extends Controller
                 'is_converted' => (int) $lead->is_converted,
                 'converted_at' => $lead->converted_at,
                 'created_at' => $lead->create_at,
-                'module_code' => $lead->module_code,
-                'subject' => $lead->module_code,
+                'subject' => $lead->subject,
                 'images' => $getFileUrls($lead->order_id),
                 'files' => $getFileUrls($lead->order_id),
             ];

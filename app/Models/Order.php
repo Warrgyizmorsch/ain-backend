@@ -27,7 +27,6 @@ protected $table = 'orders';
         'marks',
         'offer',
         'referal',
-        'module_code',
     ];
     
      protected $casts = [
