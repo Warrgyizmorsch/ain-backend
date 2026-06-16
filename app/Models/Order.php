@@ -4,6 +4,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class Order extends Model
 {
@@ -100,5 +102,93 @@ protected $table = 'orders';
     public function additionals()
     {
         return $this->hasMany(\App\Models\Additional::class, 'order_id', 'order_id');
+    }
+
+    public function isInitiatedStatus(): bool
+    {
+        return strtolower(trim((string) $this->projectstatus)) === 'initiated';
+    }
+
+    public function assignTeamForInitiatedStatus(): void
+    {
+        if (!$this->isInitiatedStatus() || !is_null($this->team_id)) {
+            return;
+        }
+
+        DB::transaction(function () {
+            $order = self::whereKey($this->getKey())->lockForUpdate()->first();
+
+            if (!$order || !$order->isInitiatedStatus() || !is_null($order->team_id)) {
+                return;
+            }
+
+            $existingTeamOrder = self::where('uid', $order->uid)
+                ->whereDate('updated_at', Carbon::today())
+                ->whereNotNull('team_id')
+                ->first();
+
+            if ($existingTeamOrder) {
+                $order->team_id = $existingTeamOrder->team_id;
+                $order->team_assigned_at = now();
+                $order->save();
+
+                $this->forceFill([
+                    'team_id' => $order->team_id,
+                    'team_assigned_at' => $order->team_assigned_at,
+                ]);
+                return;
+            }
+
+            $teams = Team::where('is_delete', 0)
+                ->orderBy('priority', 'asc')
+                ->get();
+
+            if ($teams->isEmpty()) {
+                return;
+            }
+
+            $totalAssignedToday = self::whereDate('updated_at', Carbon::today())
+                ->whereRaw('LOWER(projectstatus) = ?', ['initiated'])
+                ->whereNotNull('team_id')
+                ->count();
+
+            $allocations = [];
+            $assignedCount = [];
+
+            foreach ($teams as $team) {
+                $allocations[$team->id] = floor(((float) $team->percentage / 100) * ($totalAssignedToday + 1));
+                $assignedCount[$team->id] = self::whereDate('updated_at', Carbon::today())
+                    ->whereRaw('LOWER(projectstatus) = ?', ['initiated'])
+                    ->where('team_id', $team->id)
+                    ->count();
+            }
+
+            foreach ($teams as $team) {
+                if ($assignedCount[$team->id] < $allocations[$team->id]) {
+                    $order->team_id = $team->id;
+                    $order->team_assigned_at = now();
+                    $order->save();
+
+                    $this->forceFill([
+                        'team_id' => $order->team_id,
+                        'team_assigned_at' => $order->team_assigned_at,
+                    ]);
+                    return;
+                }
+            }
+
+            $fallbackTeamId = collect($assignedCount)->sort()->keys()->first();
+
+            if ($fallbackTeamId) {
+                $order->team_id = $fallbackTeamId;
+                $order->team_assigned_at = now();
+                $order->save();
+
+                $this->forceFill([
+                    'team_id' => $order->team_id,
+                    'team_assigned_at' => $order->team_assigned_at,
+                ]);
+            }
+        });
     }
 }

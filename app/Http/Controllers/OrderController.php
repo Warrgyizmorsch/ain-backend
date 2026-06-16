@@ -788,6 +788,7 @@ class OrderController extends Controller
         $order->save();
 
         if (Str::lower($req->input('status')) === 'initiated') {
+            $order->assignTeamForInitiatedStatus();
             event(new \App\Events\OrderStatusChanged($order));
         }
 
@@ -2636,6 +2637,10 @@ class OrderController extends Controller
                 $order->f_delivery_date = $request->feedback_date;
             }
             $order->save();
+
+            if ($order->isInitiatedStatus()) {
+                $order->assignTeamForInitiatedStatus();
+            }
 
             // 5. Feedback Table Entry (Chat Box aur Sheet dono ke liye)
             $feedback = new Feedback();
