@@ -25,6 +25,7 @@ use App\Http\Controllers\PrimeassimentController;
 use Illuminate\View\Concerns\ManagesFragments;
 use App\Http\Controllers\UserHistoryController; 
 use App\Http\Controllers\ReportController;
+use App\Http\Controllers\WhatsappController;
 
 Route::middleware(['auth'])->group(function () {
 
@@ -44,13 +45,11 @@ Route::post('/lead-reason-update', [LeadsController::class, 'updateLeadReason'])
 Route::middleware(['auth'])->group(function () {
 
     Route::prefix('whatsapp')->name('whatsapp.')->group(function () {
-        Route::get('/settings', function () {
-            return view('back-end.whatsapp.settings');
-        })->name('settings');
-
-        Route::get('/chat', function () {
-            return view('back-end.whatsapp.chat');
-        })->name('chat');
+        Route::get('/settings', [WhatsappController::class, 'settings'])->name('settings');
+        Route::post('/settings', [WhatsappController::class, 'saveSettings'])->name('settings.save');
+        Route::get('/chat', [WhatsappController::class, 'chat'])->name('chat');
+        Route::post('/chat/start', [WhatsappController::class, 'startChat'])->name('chat.start');
+        Route::post('/chat/send', [WhatsappController::class, 'sendMessage'])->name('chat.send');
     });
 
     Route::prefix('career')->group(function () {

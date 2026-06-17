@@ -1,6 +1,14 @@
 @extends('layouts.app')
 
 @section('content')
+@php
+    $contacts = $contacts ?? [];
+    $messages = $messages ?? collect();
+    $selectedContact = $selectedContact ?? null;
+    $selectedName = $selectedContact['name'] ?? 'Select chat';
+    $selectedPhone = $selectedPhone ?? ($selectedContact['phone'] ?? '');
+    $selectedColor = $selectedContact['color'] ?? '#25d366';
+@endphp
 
 {{-- ======================================================
      WhatsApp Business Chat — Premium UI
@@ -56,10 +64,11 @@
                 ['id'=>6,'name'=>'Priya Iyer',     'msg'=>'Order placed successfully!',    'time'=>'Fri',  'active'=>false,'badge'=>0,'color'=>'#ef5350','status'=>'offline'],
             ];
         @endphp
+        @php $contacts = $dynamicContacts ?? $contacts; @endphp
 
         <div class="wab-contact-list" id="wabContactList">
             @foreach($contacts as $c)
-            <div class="wab-contact-item {{ $c['active'] ? 'is-active' : '' }}" data-name="{{ strtolower($c['name']) }}" data-contact-id="{{ $c['id'] }}">
+            <div class="wab-contact-item {{ $c['active'] ? 'is-active' : '' }}" data-name="{{ strtolower($c['name']) }}" data-contact-id="{{ $c['id'] }}" data-url="{{ isset($c['phone']) ? route('whatsapp.chat', ['phone' => $c['phone']]) : '' }}">
                 <div class="wab-avatar" style="background:{{ $c['color'] }}1a;color:{{ $c['color'] }}">
                     {{ strtoupper(substr($c['name'],0,1)) }}
                     <span class="wab-status-badge wab-status--{{ $c['status'] }}"></span>
@@ -90,12 +99,12 @@
                 <button class="wab-icon-btn wab-mobile-back" id="wabMobileBack">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
                 </button>
-                <div class="wab-avatar wab-avatar--conv" style="background:#25d3661a;color:#25d366">A</div>
+                <div class="wab-avatar wab-avatar--conv" style="background:{{ $selectedColor }}1a;color:{{ $selectedColor }}">{{ strtoupper(substr($selectedName,0,1)) }}</div>
                 <div class="wab-conv-user-info">
-                    <div class="wab-conv-name">Aarav Sharma</div>
+                    <div class="wab-conv-name">{{ $selectedName }}</div>
                     <div class="wab-conv-status">
                         <span class="wab-online-dot"></span>
-                        <span id="wabTypingLabel">online</span>
+                        <span id="wabTypingLabel">{{ $selectedPhone ?: 'ready' }}</span>
                     </div>
                 </div>
             </div>
@@ -120,6 +129,30 @@
 
             <div class="wab-date-badge">Today</div>
 
+            @forelse($messages->filter(fn($message) => trim($message->message ?? '') !== '') as $message)
+                <div class="wab-msg-row {{ $message->direction === 'inbound' ? 'wab-incoming' : 'wab-outgoing' }}">
+                    <div class="wab-msg-bubble">
+                        {{ $message->message }}
+                        <div class="wab-msg-meta">
+                            <span class="wab-msg-time">{{ optional($message->created_at)->format('H:i') }}</span>
+                            @if($message->direction === 'outbound')
+                                <span class="wab-tick wab-tick--{{ $message->status === 'read' ? 'read' : 'sent' }}">
+                                    <svg width="14" height="10" viewBox="0 0 18 12" fill="none"><path d="M1 6l4 4L17 1" stroke="{{ $message->status === 'read' ? '#53bdeb' : '#8696a0' }}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                </span>
+                            @endif
+                        </div>
+                    </div>
+                </div>
+            @empty
+                <div class="wab-msg-row wab-incoming">
+                    <div class="wab-msg-bubble">
+                        No messages yet.
+                        <div class="wab-msg-meta"><span class="wab-msg-time">{{ now()->format('H:i') }}</span></div>
+                    </div>
+                </div>
+            @endforelse
+
+            @if(false)
             <div class="wab-msg-row wab-incoming">
                 <div class="wab-msg-bubble">
                     Hi, can you confirm my order deadline?
@@ -157,6 +190,7 @@
                     </div>
                 </div>
             </div>
+            @endif
 
             {{-- Typing indicator --}}
             <div class="wab-msg-row wab-incoming wab-typing-row" id="wabTypingRow">
@@ -170,7 +204,9 @@
         </div>
 
         {{-- Conv Footer --}}
-        <div class="wab-conv-footer">
+        <form class="wab-conv-footer" method="POST" action="{{ route('whatsapp.chat.send') }}">
+            @csrf
+            <input type="hidden" name="phone" value="{{ $selectedPhone }}">
             <div class="wab-footer-actions-left">
                 <button class="wab-icon-btn wab-emoji-btn" id="wabEmojiBtn" title="Emoji">
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
@@ -180,12 +216,12 @@
                 </button>
             </div>
             <div class="wab-input-wrap">
-                <input type="text" class="wab-input" id="wabInput" placeholder="Type a message…" autocomplete="off">
+                <input type="text" class="wab-input" id="wabInput" name="message" placeholder="Type a message…" autocomplete="off" {{ $selectedPhone ? '' : 'disabled' }}>
             </div>
-            <button class="wab-send-btn" id="wabSendBtn" title="Send">
+            <button type="submit" class="wab-send-btn" id="wabSendBtn" title="Send" {{ $selectedPhone ? '' : 'disabled' }}>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
             </button>
-        </div>
+        </form>
 
         {{-- Emoji Quick Panel --}}
         <div class="wab-emoji-panel" id="wabEmojiPanel">
@@ -203,6 +239,8 @@
 <div class="modal fade" id="newWaChatModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-sm">
         <div class="modal-content wab-modal-content">
+            <form method="POST" action="{{ route('whatsapp.chat.start') }}">
+                @csrf
             <div class="modal-header wab-modal-header">
                 <div class="wab-modal-icon">
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#25d366" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
@@ -213,26 +251,27 @@
             <div class="modal-body wab-modal-body">
                 <label class="wab-form-label">Country Code</label>
                 <div class="wab-modal-row">
-                    <select class="wab-form-select" style="flex:0 0 110px">
+                    <select class="wab-form-select" name="country_code" style="flex:0 0 110px">
                         <option value="+91">🇮🇳 +91</option>
                         <option value="+44">🇬🇧 +44</option>
                         <option value="+1">🇺🇸 +1</option>
                         <option value="+61">🇦🇺 +61</option>
                         <option value="+971">🇦🇪 +971</option>
                     </select>
-                    <input type="tel" class="wab-form-input" placeholder="Mobile number">
+                    <input type="tel" class="wab-form-input" name="mobile" placeholder="Mobile number" required>
                 </div>
                 <label class="wab-form-label mt-3">First Message</label>
-                <textarea class="wab-form-input" rows="3" placeholder="Hi, I wanted to reach out about…" style="resize:none;padding-top:10px"></textarea>
+                <textarea class="wab-form-input" name="message" rows="3" placeholder="Hi, I wanted to reach out about…" style="resize:none;padding-top:10px"></textarea>
                 <p class="wab-form-note">This will open a new conversation thread via your WhatsApp Business API.</p>
             </div>
             <div class="modal-footer wab-modal-footer">
                 <button type="button" class="wab-btn wab-btn--ghost" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="wab-btn wab-btn--primary" data-bs-dismiss="modal">
+                <button type="submit" class="wab-btn wab-btn--primary">
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
                     Open Chat
                 </button>
             </div>
+            </form>
         </div>
     </div>
 </div>
@@ -859,6 +898,7 @@
     const emojiPanel    = document.getElementById('wabEmojiPanel');
     const sendBtn       = document.getElementById('wabSendBtn');
     const input         = document.getElementById('wabInput');
+    const sendForm      = document.querySelector('.wab-conv-footer');
     const body          = document.getElementById('wabMessagesBody');
     const searchInput   = document.getElementById('wabSearchInput');
     const mobileBack    = document.getElementById('wabMobileBack');
@@ -881,6 +921,7 @@
             document.querySelectorAll('.wab-contact-item').forEach(i => i.classList.remove('is-active'));
             item.classList.add('is-active');
             if (window.innerWidth <= 768) sidebar.classList.add('mobile-hidden');
+            if (item.dataset.url) window.location.href = item.dataset.url;
         });
     });
 
@@ -957,7 +998,7 @@
     }
 
     sendBtn?.addEventListener('click', sendMessage);
-    input?.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } });
+    input?.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendForm?.requestSubmit(); } });
 
     /* ── Auto scroll on load ── */
     if (body) body.scrollTop = body.scrollHeight;

@@ -15,7 +15,36 @@ class WhatsAppWebhookController extends Controller
 public function receive(Request $request)
 {
     $data = $request->all();
-    Log::info('AiSensy Webhook Received:', $data);
+    Log::info('WhatsApp Webhook Received:', $data);
+
+    if ($request->has('From') && $request->has('Body')) {
+        $phone = str_replace('whatsapp:', '', $request->input('From'));
+        $text = $request->input('Body');
+        $waMessageId = $request->input('MessageSid') ?? $request->input('SmsMessageSid');
+        $userName = $request->input('ProfileName') ?: $phone;
+
+        $whatsappMessage = WhatsappMessage::create([
+            'phone' => $phone,
+            'name' => $userName,
+            'message' => $text,
+            'direction' => 'inbound',
+            'wa_message_id' => $waMessageId,
+            'status' => 'received',
+        ]);
+
+        event(new MessageSent($whatsappMessage));
+
+        return response()->json(['status' => 'received'], 200);
+    }
+
+    if (($request->has('MessageStatus') || $request->has('SmsStatus')) && ($request->has('MessageSid') || $request->has('SmsMessageSid'))) {
+        $waMessageId = $request->input('MessageSid') ?? $request->input('SmsMessageSid');
+        $status = strtolower($request->input('MessageStatus') ?? $request->input('SmsStatus'));
+
+        WhatsappMessage::where('wa_message_id', $waMessageId)->update(['status' => $status]);
+
+        return response()->json(['status' => 'updated'], 200);
+    }
 
     $topic = $data['topic'] ?? null;
 
