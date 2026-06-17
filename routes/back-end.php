@@ -43,6 +43,16 @@ Route::post('/lead-reason-update', [LeadsController::class, 'updateLeadReason'])
 // Route::middleware(['auth', 'check.permission'])->group(function () {
 Route::middleware(['auth'])->group(function () {
 
+    Route::prefix('whatsapp')->name('whatsapp.')->group(function () {
+        Route::get('/settings', function () {
+            return view('back-end.whatsapp.settings');
+        })->name('settings');
+
+        Route::get('/chat', function () {
+            return view('back-end.whatsapp.chat');
+        })->name('chat');
+    });
+
     Route::prefix('career')->group(function () {
         Route::get('/', [CareerController::class, 'index'])->name('career.index');
 

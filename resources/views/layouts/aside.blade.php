@@ -43,6 +43,39 @@
                     </div>
                 </div>
 
+                @php
+                    $isWhatsappActive = $isActiveRoute('whatsapp/settings') || $isActiveRoute('whatsapp/chat');
+                @endphp
+
+                <div data-kt-menu-trigger="click" class="menu-item menu-accordion {{ $isWhatsappActive ? 'here show' : '' }}">
+                    <span class="menu-link {{ $isWhatsappActive ? 'active' : '' }}">
+                        <span class="menu-icon">
+                            <li class="fa fa-whatsapp"></li>
+                        </span>
+                        <span class="menu-title">WhatsApp</span>
+                        <span class="menu-arrow"></span>
+                    </span>
+
+                    <div class="menu-sub menu-sub-accordion menu-active-bg">
+                        <div class="menu-item">
+                            <a class="menu-link {{ $isActiveRoute('whatsapp/settings') ? 'active' : '' }}" href="{{ route('whatsapp.settings') }}">
+                                <span class="menu-bullet">
+                                    <span class="bullet bullet-dot"></span>
+                                </span>
+                                <span class="menu-title">Settings</span>
+                            </a>
+                        </div>
+                        <div class="menu-item">
+                            <a class="menu-link {{ $isActiveRoute('whatsapp/chat') ? 'active' : '' }}" href="{{ route('whatsapp.chat') }}">
+                                <span class="menu-bullet">
+                                    <span class="bullet bullet-dot"></span>
+                                </span>
+                                <span class="menu-title">Chat</span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
                 @foreach($premission as $permission)
                     @if(auth()->check() && auth()->user()->role_id == $permission->role_id)
                         @php
