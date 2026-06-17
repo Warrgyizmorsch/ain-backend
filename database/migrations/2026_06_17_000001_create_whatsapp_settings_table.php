@@ -10,7 +10,7 @@ return new class extends Migration
     {
         Schema::create('whatsapp_settings', function (Blueprint $table) {
             $table->id();
-            $table->string('provider')->unique();
+            $table->string('provider', 100)->unique();
             $table->json('settings')->nullable();
             $table->boolean('is_active')->default(false)->index();
             $table->unsignedBigInteger('created_by')->nullable();
