@@ -25,9 +25,7 @@ if ($failedDate && $failedDate->diffInDays(now()) <= 365) {
 
     $rowStyle = "";
     // user ka koi bhi failed order hai kya
-    $hasFailedOrder = \App\Models\Order::where('uid', optional($order->user)->id)
-        ->where('is_fail', 1)
-        ->exists();
+    $hasFailedOrder = optional($order->user)->failed_orders_count > 0;
 
     if ($hasFailedOrder || $order->is_fail == 1) {
         $rowStyle = "
@@ -114,24 +112,11 @@ if ($failedDate && $failedDate->diffInDays(now()) <= 365) {
         </td>
         <td class="text-center">
             @php
-            // 1. Latest comment nikalna
-            $latestComment = \Illuminate\Support\Facades\DB::table('feddbacksheet')
-            ->where('order_id', $order->id)
-            ->orderBy('id', 'desc')
-            ->first();
+            // 1. Latest comment preloaded feedback relation se nikalna
+            $latestComment = $order->feedback->first();
 
-            // 2. User ki ID se Name nikalna
-            $commentUserName = 'Admin'; // Default naam
-            if ($latestComment && !empty($latestComment->created_by)) {
-            // 'users' table me ID match karke name fetch kar rahe hain
-            $user = \Illuminate\Support\Facades\DB::table('users')
-            ->where('id', $latestComment->created_by)
-            ->first();
-
-            if ($user) {
-            $commentUserName = $user->name;
-            }
-            }
+            // 2. User ki ID se Name preloaded relation se
+            $commentUserName = $latestComment?->user?->name ?? 'Admin';
             @endphp
 
             @if($latestComment && !empty($latestComment->comment))
@@ -297,7 +282,7 @@ if ($failedDate && $failedDate->diffInDays(now()) <= 365) {
 
             <br>
             @php
-                $count = \App\Models\Order::where('uid', optional($order->user)->id)->count();
+                $count = optional($order->user)->orders_count ?? 0;
                 if($count > 10) { 
                     $class = "badge-light-success"; 
                     $label = "Loyal Customer"; 
@@ -602,22 +587,9 @@ if ($failedDate && $failedDate->diffInDays(now()) <= 365) {
         <td class="text-center">
             @if($order->writer_name)
             @php
-            // Is order ka current feedback nikalna
-            $currentFeedback = \Illuminate\Support\Facades\DB::table('writer_feedbacks')
-            ->where('order_id', $order->id)
-            ->value('points');
-
-            // Writer ki total rating nikalna (Highlight karne ke liye)
-            $writerIdForSum = \Illuminate\Support\Facades\DB::table('writer_list')
-            ->where('writer_name', $order->writer_name)
-            ->value('id');
-
-            $writerTotalPoints = 0;
-            if ($writerIdForSum) {
-            $writerTotalPoints = \Illuminate\Support\Facades\DB::table('writer_feedbacks')
-            ->where('writer_id', $writerIdForSum)
-            ->sum('points');
-            }
+            // Is order ka current feedback aur writer total controller se preloaded hai
+            $currentFeedback = $order->current_writer_feedback_points;
+            $writerTotalPoints = (int) ($order->writer_total_points ?? 0);
 
             $isGoodWriter = $writerTotalPoints >= 6;
             @endphp

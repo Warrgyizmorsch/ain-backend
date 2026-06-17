@@ -29,6 +29,7 @@ protected $table = 'orders';
         'marks',
         'offer',
         'referal',
+        'failed_at'
     ];
     
      protected $casts = [

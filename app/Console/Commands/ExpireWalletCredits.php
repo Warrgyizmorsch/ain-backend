@@ -59,7 +59,7 @@ class ExpireWalletCredits extends Command
                     continue;
                 }
 
-                $currentBalance = $user->wallet ?? 0;
+                $currentBalance = $user->Wallet ?? 0;
 
                 // Safety: jitna credit expire ho raha, utna hi cut karo (zyaada nahi)
                 $amountToExpire = min($credit->amount, $currentBalance);
@@ -86,7 +86,7 @@ class ExpireWalletCredits extends Command
                 ]);
 
                 // 2) User wallet update
-                $user->wallet = $newBalance;
+                $user->Wallet = $newBalance;
                 $user->save();
 
                 // 3) Original credit ko processed mark karo

@@ -52,8 +52,8 @@ class WalletController extends Controller
         // 3) Wallet amount logic (TERI DEMAND KE HISAB SE)
         //    - Primary: users.wallet column
         //    - Agar null ya missing ho, tab hi fallback: credits - debits
-        if (!is_null($walletUser->wallet)) {
-            $walletAmount = $walletUser->wallet;  // yahi final amount dikhana hai
+        if (!is_null($walletUser->Wallet)) {
+            $walletAmount = $walletUser->Wallet;  // yahi final amount dikhana hai
         } else {
             // fallback (agar future me kabhi null mila)
             $credits = WalletTransaction::where('user_id', $walletUser->id)
@@ -82,7 +82,7 @@ class WalletController extends Controller
     {
         $desc = $desc ?: 'Wallet credited by admin';
 
-        $currentBalance = $user->wallet ?? 0;
+        $currentBalance = $user->Wallet ?? 0;
         $newBalance     = $currentBalance + $amount;
 
         WalletTransaction::create([
@@ -94,7 +94,7 @@ class WalletController extends Controller
             'expires_at'    => $expiresAt,
         ]);
 
-        $user->wallet = $newBalance;
+        $user->Wallet = $newBalance;
         $user->save();
     }
 

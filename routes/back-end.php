@@ -312,7 +312,6 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/create_sample', [HomeController::class, 'create_sample'])->name('create_sample');
 
     Route::post('/submit_sample', [HomeController::class, 'sample_store'])->name('submit_sample');
-    Route::get('/sample/{slug}', [HomeController::class, 'getSampleBySlug']);
     Route::delete('/sample/{id}', [HomeController::class, 'destroySample'])->name('sample.destroy');
     Route::delete('/sample_list/{id}', [HomeController::class, 'editSample'])->name('sample.edit');
     route::get('/free-sample', [SampleController::class, 'index'])->name('free-sample');

@@ -2,6 +2,13 @@
 
 @section('content')
 <div class="margin-top-on-desktop" id="kt_content">
+    <script>
+        if (localStorage.getItem('lead_filters')) {
+            document.documentElement.classList.add('lead-filter-restoring');
+        } else {
+            document.documentElement.classList.remove('lead-filter-restoring');
+        }
+    </script>
     <div class="col-xl-12">
         <!-- Filter Card -->
         <div class="card card-xxl-stretch mb-5 mb-xl-8">
@@ -51,7 +58,7 @@
                     <div class="col-md-3">
                         <select id="date_type" class="form-select form-select-solid">
                             <option value="">Date Type</option>
-                            <option value="Deadline">Deadline</option>
+                            <option value="deadline">Deadline</option>
                         </select>
                     </div>
                     <div class="col-md-3">
@@ -173,7 +180,9 @@
 </style>
 
 <script>
-    document.getElementById("export-btn").addEventListener("click", function() {
+    const leadExportBtn = document.getElementById("export-btn");
+    if (leadExportBtn) {
+    leadExportBtn.addEventListener("click", function() {
         $('#export-btn').hide();
         Swal.fire({
             title: 'Choose Export Option',
@@ -254,8 +263,9 @@
                         icon: 'info',
                         timer: 2000,
                         showConfirmButton: false
-                    });
-                });
+        });
+    });
+    }
         }
 
     });

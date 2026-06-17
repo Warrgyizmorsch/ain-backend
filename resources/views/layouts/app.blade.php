@@ -291,8 +291,10 @@
 
         function checkRevokeAlerts() {
             fetch(`{{ route('revoke.alerts.active') }}`)
-                .then(res => res.json())
+                .then(res => res.ok ? res.json() : [])
                 .then(alerts => {
+                    if (!Array.isArray(alerts)) return;
+
                     updateCountdownBadges(alerts);
 
                     if (document.hidden) return;
@@ -311,7 +313,8 @@
                             showWarningPopup(item, 10);
                         }
                     });
-                });
+                })
+                .catch(() => {});
         }
 
         channel.onmessage = function (event) {
@@ -417,9 +420,9 @@
         function checkAdminRequests() {
             if (document.hidden) return;
             fetch(`{{ route('admin.revoke.extension.requests') }}`)
-                .then(res => res.json())
+                .then(res => res.ok ? res.json() : [])
                 .then(requests => {
-                    if (!requests.length) return;
+                    if (!Array.isArray(requests) || !requests.length) return;
                     const req = requests[0];
                     if (currentRequestId === req.id) return;
                     currentRequestId = req.id;
@@ -507,7 +510,8 @@
 
                         currentRequestId = null;
                     });
-                });
+                })
+                .catch(() => {});
         }
 
         channel.onmessage = function (event) {
@@ -518,7 +522,7 @@
         };
 
         setInterval(checkAdminRequests, 15000);
-        checkAdminRequests();
+        setTimeout(checkAdminRequests, 3000);
     });
     </script>
     @endif

@@ -33,6 +33,7 @@
                         placeholder="OrderCode or Title">
                 </div>
 
+                <script src="{{ asset('js/jquery.js') }}"></script>
                 <script>
                     document.addEventListener('DOMContentLoaded', function() {
                         const searchInput = document.getElementById('searchInput');
@@ -60,7 +61,6 @@
                     <input type="hidden" id="selectedValue" name="uid">
                 </div>
 
-                <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
                 <script>
                     $(document).ready(function() {
                         $('#searchInput').on('input', function() {
@@ -340,7 +340,6 @@
     </div>
 </div>
 
-<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
 <style>
     .loading-container div {
         font-size: 14px;

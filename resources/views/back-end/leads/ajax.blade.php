@@ -10,9 +10,11 @@
                 offset: offset
             },
             success: function(res) {
-                $('#lead-rows').append(res.html);
+                if (res.html) {
+                    $('#lead-rows').append(res.html);
+                }
                 offset += res.count;
-                if (res.count < 20) {
+                if (res.count < 30) {
                     $('#load-more').hide();
                 }
             },
@@ -21,6 +23,7 @@
             },
             complete: function() {
                 $('#preloader').hide();
+                document.documentElement.classList.remove('lead-filter-restoring');
             }
         });
     });
@@ -64,11 +67,17 @@
             method: 'get',
             data: filters,
             success: function(res) {
-                $('#lead-rows').html(res.html);
+                if (res.html !== undefined) {
+                    $('#lead-rows').html(res.html);
+                }
                 $('#load-more-wrapper').hide();
+            },
+            error: function() {
+                Swal.fire('Error', 'Failed to load leads.', 'error');
             },
             complete: function() {
                 $('#preloader').hide();
+                document.documentElement.classList.remove('lead-filter-restoring');
                 $('#export-btn').show();
             }
         });
@@ -84,10 +93,16 @@
             method: 'get',
             data: filters,
             success: function(res) {
-                $('#lead-rows').html(res.html);
+                if (res.html !== undefined) {
+                    $('#lead-rows').html(res.html);
+                }
+            },
+            error: function() {
+                Swal.fire('Error', 'Failed to restore lead filters.', 'error');
             },
             complete: function() {
                 $('#preloader').hide();
+                document.documentElement.classList.remove('lead-filter-restoring');
             }
         });
     }

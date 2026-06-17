@@ -2,9 +2,7 @@
     $orderIdStyle  = "";
 
     if (!empty($lead->user)) {
-        $hasFailedOrder = \App\Models\Order::where('uid', $lead->user->id)
-            ->where('is_fail', 1)
-            ->exists();
+        $hasFailedOrder = ($lead->user->failed_orders_count ?? 0) > 0;
 
         if ($hasFailedOrder) {
             $orderIdStyle  = "background-color:#ffeaea !important; color:#b50000 !important; border:2px solid #ff0000 !important;";
@@ -249,12 +247,8 @@
         {{-- {{ $lead->user->name ?? 'No Name' }}<br> --}}
         @php
             $userLeadCount = !empty($lead->user)
-    ? \App\Models\Leads::where('emp_id', $lead->user->id)
-        ->where('is_converted', 0)
-        ->where('status', 0)
-        ->where('duplicate_lead', 0)
-        ->count()
-    : 0;
+                ? ($lead->user->active_leads_count ?? 0)
+                : 0;
         @endphp
 
         {{ $lead->user->name ?? 'No Name' }}<br>
@@ -267,7 +261,7 @@
         @if(!empty($lead->user))
 
         @php
-            $count = \App\Models\Order::where('uid', $lead->user->id)->count();
+            $count = $lead->user->orders_count ?? 0;
 
             if($count > 10) { 
                 $class = "badge-light-success"; 

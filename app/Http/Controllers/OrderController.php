@@ -33,6 +33,7 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use App\Jobs\ExportOrdersJob;
 use Illuminate\Support\Facades\Log;
@@ -41,6 +42,109 @@ use Illuminate\Pagination\LengthAwarePaginator;
 
 class OrderController extends Controller
 {
+    private function orderListColumns(): array
+    {
+        return [
+            'id',
+            'uid',
+            'order_id',
+            'lead_id',
+            'order_date',
+            'services',
+            'typeofpaper',
+            'pages',
+            'title',
+            'delivery_date',
+            'delivery_time',
+            'amount',
+            'received_amount',
+            'projectstatus',
+            'is_read',
+            'feedback_ticket',
+            'resit',
+            'tech',
+            'module_code',
+            'semester',
+            'chapter',
+            'team_id',
+            'marks',
+            'offer',
+            'referal',
+            'is_fail',
+            'failed_at',
+            'failed_by',
+            'status_issue',
+            'draftrequired',
+            'draft_date',
+            'draft_time',
+            'f_delivery_date',
+            'writer_name',
+            'writer_deadline',
+            'writerstatus_date',
+            'l_converted_by',
+            'looking_for_refund',
+            'updated_at',
+        ];
+    }
+
+    private function orderListRelations(): array
+    {
+        return [
+            'user' => function ($q) {
+                $q->select('id', 'name', 'email', 'countrycode', 'mobile_no', 'is_fail', 'feedback_issue', 'client_review', 'failed_at')
+                    ->withCount([
+                        'orders as orders_count',
+                        'orders as failed_orders_count' => function ($orderQuery) {
+                            $orderQuery->where('is_fail', 1);
+                        },
+                    ]);
+            },
+            'payment:id,order_id,payee_name,company_accounts',
+            'team:id,team_name',
+            'lead:id,frontendorder,l_status',
+            'feedback' => function ($q) {
+                $q->select('id', 'order_id', 'comment', 'action_comment', 'status', 'created_by', 'created_at')
+                    ->with('user:id,name')
+                    ->orderByDesc('id');
+            },
+            'additionals:id,order_id,additional_word_count,additional_price',
+        ];
+    }
+
+    private function attachWriterFeedbackMeta($orders): void
+    {
+        $orderIds = $orders->pluck('id')->filter()->values();
+        if ($orderIds->isEmpty()) {
+            return;
+        }
+
+        $currentPoints = DB::table('writer_feedbacks')
+            ->whereIn('order_id', $orderIds)
+            ->pluck('points', 'order_id');
+
+        $writerNames = $orders->pluck('writer_name')->filter()->unique()->values();
+        $writerTotals = collect();
+
+        if ($writerNames->isNotEmpty()) {
+            $writerTotals = DB::table('writer_feedbacks')
+                ->join('writer_list', 'writer_feedbacks.writer_id', '=', 'writer_list.id')
+                ->whereIn('writer_list.writer_name', $writerNames)
+                ->groupBy('writer_list.writer_name')
+                ->select('writer_list.writer_name', DB::raw('SUM(writer_feedbacks.points) as total_points'))
+                ->pluck('total_points', 'writer_list.writer_name');
+        }
+
+        foreach ($orders as $order) {
+            $order->setAttribute('current_writer_feedback_points', $currentPoints[$order->id] ?? null);
+            $order->setAttribute('writer_total_points', $writerTotals[$order->writer_name] ?? 0);
+        }
+    }
+
+    private function dueAmount(Order $order): float
+    {
+        return round((float) $order->amount - (float) $order->received_amount, 2);
+    }
+
 
     public function export(Request $request)
     {
@@ -570,7 +674,12 @@ class OrderController extends Controller
                 $order->delivery_date = $req->input('delivery_date');
             }
             $order->amount = $req->input('amount');
-            $order->received_amount = $req->input('r_amount');
+            if ($req->filled('r_amount')) {
+                if (!is_numeric($req->input('r_amount')) || (float) $req->input('r_amount') > (float) $req->input('amount')) {
+                    return redirect()->back()->with('warning', 'Received amount must be numeric and cannot exceed order amount.');
+                }
+                $order->received_amount = $req->input('r_amount');
+            }
             $order->delivery_time = $req->input('delivery_time');
             // Check if the input is a numeric value
             if ($req->filled('word') && !is_numeric($req->input('word'))) {
@@ -601,7 +710,7 @@ class OrderController extends Controller
                 }
             } elseif ($req->input('status') == 'Delivered') {
 
-                if ((int)$order->amount - (int)$order->received_amount !== 0) {
+                if ($this->dueAmount($order) > 0) {
                     return redirect()->back()->with('warning', 'Order cannot be marked as Delivered if there is any due payment remaining.');
                 }
                 $order->projectstatus = $req->input('status');
@@ -688,7 +797,12 @@ class OrderController extends Controller
                 $order->delivery_date = $req->input('delivery_date');
             }
             $order->amount = $req->input('amount');
-            $order->received_amount = $req->input('r_amount');
+            if ($req->filled('r_amount')) {
+                if (!is_numeric($req->input('r_amount')) || (float) $req->input('r_amount') > (float) $req->input('amount')) {
+                    return redirect()->back()->with('warning', 'Received amount must be numeric and cannot exceed order amount.');
+                }
+                $order->received_amount = $req->input('r_amount');
+            }
             $order->delivery_time = $req->input('delivery_time');
             // Check if the input is a numeric value
             if ($req->filled('word') && !is_numeric($req->input('word'))) {
@@ -716,7 +830,7 @@ class OrderController extends Controller
                     Log::error('Mail sending failed | Error: ' . $e->getMessage());
                 }
             } elseif ($req->input('status') == 'Delivered') {
-                if ((int)$order->amount - (int)$order->received_amount !== 0) {
+                if ($this->dueAmount($order) > 0) {
                     return redirect()->back()->with('warning', 'Order cannot be marked as Delivered if there is any due payment remaining.');
                 }
                 $order->projectstatus = $req->input('status');
@@ -853,10 +967,10 @@ class OrderController extends Controller
         $semester = $request->input('semester');
 
         $data = [
-            'projectStatusCounts' => ProjectStatusCount::all()
+            'projectStatusCounts' => collect()
         ];
 
-        $orders = Order::query();
+        $orders = Order::query()->select($this->orderListColumns());
 
         if ($semester != '') {
             $orders->where('semester',  $semester);
@@ -932,9 +1046,7 @@ class OrderController extends Controller
 
         if ($SubWriter != '') {
             // $orders->where('swid', $SubWriter );
-            $multipleWriters = multipleswiter::where('user_id', $SubWriter)->get();
-
-            $orderIds = $multipleWriters->pluck('order_id')->toArray();
+            $orderIds = multipleswiter::where('user_id', $SubWriter)->pluck('order_id')->toArray();
 
             $orders->whereIn('id', $orderIds);
         }
@@ -959,23 +1071,19 @@ class OrderController extends Controller
             $orders->where('typeofpaper',  $paper_type);
         }
 
-        // ======= Temporary Solution Start: Prevent timeout by chunking large query =======
-        // $orders = $orders->orderBy('id', 'desc')->where('uid', '!=' ,'0')->get();
-        set_time_limit(300); // Optional: Increase time limit to 5 minutes
+        $orders = $orders->with([
+                'user' => function ($q) {
+                    $q->select('id', 'name', 'mobile_no', 'is_fail');
+                },
+                'payment:id,order_id,payee_name,company_accounts',
+                'team:id,team_name',
+            ])
+            ->orderBy('id', 'desc')
+            ->where('uid', '!=', '0')
+            ->limit((int) $request->get('limit', 100))
+            ->get();
 
-        $ordersQuery = $orders->with('team')->orderBy('id', 'desc')->where('uid', '!=', '0');
-
-        $orders = []; // If you need to collect final orders
-
-        $ordersQuery->chunk(100, function ($chunk) use (&$orders) {
-            foreach ($chunk as $order) {
-                // You can directly process the order here if no collection is needed
-                $orders[] = $order;
-            }
-        });
-        $orders = collect($orders);
-
-        // ======= Temporary Solution End =======
+        $data['projectStatusCounts'] = ProjectStatusCount::whereIn('order_Id', $orders->pluck('id'))->get();
 
         if ($orders->isEmpty()) {
             return response()->json(['message' => 'No data found']);
@@ -2619,7 +2727,7 @@ class OrderController extends Controller
             }
 
             // 3. Delivered status validation (Payment check)
-            if ($statusName->status == 'Delivered' && ((int)$order->amount - (int)$order->received_amount !== 0)) {
+            if ($statusName->status == 'Delivered' && $this->dueAmount($order) > 0) {
                 return response()->json(['warning' => 'Order cannot be marked as Delivered if there is any due payment remaining.']);
             }
 
@@ -2666,7 +2774,7 @@ class OrderController extends Controller
                     'title' => $order->title,
                     'order_code' => $order->order_id,
                     'date' => $order->delivery_date,
-                    'due' => (int)$order->amount - (int)$order->received_amount,
+                    'due' => $this->dueAmount($order),
                 ];
 
                 if (!filter_var($orderData['email'], FILTER_VALIDATE_EMAIL)) {
@@ -2902,6 +3010,17 @@ class OrderController extends Controller
             'order_id' => $newOrderId,
             'projectstatus' => 'Pending',
             'lead_id' => $lead->id,
+            'uid' => $user->id,
+            'title' => $leadData['project_title'] ?? $request->subject ?? null,
+            'pages' => $leadData['pages'] ?? null,
+            'amount' => $leadData['price'] ?? null,
+            'delivery_date' => $leadData['deadline'] ?? null,
+            'delivery_time' => $leadData['delivery_time'] ?? null,
+            'services' => $leadData['service_type'] ?? $request->service ?? null,
+            'typeofpaper' => $leadData['typeofpaper'] ?? null,
+            'message' => $leadData['message'] ?? null,
+            'tech' => $leadData['tech'] ?? null,
+            'resit' => $leadData['resit'] ?? null,
         ]);
 
         return response()->json([
@@ -3025,6 +3144,15 @@ class OrderController extends Controller
             'order_id' => $newOrderId,
             'projectstatus' => 'Pending',
             'lead_id' => $leads->id,
+            'uid' => $user->id,
+            'title' => $request->input('topic'),
+            'pages' => $request->input('wordCount'),
+            'amount' => $request->input('finalPrice'),
+            'delivery_date' => $deliveryDate->format('Y-m-d'),
+            'services' => str_replace('FirstClass', 'First Class Work', $request->input('workType')),
+            'typeofpaper' => $request->input('service'),
+            'message' => $request->input('requirements'),
+            'module_code' => $request->input('subject'),
         ]);
 
         return response()->json([
@@ -3069,42 +3197,40 @@ class OrderController extends Controller
     public function indexOrder()
     {
         $data = [
-            'Team' => Writer::all(),
-            'Status' => Status::all(),
-            'formatting' => Formatting::all(),
-            'service' => Services::all(),
-            'Writting' => Writting::all(),
-            'paper' => Paper::all(),
-            'user' => User::all(),
-            'college' => College::all(),
-            'admin' => User::where('role_id', 8)->where('flag', 0)->get(),
-            'writerTL' => User::where('role_id', 6)->where('flag', 0)->get(),
-            'SubWriter' => User::where('role_id', 7)->where('flag', 0)->get(),
-            'projectStatusCounts' => ProjectStatusCount::all()
+            'Team' => Writer::select('id', 'writer_name')->get(),
+            'Status' => Status::select('id', 'status')->get(),
+            'paper' => Paper::select('id', 'paper_type')->get(),
+            'college' => College::select('id', 'college_name')->get(),
+            'writerTL' => User::where('role_id', 6)->where('flag', 0)->select('id', 'name')->get(),
+            'SubWriter' => User::where('role_id', 7)->where('flag', 0)->select('id', 'name', 'tl_id')->get(),
+            'projectStatusCounts' => collect(),
         ];
 
 
         // Priority Logic: Due balance (Amount - Received) > 0 wale orders sabse upar
-        $orders = Order::with(['user', 'payment', 'team', 'feedback.user', 'feedback.order', 'lead.call.user', 'followupComments.user', 'followupComments.order', 'additionals'])
+        $orders = Order::with($this->orderListRelations())
             ->where('uid', '!=', 0)
-            ->select('*')
+            ->select($this->orderListColumns())
             ->selectRaw('(CAST(amount AS SIGNED) - CAST(received_amount AS SIGNED)) as due_balance')
             ->orderByRaw('due_balance > 0 DESC') // Pending payment pehle
             ->latest('id')
             ->take(20)
             ->get();
 
+        $this->attachWriterFeedbackMeta($orders);
+        $data['projectStatusCounts'] = ProjectStatusCount::whereIn('order_Id', $orders->pluck('id'))->get();
+
         $totals = [
             'total_amount' => $orders->sum(function ($o) {
-                return (int) $o->amount;
+                return (float) $o->amount;
             }),
 
             'total_paid' => $orders->sum(function ($o) {
-                return (int) $o->received_amount;
+                return (float) $o->received_amount;
             }),
 
             'total_due' => $orders->sum(function ($o) {
-                return (int)$o->amount - (int)$o->received_amount;
+                return $this->dueAmount($o);
             }),
         ];
 
@@ -3121,7 +3247,7 @@ class OrderController extends Controller
             ->count();
         $alphaCount = \App\Models\Order::where('team_id', 1)->count();
         $gigaCount = \App\Models\Order::where('team_id', 2)->count();
-        $teams = Team::all();
+        $teams = Team::select('id', 'team_name')->get();
         return view('back-end.order.index', compact('orders', 'totals', 'overdueCount', 'data', 'alphaCount', 'gigaCount', 'teams'));
     }
 
@@ -3208,7 +3334,9 @@ class OrderController extends Controller
                 $validUIDs = $uidsInMonth->diff($uidsWithNewerOrders);
 
                 // Get the latest order for each valid UID within the month
-                $latestOrders = Order::whereIn('id', function ($query) use ($startOfMonth, $endOfMonth, $validUIDs) {
+                $latestOrders = Order::with($this->orderListRelations())
+                    ->select($this->orderListColumns())
+                    ->whereIn('id', function ($query) use ($startOfMonth, $endOfMonth, $validUIDs) {
                     $query->selectRaw('MAX(id)')
                         ->from('orders')
                         ->whereBetween('order_date', [$startOfMonth, $endOfMonth])
@@ -3216,16 +3344,19 @@ class OrderController extends Controller
                         ->groupBy('uid');
                 })->orderByDesc('id')->get();
 
+                $this->attachWriterFeedbackMeta($latestOrders);
+
 
                 // Generate HTML
                 if ($latestOrders->isNotEmpty()) {
                     $html = '';
                     $index = 0;
                     // Fetch statuses once (not in loop)
-                    $allStatus = Status::all();
+                    $allStatus = Status::select('id', 'status')->get();
+                    $teams = Team::select('id', 'team_name')->get();
 
                     foreach ($latestOrders as $order) {
-                        $projectStatusCounts = ProjectStatusCount::where('order_id', $order->id)->get();
+                        $projectStatusCounts = ProjectStatusCount::where('order_Id', $order->id)->get();
 
                         $html .= view('back-end.order.partials.row', [
                             'order' => $order,
@@ -3234,6 +3365,7 @@ class OrderController extends Controller
                                 'projectStatusCounts' => $projectStatusCounts,
                                 'Status' => $allStatus,
                             ],
+                            'teams' => $teams,
                         ])->render();
                     }
 
@@ -3266,7 +3398,8 @@ class OrderController extends Controller
         $limit = $request->get('limit', 50);
         $offset = $request->get('offset', 0);
 
-        $query = Order::with(['user', 'payment', 'team', 'feedback.user', 'feedback.order', 'lead.call.user']);
+        $query = Order::with($this->orderListRelations())
+            ->select($this->orderListColumns());
         $query->where('uid', '!=', 0);
 
         // Search
@@ -3417,18 +3550,19 @@ class OrderController extends Controller
         $query->orderBy('id', 'desc');
         $total = $query->count();
         $orders = $query->skip($offset)->take($limit)->get();
+        $this->attachWriterFeedbackMeta($orders);
 
         $totals = [
             'total_amount' => $orders->sum(function ($o) {
-                return (int) $o->amount;
+                return (float) $o->amount;
             }),
 
             'total_paid' => $orders->sum(function ($o) {
-                return (int) $o->received_amount;
+                return (float) $o->received_amount;
             }),
 
             'total_due' => $orders->sum(function ($o) {
-                return (int)$o->amount - (int)$o->received_amount;
+                return $this->dueAmount($o);
             }),
         ];
 
@@ -3452,7 +3586,7 @@ class OrderController extends Controller
         //         'data' => $data,
         //     ])->render();
         // }
-        $teams = Team::all();
+        $teams = Team::select('id', 'team_name')->get();
         $html = '';
         foreach ($orders as $index => $order) {
             $html .= view('back-end.order.partials.row', [
@@ -3590,7 +3724,7 @@ class OrderController extends Controller
 
             // 3️⃣ Agar Wallet se pay hua hai → wallet se DEBIT karo + transaction entry
             if ($fromWallet && $walletUser) {
-                $currentBalance = (float) ($walletUser->wallet ?? 0);
+                $currentBalance = (float) ($walletUser->Wallet ?? 0);
                 $newBalance     = $currentBalance - $paidAmount;
 
                 // Safety: negative se bachao
@@ -3609,7 +3743,7 @@ class OrderController extends Controller
                 ]);
 
                 // User wallet update
-                $walletUser->wallet = $newBalance;
+                $walletUser->Wallet = $newBalance;
                 $walletUser->save();
             }
 
@@ -3803,6 +3937,16 @@ class OrderController extends Controller
             'order_id'      => $newOrderId,
             'projectstatus' => 'Pending',
             'lead_id'       => $lead->id,
+            'uid'           => $user->id,
+            'title'         => $leadData['project_title'] ?? $request->subject ?? null,
+            'pages'         => $leadData['pages'] ?? null,
+            'amount'        => $leadData['price'] ?? null,
+            'delivery_date' => $leadData['deadline'] ?? null,
+            'delivery_time' => $leadData['delivery_time'] ?? null,
+            'typeofpaper'   => $leadData['typeofpaper'] ?? null,
+            'message'       => $leadData['message'] ?? null,
+            'tech'          => $leadData['tech'] ?? null,
+            'resit'         => $leadData['resit'] ?? null,
         ]);
 
         return response()->json([
@@ -4682,19 +4826,24 @@ public function activeRevokeAlerts()
         return response()->json([]);
     }
 
+    $hasExtensionRequests = Schema::hasTable('revoke_payment_extension_requests');
+
     $payments = Payment::with('order')
         ->where('is_revoked', 1)
         ->where('revoke_resolved', 0)
         ->whereNotNull('revoke_deadline_at')
         ->get()
-        ->map(function ($payment) {
+        ->map(function ($payment) use ($hasExtensionRequests) {
             $deadline = \Carbon\Carbon::parse($payment->revoke_deadline_at);
             $secondsLeft = now()->diffInSeconds($deadline, false);
 
-            $latestRequest = DB::table('revoke_payment_extension_requests')
-                ->where('payment_id', $payment->id)
-                ->latest('id')
-                ->first();
+            $latestRequest = null;
+            if ($hasExtensionRequests) {
+                $latestRequest = DB::table('revoke_payment_extension_requests')
+                    ->where('payment_id', $payment->id)
+                    ->latest('id')
+                    ->first();
+            }
 
             return [
                 'payment_id' => $payment->id,
@@ -4714,6 +4863,14 @@ public function requestRevokeExtension(Request $request, $paymentId)
 {
     if (!in_array(auth()->user()->role_id, [4, 9])) {
         abort(403);
+    }
+
+    if (!Schema::hasTable('revoke_payment_extension_requests')) {
+        $message = 'Extension request table is not available.';
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json(['success' => false, 'error' => $message], 503);
+        }
+        return back()->with('error', $message);
     }
 
     $request->validate([
@@ -4759,6 +4916,10 @@ public function adminRevokeExtensionRequests()
 {
     if (auth()->user()->role_id != 1) {
         abort(403);
+    }
+
+    if (!Schema::hasTable('revoke_payment_extension_requests')) {
+        return response()->json([]);
     }
 
     $requests = DB::table('revoke_payment_extension_requests')
@@ -4826,6 +4987,13 @@ public function approveRevokeExtension($requestId)
         abort(403);
     }
 
+    if (!Schema::hasTable('revoke_payment_extension_requests')) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Extension request table is not available.'
+        ], 503);
+    }
+
     $extensionRequest = DB::table('revoke_payment_extension_requests')
         ->where('id', $requestId)
         ->where('status', 'pending')
@@ -4884,6 +5052,13 @@ public function rejectRevokeExtension($requestId)
 {
     if (auth()->user()->role_id != 1) {
         abort(403);
+    }
+
+    if (!Schema::hasTable('revoke_payment_extension_requests')) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Extension request table is not available.'
+        ], 503);
     }
 
     DB::table('revoke_payment_extension_requests')

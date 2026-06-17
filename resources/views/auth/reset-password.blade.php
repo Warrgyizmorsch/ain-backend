@@ -1,6 +1,6 @@
 
        
-@extends('frontend-layouts.guest')
+@extends('layouts.auth')
 
 @section('content')
 	<style>
@@ -26,7 +26,7 @@
 
 	</style>
 	<section class="banner-section-three">
-		<div class="pattern-layer-two" style="background-image: url(images/background/pattern-21.png)"></div>
+		<div class="pattern-layer-two"></div>
 		<div class="auto-container" >
 			<!-- Page Breadcrumb -->
 			
@@ -35,21 +35,21 @@
 				<!-- Content Column -->
 				<div class="content-column col-lg-12 col-md-12 col-sm-12">
 					<div class="inner-column">
-						<div class="pattern-layer-one" style="background-image: url(images/main-slider/pattern-1.png)"></div>
-						<div class="icon-layer" style="background-image: url(images/icons/icon-2.png)"></div>
-						<div class="icon-layer-two" style="background-image: url(images/icons/icon-5.png)"></div>
+						<div class="pattern-layer-one"></div>
+						<div class="icon-layer"></div>
+						<div class="icon-layer-two"></div>
                         <div>
 							<section class="contact-section ">
-								<div class="pattern-layer" style="background-image:url(images/background/pattern-19.png)"></div>
-								<div class="pattern-layer-two" style="background-image:url(images/background/pattern-20.png)"></div>
-								<div class="icon-layer-two" style="background-image:url(images/icons/icon-2.png)"></div>
-								<div class="icon-layer-three" style="background-image:url(images/icons/icon-2.png)"></div>
+								<div class="pattern-layer"></div>
+								<div class="pattern-layer-two"></div>
+								<div class="icon-layer-two"></div>
+								<div class="icon-layer-three"></div>
 								<div class="auto-container">
 									<div class="row clearfix">
 										<!-- Info Column -->
 										<div class="info-column col-lg-6 col-md-12 col-sm-12">
 											<div class="inner-column">
-												<div class="icon-layer" style="background-image:url(images/icons/icon-2.png)"></div>
+												<div class="icon-layer"></div>
 												
 												<h2 class="text-black text-center mb-5">Assignment In Need!</h2>
                                                 <div class="text-right">
@@ -61,7 +61,7 @@
                                                 </div>
                                                 <!-- <h5 class="text-black text-center mb-5">To keep connected with us please login with your personal info</h5> -->
 												<div class="image">
-													<img src="images/resource/instructor.png" alt="">
+													
 												</div>
 											</div>
 										</div>

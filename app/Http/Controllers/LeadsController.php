@@ -28,6 +28,76 @@ use App\Models\Source;
 
 class LeadsController extends Controller
 {
+    private function leadListColumns(): array
+    {
+        return [
+            'id',
+            'emp_id',
+            'order_id',
+            'flag',
+            'assign_type',
+            'l_status',
+            'lead_status',
+            'frontendorder',
+            'resit',
+            'service_type',
+            'project_title',
+            'semester',
+            'tech',
+            'module_code',
+            'pages',
+            'price',
+            'deadline',
+            'delivery_time',
+            'draft_required',
+            'draft_date',
+            'draft_time',
+            'create_at',
+            'lead_source',
+            'status',
+            'is_converted',
+            'duplicate_lead',
+        ];
+    }
+
+    private function leadListRelations(): array
+    {
+        return [
+            'user' => function ($q) {
+                $q->select('id', 'name', 'mobile_no', 'client_review')
+                    ->withCount([
+                        'orders as orders_count',
+                        'orders as failed_orders_count' => function ($orderQuery) {
+                            $orderQuery->where('is_fail', 1);
+                        },
+                    ]);
+            },
+            'source:id,source_name,source_icon',
+        ];
+    }
+
+    private function attachLeadUserCounts($leads): void
+    {
+        $userIds = $leads->pluck('emp_id')->filter()->unique()->values();
+        if ($userIds->isEmpty()) {
+            return;
+        }
+
+        $activeLeadCounts = Leads::whereIn('emp_id', $userIds)
+            ->where('is_converted', 0)
+            ->where('status', 0)
+            ->where('duplicate_lead', 0)
+            ->selectRaw('emp_id, COUNT(*) as total')
+            ->groupBy('emp_id')
+            ->pluck('total', 'emp_id');
+
+        foreach ($leads as $lead) {
+            if ($lead->user) {
+                $lead->user->setAttribute('active_leads_count', $activeLeadCounts[$lead->emp_id] ?? 0);
+            }
+        }
+    }
+
     public function index()
     {
         // Retrieve all services
@@ -642,8 +712,10 @@ class LeadsController extends Controller
                 }
             }
 
-            // Delete the lead
-            $lead->delete();
+            // Mark converted instead of deleting so reporting/history remains intact.
+            $lead->is_converted = 1;
+            $lead->converted_at = now();
+            $lead->save();
 
             // Return a response with updated data
             return response()->json(['message' => 'Lead converted successfully', 'order' => $order]);
@@ -1224,7 +1296,9 @@ class LeadsController extends Controller
         $order->save();
 
 
-        $leadData->delete();
+        $leadData->is_converted = 1;
+        $leadData->converted_at = now();
+        $leadData->save();
 
 
         return redirect('/order');
@@ -1672,7 +1746,8 @@ class LeadsController extends Controller
             ->max('created_at');
         // 1. Leads fetch (Top 30)
         // $leads = Leads::with('user', 'source')
-        $leads = Leads::with(['user', 'source'])
+        $leads = Leads::with($this->leadListRelations())
+            ->select($this->leadListColumns())
             ->where('status', 0)
             ->where('is_converted', 0)
             ->where('duplicate_lead', 0)
@@ -1691,30 +1766,47 @@ class LeadsController extends Controller
             ->take(30)
             ->get();
 
-        // 2. Counts for tabs
+        $this->attachLeadUserCounts($leads);
+
+        // 2. Counts for tabs in one aggregate query
+        $countRow = Leads::where('status', 0)
+            ->where('is_converted', 0)
+            ->where('duplicate_lead', 0)
+            ->selectRaw('COUNT(*) as all_count')
+            ->selectRaw("SUM(CASE WHEN lead_status = 'Hot' THEN 1 ELSE 0 END) as hot_count")
+            ->selectRaw("SUM(CASE WHEN lead_status = 'Cold' THEN 1 ELSE 0 END) as cold_count")
+            ->selectRaw("SUM(CASE WHEN lead_status = 'Warm' THEN 1 ELSE 0 END) as warm_count")
+            ->selectRaw("SUM(CASE WHEN l_status = 'Price' THEN 1 ELSE 0 END) as price_count")
+            ->selectRaw("SUM(CASE WHEN l_status = 'Deadline' THEN 1 ELSE 0 END) as deadline_count")
+            ->selectRaw("SUM(CASE WHEN l_status = 'Serious Concern' THEN 1 ELSE 0 END) as serious_concern_count")
+            ->selectRaw("SUM(CASE WHEN l_status = 'Marks' THEN 1 ELSE 0 END) as marks_count")
+            ->selectRaw("SUM(CASE WHEN l_status = 'Quality' THEN 1 ELSE 0 END) as quality_count")
+            ->selectRaw("SUM(CASE WHEN l_status = 'Customer Service' THEN 1 ELSE 0 END) as customer_service_count")
+            ->selectRaw("SUM(CASE WHEN l_status = 'Unknown' THEN 1 ELSE 0 END) as unknown_count")
+            ->first();
+
         $status_counts = [
-            'All'             => Leads::where('status', 0)->where('is_converted', 0)->where('duplicate_lead', 0)->count(),
-            'Hot'             => Leads::where('status', 0)->where('is_converted', 0)->where('lead_status', 'Hot')->where('duplicate_lead', 0)->count(),
-            'Cold'            => Leads::where('status', 0)->where('is_converted', 0)->where('lead_status', 'Cold')->where('duplicate_lead', 0)->count(),
-            'Warm'            => Leads::where('status', 0)->where('is_converted', 0)->where('lead_status', 'Warm')->where('duplicate_lead', 0)->count(),
-            'Price'           => Leads::where('status', 0)->where('is_converted', 0)->where('l_status', 'Price')->where('duplicate_lead', 0)->count(),
-            'Deadline'        => Leads::where('status', 0)->where('is_converted', 0)->where('l_status', 'Deadline')->where('duplicate_lead', 0)->count(),
-            // 'Feedback'        => Leads::where('status', 0)->where('is_converted', 0)->where('l_status', 'Feedback')->count(),
-            'Serious Concern' => Leads::where('status', 0)->where('is_converted', 0)->where('l_status', 'Serious Concern')->where('duplicate_lead', 0)->count(),
-            'Marks'           => Leads::where('status', 0)->where('is_converted', 0)->where('l_status', 'Marks')->where('duplicate_lead', 0)->count(),
-            'Quality'         => Leads::where('status', 0)->where('is_converted', 0)->where('l_status', 'Quality')->where('duplicate_lead', 0)->count(),
-            'Customer Service' => Leads::where('status', 0)->where('is_converted', 0)->where('l_status', 'Customer Service')->where('duplicate_lead', 0)->count(),
-            'Unknown'         => Leads::where('status', 0)->where('is_converted', 0)->where('l_status', 'Unknown')->where('duplicate_lead', 0)->count(),
+            'All'             => (int) ($countRow->all_count ?? 0),
+            'Hot'             => (int) ($countRow->hot_count ?? 0),
+            'Cold'            => (int) ($countRow->cold_count ?? 0),
+            'Warm'            => (int) ($countRow->warm_count ?? 0),
+            'Price'           => (int) ($countRow->price_count ?? 0),
+            'Deadline'        => (int) ($countRow->deadline_count ?? 0),
+            'Serious Concern' => (int) ($countRow->serious_concern_count ?? 0),
+            'Marks'           => (int) ($countRow->marks_count ?? 0),
+            'Quality'         => (int) ($countRow->quality_count ?? 0),
+            'Customer Service' => (int) ($countRow->customer_service_count ?? 0),
+            'Unknown'         => (int) ($countRow->unknown_count ?? 0),
         ];
 
-        $service = Services::all();
-        $papers = Paper::all();
+        $service = Services::select('id', 'service_name')->get();
+        $papers = Paper::select('id', 'paper_type')->get();
 
         // 3. Employees Fetch (Graph Filter ke liye sabse zaroori)
         // Yahan ensure karein ki User model import ho upar
-        $employees = User::where('role_id', '!=', 2)->get();
+        $employees = User::where('role_id', '!=', 2)->select('id', 'name', 'role_id')->get();
 
-        $sources = Source::where('is_delete', 0)->get();
+        $sources = Source::where('is_delete', 0)->select('id', 'source_name', 'source_icon')->get();
 
         // Sab variables ko compact mein pass karein
         return view('back-end.leads.index', compact('leads', 'sources', 'service', 'papers', 'status_counts', 'employees'));
@@ -1845,10 +1937,14 @@ class LeadsController extends Controller
     public function loadMore(Request $request)
     {
         $offset = $request->get('offset', 0);
-        $leads = Leads::with('user')
+        $leads = Leads::with($this->leadListRelations())
+            ->select($this->leadListColumns())
             ->where('status', 0)
             ->where('is_converted', 0)
+            ->where('duplicate_lead', 0)
             ->latest('id')->skip($offset)->take(30)->get();
+
+        $this->attachLeadUserCounts($leads);
 
         $html = '';
         foreach ($leads as $index => $lead) {
@@ -1862,7 +1958,9 @@ class LeadsController extends Controller
     }
     public function filter(Request $request)
     {
-        $query = Leads::query();
+        $query = Leads::query()
+            ->with($this->leadListRelations())
+            ->select($this->leadListColumns());
         $query->where('duplicate_lead', 0);
 
         // Filter by order or project title
@@ -1960,9 +2058,10 @@ class LeadsController extends Controller
         $leads = $query->where('status', 0)
             ->orderBy('id', 'desc')
             ->where('is_converted', 0)
+            ->limit((int) $request->get('limit', 100))
             ->get();
 
-        $employees = User::where('role_id', '!=', 2)->get();
+        $this->attachLeadUserCounts($leads);
 
         $html = '';
         foreach ($leads as $index => $lead) {
