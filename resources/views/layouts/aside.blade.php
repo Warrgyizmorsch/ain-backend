@@ -25,6 +25,16 @@
                     $submenuIds = [];
                     $menus = $menus ?? collect();
                     $premission = $premission ?? collect();
+                    $currentPath = trim(request()->path(), '/');
+                    $isActiveRoute = function ($route) use ($currentPath) {
+                        $route = trim((string) $route, '/');
+
+                        if ($route === '') {
+                            return $currentPath === '';
+                        }
+
+                        return $currentPath === $route || str_starts_with($currentPath, $route . '/');
+                    };
                 @endphp
 
                 <div class="menu-item">
@@ -45,9 +55,25 @@
                 @foreach ($menus as $menu)
                     @if ($menu->show_menu == 'Y' && in_array($menu->id, $menuIds))
                         @if (count($menu->submenus) > 0)
+                            @php
+                                $visibleSubmenus = $menu->submenus->filter(function ($submenu) use ($submenuIds) {
+                                    return $submenu->show == 'Y' && in_array($submenu->id, $submenuIds);
+                                });
 
-                            <div data-kt-menu-trigger="click" class="menu-item menu-accordion">
-                                <span class="menu-link">
+                                $hasActiveChild = $visibleSubmenus->contains(function ($submenu) use ($isActiveRoute) {
+                                    return $isActiveRoute($submenu->routes);
+                                });
+
+                                $isReportsPayeeActive = strtolower($menu['menu_name']) == 'reports'
+                                    && auth()->check()
+                                    && auth()->user()->role_id == 1
+                                    && $isActiveRoute('payee-report');
+
+                                $isParentActive = $hasActiveChild || $isReportsPayeeActive;
+                            @endphp
+
+                            <div data-kt-menu-trigger="click" class="menu-item menu-accordion {{ $isParentActive ? 'here show' : '' }}">
+                                <span class="menu-link {{ $isParentActive ? 'active' : '' }}">
                                     <span class="menu-icon">
                                         <li class="{{ $menu['icon_class'] }}"></li>
                                     </span>
@@ -66,10 +92,12 @@
                                             </a>
                                         </div>
                                     @endforeach --}}
-                                    @foreach ($menu->submenus as $submenu)
-                                        @if($submenu->show == 'Y' && in_array($submenu->id, $submenuIds))
+                                    @foreach ($visibleSubmenus as $submenu)
+                                        @php
+                                            $isSubmenuActive = $isActiveRoute($submenu->routes);
+                                        @endphp
                                             <div class="menu-item">
-                                                <a class="menu-link" href="{{ url($submenu->routes) }}">
+                                                <a class="menu-link {{ $isSubmenuActive ? 'active' : '' }}" href="{{ url($submenu->routes) }}">
                                                     <span class="menu-bullet">
                                                         <span class="bullet bullet-dot"></span>
                                                     </span>
@@ -89,12 +117,10 @@
                                                     @endif
                                                 </a>
                                             </div>
-                                        @endif
                                     @endforeach
-<<<<<<< Updated upstream
                                     @if(strtolower($menu['menu_name']) == 'reports' && auth()->check() && auth()->user()->role_id == 1)
                                         <div class="menu-item">
-                                            <a class="menu-link" href="{{ url('payee-report') }}">
+                                            <a class="menu-link {{ $isReportsPayeeActive ? 'active' : '' }}" href="{{ url('payee-report') }}">
                                                 <span class="menu-bullet">
                                                     <span class="bullet bullet-dot"></span>
                                                 </span>
@@ -102,15 +128,16 @@
                                             </a>
                                         </div>
                                     @endif
-=======
->>>>>>> Stashed changes
                                 </div>
                             </div>
 
                         @else
+                            @php
+                                $isMenuActive = $isActiveRoute($menu['routes']);
+                            @endphp
 
                             <div class="menu-item">
-                                <a class="menu-link active" href="{{ url($menu['routes']) }}">
+                                <a class="menu-link {{ $isMenuActive ? 'active' : '' }}" href="{{ url($menu['routes']) }}">
                                     <span class="menu-icon">
                                         <li class="{{ $menu['icon_class'] }}"></li>
                                     </span>
@@ -134,3 +161,31 @@
 </div>
 
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+
+<style>
+    #kt_aside .menu-item.here > .menu-link,
+    #kt_aside .menu-link.active {
+        background-color: #1b84ff !important;
+        color: #ffffff !important;
+        border-radius: 8px;
+    }
+
+    #kt_aside .menu-item.here > .menu-link .menu-title,
+    #kt_aside .menu-item.here > .menu-link .menu-icon,
+    #kt_aside .menu-item.here > .menu-link .menu-arrow,
+    #kt_aside .menu-link.active .menu-title,
+    #kt_aside .menu-link.active .menu-icon,
+    #kt_aside .menu-link.active .menu-bullet,
+    #kt_aside .menu-link.active .menu-arrow {
+        color: #ffffff !important;
+    }
+
+    #kt_aside .menu-link.active .bullet {
+        background-color: #ffffff !important;
+    }
+
+    #kt_aside .menu-sub .menu-link.active {
+        background-color: rgba(27, 132, 255, 0.18) !important;
+        color: #ffffff !important;
+    }
+</style>
