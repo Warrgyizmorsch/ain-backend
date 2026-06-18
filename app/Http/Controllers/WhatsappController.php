@@ -68,6 +68,13 @@ class WhatsappController extends Controller
         $contacts = $this->getContacts($request->query('phone'));
         $selectedContact = collect($contacts)->firstWhere('active', true) ?? collect($contacts)->first();
         $selectedPhone = $selectedContact['phone'] ?? null;
+
+        if ($selectedPhone) {
+            $this->markPhoneMessagesRead($selectedPhone);
+            $contacts = $this->getContacts($selectedPhone);
+            $selectedContact = collect($contacts)->firstWhere('active', true) ?? $selectedContact;
+        }
+
         $panelDefinitions = $this->chatPanelDefinitions();
         $enabledPanelKeys = $this->enabledPanelKeys(Auth::id(), array_keys($panelDefinitions));
         $selectedPanel = $request->query('panel');
@@ -106,6 +113,47 @@ class WhatsappController extends Controller
             'labels' => $labels,
             'selectedContactLabels' => $selectedContactLabels,
             'allContactLabelMap' => $allContactLabelMap,
+        ]);
+    }
+
+    public function messages(Request $request)
+    {
+        $validated = $request->validate([
+            'phone' => ['required', 'string', 'max:30'],
+            'after_id' => ['nullable', 'integer', 'min:0'],
+        ]);
+
+        $phone = $validated['phone'];
+        $afterId = (int) ($validated['after_id'] ?? 0);
+
+        $messages = WhatsappMessage::query()
+            ->where('phone', $phone)
+            ->when($afterId > 0, fn ($query) => $query->where('id', '>', $afterId))
+            ->whereRaw("TRIM(COALESCE(message, '')) != ''")
+            ->orderBy('created_at')
+            ->orderBy('id')
+            ->get();
+
+        $this->markPhoneMessagesRead($phone);
+
+        return response()->json([
+            'messages' => $messages->map(fn (WhatsappMessage $message) => $this->messagePayload($message))->values(),
+            'contacts' => $this->getContacts($phone),
+        ]);
+    }
+
+    public function markRead(Request $request)
+    {
+        $validated = $request->validate([
+            'phone' => ['required', 'string', 'max:30'],
+        ]);
+
+        $updated = $this->markPhoneMessagesRead($validated['phone']);
+
+        return response()->json([
+            'success' => true,
+            'updated' => $updated,
+            'contacts' => $this->getContacts($validated['phone']),
         ]);
     }
 
@@ -257,6 +305,31 @@ class WhatsappController extends Controller
                 'status' => $unreadCount > 0 ? 'online' : 'offline',
             ];
         })->toArray();
+    }
+
+    private function markPhoneMessagesRead(string $phone): int
+    {
+        return WhatsappMessage::query()
+            ->where('phone', $phone)
+            ->where('direction', 'inbound')
+            ->where(function ($query) {
+                $query->whereNull('status')->orWhere('status', '!=', 'read');
+            })
+            ->update(['status' => 'read']);
+    }
+
+    private function messagePayload(WhatsappMessage $message): array
+    {
+        return [
+            'id' => $message->id,
+            'phone' => $message->phone,
+            'name' => $message->name,
+            'message' => $message->message,
+            'direction' => $message->direction,
+            'status' => $message->status,
+            'time' => optional($message->created_at)->format('H:i'),
+            'created_at' => optional($message->created_at)->toDateTimeString(),
+        ];
     }
 
     private function storeOutboundMessage(string $phone, string $text): WhatsappMessage

@@ -170,12 +170,6 @@
                 <button class="wab-icon-btn" title="Search in chat">
                     <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                 </button>
-                <button class="wab-icon-btn" title="Voice call">
-                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.72 12 19.79 19.79 0 0 1 1.65 3.4 2 2 0 0 1 3.62 1.22h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.81a16 16 0 0 0 6 6l.92-.92a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
-                </button>
-                <button class="wab-icon-btn" title="Video call">
-                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
-                </button>
                 <button class="wab-icon-btn" id="wabOpenProfileBtn2" title="Contact Info">
                     <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
                 </button>
@@ -183,7 +177,7 @@
         </div>
 
         {{-- Messages Body --}}
-        <div class="wab-messages-body" id="wabMessagesBody">
+        <div class="wab-messages-body" id="wabMessagesBody" data-selected-phone="{{ $selectedPhone }}" data-last-message-id="{{ optional($messages->last())->id ?? 0 }}">
 
             <div class="wab-date-badge">Today</div>
 
@@ -244,7 +238,7 @@
             @endif
 
             @forelse($messages->filter(fn($message) => trim($message->message ?? '') !== '') as $message)
-                <div class="wab-msg-row {{ $message->direction === 'inbound' ? 'wab-incoming' : 'wab-outgoing' }}">
+                <div class="wab-msg-row {{ $message->direction === 'inbound' ? 'wab-incoming' : 'wab-outgoing' }}" data-message-id="{{ $message->id }}">
                     <div class="wab-msg-bubble">
                         {{ $message->message }}
                         <div class="wab-msg-meta">
@@ -258,7 +252,7 @@
                     </div>
                 </div>
             @empty
-                <div class="wab-msg-row wab-incoming">
+                <div class="wab-msg-row wab-incoming wab-empty-message">
                     <div class="wab-msg-bubble">
                         No messages yet.
                         <div class="wab-msg-meta"><span class="wab-msg-time">{{ now()->format('H:i') }}</span></div>
@@ -307,7 +301,7 @@
             @endif
 
             {{-- Typing indicator --}}
-            <div class="wab-msg-row wab-incoming wab-typing-row" id="wabTypingRow">
+            <div class="wab-msg-row wab-incoming wab-typing-row" id="wabTypingRow" hidden>
                 <div class="wab-msg-bubble wab-typing-bubble">
                     <span class="wab-typing-dot"></span>
                     <span class="wab-typing-dot"></span>
@@ -962,7 +956,8 @@
 .wab-link { color: #0066cc; text-decoration: underline; }
 
 /* ── Typing indicator ── */
-.wab-typing-row { margin-bottom: 10px; }
+.wab-typing-row { margin-bottom: 10px; display: none; }
+.wab-typing-row.is-visible { display: flex; }
 .wab-typing-bubble {
     padding: 12px 16px 12px !important;
     display: flex;
@@ -2030,6 +2025,12 @@
     const mobileBack    = document.getElementById('wabMobileBack');
     const typingRow     = document.getElementById('wabTypingRow');
     const typingLabel   = document.getElementById('wabTypingLabel');
+    const csrfToken     = document.querySelector('meta[name="csrf-token"]')?.content || '';
+    const selectedPhone = body?.dataset.selectedPhone || '';
+    const messagesUrl   = @json(route('whatsapp.chat.messages'));
+    const markReadUrl   = @json(route('whatsapp.chat.mark-read'));
+    let lastMessageId   = Number(body?.dataset.lastMessageId || 0);
+    let isPolling       = false;
 
     /* ── Toggle sidebar collapse (desktop) ── */
     toggleBtn?.addEventListener('click', () => {
@@ -2042,14 +2043,16 @@
     });
 
     /* ── Contact click ── */
-    document.querySelectorAll('.wab-contact-item').forEach(item => {
+    function bindContactClick(item) {
         item.addEventListener('click', () => {
             document.querySelectorAll('.wab-contact-item').forEach(i => i.classList.remove('is-active'));
             item.classList.add('is-active');
             if (window.innerWidth <= 768) sidebar.classList.add('mobile-hidden');
             if (item.dataset.url) window.location.href = item.dataset.url;
         });
-    });
+    }
+
+    document.querySelectorAll('.wab-contact-item').forEach(bindContactClick);
 
     /* ── Tab filter ── */
     document.querySelectorAll('.wab-tab').forEach(tab => {
@@ -2066,6 +2069,165 @@
             item.style.display = item.dataset.name.includes(q) ? '' : 'none';
         });
     });
+
+    function escapeHtml(value) {
+        return String(value ?? '').replace(/[&<>"']/g, char => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#039;',
+        }[char]));
+    }
+
+    function tickMarkup(status) {
+        const read = status === 'read';
+        return `<span class="wab-tick wab-tick--${read ? 'read' : 'sent'}">
+            <svg width="14" height="10" viewBox="0 0 18 12" fill="none"><path d="M1 6l4 4L17 1" stroke="${read ? '#53bdeb' : '#8696a0'}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </span>`;
+    }
+
+    function renderMessage(message) {
+        if (!body || !typingRow || !message?.message || document.querySelector(`[data-message-id="${message.id}"]`)) {
+            return;
+        }
+
+        document.querySelector('.wab-empty-message')?.remove();
+
+        const row = document.createElement('div');
+        row.className = `wab-msg-row ${message.direction === 'inbound' ? 'wab-incoming' : 'wab-outgoing'}`;
+        row.dataset.messageId = message.id;
+        row.innerHTML = `
+            <div class="wab-msg-bubble">
+                ${escapeHtml(message.message)}
+                <div class="wab-msg-meta">
+                    <span class="wab-msg-time">${escapeHtml(message.time || '')}</span>
+                    ${message.direction === 'outbound' ? tickMarkup(message.status) : ''}
+                </div>
+            </div>
+        `;
+
+        body.insertBefore(row, typingRow);
+        lastMessageId = Math.max(lastMessageId, Number(message.id || 0));
+        body.dataset.lastMessageId = String(lastMessageId);
+        body.scrollTop = body.scrollHeight;
+    }
+
+    function contactUrl(phone) {
+        return @json(route('whatsapp.chat')) + '?phone=' + encodeURIComponent(phone);
+    }
+
+    function initials(name) {
+        return String(name || '?').trim().charAt(0).toUpperCase() || '?';
+    }
+
+    function updateBadge(item, badgeCount) {
+        const right = item.querySelector('.wab-contact-row-right');
+        let badge = item.querySelector('.wab-badge');
+
+        if (badgeCount > 0) {
+            if (!badge && right) {
+                badge = document.createElement('span');
+                badge.className = 'wab-badge';
+                right.prepend(badge);
+            }
+            if (badge) badge.textContent = badgeCount;
+        } else {
+            badge?.remove();
+        }
+    }
+
+    function renderContact(contact) {
+        const list = document.getElementById('wabContactList');
+        if (!list || !contact?.phone) return;
+
+        let item = Array.from(list.querySelectorAll('.wab-contact-item')).find(row => row.dataset.phone === contact.phone);
+        const color = contact.color || '#25d366';
+
+        if (!item) {
+            item = document.createElement('div');
+            item.className = 'wab-contact-item';
+            item.dataset.contactId = contact.id || '';
+            item.dataset.phone = contact.phone;
+            item.dataset.color = color;
+            item.dataset.url = contactUrl(contact.phone);
+            item.innerHTML = `
+                <div class="wab-avatar" style="background:${color}1a;color:${color}">
+                    <span class="wab-avatar-letter">${escapeHtml(initials(contact.name))}</span>
+                    <span class="wab-status-badge wab-status--offline"></span>
+                </div>
+                <div class="wab-contact-info">
+                    <div class="wab-contact-row-top">
+                        <span class="wab-contact-name"></span>
+                        <span class="wab-contact-time"></span>
+                    </div>
+                    <div class="wab-contact-row-bottom">
+                        <span class="wab-contact-preview"></span>
+                        <div class="wab-contact-row-right"></div>
+                    </div>
+                </div>
+            `;
+            bindContactClick(item);
+            list.prepend(item);
+        }
+
+        item.dataset.name = String(contact.name || '').toLowerCase();
+        item.dataset.url = contactUrl(contact.phone);
+        item.classList.toggle('is-active', contact.phone === selectedPhone);
+        item.querySelector('.wab-contact-name').textContent = contact.name || contact.phone;
+        item.querySelector('.wab-contact-time').textContent = contact.time || '';
+        item.querySelector('.wab-contact-preview').textContent = contact.msg || '';
+        item.querySelector('.wab-avatar').style.background = `${color}1a`;
+        item.querySelector('.wab-avatar').style.color = color;
+        const letter = item.querySelector('.wab-avatar-letter');
+        if (letter) letter.textContent = initials(contact.name);
+        updateBadge(item, Number(contact.badge || 0));
+    }
+
+    function updateContacts(contacts) {
+        if (!Array.isArray(contacts)) return;
+        contacts.slice().reverse().forEach(renderContact);
+    }
+
+    async function markSelectedChatRead() {
+        if (!selectedPhone) return;
+
+        try {
+            const response = await fetch(markReadUrl, {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': csrfToken,
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                },
+                body: JSON.stringify({ phone: selectedPhone }),
+            });
+            if (!response.ok) return;
+            const data = await response.json();
+            updateContacts(data.contacts);
+        } catch (error) {
+            console.warn('Unable to mark WhatsApp messages as read.', error);
+        }
+    }
+
+    async function pollMessages() {
+        if (!selectedPhone || isPolling || document.hidden) return;
+        isPolling = true;
+
+        try {
+            const url = `${messagesUrl}?phone=${encodeURIComponent(selectedPhone)}&after_id=${encodeURIComponent(lastMessageId)}`;
+            const response = await fetch(url, { headers: { 'Accept': 'application/json' } });
+            if (!response.ok) return;
+
+            const data = await response.json();
+            (data.messages || []).forEach(renderMessage);
+            updateContacts(data.contacts);
+        } catch (error) {
+            console.warn('Unable to refresh WhatsApp chat.', error);
+        } finally {
+            isPolling = false;
+        }
+    }
 
     /* ── Emoji panel ── */
     emojiBtn?.addEventListener('click', (e) => {
@@ -2114,13 +2276,7 @@
         body.scrollTop = body.scrollHeight;
         input.value = '';
 
-        /* simulate typing indicator */
-        typingRow.style.display = 'flex';
-        typingLabel.textContent  = 'typing…';
-        setTimeout(() => {
-            typingRow.style.display = 'none';
-            typingLabel.textContent  = 'online';
-        }, 2800);
+        typingRow?.classList.remove('is-visible');
     }
 
     sendBtn?.addEventListener('click', e => { if (!input?.value.trim()) e.preventDefault(); });
@@ -2128,6 +2284,22 @@
 
     /* ── Auto scroll on load ── */
     if (body) body.scrollTop = body.scrollHeight;
+    markSelectedChatRead();
+    pollMessages();
+    if (selectedPhone) {
+        setInterval(pollMessages, 3000);
+        if (window.Echo?.private) {
+            window.Echo.private(`chat.${selectedPhone}`)
+                .listen('.MessageSent', pollMessages)
+                .listen('.MessageStatusUpdated', pollMessages);
+        }
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) {
+                markSelectedChatRead();
+                pollMessages();
+            }
+        });
+    }
 
 })();
 </script>
