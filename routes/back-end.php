@@ -52,6 +52,7 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/chat/send', [WhatsappController::class, 'sendMessage'])->name('chat.send');
         Route::get('/chat/messages', [WhatsappController::class, 'messages'])->name('chat.messages');
         Route::post('/chat/mark-read', [WhatsappController::class, 'markRead'])->name('chat.mark-read');
+        Route::post('/chat/mark-unread', [WhatsappController::class, 'markUnread'])->name('chat.mark-unread');
         Route::post('/chat/panel-settings', [WhatsappController::class, 'saveChatPanelSettings'])->name('chat.panel-settings');
         Route::post('/chat/labels', [WhatsappController::class, 'storeChatLabel'])->name('chat.labels.store');
         Route::post('/chat/contact-labels', [WhatsappController::class, 'saveContactLabels'])->name('chat.contact-labels.save');

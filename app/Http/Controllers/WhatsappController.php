@@ -162,6 +162,38 @@ class WhatsappController extends Controller
         ]);
     }
 
+    public function markUnread(Request $request)
+    {
+        $validated = $request->validate([
+            'phone' => ['required', 'string', 'max:30'],
+        ]);
+
+        $updated = WhatsappMessage::query()
+            ->where('phone', $validated['phone'])
+            ->where('direction', 'inbound')
+            ->latest('id')
+            ->limit(1)
+            ->update(['status' => 'unread']);
+
+        if (! $updated) {
+            $latest = WhatsappMessage::query()
+                ->where('phone', $validated['phone'])
+                ->latest('id')
+                ->first();
+
+            if ($latest) {
+                $latest->update(['status' => 'unread']);
+                $updated = 1;
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'updated' => $updated,
+            'contacts' => $this->getContacts($validated['phone']),
+        ]);
+    }
+
     public function saveChatPanelSettings(Request $request): RedirectResponse
     {
         $definitions = $this->chatPanelDefinitions();

@@ -138,8 +138,27 @@
     {{-- ── CONVERSATION PANEL ── --}}
     <section class="wab-conversation">
 
+        @unless($selectedPhone)
+            <div class="wab-blank-chat">
+                <div class="wab-blank-actions">
+                    <button type="button">
+                        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                        <span>Send document</span>
+                    </button>
+                    <button type="button" data-bs-toggle="modal" data-bs-target="#newWaChatModal">
+                        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
+                        <span>Add contact</span>
+                    </button>
+                    <button type="button">
+                        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+                        <span>Ask AI</span>
+                    </button>
+                </div>
+            </div>
+        @endunless
+
         {{-- Conv Header --}}
-        <div class="wab-conv-header">
+        <div class="wab-conv-header {{ !$selectedPhone ? 'd-none' : '' }}">
             <div class="wab-conv-header-left">
                 <button class="wab-icon-btn wab-mobile-back" id="wabMobileBack">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
@@ -167,17 +186,25 @@
                         Label chat
                     </button>
                 @endif
-                <button class="wab-icon-btn" title="Search in chat">
-                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                </button>
                 <button class="wab-icon-btn" id="wabOpenProfileBtn2" title="Contact Info">
                     <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
                 </button>
+                @if($selectedPhone)
+                    <div class="wab-chat-more">
+                        <button class="wab-icon-btn" id="wabChatMoreBtn" title="More options">
+                            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+                        </button>
+                        <div class="wab-chat-menu" id="wabChatMenu">
+                            <button type="button" id="wabMarkUnreadBtn">Mark as unread</button>
+                            <a href="{{ route('whatsapp.chat') }}" id="wabCloseChatBtn">Close chat</a>
+                        </div>
+                    </div>
+                @endif
             </div>
         </div>
 
         {{-- Messages Body --}}
-        <div class="wab-messages-body" id="wabMessagesBody" data-selected-phone="{{ $selectedPhone }}" data-last-message-id="{{ optional($messages->last())->id ?? 0 }}">
+        <div class="wab-messages-body {{ !$selectedPhone ? 'd-none' : '' }}" id="wabMessagesBody" data-selected-phone="{{ $selectedPhone }}" data-last-message-id="{{ optional($messages->last())->id ?? 0 }}">
 
             <div class="wab-date-badge">Today</div>
 
@@ -323,7 +350,7 @@
         </div>
 
         {{-- Conv Footer --}}
-        <form class="wab-conv-footer" method="POST" action="{{ route('whatsapp.chat.send') }}">
+        <form class="wab-conv-footer {{ !$selectedPhone ? 'd-none' : '' }}" method="POST" action="{{ route('whatsapp.chat.send') }}">
             @csrf
             <input type="hidden" name="phone" value="{{ $selectedPhone }}">
             <div class="wab-footer-actions-left">
@@ -885,6 +912,78 @@
 .wab-conv-status { font-size: 12px; color: var(--wa-text-muted); display: flex; align-items: center; gap: 5px; margin-top: 1px; }
 .wab-conv-actions { display: flex; align-items: center; gap: 2px; }
 .wab-mobile-back { display: none; }
+.wab-chat-more {
+    position: relative;
+}
+.wab-chat-menu {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    min-width: 170px;
+    display: none;
+    padding: 6px;
+    border-radius: 8px;
+    background: #fff;
+    border: 1px solid var(--wa-border-dark);
+    box-shadow: 0 8px 28px rgba(17,27,33,.18);
+    z-index: 30;
+}
+.wab-chat-menu.is-open {
+    display: grid;
+    gap: 2px;
+}
+.wab-chat-menu button,
+.wab-chat-menu a {
+    width: 100%;
+    border: 0;
+    background: transparent;
+    color: var(--wa-text-main);
+    text-align: left;
+    padding: 9px 10px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: none;
+    cursor: pointer;
+}
+.wab-chat-menu button:hover,
+.wab-chat-menu a:hover {
+    background: var(--wa-hover);
+}
+.wab-blank-chat {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f0f2f5;
+}
+.wab-blank-actions {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 68px;
+    color: var(--wa-text-main);
+}
+.wab-blank-actions button {
+    display: grid;
+    justify-items: center;
+    gap: 14px;
+    border: 0;
+    background: transparent;
+    color: var(--wa-text-main);
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+}
+.wab-blank-actions svg {
+    width: 64px;
+    height: 64px;
+    padding: 18px;
+    border-radius: 50%;
+    background: rgba(84,101,111,.12);
+    color: var(--wa-text-muted);
+}
 
 /* ── Date Badge ── */
 .wab-date-badge {
@@ -2036,10 +2135,14 @@
     const mobileBack    = document.getElementById('wabMobileBack');
     const typingRow     = document.getElementById('wabTypingRow');
     const typingLabel   = document.getElementById('wabTypingLabel');
+    const chatMoreBtn   = document.getElementById('wabChatMoreBtn');
+    const chatMenu      = document.getElementById('wabChatMenu');
+    const markUnreadBtn = document.getElementById('wabMarkUnreadBtn');
     const csrfToken     = document.querySelector('meta[name="csrf-token"]')?.content || '';
     const selectedPhone = body?.dataset.selectedPhone || '';
     const messagesUrl   = @json(route('whatsapp.chat.messages'));
     const markReadUrl   = @json(route('whatsapp.chat.mark-read'));
+    const markUnreadUrl = @json(route('whatsapp.chat.mark-unread'));
     let lastMessageId   = Number(body?.dataset.lastMessageId || 0);
     let isPolling       = false;
     const defaultTypingLabel = typingLabel?.textContent || selectedPhone || 'ready';
@@ -2055,6 +2158,40 @@
     });
 
     /* ── Contact click ── */
+    chatMoreBtn?.addEventListener('click', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        chatMenu?.classList.toggle('is-open');
+    });
+
+    document.addEventListener('click', e => {
+        if (!e.target.closest('.wab-chat-more')) {
+            chatMenu?.classList.remove('is-open');
+        }
+    });
+
+    markUnreadBtn?.addEventListener('click', async () => {
+        if (!selectedPhone) return;
+        try {
+            const response = await fetch(markUnreadUrl, {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': csrfToken,
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                },
+                body: JSON.stringify({ phone: selectedPhone }),
+            });
+            if (response.ok) {
+                const data = await response.json();
+                updateContacts(data.contacts);
+                window.location.href = @json(route('whatsapp.chat'));
+            }
+        } catch (error) {
+            console.warn('Unable to mark WhatsApp chat unread.', error);
+        }
+    });
+
     function bindContactClick(item) {
         item.addEventListener('click', () => {
             document.querySelectorAll('.wab-contact-item').forEach(i => i.classList.remove('is-active'));
