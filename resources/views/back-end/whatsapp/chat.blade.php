@@ -267,10 +267,49 @@
                 </div>
             @endif
 
-            @forelse($messages->filter(fn($message) => trim($message->message ?? '') !== '') as $message)
+            @forelse($messages->filter(fn($message) => trim($message->message ?? '') !== '' || $message->media_url) as $message)
                 <div class="wab-msg-row {{ $message->direction === 'inbound' ? 'wab-incoming' : 'wab-outgoing' }}" data-message-id="{{ $message->id }}">
-                    <div class="wab-msg-bubble">
-                        {{ $message->message }}
+                    <div class="wab-msg-bubble {{ $message->media_type ? 'wab-bubble--media wab-bubble--' . $message->media_type : '' }}">
+                        @if($message->media_url)
+                            @if($message->media_type === 'image')
+                                <a href="{{ $message->media_url }}" target="_blank" class="wab-media-img-link">
+                                    <img src="{{ $message->media_url }}" class="wab-media-img" alt="{{ $message->media_name }}" loading="lazy">
+                                </a>
+                            @elseif($message->media_type === 'video')
+                                <video class="wab-media-video" controls preload="metadata">
+                                    <source src="{{ $message->media_url }}">
+                                </video>
+                            @elseif($message->media_type === 'audio')
+                                <div class="wab-media-audio-wrap">
+                                    <audio controls class="wab-media-audio"><source src="{{ $message->media_url }}"></audio>
+                                </div>
+                            @else
+                                @php
+                                    $ext = strtolower(pathinfo($message->media_name ?? '', PATHINFO_EXTENSION));
+                                    $docColor = match($ext) {
+                                        'pdf' => '#ef4444', 'doc','docx' => '#2563eb',
+                                        'xls','xlsx' => '#16a34a', 'ppt','pptx' => '#ea580c',
+                                        'zip','rar' => '#7c3aed', default => '#64748b',
+                                    };
+                                @endphp
+                                <a href="{{ $message->media_url }}" target="_blank" class="wab-media-doc-card" download="{{ $message->media_name }}">
+                                    <div class="wab-media-doc-icon">
+                                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="{{ $docColor }}" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                                        <span class="wab-doc-ext" style="color:{{ $docColor }}">{{ strtoupper($ext) }}</span>
+                                    </div>
+                                    <div class="wab-media-doc-info">
+                                        <span class="wab-media-doc-name">{{ \Illuminate\Support\Str::limit($message->media_name ?? 'File', 30) }}</span>
+                                        <span class="wab-media-doc-size">{{ $message->media_size ? number_format($message->media_size / 1024, 0) . ' KB' : '' }}</span>
+                                    </div>
+                                    <svg class="wab-doc-dl" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8696a0" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                                </a>
+                            @endif
+                            @if(trim($message->message ?? '') !== '')
+                                <div class="wab-media-caption">{{ $message->message }}</div>
+                            @endif
+                        @else
+                            {{ $message->message }}
+                        @endif
                         <div class="wab-msg-meta">
                             <span class="wab-msg-time">{{ optional($message->created_at)->format('H:i') }}</span>
                             @if($message->direction === 'outbound')
@@ -357,12 +396,13 @@
             @csrf
             <input type="hidden" name="phone" value="{{ $selectedPhone }}">
             <div class="wab-footer-actions-left">
-                <button class="wab-icon-btn wab-emoji-btn" id="wabEmojiBtn" title="Emoji">
+                <button type="button" class="wab-icon-btn wab-emoji-btn" id="wabEmojiBtn" title="Emoji">
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
                 </button>
-                <button class="wab-icon-btn" title="Attach file">
+                <button type="button" class="wab-icon-btn" id="wabAttachBtn" title="Attach file">
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
                 </button>
+                <input type="file" id="wabMediaInput" class="wab-media-input" accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.rar" hidden>
             </div>
             <div class="wab-input-wrap">
                 <input type="text" class="wab-input" id="wabInput" name="message" placeholder="Type a message…" autocomplete="off" {{ $selectedPhone ? '' : 'disabled' }}>
@@ -1183,6 +1223,87 @@
 .wab-msg-time { font-size: 11px; color: var(--wa-text-sub); }
 .wab-tick { display: flex; align-items: center; }
 .wab-link { color: #0066cc; text-decoration: underline; }
+
+.wab-bubble--media {
+    padding: 5px 5px 28px;
+    min-width: 180px;
+    max-width: 330px;
+}
+.wab-media-img,
+.wab-media-video {
+    display: block;
+    width: 100%;
+    max-width: 320px;
+    max-height: 340px;
+    border-radius: 6px;
+    object-fit: cover;
+    background: rgba(0,0,0,.06);
+}
+.wab-media-audio-wrap {
+    min-width: 260px;
+    padding: 6px;
+}
+.wab-media-audio {
+    display: block;
+    width: 100%;
+}
+.wab-media-caption {
+    padding: 7px 7px 0;
+    white-space: pre-wrap;
+}
+.wab-media-doc-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 260px;
+    max-width: 320px;
+    padding: 10px;
+    border-radius: 7px;
+    background: rgba(255,255,255,.72);
+    color: var(--wa-text-main);
+    text-decoration: none;
+}
+.wab-outgoing .wab-media-doc-card { background: rgba(255,255,255,.58); }
+.wab-media-doc-card:hover { text-decoration: none; background: rgba(255,255,255,.9); }
+.wab-media-doc-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 8px;
+    display: grid;
+    place-items: center;
+    position: relative;
+    flex: 0 0 auto;
+    background: #fff;
+    border: 1px solid var(--wa-border-dark);
+}
+.wab-doc-ext {
+    position: absolute;
+    bottom: 3px;
+    font-size: 8px;
+    font-weight: 800;
+}
+.wab-media-doc-info {
+    flex: 1;
+    min-width: 0;
+    display: grid;
+    gap: 2px;
+}
+.wab-media-doc-name {
+    font-size: 13px;
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.wab-media-doc-size {
+    font-size: 11px;
+    color: var(--wa-text-sub);
+}
+.wab-doc-dl { flex: 0 0 auto; }
+.wab-icon-btn.is-loading {
+    opacity: .55;
+    pointer-events: none;
+}
 
 /* ── Typing indicator ── */
 .wab-typing-row { margin-bottom: 10px; display: none; }
@@ -2457,6 +2578,8 @@
     const toggleBtn     = document.getElementById('wabToggleSidebar');
     const emojiBtn      = document.getElementById('wabEmojiBtn');
     const emojiPanel    = document.getElementById('wabEmojiPanel');
+    const attachBtn     = document.getElementById('wabAttachBtn');
+    const mediaInput    = document.getElementById('wabMediaInput');
     const sendBtn       = document.getElementById('wabSendBtn');
     const input         = document.getElementById('wabInput');
     const sendForm      = document.querySelector('.wab-conv-footer');
@@ -2473,6 +2596,7 @@
     const messagesUrl   = @json(route('whatsapp.chat.messages'));
     const markReadUrl   = @json(route('whatsapp.chat.mark-read'));
     const markUnreadUrl = @json(route('whatsapp.chat.mark-unread'));
+    const mediaUploadUrl = @json(route('whatsapp.chat.send-media'));
     let lastMessageId   = Number(body?.dataset.lastMessageId || 0);
     let isPolling       = false;
     const defaultTypingLabel = typingLabel?.textContent || selectedPhone || 'ready';
@@ -2607,19 +2731,93 @@
         currentTick.outerHTML = tickMarkup(normalized);
     }
 
+    function mediaTypeClass(type) {
+        return ['image', 'video', 'audio', 'document'].includes(type) ? type : '';
+    }
+
+    function fileExtension(name) {
+        const value = String(name || '').split('?')[0];
+        const parts = value.split('.');
+        return parts.length > 1 ? parts.pop().toLowerCase().slice(0, 6) : 'file';
+    }
+
+    function documentColor(ext) {
+        return {
+            pdf: '#ef4444',
+            doc: '#2563eb',
+            docx: '#2563eb',
+            xls: '#16a34a',
+            xlsx: '#16a34a',
+            ppt: '#ea580c',
+            pptx: '#ea580c',
+            zip: '#7c3aed',
+            rar: '#7c3aed',
+        }[ext] || '#64748b';
+    }
+
+    function formatBytes(size) {
+        const bytes = Number(size || 0);
+        if (!bytes) return '';
+        if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+        return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    }
+
+    function messageContentMarkup(message) {
+        const caption = String(message.message || '').trim();
+
+        if (!message.media_url) {
+            return escapeHtml(message.message || '');
+        }
+
+        const url = escapeHtml(message.media_url);
+        const name = escapeHtml(message.media_name || 'File');
+        const type = mediaTypeClass(message.media_type) || 'document';
+        const ext = fileExtension(message.media_name || message.media_url);
+        const color = documentColor(ext);
+        let mediaMarkup = '';
+
+        if (type === 'image') {
+            mediaMarkup = `<a href="${url}" target="_blank" class="wab-media-img-link"><img src="${url}" class="wab-media-img" alt="${name}" loading="lazy"></a>`;
+        } else if (type === 'video') {
+            mediaMarkup = `<video class="wab-media-video" controls preload="metadata"><source src="${url}"></video>`;
+        } else if (type === 'audio') {
+            mediaMarkup = `<div class="wab-media-audio-wrap"><audio controls class="wab-media-audio"><source src="${url}"></audio></div>`;
+        } else {
+            mediaMarkup = `
+                <a href="${url}" target="_blank" class="wab-media-doc-card" download="${name}">
+                    <div class="wab-media-doc-icon">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                        <span class="wab-doc-ext" style="color:${color}">${escapeHtml(ext.toUpperCase())}</span>
+                    </div>
+                    <div class="wab-media-doc-info">
+                        <span class="wab-media-doc-name">${name}</span>
+                        <span class="wab-media-doc-size">${escapeHtml(formatBytes(message.media_size))}</span>
+                    </div>
+                    <svg class="wab-doc-dl" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8696a0" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                </a>
+            `;
+        }
+
+        return mediaMarkup + (caption ? `<div class="wab-media-caption">${escapeHtml(message.message)}</div>` : '');
+    }
+
     function renderMessage(message) {
-        if (!body || !typingRow || !message?.message || document.querySelector(`[data-message-id="${message.id}"]`)) {
+        const hasText = String(message?.message || '').trim() !== '';
+        const hasMedia = Boolean(message?.media_url);
+
+        if (!body || !typingRow || (!hasText && !hasMedia) || document.querySelector(`[data-message-id="${message.id}"]`)) {
             return;
         }
 
         document.querySelector('.wab-empty-message')?.remove();
 
+        const mediaClass = mediaTypeClass(message.media_type);
         const row = document.createElement('div');
         row.className = `wab-msg-row ${message.direction === 'inbound' ? 'wab-incoming' : 'wab-outgoing'}`;
         row.dataset.messageId = message.id;
         row.innerHTML = `
-            <div class="wab-msg-bubble">
-                ${escapeHtml(message.message)}
+            <div class="wab-msg-bubble ${hasMedia ? `wab-bubble--media ${mediaClass ? `wab-bubble--${mediaClass}` : ''}` : ''}">
+                ${messageContentMarkup(message)}
                 <div class="wab-msg-meta">
                     <span class="wab-msg-time">${escapeHtml(message.time || '')}</span>
                     ${message.direction === 'outbound' ? tickMarkup(message.status) : ''}
@@ -2769,6 +2967,7 @@
 
     /* ── Emoji panel ── */
     emojiBtn?.addEventListener('click', (e) => {
+        e.preventDefault();
         e.stopPropagation();
         emojiPanel.classList.toggle('is-open');
     });
@@ -2835,8 +3034,78 @@
         }
     }
 
+    async function uploadSelectedMedia(file) {
+        if (!file || !selectedPhone) return;
+
+        if (file.size > 50 * 1024 * 1024) {
+            alert('File size must be 50 MB or less.');
+            return;
+        }
+
+        const caption = input?.value.trim() || '';
+        const formData = new FormData();
+        formData.append('phone', selectedPhone);
+        formData.append('file', file);
+        if (caption) formData.append('caption', caption);
+
+        if (attachBtn) {
+            attachBtn.disabled = true;
+            attachBtn.classList.add('is-loading');
+        }
+        if (sendBtn) sendBtn.disabled = true;
+        if (input) input.disabled = true;
+
+        try {
+            const response = await fetch(mediaUploadUrl, {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': csrfToken,
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: formData,
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.message || 'Media upload failed');
+            }
+
+            const data = await response.json();
+            if (data.message) {
+                renderMessage(data.message);
+            }
+            updateContacts(data.contacts);
+            if (caption && input) input.value = '';
+            pollMessages();
+        } catch (error) {
+            console.warn('Unable to send WhatsApp media.', error);
+            alert(error.message || 'Unable to send media. Please try again.');
+        } finally {
+            if (mediaInput) mediaInput.value = '';
+            if (attachBtn) {
+                attachBtn.disabled = false;
+                attachBtn.classList.remove('is-loading');
+            }
+            if (sendBtn) sendBtn.disabled = false;
+            if (input) {
+                input.disabled = false;
+                input.focus();
+            }
+        }
+    }
+
     sendForm?.addEventListener('submit', submitCurrentMessage);
     sendBtn?.addEventListener('click', e => { if (!input?.value.trim()) e.preventDefault(); });
+    attachBtn?.addEventListener('click', e => {
+        e.preventDefault();
+        if (!selectedPhone) return;
+        mediaInput?.click();
+    });
+    mediaInput?.addEventListener('change', () => {
+        const file = mediaInput.files?.[0];
+        if (file) uploadSelectedMedia(file);
+    });
     input?.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendForm?.requestSubmit(); } });
 
     document.addEventListener('keydown', e => {

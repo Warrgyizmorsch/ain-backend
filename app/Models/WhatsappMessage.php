@@ -8,5 +8,5 @@ use Illuminate\Database\Eloquent\Model;
 class WhatsappMessage extends Model
 {
     use HasFactory;
-    protected $fillable = ['name', 'phone', 'message', 'direction', 'wa_message_id', 'status'];
+    protected $fillable = ['name', 'phone', 'message', 'direction', 'wa_message_id', 'status', 'media_url', 'media_type', 'media_name', 'media_size'];
 }

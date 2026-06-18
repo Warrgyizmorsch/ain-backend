@@ -18,6 +18,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
 
 class WhatsappController extends Controller
@@ -132,7 +133,10 @@ class WhatsappController extends Controller
         $messages = WhatsappMessage::query()
             ->where('phone', $phone)
             ->when($afterId > 0, fn ($query) => $query->where('id', '>', $afterId))
-            ->whereRaw("TRIM(COALESCE(message, '')) != ''")
+            ->where(function ($query) {
+                $query->whereRaw("TRIM(COALESCE(message, '')) != ''")
+                    ->orWhereNotNull('media_url');
+            })
             ->orderBy('created_at')
             ->orderBy('id')
             ->get();
@@ -312,7 +316,7 @@ class WhatsappController extends Controller
             ->join(DB::raw('(SELECT phone, MAX(id) as max_id FROM whatsapp_messages GROUP BY phone) as grouped'), function ($join) {
                 $join->on('latest.id', '=', 'grouped.max_id');
             })
-            ->select('latest.phone', 'latest.name', 'latest.message', 'latest.created_at', 'latest.id')
+            ->select('latest.phone', 'latest.name', 'latest.message', 'latest.media_type', 'latest.media_name', 'latest.created_at', 'latest.id')
             ->orderByDesc('latest.created_at')
             ->orderByDesc('latest.id')
             ->get();
@@ -338,7 +342,7 @@ class WhatsappController extends Controller
                 'id' => $contact->id,
                 'phone' => $contact->phone,
                 'name' => $name,
-                'msg' => $contact->message ?: 'New chat started',
+                'msg' => $this->contactPreview($contact),
                 'time' => optional($contact->created_at ? \Carbon\Carbon::parse($contact->created_at) : null)->isToday()
                     ? \Carbon\Carbon::parse($contact->created_at)->format('H:i')
                     : optional($contact->created_at ? \Carbon\Carbon::parse($contact->created_at) : null)->format('D'),
@@ -348,6 +352,23 @@ class WhatsappController extends Controller
                 'status' => $unreadCount > 0 ? 'online' : 'offline',
             ];
         })->toArray();
+    }
+
+    private function contactPreview(object $contact): string
+    {
+        $text = trim((string) ($contact->message ?? ''));
+
+        if ($text !== '') {
+            return $text;
+        }
+
+        return match ($contact->media_type ?? null) {
+            'image' => 'Image attachment',
+            'video' => 'Video attachment',
+            'audio' => 'Audio attachment',
+            'document' => $contact->media_name ?: 'Document attachment',
+            default => 'New chat started',
+        };
     }
 
     private function markPhoneMessagesRead(string $phone): int
@@ -364,14 +385,18 @@ class WhatsappController extends Controller
     private function messagePayload(WhatsappMessage $message): array
     {
         return [
-            'id' => $message->id,
-            'phone' => $message->phone,
-            'name' => $message->name,
-            'message' => $message->message,
-            'direction' => $message->direction,
-            'status' => $message->status,
-            'time' => optional($message->created_at)->format('H:i'),
+            'id'         => $message->id,
+            'phone'      => $message->phone,
+            'name'       => $message->name,
+            'message'    => $message->message,
+            'direction'  => $message->direction,
+            'status'     => $message->status,
+            'time'       => optional($message->created_at)->format('H:i'),
             'created_at' => optional($message->created_at)->toDateTimeString(),
+            'media_url'  => $message->media_url,
+            'media_type' => $message->media_type,
+            'media_name' => $message->media_name,
+            'media_size' => $message->media_size,
         ];
     }
 
@@ -425,14 +450,27 @@ class WhatsappController extends Controller
         }
 
         try {
+            $payload = [
+                'From' => str_starts_with($from, 'whatsapp:') ? $from : 'whatsapp:' . $from,
+                'To' => str_starts_with($message->phone, 'whatsapp:') ? $message->phone : 'whatsapp:' . $message->phone,
+                'StatusCallback' => url('/api/webhooks/whatsapp'),
+            ];
+
+            if (trim((string) $message->message) !== '') {
+                $payload['Body'] = $message->message;
+            }
+
+            if ($message->media_url) {
+                $payload['MediaUrl'] = $message->media_url;
+            }
+
+            if (! isset($payload['Body']) && ! isset($payload['MediaUrl'])) {
+                return;
+            }
+
             $response = Http::withBasicAuth($sid, $token)
                 ->asForm()
-                ->post("https://api.twilio.com/2010-04-01/Accounts/{$sid}/Messages.json", [
-                    'From' => str_starts_with($from, 'whatsapp:') ? $from : 'whatsapp:' . $from,
-                    'To' => str_starts_with($message->phone, 'whatsapp:') ? $message->phone : 'whatsapp:' . $message->phone,
-                    'Body' => $message->message,
-                    'StatusCallback' => url('/api/webhooks/whatsapp'),
-                ]);
+                ->post("https://api.twilio.com/2010-04-01/Accounts/{$sid}/Messages.json", $payload);
 
             if ($response->successful()) {
                 $message->update([
@@ -568,6 +606,59 @@ class WhatsappController extends Controller
             'imported' => $imported,
             'failed'   => $failed,
             'message'  => "{$imported} contact(s) imported.",
+        ]);
+    }
+
+    public function sendMedia(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'phone' => ['required', 'string', 'max:30'],
+            'file'  => [
+                'required',
+                'file',
+                'max:51200', // 50 MB
+                'mimes:jpg,jpeg,png,gif,webp,mp4,mov,avi,mkv,webm,pdf,doc,docx,xls,xlsx,ppt,pptx,txt,zip,rar,mp3,ogg,wav,m4a',
+            ],
+            'caption' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $file     = $request->file('file');
+        $phone    = $validated['phone'];
+        $caption  = $validated['caption'] ?? '';
+        $origName = $file->getClientOriginalName();
+        $mimeType = $file->getMimeType();
+        $size     = $file->getSize();
+
+        // Determine media type
+        $mediaType = match(true) {
+            str_starts_with($mimeType, 'image/') => 'image',
+            str_starts_with($mimeType, 'video/') => 'video',
+            str_starts_with($mimeType, 'audio/') => 'audio',
+            default                               => 'document',
+        };
+
+        $path = $file->store('whatsapp-media', 'public');
+        $url  = asset(Storage::url($path));
+
+        $message = WhatsappMessage::query()->create([
+            'phone'      => $phone,
+            'name'       => Auth::user()?->name ?? 'Admin',
+            'message'    => $caption,
+            'direction'  => 'outbound',
+            'status'     => 'queued',
+            'media_url'  => $url,
+            'media_type' => $mediaType,
+            'media_name' => $origName,
+            'media_size' => $size,
+        ]);
+
+        $this->sendViaActiveProvider($message);
+        $message->refresh();
+
+        return response()->json([
+            'success'  => true,
+            'message'  => $this->messagePayload($message),
+            'contacts' => $this->getContacts($phone),
         ]);
     }
 }
