@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Team;
 use App\Models\User;
 use App\Models\Order;
 use App\Models\WhatsappChatContactLabel;
@@ -72,7 +73,7 @@ class WhatsappController extends Controller
         $enabledPanelKeys = $this->enabledPanelKeys(Auth::id(), array_keys($panelDefinitions));
         $selectedPanel = $request->query('panel');
         $selectedPanel = in_array($selectedPanel, $enabledPanelKeys, true) ? $selectedPanel : null;
-        $panelRows = $selectedPanel ? $this->panelRows($selectedPanel) : collect();
+        $panelRows = $selectedPanel ? $this->panelRows($selectedPanel, $selectedPhone) : collect();
         $labels = WhatsappChatLabel::query()->orderBy('name')->get();
         $selectedContactLabels = $selectedPhone
             ? WhatsappChatContactLabel::query()->where('phone', $selectedPhone)->pluck('label_id')->all()
@@ -129,49 +130,68 @@ class WhatsappController extends Controller
         return back()->with('success', 'WhatsApp chat settings saved.');
     }
 
-    public function storeChatLabel(Request $request): RedirectResponse
+    public function storeChatLabel(Request $request)
     {
         $validated = $request->validate([
-            'name' => ['required', 'string', 'max:100'],
+            'name'  => ['required', 'string', 'max:100'],
             'color' => ['required', 'string', 'max:20'],
         ]);
 
-        WhatsappChatLabel::query()->firstOrCreate(
+        $label = WhatsappChatLabel::query()->firstOrCreate(
             ['name' => trim($validated['name'])],
             [
-                'color' => $validated['color'],
+                'color'      => $validated['color'],
                 'created_by' => Auth::id(),
             ]
         );
+
+        if ($request->expectsJson()) {
+            return response()->json(['label' => $label]);
+        }
 
         return redirect()
             ->route('whatsapp.chat', array_filter(['phone' => $request->input('phone')]))
             ->with('success', 'WhatsApp label created.');
     }
 
-    public function saveContactLabels(Request $request): RedirectResponse
+    public function saveContactLabels(Request $request)
     {
-        $validated = $request->validate([
-            'phone' => ['required', 'string', 'max:30'],
-            'labels' => ['nullable', 'array'],
-        ]);
+        $phone = $request->input('phone');
+        if (!$phone) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => 'Phone is required.'], 422);
+            }
+            return back()->withErrors(['phone' => 'Phone is required.']);
+        }
 
-        $phone = $validated['phone'];
-        $labelIds = collect($request->input('labels', []))
-            ->filter()
-            ->keys()
-            ->map(fn ($id) => (int) $id)
-            ->values()
-            ->all();
+        // Support both AJAX (label_ids array) and form (labels[id]=1 checkboxes)
+        if ($request->has('label_ids')) {
+            $labelIds = collect($request->input('label_ids', []))
+                ->map(fn($id) => (int) $id)
+                ->filter()
+                ->values()
+                ->all();
+        } else {
+            $labelIds = collect($request->input('labels', []))
+                ->filter()
+                ->keys()
+                ->map(fn($id) => (int) $id)
+                ->values()
+                ->all();
+        }
 
         WhatsappChatContactLabel::query()->where('phone', $phone)->delete();
 
         foreach ($labelIds as $labelId) {
             WhatsappChatContactLabel::query()->create([
-                'phone' => $phone,
-                'label_id' => $labelId,
+                'phone'       => $phone,
+                'label_id'    => $labelId,
                 'assigned_by' => Auth::id(),
             ]);
+        }
+
+        if ($request->expectsJson()) {
+            return response()->json(['success' => true, 'count' => count($labelIds)]);
         }
 
         return redirect()->route('whatsapp.chat', ['phone' => $phone])->with('success', 'Chat labels saved.');
@@ -232,7 +252,44 @@ class WhatsappController extends Controller
             ->get()
             ->keyBy('mobile_no');
 
-        return $latestMessages->map(function ($contact, int $index) use ($users, $activePhone) {
+        // Load team names once
+        $teams = Team::query()->pluck('team_name', 'id');
+
+        // For each user, get distinct team names from their orders
+        $userIds = $users->pluck('id')->filter()->values()->toArray();
+        $userTeamMap = collect();
+        if (!empty($userIds)) {
+            $userOrders = DB::table('orders')
+                ->whereIn('uid', $userIds)
+                ->whereNotNull('team_id')
+                ->select('uid', 'team_id')
+                ->get()
+                ->groupBy('uid');
+
+            foreach ($userOrders as $uid => $orders) {
+                $teamNames = $orders->pluck('team_id')
+                    ->unique()
+                    ->map(fn($tid) => $teams->get($tid))
+                    ->filter()
+                    ->values();
+                $userTeamMap->put($uid, $teamNames->all());
+            }
+        }
+
+        // For each user, check if any order has a ticket
+        $userTicketMap = collect();
+        if (!empty($userIds)) {
+            $ticketUids = DB::table('orders')
+                ->whereIn('uid', $userIds)
+                ->whereNotNull('feedback_ticket')
+                ->where('feedback_ticket', '!=', '')
+                ->pluck('uid')
+                ->unique()
+                ->values();
+            $userTicketMap = $ticketUids;
+        }
+
+        return $latestMessages->map(function ($contact, int $index) use ($users, $activePhone, $userTeamMap, $userTicketMap) {
             $user = $users->get($contact->phone);
             $name = $user?->name ?: ($contact->name ?: $contact->phone);
             $unreadCount = WhatsappMessage::query()
@@ -243,20 +300,60 @@ class WhatsappController extends Controller
                 })
                 ->count();
 
+            // Build A/G badge
+            $teamBadge = null;
+            if ($user) {
+                $teamNames = $userTeamMap->get($user->id, []);
+                $hasAlpha = collect($teamNames)->contains(fn($n) => stripos($n, 'alpha') !== false);
+                $hasGiga  = collect($teamNames)->contains(fn($n) => stripos($n, 'giga') !== false);
+                if ($hasAlpha && $hasGiga) $teamBadge = 'AG';
+                elseif ($hasAlpha)         $teamBadge = 'A';
+                elseif ($hasGiga)          $teamBadge = 'G';
+            }
+
             return [
-                'id' => $contact->id,
-                'phone' => $contact->phone,
-                'name' => $name,
-                'msg' => $contact->message ?: 'New chat started',
-                'time' => optional($contact->created_at ? \Carbon\Carbon::parse($contact->created_at) : null)->isToday()
+                'id'         => $contact->id,
+                'phone'      => $contact->phone,
+                'name'       => $name,
+                'msg'        => $contact->message ?: 'New chat started',
+                'time'       => optional($contact->created_at ? \Carbon\Carbon::parse($contact->created_at) : null)->isToday()
                     ? \Carbon\Carbon::parse($contact->created_at)->format('H:i')
                     : optional($contact->created_at ? \Carbon\Carbon::parse($contact->created_at) : null)->format('D'),
-                'active' => $contact->phone === $activePhone,
-                'badge' => $unreadCount,
-                'color' => $this->avatarColor($index),
-                'status' => $unreadCount > 0 ? 'online' : 'offline',
+                'active'     => $contact->phone === $activePhone,
+                'badge'      => $unreadCount,
+                'color'      => $this->avatarColor($index),
+                'status'     => $unreadCount > 0 ? 'online' : 'offline',
+                'team_badge' => $teamBadge,
+                'has_ticket' => $user ? $userTicketMap->contains($user->id) : false,
+                'user_id'    => $user?->id,
             ];
         })->toArray();
+    }
+
+    /**
+     * AJAX: return ticket orders for a given phone (for the slide-in drawer)
+     */
+    public function ticketOrders(Request $request)
+    {
+        $phone = $request->query('phone');
+        if (!$phone) {
+            return response()->json([]);
+        }
+
+        $user = User::query()->where('mobile_no', $phone)->first();
+        if (!$user) {
+            return response()->json([]);
+        }
+
+        $orders = Order::query()
+            ->where('uid', $user->id)
+            ->whereNotNull('feedback_ticket')
+            ->where('feedback_ticket', '!=', '')
+            ->select('id', 'order_id', 'title', 'projectstatus', 'feedback_ticket', 'delivery_date')
+            ->orderByDesc('id')
+            ->get();
+
+        return response()->json($orders);
     }
 
     private function storeOutboundMessage(string $phone, string $text): WhatsappMessage
@@ -363,15 +460,34 @@ class WhatsappController extends Controller
         return $enabled->unique()->values()->all();
     }
 
-    private function panelRows(string $panelKey)
+    private function panelRows(string $panelKey, ?string $selectedPhone = null)
     {
+        // Resolve uid from phone for user-specific panels
+        $uid = null;
+        if ($selectedPhone) {
+            $user = User::query()->where('mobile_no', $selectedPhone)->first();
+            $uid = $user?->id;
+        }
+
         $query = Order::query()
             ->select('id', 'order_id', 'title', 'order_date', 'delivery_date', 'projectstatus', 'feedback_ticket', 'team_id')
             ->orderByDesc('id')
-            ->limit(30);
+            ->limit(50);
+
+        // Filter by selected contact's uid when available
+        if ($uid) {
+            $query->where('uid', $uid);
+        }
 
         if ($panelKey === 'team') {
-            $query->whereIn('team_id', [1, 2]);
+            // Alpha / Giga: filter by team name
+            $teamIds = Team::query()
+                ->where(function ($q) {
+                    $q->where('team_name', 'like', '%alpha%')
+                      ->orWhere('team_name', 'like', '%giga%');
+                })
+                ->pluck('id');
+            $query->whereIn('team_id', $teamIds);
         } elseif ($panelKey === 'failed') {
             $query->where(function ($q) {
                 $q->where('projectstatus', 'Failed');
