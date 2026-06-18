@@ -2031,6 +2031,7 @@
     const markReadUrl   = @json(route('whatsapp.chat.mark-read'));
     let lastMessageId   = Number(body?.dataset.lastMessageId || 0);
     let isPolling       = false;
+    const defaultTypingLabel = typingLabel?.textContent || selectedPhone || 'ready';
 
     /* ── Toggle sidebar collapse (desktop) ── */
     toggleBtn?.addEventListener('click', () => {
@@ -2189,6 +2190,22 @@
         contacts.slice().reverse().forEach(renderContact);
     }
 
+    function setRemoteTyping(isTyping) {
+        if (!typingRow) return;
+
+        if (isTyping) {
+            typingRow.hidden = false;
+            typingRow.classList.add('is-visible');
+            if (typingLabel) typingLabel.textContent = 'typing...';
+            body.scrollTop = body.scrollHeight;
+            return;
+        }
+
+        typingRow.classList.remove('is-visible');
+        typingRow.hidden = true;
+        if (typingLabel) typingLabel.textContent = defaultTypingLabel;
+    }
+
     async function markSelectedChatRead() {
         if (!selectedPhone) return;
 
@@ -2222,6 +2239,7 @@
             const data = await response.json();
             (data.messages || []).forEach(renderMessage);
             updateContacts(data.contacts);
+            setRemoteTyping(Boolean(data.typing));
         } catch (error) {
             console.warn('Unable to refresh WhatsApp chat.', error);
         } finally {
@@ -2246,39 +2264,58 @@
     });
 
     /* ── Send message ── */
-    function sendMessage() {
+    async function submitCurrentMessage(event) {
+        event?.preventDefault();
+
+        if (!sendForm || !input || !selectedPhone) return;
+
         const text = input.value.trim();
-        if (!text) return;
+        if (!text) {
+            input.focus();
+            return;
+        }
 
-        const row    = document.createElement('div');
-        const bubble = document.createElement('div');
-        const meta   = document.createElement('div');
-        const time   = document.createElement('span');
-        const tick   = document.createElement('span');
-
-        row.className    = 'wab-msg-row wab-outgoing';
-        bubble.className = 'wab-msg-bubble';
-        meta.className   = 'wab-msg-meta';
-        time.className   = 'wab-msg-time';
-        tick.className   = 'wab-tick wab-tick--sent';
-
-        const now = new Date();
-        time.textContent = now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
-        tick.innerHTML = `<svg width="14" height="10" viewBox="0 0 18 12" fill="none"><path d="M1 6l4 4L17 1" stroke="#8696a0" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
-
-        bubble.textContent = text;
-        meta.append(time, tick);
-        bubble.appendChild(meta);
-        row.appendChild(bubble);
-
-        /* insert before typing row */
-        body.insertBefore(row, typingRow);
-        body.scrollTop = body.scrollHeight;
+        const originalText = text;
+        const formData = new FormData(sendForm);
+        formData.set('message', text);
         input.value = '';
+        input.disabled = true;
+        if (sendBtn) sendBtn.disabled = true;
 
-        typingRow?.classList.remove('is-visible');
+        try {
+            const response = await fetch(sendForm.action, {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': csrfToken,
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: formData,
+            });
+
+            if (!response.ok) {
+                throw new Error('Send failed');
+            }
+
+            const data = await response.json();
+            if (data.message) {
+                renderMessage(data.message);
+            }
+            updateContacts(data.contacts);
+            pollMessages();
+        } catch (error) {
+            console.warn('Unable to send WhatsApp message without refresh.', error);
+            input.value = originalText;
+            sendForm.submit();
+        } finally {
+            input.disabled = false;
+            if (sendBtn) sendBtn.disabled = false;
+            input.focus();
+            setRemoteTyping(false);
+        }
     }
 
+    sendForm?.addEventListener('submit', submitCurrentMessage);
     sendBtn?.addEventListener('click', e => { if (!input?.value.trim()) e.preventDefault(); });
     input?.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendForm?.requestSubmit(); } });
 

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use App\Models\WhatsappMessage;
 use App\Events\MessageSent;
@@ -31,6 +32,7 @@ public function receive(Request $request)
             'wa_message_id' => $waMessageId,
             'status' => 'received',
         ]);
+        Cache::forget($this->typingCacheKey($phone));
 
         event(new MessageSent($whatsappMessage));
 
@@ -47,6 +49,23 @@ public function receive(Request $request)
     }
 
     $topic = $data['topic'] ?? null;
+    $eventName = strtolower((string) ($topic ?? $data['event'] ?? $data['type'] ?? ''));
+
+    if (str_contains($eventName, 'typing')) {
+        $typingPhone = $data['phone']
+            ?? $data['from']
+            ?? $data['data']['phone']
+            ?? $data['data']['phone_number']
+            ?? $data['data']['message']['phone_number']
+            ?? null;
+
+        if ($typingPhone) {
+            $typingPhone = str_replace('whatsapp:', '', $typingPhone);
+            Cache::put($this->typingCacheKey($typingPhone), true, now()->addSeconds(8));
+        }
+
+        return response()->json(['status' => 'typing'], 200);
+    }
 
     // 1. Handle inbound messages (from user)
     if ($topic === 'message.created' && isset($data['data']['message'])) {
@@ -66,6 +85,7 @@ public function receive(Request $request)
                 'direction' => 'inbound',
                 'wa_message_id' => $waMessageId,
             ]);
+            Cache::forget($this->typingCacheKey($phone));
 
             event(new MessageSent($whatsappMessage));
             Log::info('Broadcasting message event', ['message' => $whatsappMessage]);
@@ -99,6 +119,11 @@ public function receive(Request $request)
     }
 
     return response()->json(['status' => 'received'], 200);
+}
+
+private function typingCacheKey(string $phone): string
+{
+    return 'whatsapp_typing:' . preg_replace('/[^0-9+]/', '', $phone);
 }
 
 }

@@ -9,9 +9,11 @@ use App\Models\WhatsappChatLabel;
 use App\Models\WhatsappChatPanelSetting;
 use App\Models\WhatsappMessage;
 use App\Models\WhatsappSetting;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -139,6 +141,7 @@ class WhatsappController extends Controller
         return response()->json([
             'messages' => $messages->map(fn (WhatsappMessage $message) => $this->messagePayload($message))->values(),
             'contacts' => $this->getContacts($phone),
+            'typing' => Cache::has($this->typingCacheKey($phone)),
         ]);
     }
 
@@ -247,7 +250,7 @@ class WhatsappController extends Controller
         return redirect()->route('whatsapp.chat', ['phone' => $phone]);
     }
 
-    public function sendMessage(Request $request): RedirectResponse
+    public function sendMessage(Request $request): RedirectResponse|JsonResponse
     {
         $validated = $request->validate([
             'phone' => ['required', 'string', 'max:30'],
@@ -256,6 +259,15 @@ class WhatsappController extends Controller
 
         $message = $this->storeOutboundMessage($validated['phone'], $validated['message']);
         $this->sendViaActiveProvider($message);
+        $message->refresh();
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => $this->messagePayload($message),
+                'contacts' => $this->getContacts($validated['phone']),
+            ]);
+        }
 
         return redirect()->route('whatsapp.chat', ['phone' => $validated['phone']]);
     }
@@ -330,6 +342,11 @@ class WhatsappController extends Controller
             'time' => optional($message->created_at)->format('H:i'),
             'created_at' => optional($message->created_at)->toDateTimeString(),
         ];
+    }
+
+    private function typingCacheKey(string $phone): string
+    {
+        return 'whatsapp_typing:' . preg_replace('/[^0-9+]/', '', $phone);
     }
 
     private function storeOutboundMessage(string $phone, string $text): WhatsappMessage
