@@ -2372,6 +2372,19 @@
     sendBtn?.addEventListener('click', e => { if (!input?.value.trim()) e.preventDefault(); });
     input?.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendForm?.requestSubmit(); } });
 
+    document.addEventListener('keydown', e => {
+        if (e.key !== 'Escape') return;
+        if (document.querySelector('.modal.show')) return;
+        if (document.body.classList.contains('wab-profile-open')) return;
+        if (window.innerWidth <= 768 && sidebar?.classList.contains('mobile-hidden')) {
+            sidebar.classList.remove('mobile-hidden');
+            return;
+        }
+        @if($selectedPhone)
+            window.location.href = '{{ route('whatsapp.chat') }}';
+        @endif
+    });
+
     /* ── Auto scroll on load ── */
     if (body) body.scrollTop = body.scrollHeight;
     markSelectedChatRead();

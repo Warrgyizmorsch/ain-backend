@@ -67,8 +67,9 @@ class WhatsappController extends Controller
 
     public function chat(Request $request): View
     {
-        $contacts = $this->getContacts($request->query('phone'));
-        $selectedContact = collect($contacts)->firstWhere('active', true) ?? collect($contacts)->first();
+        $activePhone = $request->query('phone');
+        $contacts = $this->getContacts($activePhone);
+        $selectedContact = collect($contacts)->firstWhere('active', true);
         $selectedPhone = $selectedContact['phone'] ?? null;
 
         if ($selectedPhone) {
@@ -280,12 +281,9 @@ class WhatsappController extends Controller
                 $join->on('latest.id', '=', 'grouped.max_id');
             })
             ->select('latest.phone', 'latest.name', 'latest.message', 'latest.created_at', 'latest.id')
+            ->orderByDesc('latest.created_at')
             ->orderByDesc('latest.id')
             ->get();
-
-        if (! $activePhone && $latestMessages->isNotEmpty()) {
-            $activePhone = $latestMessages->first()->phone;
-        }
 
         $phones = $latestMessages->pluck('phone')->filter()->values();
         $users = User::query()
