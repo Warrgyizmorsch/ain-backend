@@ -525,4 +525,49 @@ class WhatsappController extends Controller
 
         return $query->get();
     }
+
+    public function importContacts(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'contacts'          => ['required', 'array', 'min:1', 'max:100'],
+            'contacts.*.name'   => ['required', 'string', 'max:200'],
+            'contacts.*.phone'  => ['required', 'string', 'max:30'],
+        ]);
+
+        $imported = 0;
+        $failed   = 0;
+
+        foreach ($validated['contacts'] as $contact) {
+            try {
+                $phone = trim($contact['phone']);
+                $name  = trim($contact['name']);
+
+                if (!str_starts_with($phone, '+')) {
+                    $phone = '+' . ltrim(preg_replace('/\D+/', '', $phone), '+');
+                }
+
+                if (strlen($phone) < 8) {
+                    $failed++;
+                    continue;
+                }
+
+                WhatsappMessage::query()->firstOrCreate(
+                    ['phone' => $phone, 'message' => ''],
+                    ['name' => $name, 'direction' => 'outbound', 'status' => 'draft']
+                );
+
+                $imported++;
+            } catch (\Throwable $e) {
+                Log::warning('WhatsApp import contact failed', ['contact' => $contact, 'error' => $e->getMessage()]);
+                $failed++;
+            }
+        }
+
+        return response()->json([
+            'success'  => true,
+            'imported' => $imported,
+            'failed'   => $failed,
+            'message'  => "{$imported} contact(s) imported.",
+        ]);
+    }
 }

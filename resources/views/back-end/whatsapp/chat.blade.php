@@ -43,6 +43,9 @@
                 <button class="wab-icon-btn" data-bs-toggle="modal" data-bs-target="#newWaChatModal" title="New Chat">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="11"/><line x1="8" y1="11" x2="8" y2="11"/><line x1="16" y1="11" x2="16" y2="11"/></svg>
                 </button>
+                <button class="wab-icon-btn" id="wabImportContactsBtn" data-bs-toggle="modal" data-bs-target="#waImportContactsModal" title="Import Contacts from File">
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                </button>
                 <button class="wab-icon-btn" id="wabToggleSidebar" title="Collapse">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
                 </button>
@@ -418,6 +421,122 @@
                 </button>
             </div>
             </form>
+        </div>
+    </div>
+</div>
+
+{{-- ══════════════════════════════════════════════════
+     IMPORT CONTACTS MODAL
+══════════════════════════════════════════════════ --}}
+<div class="modal fade" id="waImportContactsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content wab-modal-content">
+            <div class="modal-header wab-modal-header">
+                <div class="wab-modal-icon" style="background:linear-gradient(135deg,#25d366,#128c7e)">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                </div>
+                <h5 class="modal-title wab-modal-title">Import Contacts from File</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" id="waImportModalClose"></button>
+            </div>
+            <div class="modal-body wab-modal-body" style="padding:20px">
+
+                {{-- Step 1: File Upload --}}
+                <div id="waImportStep1">
+                    {{-- Format Info --}}
+                    <div class="wa-import-info-bar">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#128c7e" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                        <span>Supported formats: <strong>CSV</strong> &amp; <strong>Excel (.xlsx)</strong>. Required columns: <code>name</code>, <code>phone</code>. Optional: <code>country_code</code> (e.g. +91).</span>
+                        <a href="#" id="waDownloadSample" class="wa-import-sample-link">Download sample CSV</a>
+                    </div>
+
+                    {{-- Drop Zone --}}
+                    <div class="wa-import-drop" id="waImportDrop">
+                        <div class="wa-import-drop-icon">
+                            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#25d366" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="13" x2="12" y2="17"/><polyline points="9 16 12 19 15 16"/></svg>
+                        </div>
+                        <div class="wa-import-drop-title">Drop your file here</div>
+                        <div class="wa-import-drop-sub">or <label for="waImportFileInput" class="wa-import-browse-link">browse to upload</label></div>
+                        <div class="wa-import-drop-hint">CSV or XLSX — max 5 MB</div>
+                        <input type="file" id="waImportFileInput" accept=".csv,.xlsx,.xls" style="display:none">
+                    </div>
+
+                    {{-- Selected File Info --}}
+                    <div class="wa-import-file-info" id="waImportFileInfo" style="display:none">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#25d366" stroke-width="2.2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                        <span id="waImportFileName">filename.csv</span>
+                        <span id="waImportFileSize" class="wa-import-file-size"></span>
+                        <button type="button" class="wa-import-file-remove" id="waImportFileRemove" title="Remove file">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                        </button>
+                    </div>
+
+                    {{-- Error display --}}
+                    <div class="wa-import-error" id="waImportError" style="display:none"></div>
+                </div>
+
+                {{-- Step 2: Preview --}}
+                <div id="waImportStep2" style="display:none">
+                    <div class="wa-import-preview-header">
+                        <div class="wa-import-preview-title">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#25d366" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                            <span>Preview — <span id="waImportRowCount">0</span> contacts ready to import</span>
+                        </div>
+                        <button type="button" class="wa-import-back-btn" id="waImportBackBtn">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+                            Change file
+                        </button>
+                    </div>
+                    <div class="wa-import-table-wrap">
+                        <table class="wa-import-table">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Name</th>
+                                    <th>Phone</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="waImportPreviewBody"></tbody>
+                        </table>
+                    </div>
+                    <div class="wa-import-skipped" id="waImportSkipped" style="display:none">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#ffa726" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><circle cx="12" cy="16" r="1" fill="#ffa726"/></svg>
+                        <span id="waImportSkippedText"></span>
+                    </div>
+                </div>
+
+                {{-- Step 3: Progress --}}
+                <div id="waImportStep3" style="display:none;text-align:center;padding:28px 0">
+                    <div class="wa-import-spinner"></div>
+                    <div class="wa-import-progress-text" id="waImportProgressText">Importing contacts…</div>
+                    <div class="wa-import-progress-bar-wrap"><div class="wa-import-progress-bar" id="waImportProgressBar" style="width:0%"></div></div>
+                </div>
+
+                {{-- Step 4: Done --}}
+                <div id="waImportStep4" style="display:none;text-align:center;padding:28px 0">
+                    <div class="wa-import-done-icon">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#25d366" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><polyline points="8 12 11 15 16 9" stroke-width="2.2"/></svg>
+                    </div>
+                    <div class="wa-import-done-title" id="waImportDoneTitle">Import Complete!</div>
+                    <div class="wa-import-done-sub" id="waImportDoneSub"></div>
+                </div>
+
+            </div>
+            <div class="modal-footer wab-modal-footer" id="waImportFooter">
+                <button type="button" class="wab-btn wab-btn--ghost" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="wab-btn wab-btn--primary" id="waImportPreviewBtn" disabled>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                    Preview
+                </button>
+                <button type="button" class="wab-btn wab-btn--primary" id="waImportSubmitBtn" style="display:none">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    Import All
+                </button>
+                <button type="button" class="wab-btn wab-btn--primary" id="waImportDoneBtn" style="display:none" data-bs-dismiss="modal">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                    Done
+                </button>
+            </div>
         </div>
     </div>
 </div>
@@ -2115,6 +2234,217 @@
     transform: scale(1.1);
 }
 .wab-wa-label-row:not(.is-selected) .wab-wa-check svg { display: none; }
+
+/* ════════════════════════════════════════
+   IMPORT CONTACTS MODAL STYLES
+════════════════════════════════════════ */
+.wa-import-info-bar {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    background: linear-gradient(135deg,rgba(37,211,102,.07),rgba(18,140,126,.07));
+    border: 1px solid rgba(37,211,102,.25);
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 12.5px;
+    color: var(--wa-text-main);
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+    line-height: 1.5;
+}
+.wa-import-info-bar code {
+    background: rgba(37,211,102,.13);
+    color: #128c7e;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 11.5px;
+    font-weight: 600;
+}
+.wa-import-sample-link {
+    margin-left: auto;
+    color: var(--wa-teal);
+    font-weight: 600;
+    font-size: 12px;
+    text-decoration: none;
+    white-space: nowrap;
+}
+.wa-import-sample-link:hover { text-decoration: underline; }
+
+.wa-import-drop {
+    border: 2.5px dashed rgba(37,211,102,.45);
+    border-radius: 14px;
+    padding: 36px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color .18s, background .18s;
+    background: rgba(37,211,102,.03);
+    position: relative;
+}
+.wa-import-drop:hover,
+.wa-import-drop.drag-over {
+    border-color: var(--wa-green);
+    background: rgba(37,211,102,.08);
+}
+.wa-import-drop-icon { margin-bottom: 10px; display: flex; justify-content: center; }
+.wa-import-drop-title { font-size: 15px; font-weight: 700; color: var(--wa-text-main); margin-bottom: 5px; }
+.wa-import-drop-sub   { font-size: 13px; color: var(--wa-text-muted); }
+.wa-import-browse-link {
+    color: var(--wa-teal);
+    font-weight: 700;
+    cursor: pointer;
+    text-decoration: underline;
+}
+.wa-import-drop-hint  { font-size: 11.5px; color: var(--wa-text-sub); margin-top: 8px; }
+
+.wa-import-file-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(37,211,102,.07);
+    border: 1px solid rgba(37,211,102,.3);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-top: 12px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--wa-text-main);
+}
+.wa-import-file-size { font-size: 11.5px; color: var(--wa-text-sub); font-weight: 400; }
+.wa-import-file-remove {
+    margin-left: auto;
+    width: 24px; height: 24px;
+    border: 0; border-radius: 50%;
+    background: rgba(239,83,80,.1);
+    color: #ef5350;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background .14s;
+}
+.wa-import-file-remove:hover { background: rgba(239,83,80,.22); }
+
+.wa-import-error {
+    background: rgba(239,83,80,.08);
+    border: 1px solid rgba(239,83,80,.3);
+    border-radius: 10px;
+    color: #c62828;
+    font-size: 13px;
+    padding: 10px 14px;
+    margin-top: 12px;
+    font-weight: 500;
+}
+
+/* Preview Table */
+.wa-import-preview-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+    gap: 10px;
+}
+.wa-import-preview-title {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 13.5px;
+    font-weight: 700;
+    color: var(--wa-text-main);
+}
+.wa-import-back-btn {
+    border: 1px solid var(--wa-border-dark);
+    background: transparent;
+    color: var(--wa-text-muted);
+    border-radius: 20px;
+    padding: 4px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex; align-items: center; gap: 4px;
+    transition: background .12s;
+}
+.wa-import-back-btn:hover { background: var(--wa-hover); }
+.wa-import-table-wrap {
+    max-height: 260px;
+    overflow-y: auto;
+    border-radius: 10px;
+    border: 1px solid var(--wa-border-dark);
+    scrollbar-width: thin;
+    scrollbar-color: #d1d7db transparent;
+}
+.wa-import-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+.wa-import-table thead {
+    position: sticky;
+    top: 0;
+    background: var(--wa-bg-header);
+    z-index: 1;
+}
+.wa-import-table th {
+    padding: 9px 12px;
+    font-weight: 700;
+    color: var(--wa-text-muted);
+    font-size: 11.5px;
+    text-transform: uppercase;
+    letter-spacing: .4px;
+    border-bottom: 1px solid var(--wa-border-dark);
+    text-align: left;
+}
+.wa-import-table td {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--wa-border);
+    color: var(--wa-text-main);
+    vertical-align: middle;
+}
+.wa-import-table tr:last-child td { border-bottom: 0; }
+.wa-import-table tr:nth-child(even) td { background: rgba(0,0,0,.02); }
+.wa-import-row-ok   { color: #25d366; font-size: 11.5px; font-weight: 700; }
+.wa-import-row-warn { color: #ffa726; font-size: 11.5px; font-weight: 700; }
+.wa-import-skipped {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin-top: 10px;
+    font-size: 12.5px;
+    color: #e65100;
+    background: rgba(255,167,38,.08);
+    border: 1px solid rgba(255,167,38,.3);
+    border-radius: 8px;
+    padding: 8px 12px;
+}
+
+/* Progress */
+.wa-import-spinner {
+    width: 44px; height: 44px;
+    border: 4px solid rgba(37,211,102,.2);
+    border-top-color: var(--wa-green);
+    border-radius: 50%;
+    animation: wa-spin 0.8s linear infinite;
+    margin: 0 auto 16px;
+}
+@keyframes wa-spin { to { transform: rotate(360deg); } }
+.wa-import-progress-text { font-size: 14px; font-weight: 600; color: var(--wa-text-main); margin-bottom: 14px; }
+.wa-import-progress-bar-wrap {
+    height: 8px;
+    background: rgba(37,211,102,.15);
+    border-radius: 10px;
+    overflow: hidden;
+    margin: 0 auto;
+    max-width: 320px;
+}
+.wa-import-progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #25d366, #128c7e);
+    border-radius: 10px;
+    transition: width .3s ease;
+}
+
+/* Done state */
+.wa-import-done-icon { margin-bottom: 14px; animation: wa-done-pop .4s cubic-bezier(.34,1.56,.64,1); }
+@keyframes wa-done-pop { 0% { transform: scale(0.4); opacity:0; } 100% { transform: scale(1); opacity:1; } }
+.wa-import-done-title { font-size: 18px; font-weight: 800; color: var(--wa-text-main); margin-bottom: 6px; }
+.wa-import-done-sub   { font-size: 13px; color: var(--wa-text-muted); }
 </style>
 
 {{-- ══════════════════════════════════════════════════
@@ -2576,6 +2906,340 @@
     document.addEventListener('keydown', e => {
         if (e.key === 'Escape') closePanel();
     });
+})();
+</script>
+
+{{-- ══════════════════════════════════════════════════
+     IMPORT CONTACTS JAVASCRIPT
+══════════════════════════════════════════════════ --}}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+(function () {
+    /* ── DOM refs ── */
+    const modal         = document.getElementById('waImportContactsModal');
+    const dropZone      = document.getElementById('waImportDrop');
+    const fileInput     = document.getElementById('waImportFileInput');
+    const fileInfo      = document.getElementById('waImportFileInfo');
+    const fileNameEl    = document.getElementById('waImportFileName');
+    const fileSizeEl    = document.getElementById('waImportFileSize');
+    const fileRemoveBtn = document.getElementById('waImportFileRemove');
+    const errorEl       = document.getElementById('waImportError');
+    const step1         = document.getElementById('waImportStep1');
+    const step2         = document.getElementById('waImportStep2');
+    const step3         = document.getElementById('waImportStep3');
+    const step4         = document.getElementById('waImportStep4');
+    const previewBtn    = document.getElementById('waImportPreviewBtn');
+    const submitBtn     = document.getElementById('waImportSubmitBtn');
+    const doneBtn       = document.getElementById('waImportDoneBtn');
+    const backBtn       = document.getElementById('waImportBackBtn');
+    const previewBody   = document.getElementById('waImportPreviewBody');
+    const rowCountEl    = document.getElementById('waImportRowCount');
+    const skippedEl     = document.getElementById('waImportSkipped');
+    const skippedText   = document.getElementById('waImportSkippedText');
+    const progressBar   = document.getElementById('waImportProgressBar');
+    const progressText  = document.getElementById('waImportProgressText');
+    const doneTitle     = document.getElementById('waImportDoneTitle');
+    const doneSub       = document.getElementById('waImportDoneSub');
+    const sampleLink    = document.getElementById('waDownloadSample');
+
+    let selectedFile  = null;
+    let parsedRows    = [];
+    let validRows     = [];
+
+    const importUrl = @json(route('whatsapp.chat.import-contacts'));
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+
+    /* ── Download sample CSV ── */
+    sampleLink?.addEventListener('click', function (e) {
+        e.preventDefault();
+        const csv = 'name,phone,country_code\nJohn Smith,9876543210,+44\nSarah Jones,8765432109,+44\nRaj Kumar,7654321098,+91';
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'whatsapp_contacts_sample.csv';
+        a.click();
+        URL.revokeObjectURL(a.href);
+    });
+
+    /* ── Drag & Drop ── */
+    dropZone?.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+    dropZone?.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+    dropZone?.addEventListener('drop', e => {
+        e.preventDefault();
+        dropZone.classList.remove('drag-over');
+        const file = e.dataTransfer.files[0];
+        if (file) handleFile(file);
+    });
+    dropZone?.addEventListener('click', () => fileInput?.click());
+    fileInput?.addEventListener('change', e => { if (e.target.files[0]) handleFile(e.target.files[0]); });
+
+    /* ── Remove file ── */
+    fileRemoveBtn?.addEventListener('click', resetToStep1);
+
+    /* ── Preview button ── */
+    previewBtn?.addEventListener('click', showPreview);
+
+    /* ── Back button ── */
+    backBtn?.addEventListener('click', resetToStep1);
+
+    /* ── Submit button ── */
+    submitBtn?.addEventListener('click', doImport);
+
+    /* ── Reset on modal close ── */
+    modal?.addEventListener('hidden.bs.modal', fullReset);
+
+    /* ── Helpers ── */
+    function showError(msg) {
+        if (!errorEl) return;
+        errorEl.textContent = msg;
+        errorEl.style.display = 'block';
+    }
+    function clearError() {
+        if (errorEl) { errorEl.textContent = ''; errorEl.style.display = 'none'; }
+    }
+    function humanSize(bytes) {
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+    }
+    function normalizePhone(countryCode, phone) {
+        const cc = String(countryCode || '').replace(/\D/g, '');
+        const ph = String(phone || '').replace(/\D/g, '');
+        if (!ph) return null;
+        if (ph.startsWith(cc) && cc) return '+' + ph;
+        return cc ? '+' + cc + ph : '+' + ph;
+    }
+
+    function handleFile(file) {
+        clearError();
+        const allowedTypes = ['text/csv', 'application/vnd.ms-excel',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
+        const ext = file.name.split('.').pop().toLowerCase();
+
+        if (!['csv', 'xls', 'xlsx'].includes(ext)) {
+            showError('Invalid file type. Please upload a CSV or Excel (.xlsx, .xls) file.');
+            return;
+        }
+        if (file.size > 5 * 1024 * 1024) {
+            showError('File is too large. Maximum allowed size is 5 MB.');
+            return;
+        }
+
+        selectedFile = file;
+        if (fileNameEl) fileNameEl.textContent = file.name;
+        if (fileSizeEl) fileSizeEl.textContent = '(' + humanSize(file.size) + ')';
+        if (fileInfo) fileInfo.style.display = 'flex';
+        if (previewBtn) previewBtn.disabled = false;
+    }
+
+    function resetToStep1() {
+        selectedFile = null;
+        parsedRows = [];
+        validRows = [];
+        if (fileInput) fileInput.value = '';
+        if (fileInfo) fileInfo.style.display = 'none';
+        if (previewBtn) previewBtn.disabled = true;
+        clearError();
+        setStep(1);
+    }
+
+    function fullReset() {
+        resetToStep1();
+    }
+
+    function setStep(n) {
+        [step1, step2, step3, step4].forEach((s, i) => {
+            if (s) s.style.display = (i + 1 === n) ? '' : 'none';
+        });
+        if (previewBtn)  previewBtn.style.display  = (n === 1) ? '' : 'none';
+        if (submitBtn)   submitBtn.style.display   = (n === 2) ? '' : 'none';
+        if (doneBtn)     doneBtn.style.display     = (n === 4) ? '' : 'none';
+    }
+
+    function parseCSV(text) {
+        const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n').filter(l => l.trim());
+        if (!lines.length) return [];
+
+        const header = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/[^a-z_]/g, '_'));
+        const nameIdx    = header.findIndex(h => h.includes('name'));
+        const phoneIdx   = header.findIndex(h => h.includes('phone') || h.includes('mobile') || h.includes('number'));
+        const ccIdx      = header.findIndex(h => h.includes('country') || h.includes('code') || h.includes('cc'));
+
+        if (nameIdx < 0 || phoneIdx < 0) return null; // missing required columns
+
+        return lines.slice(1).map((line, i) => {
+            const cols = line.match(/(?:^|,)("[^"]*"|[^,]*)/g)?.map(c => c.replace(/^"|"$/g, '').replace(/^,/, '').trim()) || line.split(',').map(c => c.trim());
+            return {
+                row: i + 2,
+                name: cols[nameIdx] || '',
+                phone: cols[phoneIdx] || '',
+                country_code: ccIdx >= 0 ? (cols[ccIdx] || '') : '',
+            };
+        });
+    }
+
+    function parseXLSX(arrayBuffer) {
+        if (typeof XLSX === 'undefined') throw new Error('XLSX library not loaded.');
+        const wb = XLSX.read(new Uint8Array(arrayBuffer), { type: 'array' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const data = XLSX.utils.sheet_to_json(ws, { defval: '' });
+
+        return data.map((row, i) => {
+            const keys = Object.keys(row).map(k => k.toLowerCase());
+            const get = (terms) => {
+                const k = Object.keys(row).find(k => terms.some(t => k.toLowerCase().includes(t)));
+                return k ? String(row[k]).trim() : '';
+            };
+            return {
+                row: i + 2,
+                name: get(['name']),
+                phone: get(['phone', 'mobile', 'number']),
+                country_code: get(['country', 'code', 'cc']),
+            };
+        });
+    }
+
+    function showPreview() {
+        if (!selectedFile) return;
+        clearError();
+        previewBtn.disabled = true;
+        previewBtn.textContent = 'Parsing…';
+
+        const ext = selectedFile.name.split('.').pop().toLowerCase();
+        const reader = new FileReader();
+
+        reader.onload = function (e) {
+            try {
+                let rows;
+                if (ext === 'csv') {
+                    rows = parseCSV(e.target.result);
+                } else {
+                    rows = parseXLSX(e.target.result);
+                }
+
+                if (rows === null || rows === undefined) {
+                    showError('Could not find required columns. Make sure your file has "name" and "phone" columns.');
+                    previewBtn.disabled = false;
+                    previewBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Preview';
+                    return;
+                }
+
+                parsedRows = rows;
+                validRows = [];
+                const skipped = [];
+
+                if (previewBody) previewBody.innerHTML = '';
+
+                rows.forEach((r, idx) => {
+                    const phone = normalizePhone(r.country_code, r.phone);
+                    const isValid = !!(r.name.trim() && phone);
+
+                    if (isValid) validRows.push({ name: r.name.trim(), phone });
+                    else skipped.push(r.row);
+
+                    if (idx < 100 && previewBody) { // show max 100 rows in preview
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            <td>${r.row}</td>
+                            <td>${r.name || '<em style="color:#8696a0">—</em>'}</td>
+                            <td>${phone || '<em style="color:#8696a0">' + (r.phone || 'missing') + '</em>'}</td>
+                            <td class="${isValid ? 'wa-import-row-ok' : 'wa-import-row-warn'}">${isValid ? '✓ Valid' : '✗ Skip'}</td>
+                        `;
+                        previewBody.appendChild(tr);
+                    }
+                });
+
+                if (rowCountEl) rowCountEl.textContent = validRows.length;
+
+                if (skipped.length > 0) {
+                    if (skippedText) skippedText.textContent = skipped.length + ' row(s) will be skipped (missing name or phone): rows ' + skipped.slice(0, 10).join(', ') + (skipped.length > 10 ? '…' : '.');
+                    if (skippedEl) skippedEl.style.display = 'flex';
+                } else {
+                    if (skippedEl) skippedEl.style.display = 'none';
+                }
+
+                if (validRows.length === 0) {
+                    showError('No valid contacts found in the file. Please check your data.');
+                    previewBtn.disabled = false;
+                    previewBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Preview';
+                    return;
+                }
+
+                setStep(2);
+
+            } catch (err) {
+                showError('Failed to parse file: ' + err.message);
+                previewBtn.disabled = false;
+                previewBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Preview';
+            }
+        };
+
+        reader.onerror = function () {
+            showError('Failed to read the file. Please try again.');
+            previewBtn.disabled = false;
+        };
+
+        if (ext === 'csv') {
+            reader.readAsText(selectedFile);
+        } else {
+            reader.readAsArrayBuffer(selectedFile);
+        }
+    }
+
+    async function doImport() {
+        if (!validRows.length) return;
+
+        setStep(3);
+        if (progressBar) progressBar.style.width = '0%';
+        if (progressText) progressText.textContent = 'Importing contacts…';
+
+        const chunkSize = 20;
+        const total = validRows.length;
+        let imported = 0;
+        let failed = 0;
+
+        for (let i = 0; i < total; i += chunkSize) {
+            const chunk = validRows.slice(i, i + chunkSize);
+
+            try {
+                const response = await fetch(importUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken,
+                        'Accept': 'application/json',
+                    },
+                    body: JSON.stringify({ contacts: chunk }),
+                });
+
+                const data = await response.json();
+                if (response.ok) {
+                    imported += data.imported ?? chunk.length;
+                    failed   += data.failed   ?? 0;
+                } else {
+                    failed += chunk.length;
+                }
+            } catch (err) {
+                failed += chunk.length;
+            }
+
+            const progress = Math.round(((i + chunk.length) / total) * 100);
+            if (progressBar) progressBar.style.width = Math.min(progress, 100) + '%';
+            if (progressText) progressText.textContent = `Importing… ${Math.min(i + chunk.length, total)} / ${total}`;
+        }
+
+        /* Done */
+        if (doneTitle) doneTitle.textContent = imported > 0 ? 'Import Complete!' : 'Import Finished';
+        if (doneSub) {
+            doneSub.innerHTML =
+                `<strong>${imported}</strong> contact(s) imported successfully.` +
+                (failed > 0 ? ` <span style="color:#ef5350">${failed} failed.</span>` : '');
+        }
+        setStep(4);
+    }
+
+    setStep(1);
+
 })();
 </script>
 
