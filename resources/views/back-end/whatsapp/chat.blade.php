@@ -8,6 +8,15 @@
     $selectedName = $selectedContact['name'] ?? 'Select chat';
     $selectedPhone = $selectedPhone ?? ($selectedContact['phone'] ?? '');
     $selectedColor = $selectedContact['color'] ?? '#25d366';
+    $panelDefinitions = $panelDefinitions ?? [];
+    $enabledPanelKeys = $enabledPanelKeys ?? [];
+    $selectedPanel = $selectedPanel ?? null;
+    $panelRows = $panelRows ?? collect();
+    $labels = $labels ?? collect();
+    $selectedContactLabels = $selectedContactLabels ?? [];
+    $activeLabels = $labels->whereIn('id', $selectedContactLabels);
+    $allContactLabelMap = $allContactLabelMap ?? collect();
+    $labelsById = $labels->keyBy('id');
 @endphp
 
 {{-- ======================================================
@@ -22,7 +31,9 @@
         {{-- Header --}}
         <div class="wab-sidebar-header">
             <div class="wab-sidebar-header-left">
-                <div class="wab-avatar wab-avatar--header">A</div>
+                <button type="button" class="wab-avatar wab-avatar--header wab-settings-trigger" data-bs-toggle="modal" data-bs-target="#waPanelSettingsModal" title="Chat Settings">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.6 8.6a1.7 1.7 0 0 0-.34-1.88l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3a2 2 0 1 1 4 0v.09A1.7 1.7 0 0 0 15.4 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9c.22.36.58.6 1 .6h.1a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1 .6z"/></svg>
+                </button>
                 <div class="wab-sidebar-title">
                     <span class="wab-label-main">Chats</span>
                     <span class="wab-label-sub"><span class="wab-online-dot"></span> WhatsApp Business</span>
@@ -53,6 +64,19 @@
             <button class="wab-tab" data-tab="groups">Groups</button>
         </div>
 
+        @if(!empty($enabledPanelKeys))
+            <div class="wab-panel-tabs">
+                @foreach($enabledPanelKeys as $panelKey)
+                    @php $panel = $panelDefinitions[$panelKey] ?? null; @endphp
+                    @if($panel)
+                        <a class="wab-panel-chip {{ $selectedPanel === $panelKey ? 'is-active' : '' }}" href="{{ route('whatsapp.chat', array_filter(['phone' => $selectedPhone, 'panel' => $panelKey])) }}" title="{{ $panel['label'] }}">
+                            {{ $panel['short'] }}
+                        </a>
+                    @endif
+                @endforeach
+            </div>
+        @endif
+
         {{-- Contact List --}}
         @php
             $contacts = [
@@ -68,7 +92,12 @@
 
         <div class="wab-contact-list" id="wabContactList">
             @foreach($contacts as $c)
-            <div class="wab-contact-item {{ $c['active'] ? 'is-active' : '' }}" data-name="{{ strtolower($c['name']) }}" data-contact-id="{{ $c['id'] }}" data-url="{{ isset($c['phone']) ? route('whatsapp.chat', ['phone' => $c['phone']]) : '' }}">
+            @php
+                $cPhone = $c['phone'] ?? '';
+                $cLabelIds = $allContactLabelMap->get($cPhone, []);
+                $cLabels = $cLabelIds ? $labels->whereIn('id', $cLabelIds) : collect();
+            @endphp
+            <div class="wab-contact-item {{ $c['active'] ? 'is-active' : '' }}" data-name="{{ strtolower($c['name']) }}" data-contact-id="{{ $c['id'] }}" data-url="{{ isset($c['phone']) ? route('whatsapp.chat', ['phone' => $c['phone']]) : '' }}" data-phone="{{ $cPhone }}" data-color="{{ $c['color'] }}">
                 <div class="wab-avatar" style="background:{{ $c['color'] }}1a;color:{{ $c['color'] }}">
                     {{ strtoupper(substr($c['name'],0,1)) }}
                     <span class="wab-status-badge wab-status--{{ $c['status'] }}"></span>
@@ -80,10 +109,26 @@
                     </div>
                     <div class="wab-contact-row-bottom">
                         <span class="wab-contact-preview">{{ $c['msg'] }}</span>
-                        @if($c['badge'])
-                            <span class="wab-badge">{{ $c['badge'] }}</span>
-                        @endif
+                        <div class="wab-contact-row-right">
+                            @if($c['badge'])
+                                <span class="wab-badge">{{ $c['badge'] }}</span>
+                            @endif
+                            @if($cLabels->isNotEmpty())
+                                <div class="wab-contact-label-dots">
+                                    @foreach($cLabels->take(3) as $lbl)
+                                        <span class="wab-label-dot" style="background:{{ $lbl->color }}" title="{{ $lbl->name }}"></span>
+                                    @endforeach
+                                </div>
+                            @endif
+                        </div>
                     </div>
+                    @if($cLabels->isNotEmpty())
+                        <div class="wab-contact-label-tags">
+                            @foreach($cLabels->take(2) as $lbl)
+                                <span class="wab-contact-tag-chip" style="background:{{ $lbl->color }}1a;color:{{ $lbl->color }};border:1px solid {{ $lbl->color }}40">{{ $lbl->name }}</span>
+                            @endforeach
+                        </div>
+                    @endif
                 </div>
             </div>
             @endforeach
@@ -99,16 +144,29 @@
                 <button class="wab-icon-btn wab-mobile-back" id="wabMobileBack">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
                 </button>
-                <div class="wab-avatar wab-avatar--conv" style="background:{{ $selectedColor }}1a;color:{{ $selectedColor }}">{{ strtoupper(substr($selectedName,0,1)) }}</div>
-                <div class="wab-conv-user-info">
+                <div class="wab-avatar wab-avatar--conv wab-profile-trigger" id="wabOpenProfilePanel" style="background:{{ $selectedColor }}1a;color:{{ $selectedColor }}" title="Contact info" role="button">{{ strtoupper(substr($selectedName,0,1)) }}</div>
+                <div class="wab-conv-user-info" id="wabOpenProfilePanelText" style="cursor:pointer" role="button">
                     <div class="wab-conv-name">{{ $selectedName }}</div>
                     <div class="wab-conv-status">
                         <span class="wab-online-dot"></span>
                         <span id="wabTypingLabel">{{ $selectedPhone ?: 'ready' }}</span>
                     </div>
+                    @if($activeLabels->isNotEmpty())
+                        <div class="wab-chat-label-row">
+                            @foreach($activeLabels as $label)
+                                <span style="background:{{ $label->color }}1a;color:{{ $label->color }};border:1px solid {{ $label->color }}30">{{ $label->name }}</span>
+                            @endforeach
+                        </div>
+                    @endif
                 </div>
             </div>
             <div class="wab-conv-actions">
+                @if($selectedPhone)
+                    <button class="wab-label-btn" data-bs-toggle="modal" data-bs-target="#waAssignLabelsModal" title="Label chat">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+                        Label chat
+                    </button>
+                @endif
                 <button class="wab-icon-btn" title="Search in chat">
                     <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                 </button>
@@ -118,8 +176,8 @@
                 <button class="wab-icon-btn" title="Video call">
                     <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
                 </button>
-                <button class="wab-icon-btn" title="More options">
-                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+                <button class="wab-icon-btn" id="wabOpenProfileBtn2" title="Contact Info">
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
                 </button>
             </div>
         </div>
@@ -128,6 +186,62 @@
         <div class="wab-messages-body" id="wabMessagesBody">
 
             <div class="wab-date-badge">Today</div>
+
+            @if($selectedPanel && isset($panelDefinitions[$selectedPanel]))
+                <div class="wab-panel-card">
+                    <div class="wab-panel-card-head">
+                        <div style="display:flex;align-items:center;gap:8px">
+                            <span class="wab-panel-card-badge">{{ strtoupper($panelDefinitions[$selectedPanel]['short']) }}</span>
+                            <div>
+                                <strong>{{ $panelDefinitions[$selectedPanel]['label'] }} Orders</strong>
+                                <span>{{ $panelRows->count() }} records</span>
+                            </div>
+                        </div>
+                        <a href="{{ route('whatsapp.chat', array_filter(['phone' => $selectedPhone])) }}" class="wab-panel-close-btn">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                            Close
+                        </a>
+                    </div>
+                    <div class="wab-panel-table-wrap">
+                        <table class="wab-panel-table">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Order ID</th>
+                                    <th>Title</th>
+                                    <th>Order Date</th>
+                                    <th>Delivery</th>
+                                    <th>Status</th>
+                                    <th>Ticket</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @forelse($panelRows as $i => $row)
+                                    @php
+                                        $statusClass = match(strtolower($row->projectstatus ?? '')) {
+                                            'completed','delivered' => 'wab-status-pill--success',
+                                            'failed','cancelled' => 'wab-status-pill--danger',
+                                            'working','in progress' => 'wab-status-pill--warning',
+                                            default => 'wab-status-pill--neutral',
+                                        };
+                                    @endphp
+                                    <tr>
+                                        <td class="wab-table-num">{{ $i+1 }}</td>
+                                        <td><strong>{{ $row->order_id }}</strong></td>
+                                        <td>{{ \Illuminate\Support\Str::limit($row->title ?? 'N/A', 32) }}</td>
+                                        <td>{{ !empty($row->order_date) && strtotime($row->order_date) ? date('d M', strtotime($row->order_date)) : '—' }}</td>
+                                        <td>{{ !empty($row->delivery_date) && strtotime($row->delivery_date) ? date('d M', strtotime($row->delivery_date)) : '—' }}</td>
+                                        <td><span class="wab-status-pill {{ $statusClass }}">{{ $row->projectstatus ?? 'N/A' }}</span></td>
+                                        <td>{{ $row->feedback_ticket ?: '—' }}</td>
+                                    </tr>
+                                @empty
+                                    <tr><td colspan="7" style="text-align:center;padding:20px;color:#8696a0">No records found.</td></tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            @endif
 
             @forelse($messages->filter(fn($message) => trim($message->message ?? '') !== '') as $message)
                 <div class="wab-msg-row {{ $message->direction === 'inbound' ? 'wab-incoming' : 'wab-outgoing' }}">
@@ -277,8 +391,179 @@
 </div>
 
 {{-- ══════════════════════════════════════════════════
-     STYLES
+     CHAT SETTINGS MODAL (Panel toggles + Custom Labels)
 ══════════════════════════════════════════════════ --}}
+<div class="modal fade" id="waPanelSettingsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-md">
+        <div class="modal-content wab-modal-content">
+            {{-- Panel Settings Form --}}
+            <form method="POST" action="{{ route('whatsapp.chat.panel-settings') }}">
+                @csrf
+                <div class="modal-header wab-modal-header">
+                    <div class="wab-modal-icon">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.6 8.6a1.7 1.7 0 0 0-.34-1.88l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3a2 2 0 1 1 4 0v.09A1.7 1.7 0 0 0 15.4 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9c.22.36.58.6 1 .6h.1a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1 .6z"/></svg>
+                    </div>
+                    <h5 class="modal-title wab-modal-title">Chat Settings</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body wab-modal-body" style="padding-bottom:8px">
+                    <div class="wab-section-label">Show Info Panels</div>
+                    <div class="wab-toggle-list">
+                        @foreach($panelDefinitions as $key => $panel)
+                            <label class="wab-toggle-row">
+                                <div class="wab-toggle-row-left">
+                                    <span class="wab-panel-short-badge">{{ $panel['short'] }}</span>
+                                    <span class="wab-toggle-row-name">{{ $panel['label'] }}</span>
+                                </div>
+                                <div class="wab-ios-toggle">
+                                    <input type="checkbox" name="panels[{{ $key }}]" value="1" {{ in_array($key, $enabledPanelKeys, true) ? 'checked' : '' }} id="panel_{{ $key }}">
+                                    <span class="wab-ios-slider"></span>
+                                </div>
+                            </label>
+                        @endforeach
+                    </div>
+                </div>
+                <div class="modal-footer wab-modal-footer">
+                    <button type="button" class="wab-btn wab-btn--ghost" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="wab-btn wab-btn--primary">Save Panels</button>
+                </div>
+            </form>
+
+            {{-- Custom Label Creation --}}
+            <div class="wab-label-create-section">
+                <div class="wab-section-label" style="padding:0 20px">Custom Labels</div>
+                <div class="wab-label-create-row-wrap">
+                    <div class="wab-label-color-preview" id="labelColorPreview" style="background:#00a884"></div>
+                    <input type="text" id="newLabelName" class="wab-form-input" placeholder="Label name e.g. Hot Lead" style="flex:1">
+                    <input type="color" id="newLabelColor" class="wab-color-input" value="#00a884" title="Pick color">
+                    <button type="button" class="wab-btn wab-btn--primary" id="createLabelBtn" style="white-space:nowrap">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                        Add
+                    </button>
+                </div>
+                <div id="createLabelMsg" style="padding:0 20px 6px;font-size:12px;display:none"></div>
+                <div class="wab-existing-labels-grid" id="existingLabelsGrid">
+                    @forelse($labels as $label)
+                        <div class="wab-exist-label-pill" data-id="{{ $label->id }}">
+                            <span class="wab-exist-dot" style="background:{{ $label->color }}"></span>
+                            <span class="wab-exist-name">{{ $label->name }}</span>
+                        </div>
+                    @empty
+                        <span class="wab-no-labels-hint" id="noLabelsHint">No custom labels yet. Create one above.</span>
+                    @endforelse
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{-- ══════════════════════════════════════════════════
+     LABEL CHAT MODAL (WhatsApp-style tap-to-toggle)
+══════════════════════════════════════════════════ --}}
+<div class="modal fade" id="waAssignLabelsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content wab-modal-content">
+            <div class="modal-header wab-modal-header">
+                <div class="wab-modal-icon">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/></svg>
+                </div>
+                <h5 class="modal-title wab-modal-title">Label Chat</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body wab-modal-body" style="padding:16px">
+                <div class="wab-label-search-box">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                    <input type="text" id="labelSearchInput" placeholder="Search labels…">
+                </div>
+                <div class="wab-wa-label-list" id="waLabelList">
+                    @forelse($labels as $label)
+                        @php $isActive = in_array($label->id, $selectedContactLabels, true); @endphp
+                        <div class="wab-wa-label-row {{ $isActive ? 'is-selected' : '' }}"
+                             data-label-id="{{ $label->id }}"
+                             data-label-name="{{ $label->name }}"
+                             data-label-color="{{ $label->color }}"
+                             onclick="toggleLabel(this)">
+                            <div class="wab-wa-label-left">
+                                <span class="wab-wa-label-icon" style="background:{{ $label->color }}">{{ strtoupper(substr($label->name,0,1)) }}</span>
+                                <span class="wab-wa-label-name">{{ $label->name }}</span>
+                            </div>
+                            <span class="wab-wa-check" style="border-color:{{ $label->color }}">
+                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="{{ $label->color }}" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+                            </span>
+                        </div>
+                    @empty
+                        <div class="wab-empty-labels" id="noLabelsTxt">No labels yet. Create labels from ⚙️ settings.</div>
+                    @endforelse
+                </div>
+            </div>
+            <div class="modal-footer wab-modal-footer" style="justify-content:space-between">
+                <button type="button" class="wab-btn wab-btn--ghost" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="wab-btn wab-btn--primary" id="saveLabelAssignBtn">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                    Save Labels
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{-- ── RIGHT PROFILE PANEL (WhatsApp-style sliding panel) ── --}}
+<div class="wab-profile-panel" id="wabProfilePanel">
+    <div class="wab-profile-panel-inner">
+        {{-- Header --}}
+        <div class="wab-pp-header">
+            <button class="wab-icon-btn" id="wabCloseProfilePanel" title="Close">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+            <span>Contact Info</span>
+        </div>
+        {{-- Avatar / Name --}}
+        <div class="wab-pp-hero">
+            <div class="wab-pp-avatar" style="background:{{ $selectedColor }}1a;color:{{ $selectedColor }}">{{ strtoupper(substr($selectedName,0,1)) }}</div>
+            <div class="wab-pp-name">{{ $selectedName }}</div>
+            <div class="wab-pp-phone">{{ $selectedPhone ?: 'N/A' }}</div>
+            <div class="wab-pp-biz"><span class="wab-online-dot"></span> Open until 6:00 PM</div>
+        </div>
+        {{-- Actions row --}}
+        <div class="wab-pp-actions">
+            @if($selectedPhone)
+            <button class="wab-pp-action-btn" data-bs-toggle="modal" data-bs-target="#waAssignLabelsModal">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+                Label chat
+            </button>
+            @endif
+        </div>
+        {{-- Labels section --}}
+        <div class="wab-pp-section">
+            <div class="wab-pp-section-title">Labels</div>
+            <div class="wab-pp-label-list">
+                @forelse($activeLabels as $label)
+                    <span class="wab-pp-label-tag" style="background:{{ $label->color }}1a;color:{{ $label->color }};border:1.5px solid {{ $label->color }}50">
+                        <span class="wab-pp-label-dot" style="background:{{ $label->color }}"></span>
+                        {{ $label->name }}
+                    </span>
+                @empty
+                    <span class="wab-pp-no-labels">No labels assigned. Click "Label chat" to add.</span>
+                @endforelse
+            </div>
+        </div>
+        {{-- Stats section --}}
+        <div class="wab-pp-section">
+            <div class="wab-pp-section-title">Overview</div>
+            <div class="wab-pp-stat-row"><span>Phone</span><strong>{{ $selectedPhone ?: 'N/A' }}</strong></div>
+            <div class="wab-pp-stat-row"><span>Total Messages</span><strong>{{ $messages->count() }}</strong></div>
+            <div class="wab-pp-stat-row"><span>Unread</span><strong>{{ $messages->where('direction','inbound')->whereNotIn('status',['read'])->count() }}</strong></div>
+            <div class="wab-pp-stat-row"><span>Source</span><strong>WhatsApp Business</strong></div>
+        </div>
+        {{-- Notes section --}}
+        <div class="wab-pp-section">
+            <div class="wab-pp-section-title">Notes</div>
+            <div class="wab-pp-notes-box">Add notes about your customer…</div>
+        </div>
+    </div>
+</div>
+<div class="wab-pp-overlay" id="wabProfileOverlay"></div>
+
 <style>
 /* ── Google Font ── */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
@@ -858,6 +1143,330 @@
     filter: brightness(1.06);
 }
 
+.wab-settings-trigger { border: 0; cursor: pointer; color: var(--wa-text-muted); }
+.wab-profile-trigger { cursor: pointer; }
+.wab-panel-tabs {
+    display: flex;
+    gap: 6px;
+    padding: 7px 12px;
+    border-bottom: 1px solid var(--wa-border);
+    background: #fff;
+    flex-shrink: 0;
+    overflow-x: auto;
+}
+.wab-panel-chip {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--wa-bg-header);
+    color: var(--wa-text-muted);
+    font-size: 12px;
+    font-weight: 700;
+    text-decoration: none;
+    flex: 0 0 auto;
+}
+.wab-panel-chip:hover,
+.wab-panel-chip.is-active { background: var(--wa-teal); color: #fff; }
+.wab-panel-card {
+    width: min(100%, 920px);
+    align-self: center;
+    background: rgba(255,255,255,.96);
+    border: 1px solid var(--wa-border-dark);
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 4px 18px rgba(17,27,33,.14);
+    margin-bottom: 12px;
+}
+.wab-panel-card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 12px;
+    background: var(--wa-bg-header);
+}
+.wab-panel-card-head strong { display: block; color: var(--wa-text-main); font-size: 13px; }
+.wab-panel-card-head span,
+.wab-panel-card-head a { color: var(--wa-text-muted); font-size: 11px; text-decoration: none; }
+.wab-panel-table-wrap { max-height: 260px; overflow: auto; }
+.wab-panel-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    color: var(--wa-text-main);
+}
+.wab-panel-table th,
+.wab-panel-table td {
+    padding: 9px 10px;
+    border-bottom: 1px solid var(--wa-border);
+    text-align: left;
+    white-space: nowrap;
+}
+.wab-panel-table th {
+    background: #fff;
+    color: var(--wa-text-muted);
+    font-weight: 700;
+    position: sticky;
+    top: 0;
+}
+.wab-settings-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+.wab-setting-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px;
+    background: #fff;
+    border: 1px solid var(--wa-border-dark);
+    border-radius: 10px;
+    cursor: pointer;
+}
+.wab-toggle-option input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+.wab-toggle-switch {
+    width: 40px;
+    height: 22px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    padding: 2px;
+    background: #d1d7db;
+    transition: background .16s ease;
+    flex: 0 0 auto;
+}
+.wab-toggle-switch::after {
+    content: '';
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(17,27,33,.25);
+    transition: transform .16s ease;
+}
+.wab-toggle-option input:checked + .wab-toggle-switch {
+    background: var(--wa-teal);
+}
+.wab-toggle-option input:checked + .wab-toggle-switch::after {
+    transform: translateX(18px);
+}
+.wab-setting-letter {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(37,211,102,.14);
+    color: var(--wa-teal);
+    font-size: 12px;
+    font-weight: 800;
+}
+.wab-setting-option strong { color: var(--wa-text-main); font-size: 13px; }
+.wab-profile-line {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--wa-border);
+    font-size: 13px;
+}
+.wab-profile-line span { color: var(--wa-text-muted); }
+.wab-profile-line strong { color: var(--wa-text-main); text-align: right; }
+.wab-label-btn {
+    height: 36px;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    border: 0;
+    border-radius: 18px;
+    padding: 0 12px;
+    background: rgba(84,101,111,.12);
+    color: var(--wa-text-main);
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+}
+.wab-chat-label-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 4px;
+}
+.wab-chat-label-row span,
+.wab-contact-labels span {
+    display: inline-flex;
+    align-items: center;
+    max-width: 140px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 10.5px;
+    font-weight: 700;
+}
+.wab-label-create-form {
+    padding: 0 20px 18px;
+    background: #fafafa;
+}
+.wab-label-create-title {
+    color: var(--wa-text-muted);
+    font-size: 12px;
+    font-weight: 800;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+}
+.wab-label-create-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.wab-existing-labels {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+}
+.wab-existing-labels span {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid;
+    border-radius: 999px;
+    padding: 5px 9px;
+    font-size: 12px;
+    font-weight: 800;
+}
+.wab-existing-labels i {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    display: inline-block;
+}
+.wab-existing-labels em {
+    color: var(--wa-text-sub);
+    font-size: 12px;
+    font-style: normal;
+}
+.wab-color-input {
+    width: 44px;
+    height: 42px;
+    border: 1px solid var(--wa-border-dark);
+    border-radius: 8px;
+    background: #fff;
+    padding: 4px;
+}
+.wab-label-list {
+    display: grid;
+    gap: 8px;
+}
+.wab-label-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px;
+    border: 1px solid var(--wa-border-dark);
+    border-radius: 10px;
+    background: #fff;
+    cursor: pointer;
+}
+.wab-label-option span {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+}
+.wab-label-option strong {
+    color: var(--wa-text-main);
+    font-size: 13px;
+}
+.wab-empty-labels {
+    color: var(--wa-text-muted);
+    font-size: 13px;
+    text-align: center;
+    padding: 20px;
+}
+.wab-contact-info-body {
+    text-align: center;
+}
+.wab-profile-photo {
+    width: 132px;
+    height: 132px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 48px;
+    font-weight: 800;
+    margin: 10px auto 18px;
+}
+.wab-contact-title {
+    color: var(--wa-text-main);
+    font-size: 22px;
+    font-weight: 800;
+}
+.wab-contact-sub {
+    color: var(--wa-text-muted);
+    font-size: 14px;
+    margin-top: 4px;
+}
+.wab-contact-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    color: #00a884;
+    font-size: 13px;
+    font-weight: 700;
+    margin: 12px 0;
+}
+.wab-contact-status span {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #25d366;
+}
+.wab-contact-label-action {
+    height: 38px;
+    border: 0;
+    border-radius: 20px;
+    padding: 0 18px;
+    background: rgba(84,101,111,.12);
+    color: var(--wa-text-main);
+    font-size: 13px;
+    font-weight: 800;
+    cursor: pointer;
+    margin-bottom: 12px;
+}
+.wab-contact-labels {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    min-height: 24px;
+    margin-bottom: 14px;
+}
+.wab-contact-labels em {
+    color: var(--wa-text-sub);
+    font-size: 12px;
+    font-style: normal;
+}
+.wab-notes-box {
+    margin-top: 14px;
+    padding: 14px;
+    text-align: left;
+    border: 1px dashed var(--wa-border-dark);
+    border-radius: 10px;
+    color: var(--wa-text-sub);
+    background: #fff;
+    font-size: 13px;
+}
+
 /* ════════════════════════════════════════
    RESPONSIVE
 ════════════════════════════════════════ */
@@ -884,6 +1493,523 @@
     .wab-mobile-back  { display: inline-flex; }
     .wab-msg-row      { max-width: 85%; }
 }
+
+/* ════════════════════════════════════════
+   LABEL DOTS IN CONTACT LIST
+════════════════════════════════════════ */
+.wab-contact-row-right {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    flex-shrink: 0;
+}
+.wab-contact-label-dots {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+}
+.wab-label-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+    box-shadow: 0 0 0 1.5px rgba(0,0,0,0.08);
+}
+.wab-contact-label-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px;
+    margin-top: 3px;
+}
+.wab-contact-tag-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 1px 6px;
+    border-radius: 999px;
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: .2px;
+    max-width: 90px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* ════════════════════════════════════════
+   PROFILE RIGHT PANEL
+════════════════════════════════════════ */
+.wab-profile-panel {
+    position: fixed;
+    top: 0;
+    right: -360px;
+    width: 360px;
+    height: 100vh;
+    background: #fff;
+    box-shadow: -4px 0 28px rgba(17,27,33,.18);
+    z-index: 9999;
+    transition: right .28s cubic-bezier(.4,0,.2,1);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+.wab-profile-panel.is-open { right: 0; }
+.wab-profile-panel-inner {
+    flex: 1;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: #d1d7db transparent;
+}
+.wab-profile-panel-inner::-webkit-scrollbar { width: 4px; }
+.wab-profile-panel-inner::-webkit-scrollbar-thumb { background: #d1d7db; border-radius: 10px; }
+.wab-pp-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(17,27,33,.25);
+    z-index: 9998;
+    display: none;
+    animation: overlay-in .2s ease;
+}
+.wab-pp-overlay.is-visible { display: block; }
+@keyframes overlay-in { from { opacity:0; } to { opacity:1; } }
+
+/* Panel Header */
+.wab-pp-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 16px;
+    height: 60px;
+    background: linear-gradient(135deg, #128c7e, #25d366);
+    color: #fff;
+    font-size: 16px;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+.wab-pp-header .wab-icon-btn { color: #fff; }
+.wab-pp-header .wab-icon-btn:hover { background: rgba(255,255,255,.2); color: #fff; }
+
+/* Hero section */
+.wab-pp-hero {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 28px 20px 20px;
+    background: linear-gradient(180deg, #f0f2f5 0%, #fff 100%);
+    text-align: center;
+    border-bottom: 1px solid var(--wa-border);
+}
+.wab-pp-avatar {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 46px;
+    font-weight: 800;
+    margin-bottom: 14px;
+    box-shadow: 0 4px 20px rgba(17,27,33,.14);
+}
+.wab-pp-name {
+    font-size: 20px;
+    font-weight: 800;
+    color: var(--wa-text-main);
+    margin-bottom: 4px;
+}
+.wab-pp-phone {
+    font-size: 14px;
+    color: var(--wa-text-muted);
+    margin-bottom: 8px;
+}
+.wab-pp-biz {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #00a884;
+}
+
+/* Actions */
+.wab-pp-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--wa-border);
+}
+.wab-pp-action-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 36px;
+    padding: 0 16px;
+    border: 0;
+    border-radius: 20px;
+    background: rgba(37,211,102,.12);
+    color: var(--wa-green-dark);
+    font-size: 13px;
+    font-weight: 700;
+    font-family: var(--wa-font);
+    cursor: pointer;
+    transition: background .15s, transform .12s;
+}
+.wab-pp-action-btn:hover { background: rgba(37,211,102,.22); transform: scale(1.04); }
+.wab-pp-action-btn svg { stroke: var(--wa-green-dark); }
+
+/* Sections */
+.wab-pp-section {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--wa-border);
+}
+.wab-pp-section-title {
+    font-size: 11px;
+    font-weight: 800;
+    color: var(--wa-text-muted);
+    text-transform: uppercase;
+    letter-spacing: .8px;
+    margin-bottom: 12px;
+}
+.wab-pp-label-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+}
+.wab-pp-label-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+}
+.wab-pp-label-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.wab-pp-no-labels {
+    font-size: 12px;
+    color: var(--wa-text-sub);
+    font-style: italic;
+}
+.wab-pp-stat-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 9px 0;
+    border-bottom: 1px solid var(--wa-border);
+    font-size: 13px;
+}
+.wab-pp-stat-row:last-child { border-bottom: none; }
+.wab-pp-stat-row span { color: var(--wa-text-muted); }
+.wab-pp-stat-row strong { color: var(--wa-text-main); }
+.wab-pp-notes-box {
+    padding: 14px;
+    border: 1.5px dashed var(--wa-border-dark);
+    border-radius: 10px;
+    color: var(--wa-text-sub);
+    background: #fafafa;
+    font-size: 13px;
+    cursor: text;
+    transition: border-color .15s;
+}
+.wab-pp-notes-box:hover { border-color: var(--wa-green); }
+
+/* ════════════════════════════════════════
+   TABLE IMPROVEMENTS
+════════════════════════════════════════ */
+.wab-panel-card-badge {
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    background: var(--wa-teal);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 800;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+.wab-panel-close-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 10px;
+    border-radius: 6px;
+    background: rgba(84,101,111,.1);
+    color: var(--wa-text-muted);
+    font-size: 12px;
+    font-weight: 600;
+    text-decoration: none;
+    transition: background .15s, color .15s;
+}
+.wab-panel-close-btn:hover { background: rgba(239,83,80,.12); color: #ef5350; }
+.wab-panel-close-btn svg { stroke: currentColor; }
+.wab-table-num {
+    color: var(--wa-text-sub);
+    font-size: 11px;
+    font-weight: 600;
+    text-align: center;
+}
+.wab-status-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 10.5px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+.wab-status-pill--success { background: rgba(37,211,102,.12); color: #128c7e; }
+.wab-status-pill--danger  { background: rgba(239,83,80,.12);  color: #c62828; }
+.wab-status-pill--warning { background: rgba(255,167,38,.15); color: #e65100; }
+.wab-status-pill--neutral { background: rgba(84,101,111,.1);  color: #54656f; }
+.wab-panel-table tr:hover td { background: #f5f6f6; }
+
+/* ════════════════════════════════════════
+   iOS-STYLE TOGGLE SWITCH (Panel Settings)
+════════════════════════════════════════ */
+.wab-section-label {
+    font-size: 11px;
+    font-weight: 800;
+    color: var(--wa-text-muted);
+    text-transform: uppercase;
+    letter-spacing: .8px;
+    margin-bottom: 10px;
+    padding: 0 4px;
+}
+.wab-toggle-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.wab-toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px;
+    background: #fff;
+    border: 1px solid var(--wa-border);
+    border-radius: 12px;
+    cursor: pointer;
+    transition: background .12s;
+    gap: 10px;
+    margin: 0;
+}
+.wab-toggle-row:hover { background: #f8f9fa; }
+.wab-toggle-row-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.wab-panel-short-badge {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #128c7e, #25d366);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 800;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+.wab-toggle-row-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--wa-text-main);
+}
+/* iOS Toggle */
+.wab-ios-toggle {
+    position: relative;
+    width: 46px;
+    height: 26px;
+    flex-shrink: 0;
+}
+.wab-ios-toggle input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+    position: absolute;
+}
+.wab-ios-slider {
+    position: absolute;
+    inset: 0;
+    border-radius: 26px;
+    background: #ccc;
+    transition: background .2s;
+    cursor: pointer;
+}
+.wab-ios-slider::before {
+    content: '';
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #fff;
+    top: 3px;
+    left: 3px;
+    transition: transform .2s;
+    box-shadow: 0 2px 6px rgba(0,0,0,.25);
+}
+.wab-ios-toggle input:checked + .wab-ios-slider { background: #25d366; }
+.wab-ios-toggle input:checked + .wab-ios-slider::before { transform: translateX(20px); }
+
+/* ════════════════════════════════════════
+   LABEL CREATE SECTION (In Settings Modal)
+════════════════════════════════════════ */
+.wab-label-create-section {
+    padding: 16px 0 18px;
+    border-top: 1px solid var(--wa-border);
+    background: #fafafa;
+    border-radius: 0 0 16px 16px;
+}
+.wab-label-create-row-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 20px 8px;
+}
+.wab-label-color-preview {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    border: 2px solid rgba(0,0,0,.1);
+    transition: background .15s;
+}
+.wab-existing-labels-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 6px 20px 4px;
+    min-height: 30px;
+}
+.wab-exist-label-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: #fff;
+    border: 1px solid var(--wa-border-dark);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--wa-text-main);
+    cursor: default;
+    transition: box-shadow .12s;
+}
+.wab-exist-label-pill:hover { box-shadow: 0 2px 8px rgba(17,27,33,.12); }
+.wab-exist-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.wab-no-labels-hint {
+    font-size: 12px;
+    color: var(--wa-text-sub);
+    font-style: italic;
+    padding: 4px 0;
+}
+
+/* ════════════════════════════════════════
+   WHATSAPP-STYLE LABEL ASSIGN MODAL
+════════════════════════════════════════ */
+.wab-label-search-box {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--wa-bg-header);
+    border-radius: 10px;
+    padding: 9px 12px;
+    margin-bottom: 12px;
+}
+.wab-label-search-box svg { flex-shrink: 0; color: var(--wa-text-sub); }
+.wab-label-search-box input {
+    border: 0;
+    background: transparent;
+    outline: 0;
+    font-size: 13px;
+    color: var(--wa-text-main);
+    font-family: var(--wa-font);
+    width: 100%;
+}
+.wab-label-search-box input::placeholder { color: var(--wa-text-sub); }
+
+.wab-wa-label-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-height: 320px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: #d1d7db transparent;
+}
+.wab-wa-label-list::-webkit-scrollbar { width: 4px; }
+.wab-wa-label-list::-webkit-scrollbar-thumb { background: #d1d7db; border-radius: 10px; }
+
+.wab-wa-label-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: background .12s, transform .1s;
+    border: 1.5px solid transparent;
+    gap: 10px;
+    user-select: none;
+}
+.wab-wa-label-row:hover { background: #f0f2f5; }
+.wab-wa-label-row.is-selected {
+    background: rgba(37,211,102,.07);
+    border-color: rgba(37,211,102,.25);
+}
+.wab-wa-label-row:active { transform: scale(.98); }
+.wab-wa-label-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+.wab-wa-label-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 15px;
+    font-weight: 800;
+    flex-shrink: 0;
+}
+.wab-wa-label-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--wa-text-main);
+}
+.wab-wa-check {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: 2px solid #ccc;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: background .15s, border-color .15s, transform .15s;
+    background: transparent;
+}
+.wab-wa-label-row.is-selected .wab-wa-check {
+    transform: scale(1.1);
+}
+.wab-wa-label-row:not(.is-selected) .wab-wa-check svg { display: none; }
 </style>
 
 {{-- ══════════════════════════════════════════════════
@@ -997,12 +2123,47 @@
         }, 2800);
     }
 
-    sendBtn?.addEventListener('click', sendMessage);
+    sendBtn?.addEventListener('click', e => { if (!input?.value.trim()) e.preventDefault(); });
     input?.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendForm?.requestSubmit(); } });
 
     /* ── Auto scroll on load ── */
     if (body) body.scrollTop = body.scrollHeight;
 
+})();
+</script>
+
+<script>
+/* ── Profile Panel (WhatsApp Contact Info Slide-in) ── */
+(function () {
+    const panel     = document.getElementById('wabProfilePanel');
+    const overlay   = document.getElementById('wabProfileOverlay');
+    const openBtns  = [
+        document.getElementById('wabOpenProfilePanel'),
+        document.getElementById('wabOpenProfilePanelText'),
+        document.getElementById('wabOpenProfileBtn2'),
+    ];
+    const closeBtn  = document.getElementById('wabCloseProfilePanel');
+
+    function openPanel() {
+        if (!panel) return;
+        panel.classList.add('is-open');
+        if (overlay) overlay.classList.add('is-visible');
+    }
+
+    function closePanel() {
+        if (!panel) return;
+        panel.classList.remove('is-open');
+        if (overlay) overlay.classList.remove('is-visible');
+    }
+
+    openBtns.forEach(btn => btn?.addEventListener('click', openPanel));
+    closeBtn?.addEventListener('click', closePanel);
+    overlay?.addEventListener('click', closePanel);
+
+    /* Close panel on Escape key */
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') closePanel();
+    });
 })();
 </script>
 

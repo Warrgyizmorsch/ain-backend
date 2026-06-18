@@ -3,6 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Models\Order;
+use App\Models\WhatsappChatContactLabel;
+use App\Models\WhatsappChatLabel;
+use App\Models\WhatsappChatPanelSetting;
 use App\Models\WhatsappMessage;
 use App\Models\WhatsappSetting;
 use Illuminate\Http\RedirectResponse;
@@ -11,6 +15,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
 
 class WhatsappController extends Controller
@@ -63,6 +68,23 @@ class WhatsappController extends Controller
         $contacts = $this->getContacts($request->query('phone'));
         $selectedContact = collect($contacts)->firstWhere('active', true) ?? collect($contacts)->first();
         $selectedPhone = $selectedContact['phone'] ?? null;
+        $panelDefinitions = $this->chatPanelDefinitions();
+        $enabledPanelKeys = $this->enabledPanelKeys(Auth::id(), array_keys($panelDefinitions));
+        $selectedPanel = $request->query('panel');
+        $selectedPanel = in_array($selectedPanel, $enabledPanelKeys, true) ? $selectedPanel : null;
+        $panelRows = $selectedPanel ? $this->panelRows($selectedPanel) : collect();
+        $labels = WhatsappChatLabel::query()->orderBy('name')->get();
+        $selectedContactLabels = $selectedPhone
+            ? WhatsappChatContactLabel::query()->where('phone', $selectedPhone)->pluck('label_id')->all()
+            : [];
+
+        // Load all contact-label assignments for sidebar display
+        $allPhones = collect($contacts)->pluck('phone')->filter()->values()->all();
+        $allContactLabelMap = WhatsappChatContactLabel::query()
+            ->whereIn('phone', $allPhones)
+            ->get()
+            ->groupBy('phone')
+            ->map(fn($rows) => $rows->pluck('label_id')->all());
 
         $messages = $selectedPhone
             ? WhatsappMessage::query()
@@ -77,7 +99,82 @@ class WhatsappController extends Controller
             'selectedContact' => $selectedContact,
             'selectedPhone' => $selectedPhone,
             'messages' => $messages,
+            'panelDefinitions' => $panelDefinitions,
+            'enabledPanelKeys' => $enabledPanelKeys,
+            'selectedPanel' => $selectedPanel,
+            'panelRows' => $panelRows,
+            'labels' => $labels,
+            'selectedContactLabels' => $selectedContactLabels,
+            'allContactLabelMap' => $allContactLabelMap,
         ]);
+    }
+
+    public function saveChatPanelSettings(Request $request): RedirectResponse
+    {
+        $definitions = $this->chatPanelDefinitions();
+        $enabled = collect($request->input('panels', []))
+            ->filter()
+            ->keys()
+            ->intersect(array_keys($definitions))
+            ->values()
+            ->all();
+
+        foreach ($definitions as $key => $definition) {
+            WhatsappChatPanelSetting::query()->updateOrCreate(
+                ['user_id' => Auth::id(), 'panel_key' => $key],
+                ['is_enabled' => in_array($key, $enabled, true)]
+            );
+        }
+
+        return back()->with('success', 'WhatsApp chat settings saved.');
+    }
+
+    public function storeChatLabel(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:100'],
+            'color' => ['required', 'string', 'max:20'],
+        ]);
+
+        WhatsappChatLabel::query()->firstOrCreate(
+            ['name' => trim($validated['name'])],
+            [
+                'color' => $validated['color'],
+                'created_by' => Auth::id(),
+            ]
+        );
+
+        return redirect()
+            ->route('whatsapp.chat', array_filter(['phone' => $request->input('phone')]))
+            ->with('success', 'WhatsApp label created.');
+    }
+
+    public function saveContactLabels(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'phone' => ['required', 'string', 'max:30'],
+            'labels' => ['nullable', 'array'],
+        ]);
+
+        $phone = $validated['phone'];
+        $labelIds = collect($request->input('labels', []))
+            ->filter()
+            ->keys()
+            ->map(fn ($id) => (int) $id)
+            ->values()
+            ->all();
+
+        WhatsappChatContactLabel::query()->where('phone', $phone)->delete();
+
+        foreach ($labelIds as $labelId) {
+            WhatsappChatContactLabel::query()->create([
+                'phone' => $phone,
+                'label_id' => $labelId,
+                'assigned_by' => Auth::id(),
+            ]);
+        }
+
+        return redirect()->route('whatsapp.chat', ['phone' => $phone])->with('success', 'Chat labels saved.');
     }
 
     public function startChat(Request $request): RedirectResponse
@@ -230,5 +327,64 @@ class WhatsappController extends Controller
     private function avatarColor(int $index): string
     {
         return ['#25d366', '#00bcd4', '#ff7043', '#ab47bc', '#ffa726', '#ef5350'][$index % 6];
+    }
+
+    private function chatPanelDefinitions(): array
+    {
+        return [
+            'team' => ['label' => 'Alpha / Giga', 'short' => 'AG'],
+            'failed' => ['label' => 'Failed', 'short' => 'F'],
+            'ticket' => ['label' => 'Ticket', 'short' => 'T'],
+            'order' => ['label' => 'Order', 'short' => 'O'],
+            'working' => ['label' => 'Working', 'short' => 'W'],
+        ];
+    }
+
+    private function enabledPanelKeys(?int $userId, array $defaultKeys): array
+    {
+        if (! $userId) {
+            return $defaultKeys;
+        }
+
+        $saved = WhatsappChatPanelSetting::query()
+            ->where('user_id', $userId)
+            ->get();
+
+        if ($saved->isEmpty()) {
+            return $defaultKeys;
+        }
+
+        $enabled = $saved->where('is_enabled', true)->pluck('panel_key')->values();
+
+        if ($enabled->contains('alpha') || $enabled->contains('giga')) {
+            $enabled = $enabled->reject(fn ($key) => in_array($key, ['alpha', 'giga'], true))->push('team');
+        }
+
+        return $enabled->unique()->values()->all();
+    }
+
+    private function panelRows(string $panelKey)
+    {
+        $query = Order::query()
+            ->select('id', 'order_id', 'title', 'order_date', 'delivery_date', 'projectstatus', 'feedback_ticket', 'team_id')
+            ->orderByDesc('id')
+            ->limit(30);
+
+        if ($panelKey === 'team') {
+            $query->whereIn('team_id', [1, 2]);
+        } elseif ($panelKey === 'failed') {
+            $query->where(function ($q) {
+                $q->where('projectstatus', 'Failed');
+                if (Schema::hasColumn('orders', 'is_fail')) {
+                    $q->orWhere('is_fail', 1);
+                }
+            });
+        } elseif ($panelKey === 'ticket') {
+            $query->whereNotNull('feedback_ticket')->where('feedback_ticket', '!=', '');
+        } elseif ($panelKey === 'working') {
+            $query->whereNotIn('projectstatus', ['Completed', 'Delivered', 'Cancelled', 'Feedback', 'Feedback Delivered']);
+        }
+
+        return $query->get();
     }
 }
