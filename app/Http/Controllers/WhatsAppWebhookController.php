@@ -43,7 +43,14 @@ public function receive(Request $request)
         $waMessageId = $request->input('MessageSid') ?? $request->input('SmsMessageSid');
         $status = strtolower($request->input('MessageStatus') ?? $request->input('SmsStatus'));
 
-        WhatsappMessage::where('wa_message_id', $waMessageId)->update(['status' => $status]);
+        $message = WhatsappMessage::where('wa_message_id', $waMessageId)->first();
+
+        if ($message) {
+            $message->status = $status;
+            $message->save();
+
+            event(new MessageStatusUpdated($message));
+        }
 
         return response()->json(['status' => 'updated'], 200);
     }

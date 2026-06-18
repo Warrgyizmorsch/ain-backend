@@ -244,8 +244,19 @@
                         <div class="wab-msg-meta">
                             <span class="wab-msg-time">{{ optional($message->created_at)->format('H:i') }}</span>
                             @if($message->direction === 'outbound')
-                                <span class="wab-tick wab-tick--{{ $message->status === 'read' ? 'read' : 'sent' }}">
-                                    <svg width="14" height="10" viewBox="0 0 18 12" fill="none"><path d="M1 6l4 4L17 1" stroke="{{ $message->status === 'read' ? '#53bdeb' : '#8696a0' }}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                @php
+                                    $waStatus = strtolower($message->status ?? 'sent');
+                                    $tickStatus = in_array($waStatus, ['read', 'delivered', 'failed', 'undelivered'], true) ? $waStatus : 'sent';
+                                    $tickColor = $tickStatus === 'read' ? '#53bdeb' : (in_array($tickStatus, ['failed', 'undelivered'], true) ? '#d93025' : '#8696a0');
+                                @endphp
+                                <span class="wab-tick wab-tick--{{ $tickStatus }}" data-status="{{ $tickStatus }}" title="{{ ucfirst($tickStatus) }}">
+                                    @if(in_array($tickStatus, ['failed', 'undelivered'], true))
+                                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5.8" stroke="{{ $tickColor }}" stroke-width="1.6"/><path d="M7 3.8v3.7" stroke="{{ $tickColor }}" stroke-width="1.8" stroke-linecap="round"/><circle cx="7" cy="10" r="1" fill="{{ $tickColor }}"/></svg>
+                                    @elseif(in_array($tickStatus, ['delivered', 'read'], true))
+                                        <svg width="18" height="12" viewBox="0 0 20 12" fill="none"><path d="M1 6.5l3.2 3.2L11.8 2" stroke="{{ $tickColor }}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 9.7L17 1" stroke="{{ $tickColor }}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                    @else
+                                        <svg width="14" height="10" viewBox="0 0 18 12" fill="none"><path d="M1 6l4 4L17 1" stroke="{{ $tickColor }}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                    @endif
                                 </span>
                             @endif
                         </div>
@@ -2081,11 +2092,52 @@
         }[char]));
     }
 
+    function normalizeMessageStatus(status) {
+        const value = String(status || 'sent').toLowerCase();
+
+        if (['read', 'delivered', 'failed', 'undelivered'].includes(value)) {
+            return value;
+        }
+
+        return 'sent';
+    }
+
     function tickMarkup(status) {
-        const read = status === 'read';
-        return `<span class="wab-tick wab-tick--${read ? 'read' : 'sent'}">
-            <svg width="14" height="10" viewBox="0 0 18 12" fill="none"><path d="M1 6l4 4L17 1" stroke="${read ? '#53bdeb' : '#8696a0'}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        const normalized = normalizeMessageStatus(status);
+        const color = normalized === 'read'
+            ? '#53bdeb'
+            : (['failed', 'undelivered'].includes(normalized) ? '#d93025' : '#8696a0');
+        const label = normalized.charAt(0).toUpperCase() + normalized.slice(1);
+
+        if (['failed', 'undelivered'].includes(normalized)) {
+            return `<span class="wab-tick wab-tick--${normalized}" data-status="${normalized}" title="${label}">
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5.8" stroke="${color}" stroke-width="1.6"/><path d="M7 3.8v3.7" stroke="${color}" stroke-width="1.8" stroke-linecap="round"/><circle cx="7" cy="10" r="1" fill="${color}"/></svg>
+            </span>`;
+        }
+
+        if (['delivered', 'read'].includes(normalized)) {
+            return `<span class="wab-tick wab-tick--${normalized}" data-status="${normalized}" title="${label}">
+                <svg width="18" height="12" viewBox="0 0 20 12" fill="none"><path d="M1 6.5l3.2 3.2L11.8 2" stroke="${color}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 9.7L17 1" stroke="${color}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </span>`;
+        }
+
+        return `<span class="wab-tick wab-tick--sent" data-status="sent" title="Sent">
+            <svg width="14" height="10" viewBox="0 0 18 12" fill="none"><path d="M1 6l4 4L17 1" stroke="${color}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </span>`;
+    }
+
+    function updateMessageStatus(statusUpdate) {
+        if (!statusUpdate?.id) return;
+
+        const row = document.querySelector(`[data-message-id="${statusUpdate.id}"]`);
+        const currentTick = row?.querySelector('.wab-tick');
+
+        if (!row || !currentTick) return;
+
+        const normalized = normalizeMessageStatus(statusUpdate.status);
+        if (currentTick.dataset.status === normalized) return;
+
+        currentTick.outerHTML = tickMarkup(normalized);
     }
 
     function renderMessage(message) {
@@ -2238,6 +2290,7 @@
 
             const data = await response.json();
             (data.messages || []).forEach(renderMessage);
+            (data.statuses || []).forEach(updateMessageStatus);
             updateContacts(data.contacts);
             setRemoteTyping(Boolean(data.typing));
         } catch (error) {

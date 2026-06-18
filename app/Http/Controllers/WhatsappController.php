@@ -140,6 +140,7 @@ class WhatsappController extends Controller
 
         return response()->json([
             'messages' => $messages->map(fn (WhatsappMessage $message) => $this->messagePayload($message))->values(),
+            'statuses' => $this->recentOutboundStatuses($phone),
             'contacts' => $this->getContacts($phone),
             'typing' => Cache::has($this->typingCacheKey($phone)),
         ]);
@@ -344,6 +345,22 @@ class WhatsappController extends Controller
         ];
     }
 
+    private function recentOutboundStatuses(string $phone): array
+    {
+        return WhatsappMessage::query()
+            ->where('phone', $phone)
+            ->where('direction', 'outbound')
+            ->latest('id')
+            ->limit(100)
+            ->get(['id', 'status'])
+            ->map(fn (WhatsappMessage $message) => [
+                'id' => $message->id,
+                'status' => $message->status,
+            ])
+            ->values()
+            ->all();
+    }
+
     private function typingCacheKey(string $phone): string
     {
         return 'whatsapp_typing:' . preg_replace('/[^0-9+]/', '', $phone);
@@ -384,6 +401,7 @@ class WhatsappController extends Controller
                     'From' => str_starts_with($from, 'whatsapp:') ? $from : 'whatsapp:' . $from,
                     'To' => str_starts_with($message->phone, 'whatsapp:') ? $message->phone : 'whatsapp:' . $message->phone,
                     'Body' => $message->message,
+                    'StatusCallback' => url('/api/webhooks/whatsapp'),
                 ]);
 
             if ($response->successful()) {
