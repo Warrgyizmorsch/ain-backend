@@ -53,7 +53,6 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/chat/panel-settings', [WhatsappController::class, 'saveChatPanelSettings'])->name('chat.panel-settings');
         Route::post('/chat/labels', [WhatsappController::class, 'storeChatLabel'])->name('chat.labels.store');
         Route::post('/chat/contact-labels', [WhatsappController::class, 'saveContactLabels'])->name('chat.contact-labels.save');
-        Route::get('/chat/ticket-orders', [WhatsappController::class, 'ticketOrders'])->name('chat.ticket-orders');
     });
 
     Route::prefix('career')->group(function () {
