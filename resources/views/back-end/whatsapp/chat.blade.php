@@ -29,8 +29,7 @@
     $mediaDisplayType = function (?string $type, ?string $name = null, ?string $url = null) {
         $extension = strtolower(pathinfo((string) ($name ?: $url), PATHINFO_EXTENSION));
 
-        if (in_array($extension, ['webm', 'm4a', 'mp4', 'ogg', 'opus'], true)
-            && \Illuminate\Support\Str::startsWith(strtolower((string) $name), 'voice-note-')) {
+        if ($extension === 'webm' && \Illuminate\Support\Str::startsWith(strtolower((string) $name), 'voice-note-')) {
             return 'audio';
         }
 
@@ -3665,6 +3664,7 @@
             audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
             const recorderOptions = [
                 { mimeType: 'audio/ogg;codecs=opus', extension: 'ogg' },
+                { mimeType: 'audio/mp4', extension: 'm4a' },
                 { mimeType: 'audio/webm;codecs=opus', extension: 'webm' },
                 { mimeType: 'audio/webm', extension: 'webm' },
             ].find(option => MediaRecorder.isTypeSupported(option.mimeType)) || { mimeType: '', extension: 'webm' };
