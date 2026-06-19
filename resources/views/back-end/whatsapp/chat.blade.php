@@ -293,20 +293,8 @@
                                 $messageMediaUrl = $mediaDisplayUrl($message->media_url);
                             @endphp
                             @if($message->media_type === 'image')
-                                @php
-                                    $ext = strtolower(pathinfo($message->media_name ?? $message->media_url, PATHINFO_EXTENSION)) ?: 'img';
-                                    $docColor = '#06b6d4';
-                                @endphp
-                                <a href="{{ $messageMediaUrl }}" target="_blank" class="wab-media-doc-card" download="{{ $message->media_name }}">
-                                    <div class="wab-media-doc-icon">
-                                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="{{ $docColor }}" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
-                                        <span class="wab-doc-ext" style="color:{{ $docColor }}">{{ strtoupper($ext) }}</span>
-                                    </div>
-                                    <div class="wab-media-doc-info">
-                                        <span class="wab-media-doc-name">{{ \Illuminate\Support\Str::limit($message->media_name ?? 'Image', 30) }}</span>
-                                        <span class="wab-media-doc-size">{{ $message->media_size ? number_format($message->media_size / 1024, 0) . ' KB' : 'Image' }}</span>
-                                    </div>
-                                    <svg class="wab-doc-dl" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8696a0" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                                <a href="{{ $messageMediaUrl }}" target="_blank" class="wab-media-img-link" download="{{ $message->media_name }}">
+                                    <img src="{{ $messageMediaUrl }}" class="wab-media-img" alt="{{ $message->media_name }}" loading="lazy">
                                 </a>
                             @elseif($message->media_type === 'video')
                                 <video class="wab-media-video" controls preload="metadata">
@@ -3135,20 +3123,7 @@
         let mediaMarkup = '';
 
         if (type === 'image') {
-            const imageColor = '#06b6d4';
-            mediaMarkup = `
-                <a href="${url}" target="_blank" class="wab-media-doc-card" download="${name}">
-                    <div class="wab-media-doc-icon">
-                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="${imageColor}" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
-                        <span class="wab-doc-ext" style="color:${imageColor}">${escapeHtml((ext || 'img').toUpperCase())}</span>
-                    </div>
-                    <div class="wab-media-doc-info">
-                        <span class="wab-media-doc-name">${name}</span>
-                        <span class="wab-media-doc-size">${escapeHtml(formatBytes(message.media_size) || 'Image')}</span>
-                    </div>
-                    <svg class="wab-doc-dl" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8696a0" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                </a>
-            `;
+            mediaMarkup = `<a href="${url}" target="_blank" class="wab-media-img-link" download="${name}"><img src="${url}" class="wab-media-img" alt="${name}" loading="lazy"></a>`;
         } else if (type === 'video') {
             mediaMarkup = `<video class="wab-media-video" controls preload="metadata"><source src="${url}"></video>`;
         } else if (type === 'audio') {
