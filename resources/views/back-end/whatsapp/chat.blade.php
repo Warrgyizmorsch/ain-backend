@@ -17,6 +17,15 @@
     $activeLabels = $labels->whereIn('id', $selectedContactLabels);
     $allContactLabelMap = $allContactLabelMap ?? collect();
     $labelsById = $labels->keyBy('id');
+    $mediaDisplayUrl = function (?string $url) {
+        if (! $url) {
+            return null;
+        }
+
+        return \Illuminate\Support\Str::startsWith($url, ['http://', 'https://'])
+            ? $url
+            : url(ltrim($url, '/'));
+    };
 @endphp
 
 {{-- ======================================================
@@ -280,17 +289,18 @@
                 <div class="wab-msg-row {{ $message->direction === 'inbound' ? 'wab-incoming' : 'wab-outgoing' }}" data-message-id="{{ $message->id }}">
                     <div class="wab-msg-bubble {{ $message->media_type ? 'wab-bubble--media wab-bubble--' . $message->media_type : '' }}">
                         @if($message->media_url)
+                            @php($messageMediaUrl = $mediaDisplayUrl($message->media_url))
                             @if($message->media_type === 'image')
-                                <a href="{{ $message->media_url }}" target="_blank" class="wab-media-img-link">
-                                    <img src="{{ $message->media_url }}" class="wab-media-img" alt="{{ $message->media_name }}" loading="lazy">
+                                <a href="{{ $messageMediaUrl }}" target="_blank" class="wab-media-img-link">
+                                    <img src="{{ $messageMediaUrl }}" class="wab-media-img" alt="{{ $message->media_name }}" loading="lazy">
                                 </a>
                             @elseif($message->media_type === 'video')
                                 <video class="wab-media-video" controls preload="metadata">
-                                    <source src="{{ $message->media_url }}">
+                                    <source src="{{ $messageMediaUrl }}">
                                 </video>
                             @elseif($message->media_type === 'audio')
                                 <div class="wab-media-audio-wrap">
-                                    <audio controls class="wab-media-audio"><source src="{{ $message->media_url }}"></audio>
+                                    <audio controls class="wab-media-audio"><source src="{{ $messageMediaUrl }}"></audio>
                                 </div>
                             @else
                                 @php
@@ -301,7 +311,7 @@
                                         'zip','rar' => '#7c3aed', default => '#64748b',
                                     };
                                 @endphp
-                                <a href="{{ $message->media_url }}" target="_blank" class="wab-media-doc-card" download="{{ $message->media_name }}">
+                                <a href="{{ $messageMediaUrl }}" target="_blank" class="wab-media-doc-card" download="{{ $message->media_name }}">
                                     <div class="wab-media-doc-icon">
                                         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="{{ $docColor }}" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
                                         <span class="wab-doc-ext" style="color:{{ $docColor }}">{{ strtoupper($ext) }}</span>

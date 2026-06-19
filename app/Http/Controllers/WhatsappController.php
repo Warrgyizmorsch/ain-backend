@@ -393,7 +393,7 @@ class WhatsappController extends Controller
             'status'     => $message->status,
             'time'       => optional($message->created_at)->format('H:i'),
             'created_at' => optional($message->created_at)->toDateTimeString(),
-            'media_url'  => $message->media_url,
+            'media_url'  => $this->mediaDisplayUrl($message->media_url),
             'media_type' => $message->media_type,
             'media_name' => $message->media_name,
             'media_size' => $message->media_size,
@@ -711,6 +711,19 @@ class WhatsappController extends Controller
         $publicBaseUrl = $this->providerPublicBaseUrl($config) ?: rtrim(url('/'), '/');
 
         return $publicBaseUrl . '/' . ltrim($mediaUrl, '/');
+    }
+
+    private function mediaDisplayUrl(?string $mediaUrl): ?string
+    {
+        if (! $mediaUrl) {
+            return null;
+        }
+
+        if (str_starts_with($mediaUrl, 'http://') || str_starts_with($mediaUrl, 'https://')) {
+            return $mediaUrl;
+        }
+
+        return url(ltrim($mediaUrl, '/'));
     }
 
     private function providerWebhookUrl(array $config = []): ?string
