@@ -18,7 +18,6 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
 
 class WhatsappController extends Controller
@@ -613,52 +612,93 @@ class WhatsappController extends Controller
     {
         $validated = $request->validate([
             'phone' => ['required', 'string', 'max:30'],
-            'file'  => [
-                'required',
-                'file',
-                'max:51200', // 50 MB
-                'mimes:jpg,jpeg,png,gif,webp,mp4,mov,avi,mkv,webm,pdf,doc,docx,xls,xlsx,ppt,pptx,txt,zip,rar,mp3,ogg,wav,m4a',
-            ],
+            'file'  => ['nullable', 'file', 'max:51200'],
+            'files' => ['nullable', 'array', 'max:20'],
+            'files.*' => ['file', 'max:51200'],
             'caption' => ['nullable', 'string', 'max:1000'],
         ]);
 
-        $file     = $request->file('file');
         $phone    = $validated['phone'];
         $caption  = $validated['caption'] ?? '';
-        $origName = $file->getClientOriginalName();
-        $mimeType = $file->getMimeType();
-        $size     = $file->getSize();
 
-        // Determine media type
-        $mediaType = match(true) {
-            str_starts_with($mimeType, 'image/') => 'image',
-            str_starts_with($mimeType, 'video/') => 'video',
-            str_starts_with($mimeType, 'audio/') => 'audio',
-            default                               => 'document',
-        };
+        $files = collect($request->file('files', []));
+        if ($request->hasFile('file')) {
+            $files = $files->prepend($request->file('file'));
+        }
 
-        $path = $file->store('whatsapp-media', 'public');
-        $url  = asset(Storage::url($path));
+        $files = $files->filter()->values();
 
-        $message = WhatsappMessage::query()->create([
-            'phone'      => $phone,
-            'name'       => Auth::user()?->name ?? 'Admin',
-            'message'    => $caption,
-            'direction'  => 'outbound',
-            'status'     => 'queued',
-            'media_url'  => $url,
-            'media_type' => $mediaType,
-            'media_name' => $origName,
-            'media_size' => $size,
-        ]);
+        if ($files->isEmpty()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Please select at least one file.',
+            ], 422);
+        }
 
-        $this->sendViaActiveProvider($message);
-        $message->refresh();
+        $allowedExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif', 'bmp', 'mp4', 'mov', 'avi', 'mkv', 'webm', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'zip', 'rar', 'mp3', 'ogg', 'wav', 'm4a', 'csv'];
+        $messages = collect();
+
+        foreach ($files as $index => $file) {
+            $extension = strtolower($file->getClientOriginalExtension());
+
+            if (! in_array($extension, $allowedExtensions, true)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "{$file->getClientOriginalName()} file type is not allowed.",
+                ], 422);
+            }
+
+            $origName = $file->getClientOriginalName();
+            $mimeType = $file->getMimeType() ?: $file->getClientMimeType();
+            $size     = $file->getSize();
+
+            $mediaType = match (true) {
+                str_starts_with((string) $mimeType, 'image/') => 'image',
+                str_starts_with((string) $mimeType, 'video/') => 'video',
+                str_starts_with((string) $mimeType, 'audio/') => 'audio',
+                default                                      => 'document',
+            };
+
+            $fileName = uniqid('wa_', true) . '.' . $extension;
+            $destinationPath = base_path('assets/media/whatsapp');
+
+            if (! file_exists($destinationPath)) {
+                mkdir($destinationPath, 0755, true);
+            }
+
+            $file->move($destinationPath, $fileName);
+            $relativePath = 'assets/media/whatsapp/' . $fileName;
+            $url = $this->publicAssetUrl($request, $relativePath);
+
+            $message = WhatsappMessage::query()->create([
+                'phone'      => $phone,
+                'name'       => Auth::user()?->name ?? 'Admin',
+                'message'    => $index === 0 ? $caption : '',
+                'direction'  => 'outbound',
+                'status'     => 'queued',
+                'media_url'  => $url,
+                'media_type' => $mediaType,
+                'media_name' => $origName,
+                'media_size' => $size,
+            ]);
+
+            $this->sendViaActiveProvider($message);
+            $message->refresh();
+            $messages->push($message);
+        }
 
         return response()->json([
             'success'  => true,
-            'message'  => $this->messagePayload($message),
+            'message'  => $this->messagePayload($messages->first()),
+            'messages' => $messages->map(fn (WhatsappMessage $message) => $this->messagePayload($message))->values(),
             'contacts' => $this->getContacts($phone),
         ]);
+    }
+
+    private function publicAssetUrl(Request $request, string $relativePath): string
+    {
+        $baseUrl = rtrim($request->getSchemeAndHttpHost() . $request->getBaseUrl(), '/');
+
+        return $baseUrl . '/' . ltrim($relativePath, '/');
     }
 }

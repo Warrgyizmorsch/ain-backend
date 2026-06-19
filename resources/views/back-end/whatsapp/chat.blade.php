@@ -399,10 +399,25 @@
                 <button type="button" class="wab-icon-btn wab-emoji-btn" id="wabEmojiBtn" title="Emoji">
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
                 </button>
-                <button type="button" class="wab-icon-btn" id="wabAttachBtn" title="Attach file">
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+                <button type="button" class="wab-icon-btn wab-plus-btn" id="wabAttachBtn" title="Attach">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                 </button>
-                <input type="file" id="wabMediaInput" class="wab-media-input" accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.rar" hidden>
+                <div class="wab-attach-menu" id="wabAttachMenu">
+                    <button type="button" data-attach-type="document">
+                        <span class="wab-attach-icon wab-attach-icon--document">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M6 2h8l5 5v15H6V2zm7 1.8V8h4.2L13 3.8z"/></svg>
+                        </span>
+                        <span>Document</span>
+                    </button>
+                    <button type="button" data-attach-type="media">
+                        <span class="wab-attach-icon wab-attach-icon--media">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M4 5h16v14H4V5zm2 2v8.5l3.2-3.2 2.6 2.6 3.8-4.8L18 13.3V7H6zm2.2 3a1.6 1.6 0 1 0 0-3.2 1.6 1.6 0 0 0 0 3.2z"/></svg>
+                        </span>
+                        <span>Photos &amp; videos</span>
+                    </button>
+                </div>
+                <input type="file" id="wabDocumentInput" class="wab-media-input" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.rar,.csv" multiple hidden>
+                <input type="file" id="wabPhotoVideoInput" class="wab-media-input" accept="image/*,video/*" multiple hidden>
             </div>
             <div class="wab-input-wrap">
                 <input type="text" class="wab-input" id="wabInput" name="message" placeholder="Type a message…" autocomplete="off" {{ $selectedPhone ? '' : 'disabled' }}>
@@ -417,6 +432,25 @@
             @foreach(['😊','😂','❤️','👍','🙏','😍','🎉','✅','🔥','💯','😎','👋','🤝','💪','⭐','🕐','📎','📁','📞','📧','💬','🎯','📊','✍️','👀','💡','🚀','⚡'] as $emoji)
                 <button class="wab-emoji-item" data-emoji="{{ $emoji }}">{{ $emoji }}</button>
             @endforeach
+        </div>
+
+        <div class="wab-upload-review" id="wabUploadReview" hidden>
+            <div class="wab-upload-review-head">
+                <button type="button" class="wab-upload-close" id="wabUploadClose" title="Close">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+                <strong id="wabUploadFileName">File</strong>
+            </div>
+            <div class="wab-upload-review-body">
+                <div class="wab-upload-preview" id="wabUploadPreview"></div>
+            </div>
+            <div class="wab-upload-tray" id="wabUploadTray"></div>
+            <div class="wab-upload-review-footer">
+                <input type="text" class="wab-upload-caption" id="wabUploadCaption" placeholder="Type a message" autocomplete="off">
+                <button type="button" class="wab-upload-send" id="wabUploadSend" title="Send">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
+                </button>
+            </div>
         </div>
 
     </section>
@@ -1340,7 +1374,57 @@
     border-top: 1px solid var(--wa-border-dark);
     position: relative;
 }
-.wab-footer-actions-left { display: flex; align-items: center; gap: 2px; }
+.wab-footer-actions-left { display: flex; align-items: center; gap: 2px; position: relative; }
+.wab-plus-btn {
+    color: #54656f;
+    transition: background .15s, color .15s, transform .15s;
+}
+.wab-plus-btn.is-open {
+    background: #d9fdd3;
+    color: var(--wa-teal);
+    transform: rotate(45deg);
+}
+.wab-attach-menu {
+    position: absolute;
+    left: 2px;
+    bottom: calc(100% + 12px);
+    min-width: 248px;
+    padding: 10px 0;
+    border-radius: 12px;
+    background: #111b21;
+    box-shadow: 0 12px 34px rgba(17,27,33,.35);
+    border: 1px solid rgba(255,255,255,.08);
+    display: none;
+    z-index: 140;
+    overflow: hidden;
+}
+.wab-attach-menu.is-open { display: block; animation: panel-in .16s ease; }
+.wab-attach-menu button {
+    width: 100%;
+    height: 48px;
+    padding: 0 18px;
+    border: 0;
+    background: transparent;
+    color: #e9edef;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    font-size: 15px;
+    font-weight: 650;
+    text-align: left;
+    cursor: pointer;
+}
+.wab-attach-menu button:hover { background: rgba(255,255,255,.07); }
+.wab-attach-icon {
+    width: 22px;
+    height: 22px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+}
+.wab-attach-icon--document { color: #7c4dff; }
+.wab-attach-icon--media { color: #00a8ff; }
 .wab-input-wrap { flex: 1; }
 .wab-input {
     width: 100%; height: 44px;
@@ -1406,6 +1490,168 @@
     transition: background .12s, transform .12s;
 }
 .wab-emoji-item:hover { background: var(--wa-bg-header); transform: scale(1.2); }
+
+.wab-upload-review {
+    position: absolute;
+    inset: 0;
+    z-index: 180;
+    background: #111b21;
+    color: #e9edef;
+    display: grid;
+    grid-template-rows: 64px 1fr 88px 132px;
+}
+.wab-upload-review[hidden] { display: none; }
+.wab-upload-review-head {
+    display: grid;
+    grid-template-columns: 52px 1fr 52px;
+    align-items: center;
+    min-width: 0;
+    border-bottom: 1px solid rgba(255,255,255,.08);
+}
+.wab-upload-review-head strong {
+    grid-column: 2;
+    text-align: center;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 15px;
+}
+.wab-upload-close {
+    width: 44px;
+    height: 44px;
+    margin-left: 8px;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: #aebac1;
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+}
+.wab-upload-close:hover { background: rgba(255,255,255,.08); color: #fff; }
+.wab-upload-review-body {
+    display: grid;
+    place-items: center;
+    padding: 28px;
+    overflow: auto;
+}
+.wab-upload-preview {
+    width: min(620px, 100%);
+    display: grid;
+    place-items: center;
+}
+.wab-upload-preview img,
+.wab-upload-preview video {
+    max-width: 100%;
+    max-height: min(58vh, 520px);
+    border-radius: 8px;
+    object-fit: contain;
+    background: #0b141a;
+}
+.wab-upload-doc-preview {
+    width: min(560px, 100%);
+    min-height: 330px;
+    border-radius: 8px;
+    background: #0b1a20;
+    display: grid;
+    place-items: center;
+    padding: 34px;
+    text-align: center;
+}
+.wab-upload-doc-preview svg { color: #f5f6f6; margin-bottom: 24px; }
+.wab-upload-doc-preview strong {
+    display: block;
+    color: #d1d7db;
+    font-size: 26px;
+    font-weight: 500;
+    margin-bottom: 8px;
+}
+.wab-upload-doc-preview span { color: #aebac1; font-size: 15px; }
+.wab-upload-tray {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 20px;
+    overflow-x: auto;
+    border-top: 1px solid rgba(255,255,255,.08);
+}
+.wab-upload-thumb {
+    width: 58px;
+    height: 58px;
+    border: 1px solid rgba(255,255,255,.15);
+    border-radius: 8px;
+    background: #202c33;
+    color: #d1d7db;
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    cursor: pointer;
+    position: relative;
+    flex: 0 0 auto;
+}
+.wab-upload-thumb.is-active { border: 3px solid #25d366; }
+.wab-upload-thumb img,
+.wab-upload-thumb video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+.wab-upload-thumb span {
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+.wab-upload-count {
+    position: absolute;
+    right: 18px;
+    bottom: 18px;
+    min-width: 28px;
+    height: 28px;
+    padding: 0 8px;
+    border-radius: 999px;
+    background: #25d366;
+    color: #111b21;
+    display: grid;
+    place-items: center;
+    font-weight: 800;
+    font-size: 13px;
+}
+.wab-upload-review-footer {
+    border-top: 1px solid rgba(255,255,255,.08);
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 22px min(14vw, 180px);
+}
+.wab-upload-caption {
+    flex: 1;
+    height: 54px;
+    border: 0;
+    outline: 0;
+    border-radius: 8px;
+    background: #202c33;
+    color: #e9edef;
+    padding: 0 18px;
+    font-size: 16px;
+}
+.wab-upload-caption::placeholder { color: #aebac1; }
+.wab-upload-send {
+    width: 72px;
+    height: 72px;
+    border: 0;
+    border-radius: 50%;
+    background: #e9edef;
+    color: #111b21;
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    flex: 0 0 auto;
+    transition: transform .15s, opacity .15s;
+}
+.wab-upload-send:hover { transform: scale(1.04); }
+.wab-upload-send:disabled { opacity: .55; cursor: wait; transform: none; }
 
 /* ════════════════════════════════════════
    MODAL
@@ -2579,11 +2825,20 @@
     const emojiBtn      = document.getElementById('wabEmojiBtn');
     const emojiPanel    = document.getElementById('wabEmojiPanel');
     const attachBtn     = document.getElementById('wabAttachBtn');
-    const mediaInput    = document.getElementById('wabMediaInput');
+    const attachMenu    = document.getElementById('wabAttachMenu');
+    const documentInput = document.getElementById('wabDocumentInput');
+    const photoVideoInput = document.getElementById('wabPhotoVideoInput');
     const sendBtn       = document.getElementById('wabSendBtn');
     const input         = document.getElementById('wabInput');
     const sendForm      = document.querySelector('.wab-conv-footer');
     const body          = document.getElementById('wabMessagesBody');
+    const uploadReview  = document.getElementById('wabUploadReview');
+    const uploadClose   = document.getElementById('wabUploadClose');
+    const uploadFileName = document.getElementById('wabUploadFileName');
+    const uploadPreview = document.getElementById('wabUploadPreview');
+    const uploadTray    = document.getElementById('wabUploadTray');
+    const uploadCaption = document.getElementById('wabUploadCaption');
+    const uploadSend    = document.getElementById('wabUploadSend');
     const searchInput   = document.getElementById('wabSearchInput');
     const mobileBack    = document.getElementById('wabMobileBack');
     const typingRow     = document.getElementById('wabTypingRow');
@@ -2599,6 +2854,9 @@
     const mediaUploadUrl = @json(route('whatsapp.chat.send-media'));
     let lastMessageId   = Number(body?.dataset.lastMessageId || 0);
     let isPolling       = false;
+    let selectedUploadFiles = [];
+    let selectedUploadUrls = [];
+    let activeUploadIndex = 0;
     const defaultTypingLabel = typingLabel?.textContent || selectedPhone || 'ready';
 
     /* ── Toggle sidebar collapse (desktop) ── */
@@ -3034,18 +3292,122 @@
         }
     }
 
-    async function uploadSelectedMedia(file) {
-        if (!file || !selectedPhone) return;
+    function closeAttachMenu() {
+        attachMenu?.classList.remove('is-open');
+        attachBtn?.classList.remove('is-open');
+    }
 
-        if (file.size > 50 * 1024 * 1024) {
-            alert('File size must be 50 MB or less.');
+    function getUploadType(file) {
+        const mime = file?.type || '';
+        if (mime.startsWith('image/')) return 'image';
+        if (mime.startsWith('video/')) return 'video';
+        if (mime.startsWith('audio/')) return 'audio';
+        return 'document';
+    }
+
+    function renderUploadPreview(index = activeUploadIndex) {
+        const file = selectedUploadFiles[index];
+        const url = selectedUploadUrls[index];
+        if (!file || !url) return;
+
+        activeUploadIndex = index;
+        const type = getUploadType(file);
+        const ext = fileExtension(file.name);
+        const color = documentColor(ext);
+        if (uploadFileName) uploadFileName.textContent = selectedUploadFiles.length > 1
+            ? `${file.name} (${index + 1}/${selectedUploadFiles.length})`
+            : file.name;
+
+        if (uploadPreview) {
+            if (type === 'image') {
+                uploadPreview.innerHTML = `<img src="${url}" alt="${escapeHtml(file.name)}">`;
+            } else if (type === 'video') {
+                uploadPreview.innerHTML = `<video controls preload="metadata"><source src="${url}"></video>`;
+            } else {
+                uploadPreview.innerHTML = `
+                    <div class="wab-upload-doc-preview">
+                        <div>
+                            <svg width="96" height="96" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                            <strong>No preview available</strong>
+                            <span>${escapeHtml(formatBytes(file.size))}${formatBytes(file.size) ? ' - ' : ''}${escapeHtml(ext.toUpperCase())}</span>
+                        </div>
+                    </div>
+                `;
+                const icon = uploadPreview.querySelector('svg');
+                if (icon) icon.style.color = color;
+            }
+        }
+
+        uploadTray?.querySelectorAll('.wab-upload-thumb').forEach((thumb, thumbIndex) => {
+            thumb.classList.toggle('is-active', thumbIndex === index);
+        });
+    }
+
+    function renderUploadTray() {
+        if (!uploadTray) return;
+
+        uploadTray.innerHTML = selectedUploadFiles.map((file, index) => {
+            const url = selectedUploadUrls[index];
+            const type = getUploadType(file);
+            const ext = escapeHtml(fileExtension(file.name).toUpperCase());
+
+            if (type === 'image') {
+                return `<button type="button" class="wab-upload-thumb ${index === activeUploadIndex ? 'is-active' : ''}" data-upload-index="${index}"><img src="${url}" alt="${escapeHtml(file.name)}"></button>`;
+            }
+
+            if (type === 'video') {
+                return `<button type="button" class="wab-upload-thumb ${index === activeUploadIndex ? 'is-active' : ''}" data-upload-index="${index}"><video muted><source src="${url}"></video></button>`;
+            }
+
+            return `<button type="button" class="wab-upload-thumb ${index === activeUploadIndex ? 'is-active' : ''}" data-upload-index="${index}"><span>${ext}</span></button>`;
+        }).join('') + (selectedUploadFiles.length > 1 ? `<span class="wab-upload-count">${selectedUploadFiles.length}</span>` : '');
+    }
+
+    function openUploadReview(files) {
+        const validFiles = Array.from(files || []).filter(Boolean);
+        if (!validFiles.length || !selectedPhone) return;
+
+        const oversize = validFiles.find(file => file.size > 50 * 1024 * 1024);
+        if (oversize) {
+            alert(`${oversize.name} size must be 50 MB or less.`);
             return;
         }
 
-        const caption = input?.value.trim() || '';
+        selectedUploadUrls.forEach(url => URL.revokeObjectURL(url));
+        selectedUploadFiles = validFiles;
+        selectedUploadUrls = validFiles.map(file => URL.createObjectURL(file));
+        activeUploadIndex = 0;
+
+        if (uploadCaption) uploadCaption.value = input?.value.trim() || '';
+        renderUploadTray();
+        renderUploadPreview(0);
+        closeAttachMenu();
+        if (uploadReview) uploadReview.hidden = false;
+        uploadCaption?.focus();
+    }
+
+    function closeUploadReview() {
+        selectedUploadUrls.forEach(url => URL.revokeObjectURL(url));
+        selectedUploadFiles = [];
+        selectedUploadUrls = [];
+        activeUploadIndex = 0;
+        if (uploadReview) uploadReview.hidden = true;
+        if (uploadPreview) uploadPreview.innerHTML = '';
+        if (uploadTray) uploadTray.innerHTML = '';
+        if (uploadCaption) uploadCaption.value = '';
+        if (documentInput) documentInput.value = '';
+        if (photoVideoInput) photoVideoInput.value = '';
+        input?.focus();
+    }
+
+    async function uploadSelectedMedia(files) {
+        const uploadFiles = Array.from(files || []).filter(Boolean);
+        if (!uploadFiles.length || !selectedPhone) return;
+
+        const caption = uploadCaption?.value.trim() || '';
         const formData = new FormData();
         formData.append('phone', selectedPhone);
-        formData.append('file', file);
+        uploadFiles.forEach(file => formData.append('files[]', file));
         if (caption) formData.append('caption', caption);
 
         if (attachBtn) {
@@ -3054,6 +3416,7 @@
         }
         if (sendBtn) sendBtn.disabled = true;
         if (input) input.disabled = true;
+        if (uploadSend) uploadSend.disabled = true;
 
         try {
             const response = await fetch(mediaUploadUrl, {
@@ -3072,22 +3435,21 @@
             }
 
             const data = await response.json();
-            if (data.message) {
-                renderMessage(data.message);
-            }
+            (data.messages || (data.message ? [data.message] : [])).forEach(renderMessage);
             updateContacts(data.contacts);
-            if (caption && input) input.value = '';
+            if (input) input.value = '';
+            closeUploadReview();
             pollMessages();
         } catch (error) {
             console.warn('Unable to send WhatsApp media.', error);
             alert(error.message || 'Unable to send media. Please try again.');
         } finally {
-            if (mediaInput) mediaInput.value = '';
             if (attachBtn) {
                 attachBtn.disabled = false;
                 attachBtn.classList.remove('is-loading');
             }
             if (sendBtn) sendBtn.disabled = false;
+            if (uploadSend) uploadSend.disabled = false;
             if (input) {
                 input.disabled = false;
                 input.focus();
@@ -3099,17 +3461,44 @@
     sendBtn?.addEventListener('click', e => { if (!input?.value.trim()) e.preventDefault(); });
     attachBtn?.addEventListener('click', e => {
         e.preventDefault();
+        e.stopPropagation();
         if (!selectedPhone) return;
-        mediaInput?.click();
+        attachMenu?.classList.toggle('is-open');
+        attachBtn.classList.toggle('is-open');
     });
-    mediaInput?.addEventListener('change', () => {
-        const file = mediaInput.files?.[0];
-        if (file) uploadSelectedMedia(file);
+    attachMenu?.addEventListener('click', e => {
+        e.stopPropagation();
+        const action = e.target.closest('[data-attach-type]')?.dataset.attachType;
+        if (action === 'document') documentInput?.click();
+        if (action === 'media') photoVideoInput?.click();
+    });
+    document.addEventListener('click', closeAttachMenu);
+    documentInput?.addEventListener('change', () => {
+        if (documentInput.files?.length) openUploadReview(documentInput.files);
+    });
+    photoVideoInput?.addEventListener('change', () => {
+        if (photoVideoInput.files?.length) openUploadReview(photoVideoInput.files);
+    });
+    uploadClose?.addEventListener('click', closeUploadReview);
+    uploadTray?.addEventListener('click', e => {
+        const index = Number(e.target.closest('[data-upload-index]')?.dataset.uploadIndex);
+        if (!Number.isNaN(index)) renderUploadPreview(index);
+    });
+    uploadSend?.addEventListener('click', () => uploadSelectedMedia(selectedUploadFiles));
+    uploadCaption?.addEventListener('keydown', e => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            uploadSelectedMedia(selectedUploadFiles);
+        }
     });
     input?.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendForm?.requestSubmit(); } });
 
     document.addEventListener('keydown', e => {
         if (e.key !== 'Escape') return;
+        if (uploadReview && !uploadReview.hidden) {
+            closeUploadReview();
+            return;
+        }
         if (document.querySelector('.modal.show')) return;
         if (document.body.classList.contains('wab-profile-open')) return;
         if (window.innerWidth <= 768 && sidebar?.classList.contains('mobile-hidden')) {

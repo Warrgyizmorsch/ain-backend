@@ -18,11 +18,15 @@ public function receive(Request $request)
     $data = $request->all();
     Log::info('WhatsApp Webhook Received:', $data);
 
-    if ($request->has('From') && $request->has('Body')) {
+    if ($request->has('From') && ($request->has('Body') || (int) $request->input('NumMedia', 0) > 0)) {
         $phone = str_replace('whatsapp:', '', $request->input('From'));
-        $text = $request->input('Body');
+        $text = $request->input('Body', '');
         $waMessageId = $request->input('MessageSid') ?? $request->input('SmsMessageSid');
         $userName = $request->input('ProfileName') ?: $phone;
+        $mediaUrl = $request->input('MediaUrl0');
+        $mediaContentType = $request->input('MediaContentType0');
+        $mediaType = $this->mediaTypeFromContentType($mediaContentType);
+        $mediaName = $this->mediaNameFromUrl($mediaUrl, $mediaType);
 
         $whatsappMessage = WhatsappMessage::create([
             'phone' => $phone,
@@ -31,6 +35,9 @@ public function receive(Request $request)
             'direction' => 'inbound',
             'wa_message_id' => $waMessageId,
             'status' => 'received',
+            'media_url' => $mediaUrl,
+            'media_type' => $mediaType,
+            'media_name' => $mediaName,
         ]);
         Cache::forget($this->typingCacheKey($phone));
 
@@ -131,6 +138,36 @@ public function receive(Request $request)
 private function typingCacheKey(string $phone): string
 {
     return 'whatsapp_typing:' . preg_replace('/[^0-9+]/', '', $phone);
+}
+
+private function mediaTypeFromContentType(?string $contentType): ?string
+{
+    if (! $contentType) {
+        return null;
+    }
+
+    return match (true) {
+        str_starts_with($contentType, 'image/') => 'image',
+        str_starts_with($contentType, 'video/') => 'video',
+        str_starts_with($contentType, 'audio/') => 'audio',
+        default => 'document',
+    };
+}
+
+private function mediaNameFromUrl(?string $url, ?string $mediaType): ?string
+{
+    if (! $url) {
+        return null;
+    }
+
+    $path = parse_url($url, PHP_URL_PATH);
+    $name = $path ? basename($path) : null;
+
+    if ($name && $name !== '/') {
+        return $name;
+    }
+
+    return $mediaType ? 'WhatsApp ' . ucfirst($mediaType) : 'WhatsApp attachment';
 }
 
 }
