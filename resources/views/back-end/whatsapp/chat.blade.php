@@ -1495,8 +1495,8 @@
     position: absolute;
     inset: 0;
     z-index: 180;
-    background: #111b21;
-    color: #e9edef;
+    background: #f0f2f5;
+    color: #111b21;
     display: grid;
     grid-template-rows: 64px 1fr 88px 132px;
 }
@@ -1506,7 +1506,8 @@
     grid-template-columns: 52px 1fr 52px;
     align-items: center;
     min-width: 0;
-    border-bottom: 1px solid rgba(255,255,255,.08);
+    background: #ffffff;
+    border-bottom: 1px solid #d1d7db;
 }
 .wab-upload-review-head strong {
     grid-column: 2;
@@ -1524,12 +1525,12 @@
     border: 0;
     border-radius: 50%;
     background: transparent;
-    color: #aebac1;
+    color: #667781;
     display: grid;
     place-items: center;
     cursor: pointer;
 }
-.wab-upload-close:hover { background: rgba(255,255,255,.08); color: #fff; }
+.wab-upload-close:hover { background: #e9edef; color: #111b21; }
 .wab-upload-review-body {
     display: grid;
     place-items: center;
@@ -1547,27 +1548,28 @@
     max-height: min(58vh, 520px);
     border-radius: 8px;
     object-fit: contain;
-    background: #0b141a;
+    background: #ffffff;
+    box-shadow: 0 1px 3px rgba(11,20,26,.08);
 }
 .wab-upload-doc-preview {
     width: min(560px, 100%);
     min-height: 330px;
     border-radius: 8px;
-    background: #0b1a20;
+    background: #e9edef;
     display: grid;
     place-items: center;
     padding: 34px;
     text-align: center;
 }
-.wab-upload-doc-preview svg { color: #f5f6f6; margin-bottom: 24px; }
+.wab-upload-doc-preview svg { color: #667781; margin-bottom: 24px; }
 .wab-upload-doc-preview strong {
     display: block;
-    color: #d1d7db;
+    color: #3b4a54;
     font-size: 26px;
     font-weight: 500;
     margin-bottom: 8px;
 }
-.wab-upload-doc-preview span { color: #aebac1; font-size: 15px; }
+.wab-upload-doc-preview span { color: #667781; font-size: 15px; }
 .wab-upload-tray {
     display: flex;
     justify-content: center;
@@ -1575,15 +1577,16 @@
     gap: 10px;
     padding: 12px 20px;
     overflow-x: auto;
-    border-top: 1px solid rgba(255,255,255,.08);
+    background: #f7f8fa;
+    border-top: 1px solid #d1d7db;
 }
 .wab-upload-thumb {
     width: 58px;
     height: 58px;
-    border: 1px solid rgba(255,255,255,.15);
+    border: 1px solid #d1d7db;
     border-radius: 8px;
-    background: #202c33;
-    color: #d1d7db;
+    background: #ffffff;
+    color: #3b4a54;
     display: grid;
     place-items: center;
     overflow: hidden;
@@ -1619,7 +1622,8 @@
     font-size: 13px;
 }
 .wab-upload-review-footer {
-    border-top: 1px solid rgba(255,255,255,.08);
+    background: #ffffff;
+    border-top: 1px solid #d1d7db;
     display: flex;
     align-items: center;
     gap: 16px;
@@ -1631,19 +1635,19 @@
     border: 0;
     outline: 0;
     border-radius: 8px;
-    background: #202c33;
-    color: #e9edef;
+    background: #f0f2f5;
+    color: #111b21;
     padding: 0 18px;
     font-size: 16px;
 }
-.wab-upload-caption::placeholder { color: #aebac1; }
+.wab-upload-caption::placeholder { color: #667781; }
 .wab-upload-send {
     width: 72px;
     height: 72px;
     border: 0;
     border-radius: 50%;
-    background: #e9edef;
-    color: #111b21;
+    background: #00a884;
+    color: #ffffff;
     display: grid;
     place-items: center;
     cursor: pointer;

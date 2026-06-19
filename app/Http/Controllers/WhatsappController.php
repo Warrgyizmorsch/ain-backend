@@ -460,7 +460,7 @@ class WhatsappController extends Controller
             }
 
             if ($message->media_url) {
-                $payload['MediaUrl'] = $message->media_url;
+                $payload['MediaUrl'] = $this->providerMediaUrl($message->media_url);
             }
 
             if (! isset($payload['Body']) && ! isset($payload['MediaUrl'])) {
@@ -668,7 +668,6 @@ class WhatsappController extends Controller
 
             $file->move($destinationPath, $fileName);
             $relativePath = 'assets/media/whatsapp/' . $fileName;
-            $url = $this->publicAssetUrl($request, $relativePath);
 
             $message = WhatsappMessage::query()->create([
                 'phone'      => $phone,
@@ -676,7 +675,7 @@ class WhatsappController extends Controller
                 'message'    => $index === 0 ? $caption : '',
                 'direction'  => 'outbound',
                 'status'     => 'queued',
-                'media_url'  => $url,
+                'media_url'  => $relativePath,
                 'media_type' => $mediaType,
                 'media_name' => $origName,
                 'media_size' => $size,
@@ -695,10 +694,14 @@ class WhatsappController extends Controller
         ]);
     }
 
-    private function publicAssetUrl(Request $request, string $relativePath): string
+    private function providerMediaUrl(string $mediaUrl): string
     {
-        $baseUrl = rtrim($request->getSchemeAndHttpHost() . $request->getBaseUrl(), '/');
+        if (str_starts_with($mediaUrl, 'http://') || str_starts_with($mediaUrl, 'https://')) {
+            return $mediaUrl;
+        }
 
-        return $baseUrl . '/' . ltrim($relativePath, '/');
+        $publicBaseUrl = rtrim(env('WHATSAPP_PUBLIC_URL', config('app.url')), '/');
+
+        return $publicBaseUrl . '/' . ltrim($mediaUrl, '/');
     }
 }
