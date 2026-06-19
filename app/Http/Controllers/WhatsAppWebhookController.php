@@ -22,7 +22,7 @@ public function receive(Request $request)
 
     if ($request->has('From') && ($request->has('Body') || (int) $request->input('NumMedia', 0) > 0)) {
         $phone = str_replace('whatsapp:', '', $request->input('From'));
-        $text = $request->input('Body', '');
+        $text = (string) ($request->input('Body') ?? '');
         $waMessageId = $request->input('MessageSid') ?? $request->input('SmsMessageSid');
         $userName = $request->input('ProfileName') ?: $phone;
         $numMedia = (int) $request->input('NumMedia', 0);
@@ -41,7 +41,7 @@ public function receive(Request $request)
                 $createdMessages->push(WhatsappMessage::create([
                     'phone' => $phone,
                     'name' => $userName,
-                    'message' => $index === 0 ? $messageText : '',
+                    'message' => $index === 0 ? ($messageText ?: '') : '',
                     'direction' => 'inbound',
                     'wa_message_id' => $mediaSid,
                     'status' => 'received',
@@ -55,7 +55,7 @@ public function receive(Request $request)
             $createdMessages->push(WhatsappMessage::create([
                 'phone' => $phone,
                 'name' => $userName,
-                'message' => $messageText,
+                'message' => $messageText ?: '',
                 'direction' => 'inbound',
                 'wa_message_id' => $waMessageId,
                 'status' => 'received',
