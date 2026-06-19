@@ -20,6 +20,34 @@ public function receive(Request $request)
     $data = $request->all();
     Log::info('WhatsApp Webhook Received:', $data);
 
+    if (($request->has('MessageStatus') || $request->has('SmsStatus')) && ($request->has('MessageSid') || $request->has('SmsMessageSid'))) {
+        $waMessageId = $request->input('MessageSid') ?? $request->input('SmsMessageSid');
+        $status = strtolower((string) ($request->input('MessageStatus') ?? $request->input('SmsStatus')));
+
+        if ($status !== 'received') {
+            $message = WhatsappMessage::where('wa_message_id', $waMessageId)->first();
+
+            if ($message) {
+                $message->status = $status;
+                $message->save();
+
+                event(new MessageStatusUpdated($message));
+                Log::info('WhatsApp message status updated', [
+                    'wa_message_id' => $waMessageId,
+                    'status' => $status,
+                    'message_id' => $message->id,
+                ]);
+            } else {
+                Log::warning('WhatsApp status callback without matching message', [
+                    'wa_message_id' => $waMessageId,
+                    'status' => $status,
+                ]);
+            }
+
+            return response()->json(['status' => 'updated'], 200);
+        }
+    }
+
     if ($request->has('From') && ($request->has('Body') || (int) $request->input('NumMedia', 0) > 0)) {
         $phone = str_replace('whatsapp:', '', $request->input('From'));
         $text = (string) ($request->input('Body') ?? '');
@@ -67,22 +95,6 @@ public function receive(Request $request)
         $createdMessages->each(fn (WhatsappMessage $message) => event(new MessageSent($message)));
 
         return response()->json(['status' => 'received'], 200);
-    }
-
-    if (($request->has('MessageStatus') || $request->has('SmsStatus')) && ($request->has('MessageSid') || $request->has('SmsMessageSid'))) {
-        $waMessageId = $request->input('MessageSid') ?? $request->input('SmsMessageSid');
-        $status = strtolower($request->input('MessageStatus') ?? $request->input('SmsStatus'));
-
-        $message = WhatsappMessage::where('wa_message_id', $waMessageId)->first();
-
-        if ($message) {
-            $message->status = $status;
-            $message->save();
-
-            event(new MessageStatusUpdated($message));
-        }
-
-        return response()->json(['status' => 'updated'], 200);
     }
 
     $topic = $data['topic'] ?? null;

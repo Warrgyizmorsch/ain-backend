@@ -394,7 +394,7 @@ class WhatsappController extends Controller
             'time'       => optional($message->created_at)->format('H:i'),
             'created_at' => optional($message->created_at)->toDateTimeString(),
             'media_url'  => $this->mediaDisplayUrl($message->media_url),
-            'media_type' => $message->media_type,
+            'media_type' => $this->displayMediaType($message->media_type, $message->media_name, $message->media_url),
             'media_name' => $message->media_name,
             'media_size' => $message->media_size,
         ];
@@ -661,6 +661,7 @@ class WhatsappController extends Controller
             $size     = $file->getSize();
 
             $mediaType = match (true) {
+                $this->isVoiceNote($origName, $extension) => 'audio',
                 str_starts_with((string) $mimeType, 'image/') => 'image',
                 str_starts_with((string) $mimeType, 'video/') => 'video',
                 str_starts_with((string) $mimeType, 'audio/') => 'audio',
@@ -724,6 +725,25 @@ class WhatsappController extends Controller
         }
 
         return url(ltrim($mediaUrl, '/'));
+    }
+
+    private function displayMediaType(?string $mediaType, ?string $mediaName = null, ?string $mediaUrl = null): ?string
+    {
+        $extension = strtolower(pathinfo((string) ($mediaName ?: $mediaUrl), PATHINFO_EXTENSION));
+
+        if ($this->isVoiceNote($mediaName, $extension)) {
+            return 'audio';
+        }
+
+        return $mediaType;
+    }
+
+    private function isVoiceNote(?string $mediaName, ?string $extension): bool
+    {
+        $name = strtolower((string) $mediaName);
+        $extension = strtolower((string) $extension);
+
+        return $extension === 'webm' && str_starts_with($name, 'voice-note-');
     }
 
     private function providerWebhookUrl(array $config = []): ?string

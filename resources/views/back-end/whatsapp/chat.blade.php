@@ -26,6 +26,15 @@
             ? $url
             : url(ltrim($url, '/'));
     };
+    $mediaDisplayType = function (?string $type, ?string $name = null, ?string $url = null) {
+        $extension = strtolower(pathinfo((string) ($name ?: $url), PATHINFO_EXTENSION));
+
+        if ($extension === 'webm' && \Illuminate\Support\Str::startsWith(strtolower((string) $name), 'voice-note-')) {
+            return 'audio';
+        }
+
+        return $type;
+    };
 @endphp
 
 {{-- ======================================================
@@ -281,26 +290,27 @@
                     $messageDateLabel = optional($message->created_at)->isToday()
                         ? 'Today'
                         : (optional($message->created_at)->isYesterday() ? 'Yesterday' : optional($message->created_at)->format('d M Y'));
+                    $messageMediaType = $mediaDisplayType($message->media_type, $message->media_name, $message->media_url);
                 @endphp
                 @if($messageDate && $messageDate !== $lastRenderedDate)
                     <div class="wab-date-badge" data-date-key="{{ $messageDate }}">{{ $messageDateLabel }}</div>
                     @php $lastRenderedDate = $messageDate; @endphp
                 @endif
                 <div class="wab-msg-row {{ $message->direction === 'inbound' ? 'wab-incoming' : 'wab-outgoing' }}" data-message-id="{{ $message->id }}">
-                    <div class="wab-msg-bubble {{ $message->media_type ? 'wab-bubble--media wab-bubble--' . $message->media_type : '' }}">
+                    <div class="wab-msg-bubble {{ $messageMediaType ? 'wab-bubble--media wab-bubble--' . $messageMediaType : '' }}">
                         @if($message->media_url)
                             @php
                                 $messageMediaUrl = $mediaDisplayUrl($message->media_url);
                             @endphp
-                            @if($message->media_type === 'image')
+                            @if($messageMediaType === 'image')
                                 <a href="{{ $messageMediaUrl }}" target="_blank" class="wab-media-img-link" download="{{ $message->media_name }}">
                                     <img src="{{ $messageMediaUrl }}" class="wab-media-img" alt="{{ $message->media_name }}" loading="lazy">
                                 </a>
-                            @elseif($message->media_type === 'video')
+                            @elseif($messageMediaType === 'video')
                                 <video class="wab-media-video" controls preload="metadata">
                                     <source src="{{ $messageMediaUrl }}">
                                 </video>
-                            @elseif($message->media_type === 'audio')
+                            @elseif($messageMediaType === 'audio')
                                 <div class="wab-voice-card">
                                     <button type="button" class="wab-voice-play" title="Play audio">
                                         <svg class="wab-voice-play-icon" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
@@ -1313,6 +1323,16 @@
     min-width: 180px;
     max-width: 330px;
 }
+.wab-bubble--audio {
+    padding: 0 0 24px;
+    background: transparent !important;
+    box-shadow: none;
+    min-width: 292px;
+    max-width: 360px;
+}
+.wab-bubble--audio::before {
+    display: none;
+}
 .wab-media-img,
 .wab-media-video {
     display: block;
@@ -1324,25 +1344,26 @@
     background: rgba(0,0,0,.06);
 }
 .wab-voice-card {
-    min-width: 260px;
-    max-width: 320px;
-    height: 48px;
-    border-radius: 24px;
+    min-width: 292px;
+    max-width: 360px;
+    height: 64px;
+    border-radius: 10px;
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 0 12px;
-    background: rgba(255,255,255,.62);
+    gap: 12px;
+    padding: 0 16px;
+    background: #fff;
+    box-shadow: 0 1px 2px rgba(17,27,33,.18);
 }
 .wab-incoming .wab-voice-card {
-    background: #f7faf9;
+    background: #fff;
 }
 .wab-outgoing .wab-voice-card {
-    background: rgba(255,255,255,.52);
+    background: #fff;
 }
 .wab-voice-play {
-    width: 34px;
-    height: 34px;
+    width: 44px;
+    height: 44px;
     border: 0;
     border-radius: 50%;
     display: grid;
@@ -1354,14 +1375,14 @@
 }
 .wab-voice-wave {
     flex: 1;
-    height: 28px;
+    height: 32px;
     display: flex;
     align-items: center;
     gap: 3px;
     overflow: hidden;
 }
 .wab-voice-wave span {
-    width: 3px;
+    width: 4px;
     border-radius: 4px;
     background: #9aa8ae;
 }
@@ -1369,8 +1390,8 @@
     background: #25d366;
 }
 .wab-voice-time {
-    min-width: 38px;
-    font-size: 14px;
+    min-width: 42px;
+    font-size: 20px;
     font-weight: 700;
     color: var(--wa-text-main);
 }
