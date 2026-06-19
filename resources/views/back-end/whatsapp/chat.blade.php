@@ -209,8 +209,6 @@
         {{-- Messages Body --}}
         <div class="wab-messages-body {{ !$selectedPhone ? 'd-none' : '' }}" id="wabMessagesBody" data-selected-phone="{{ $selectedPhone }}" data-last-message-id="{{ optional($messages->last())->id ?? 0 }}">
 
-            <div class="wab-date-badge">Today</div>
-
             @if($selectedPanel && isset($panelDefinitions[$selectedPanel]))
                 <div class="wab-panel-card">
                     <div class="wab-panel-card-head">
@@ -267,7 +265,18 @@
                 </div>
             @endif
 
+            @php $lastRenderedDate = null; @endphp
             @forelse($messages->filter(fn($message) => trim($message->message ?? '') !== '' || $message->media_url) as $message)
+                @php
+                    $messageDate = optional($message->created_at)->toDateString();
+                    $messageDateLabel = optional($message->created_at)->isToday()
+                        ? 'Today'
+                        : (optional($message->created_at)->isYesterday() ? 'Yesterday' : optional($message->created_at)->format('d M Y'));
+                @endphp
+                @if($messageDate && $messageDate !== $lastRenderedDate)
+                    <div class="wab-date-badge" data-date-key="{{ $messageDate }}">{{ $messageDateLabel }}</div>
+                    @php $lastRenderedDate = $messageDate; @endphp
+                @endif
                 <div class="wab-msg-row {{ $message->direction === 'inbound' ? 'wab-incoming' : 'wab-outgoing' }}" data-message-id="{{ $message->id }}">
                     <div class="wab-msg-bubble {{ $message->media_type ? 'wab-bubble--media wab-bubble--' . $message->media_type : '' }}">
                         @if($message->media_url)
@@ -3024,6 +3033,45 @@
         return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
     }
 
+    function localDateKey(value) {
+        const date = value ? new Date(String(value).replace(' ', 'T')) : new Date();
+        if (Number.isNaN(date.getTime())) return '';
+
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+
+        return `${year}-${month}-${day}`;
+    }
+
+    function dateLabel(value) {
+        const date = value ? new Date(String(value).replace(' ', 'T')) : new Date();
+        if (Number.isNaN(date.getTime())) return 'Today';
+
+        const today = new Date();
+        const yesterday = new Date();
+        yesterday.setDate(today.getDate() - 1);
+        const key = localDateKey(value);
+
+        if (key === localDateKey(today.toISOString())) return 'Today';
+        if (key === localDateKey(yesterday.toISOString())) return 'Yesterday';
+
+        return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    }
+
+    function ensureDateBadge(message) {
+        if (!body || !typingRow) return;
+
+        const key = localDateKey(message?.created_at);
+        if (!key || body.querySelector(`.wab-date-badge[data-date-key="${key}"]`)) return;
+
+        const badge = document.createElement('div');
+        badge.className = 'wab-date-badge';
+        badge.dataset.dateKey = key;
+        badge.textContent = dateLabel(message?.created_at);
+        body.insertBefore(badge, typingRow);
+    }
+
     function messageContentMarkup(message) {
         const caption = String(message.message || '').trim();
 
@@ -3072,6 +3120,7 @@
         }
 
         document.querySelector('.wab-empty-message')?.remove();
+        ensureDateBadge(message);
 
         const mediaClass = mediaTypeClass(message.media_type);
         const row = document.createElement('div');
@@ -3207,7 +3256,7 @@
     }
 
     async function pollMessages() {
-        if (!selectedPhone || isPolling || document.hidden) return;
+        if (!selectedPhone || isPolling) return;
         isPolling = true;
 
         try {
@@ -3519,7 +3568,7 @@
     markSelectedChatRead();
     pollMessages();
     if (selectedPhone) {
-        setInterval(pollMessages, 3000);
+        setInterval(pollMessages, 2000);
         if (window.Echo?.private) {
             window.Echo.private(`chat.${selectedPhone}`)
                 .listen('.MessageSent', pollMessages)
@@ -3531,6 +3580,7 @@
                 pollMessages();
             }
         });
+        window.addEventListener('focus', pollMessages);
     }
 
 })();

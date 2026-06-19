@@ -452,8 +452,12 @@ class WhatsappController extends Controller
             $payload = [
                 'From' => str_starts_with($from, 'whatsapp:') ? $from : 'whatsapp:' . $from,
                 'To' => str_starts_with($message->phone, 'whatsapp:') ? $message->phone : 'whatsapp:' . $message->phone,
-                'StatusCallback' => url('/api/webhooks/whatsapp'),
             ];
+
+            $statusCallback = $this->providerWebhookUrl($config);
+            if ($statusCallback) {
+                $payload['StatusCallback'] = $statusCallback;
+            }
 
             if (trim((string) $message->message) !== '') {
                 $payload['Body'] = $message->message;
@@ -709,5 +713,21 @@ class WhatsappController extends Controller
         $publicBaseUrl = rtrim($publicBaseUrl ?: config('app.url'), '/');
 
         return $publicBaseUrl . '/' . ltrim($mediaUrl, '/');
+    }
+
+    private function providerWebhookUrl(array $config = []): ?string
+    {
+        $webhookUrl = env('WHATSAPP_WEBHOOK_URL') ?: ($config['webhook_url'] ?? null);
+
+        if (! $webhookUrl) {
+            $publicBaseUrl = env('WHATSAPP_PUBLIC_URL');
+            $webhookUrl = $publicBaseUrl ? rtrim($publicBaseUrl, '/') . '/api/webhooks/whatsapp' : null;
+        }
+
+        if (! $webhookUrl || str_contains($webhookUrl, 'localhost') || str_contains($webhookUrl, '127.0.0.1')) {
+            return null;
+        }
+
+        return $webhookUrl;
     }
 }
