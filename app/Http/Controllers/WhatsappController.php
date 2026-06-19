@@ -460,7 +460,7 @@ class WhatsappController extends Controller
             }
 
             if ($message->media_url) {
-                $payload['MediaUrl'] = $this->providerMediaUrl($message->media_url);
+                $payload['MediaUrl'] = $this->providerMediaUrl($message->media_url, $config);
             }
 
             if (! isset($payload['Body']) && ! isset($payload['MediaUrl'])) {
@@ -694,13 +694,19 @@ class WhatsappController extends Controller
         ]);
     }
 
-    private function providerMediaUrl(string $mediaUrl): string
+    private function providerMediaUrl(string $mediaUrl, array $config = []): string
     {
         if (str_starts_with($mediaUrl, 'http://') || str_starts_with($mediaUrl, 'https://')) {
             return $mediaUrl;
         }
 
-        $publicBaseUrl = rtrim(env('WHATSAPP_PUBLIC_URL', config('app.url')), '/');
+        $publicBaseUrl = env('WHATSAPP_PUBLIC_URL');
+
+        if (! $publicBaseUrl && ! empty($config['webhook_url'])) {
+            $publicBaseUrl = preg_replace('#/api/webhooks/whatsapp/?$#', '', $config['webhook_url']);
+        }
+
+        $publicBaseUrl = rtrim($publicBaseUrl ?: config('app.url'), '/');
 
         return $publicBaseUrl . '/' . ltrim($mediaUrl, '/');
     }
