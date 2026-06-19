@@ -482,7 +482,10 @@ class WhatsappController extends Controller
                 ]);
             } else {
                 $message->update(['status' => 'failed']);
-                Log::warning('Twilio WhatsApp send failed', ['response' => $response->json()]);
+                Log::warning('Twilio WhatsApp send failed', [
+                    'payload' => collect($payload)->except(['Body'])->all(),
+                    'response' => $response->json(),
+                ]);
             }
         } catch (\Throwable $exception) {
             $message->update(['status' => 'failed']);
@@ -706,7 +709,12 @@ class WhatsappController extends Controller
 
         $publicBaseUrl = env('WHATSAPP_PUBLIC_URL');
 
-        if (! $publicBaseUrl && ! empty($config['webhook_url'])) {
+        if (
+            ! $publicBaseUrl
+            && ! empty($config['webhook_url'])
+            && ! str_contains($config['webhook_url'], 'localhost')
+            && ! str_contains($config['webhook_url'], '127.0.0.1')
+        ) {
             $publicBaseUrl = preg_replace('#/api/webhooks/whatsapp/?$#', '', $config['webhook_url']);
         }
 
