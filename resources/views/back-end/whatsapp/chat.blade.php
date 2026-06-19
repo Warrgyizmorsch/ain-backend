@@ -3736,11 +3736,12 @@
                 body: formData,
             });
 
+            const data = await response.json();
+
             if (!response.ok) {
-                throw new Error('Audio send failed');
+                throw new Error(data.message || 'Audio send failed');
             }
 
-            const data = await response.json();
             (data.messages || (data.message ? [data.message] : [])).forEach(renderMessage);
             updateContacts(data.contacts);
             resetAudioRecording();
@@ -3748,7 +3749,7 @@
             return true;
         } catch (error) {
             console.warn('Unable to send audio recording.', error);
-            alert('Audio send nahi ho paya. Please dobara try karo.');
+            alert(error.message || 'Audio send nahi ho paya. Please dobara try karo.');
             return false;
         } finally {
             if (sendBtn) sendBtn.disabled = false;

@@ -679,14 +679,21 @@ class WhatsappController extends Controller
             $relativePath = 'assets/media/whatsapp/' . $fileName;
 
             if ($this->isVoiceNote($origName, $extension)) {
-                $converted = $this->convertVoiceNoteToMp3($destinationPath, $fileName, $origName);
+                $converted = $this->convertVoiceNoteToOgg($destinationPath, $fileName, $origName);
 
                 if ($converted) {
                     $fileName = $converted['file_name'];
                     $relativePath = $converted['relative_path'];
                     $origName = $converted['media_name'];
                     $size = $converted['size'];
-                    $extension = 'mp3';
+                    $extension = 'ogg';
+                } elseif ($extension === 'webm') {
+                    @unlink($destinationPath . DIRECTORY_SEPARATOR . $fileName);
+
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Audio recording could not be converted for WhatsApp. Please install ffmpeg on the server.',
+                    ], 422);
                 }
             }
 
@@ -758,7 +765,7 @@ class WhatsappController extends Controller
         return $extension === 'webm' && str_starts_with($name, 'voice-note-');
     }
 
-    private function convertVoiceNoteToMp3(string $destinationPath, string $fileName, string $originalName): ?array
+    private function convertVoiceNoteToOgg(string $destinationPath, string $fileName, string $originalName): ?array
     {
         $ffmpeg = $this->ffmpegBinary();
 
@@ -769,11 +776,11 @@ class WhatsappController extends Controller
         }
 
         $sourcePath = $destinationPath . DIRECTORY_SEPARATOR . $fileName;
-        $convertedName = pathinfo($fileName, PATHINFO_FILENAME) . '.mp3';
+        $convertedName = pathinfo($fileName, PATHINFO_FILENAME) . '.ogg';
         $convertedPath = $destinationPath . DIRECTORY_SEPARATOR . $convertedName;
 
         $command = sprintf(
-            '%s -y -i %s -vn -ar 44100 -ac 1 -b:a 96k %s 2>&1',
+            '%s -y -i %s -vn -c:a libopus -b:a 32k -ar 48000 -ac 1 -f ogg %s 2>&1',
             escapeshellarg($ffmpeg),
             escapeshellarg($sourcePath),
             escapeshellarg($convertedPath)
@@ -791,11 +798,16 @@ class WhatsappController extends Controller
         }
 
         @unlink($sourcePath);
+        Log::info('Voice note converted for WhatsApp', [
+            'source' => $fileName,
+            'converted' => $convertedName,
+            'size' => filesize($convertedPath),
+        ]);
 
         return [
             'file_name' => $convertedName,
             'relative_path' => 'assets/media/whatsapp/' . $convertedName,
-            'media_name' => preg_replace('/\.webm$/i', '.mp3', $originalName) ?: $convertedName,
+            'media_name' => preg_replace('/\.webm$/i', '.ogg', $originalName) ?: $convertedName,
             'size' => filesize($convertedPath),
         ];
     }

@@ -28,6 +28,19 @@ public function receive(Request $request)
             $message = WhatsappMessage::where('wa_message_id', $waMessageId)->first();
 
             if ($message) {
+                $currentStatus = strtolower((string) $message->status);
+                $terminalStatuses = ['failed', 'undelivered'];
+
+                if (in_array($currentStatus, $terminalStatuses, true) && ! in_array($status, ['read', 'delivered'], true)) {
+                    Log::info('WhatsApp message status ignored because current status is terminal', [
+                        'wa_message_id' => $waMessageId,
+                        'current_status' => $currentStatus,
+                        'incoming_status' => $status,
+                    ]);
+
+                    return response()->json(['status' => 'ignored'], 200);
+                }
+
                 $message->status = $status;
                 $message->save();
 
