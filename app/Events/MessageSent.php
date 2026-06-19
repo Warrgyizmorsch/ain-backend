@@ -32,7 +32,7 @@ class MessageSent implements ShouldBroadcast // ⬅️ This is required
     public function broadcastOn(): array
     {
         return [
-            new PrivateChannel('chat.' . $this->message->phone),
+            new PrivateChannel('chat.' . preg_replace('/\D+/', '', $this->message->phone)),
         ];
     }
      public function broadcastAs()

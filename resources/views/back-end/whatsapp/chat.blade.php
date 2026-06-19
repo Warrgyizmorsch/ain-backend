@@ -2842,6 +2842,29 @@
 {{-- ══════════════════════════════════════════════════
      JAVASCRIPT
 ══════════════════════════════════════════════════ --}}
+@if(config('broadcasting.default') === 'pusher' && config('broadcasting.connections.pusher.key'))
+<script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/laravel-echo@1.15.3/dist/echo.iife.js"></script>
+<script>
+    if ((!window.Echo || typeof window.Echo.private !== 'function') && window.Pusher && typeof Echo !== 'undefined') {
+        window.Pusher = Pusher;
+        window.Echo = new Echo({
+            broadcaster: 'pusher',
+            key: @json(config('broadcasting.connections.pusher.key')),
+            cluster: @json(config('broadcasting.connections.pusher.options.cluster')),
+            forceTLS: true,
+            encrypted: true,
+            authEndpoint: '{{ url('/broadcasting/auth') }}',
+            auth: {
+                headers: {
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                },
+            },
+        });
+    }
+</script>
+@endif
+
 <script>
 (function () {
     const page          = document.getElementById('wabPage');
@@ -2873,6 +2896,7 @@
     const markUnreadBtn = document.getElementById('wabMarkUnreadBtn');
     const csrfToken     = document.querySelector('meta[name="csrf-token"]')?.content || '';
     const selectedPhone = body?.dataset.selectedPhone || '';
+    const selectedPhoneChannel = selectedPhone.replace(/\D+/g, '');
     const messagesUrl   = @json(route('whatsapp.chat.messages'));
     const markReadUrl   = @json(route('whatsapp.chat.mark-read'));
     const markUnreadUrl = @json(route('whatsapp.chat.mark-unread'));
@@ -3581,8 +3605,8 @@
     pollMessages();
     if (selectedPhone) {
         setInterval(pollMessages, 2000);
-        if (window.Echo?.private) {
-            window.Echo.private(`chat.${selectedPhone}`)
+        if (window.Echo?.private && selectedPhoneChannel) {
+            window.Echo.private(`chat.${selectedPhoneChannel}`)
                 .listen('.MessageSent', pollMessages)
                 .listen('.MessageStatusUpdated', pollMessages);
         }

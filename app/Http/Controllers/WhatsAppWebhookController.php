@@ -25,28 +25,46 @@ public function receive(Request $request)
         $text = $request->input('Body', '');
         $waMessageId = $request->input('MessageSid') ?? $request->input('SmsMessageSid');
         $userName = $request->input('ProfileName') ?: $phone;
-        $mediaUrl = $request->input('MediaUrl0');
-        $mediaContentType = $request->input('MediaContentType0');
-        $mediaType = $this->mediaTypeFromContentType($mediaContentType);
-        $storedMedia = $this->storeTwilioMedia($mediaUrl, $mediaContentType, $waMessageId);
-        $mediaName = $this->mediaNameFromBodyOrUrl($text, $storedMedia['media_url'] ?? $mediaUrl, $mediaType);
+        $numMedia = (int) $request->input('NumMedia', 0);
         $messageText = $this->bodyLooksLikeFileName($text) ? '' : $text;
+        $createdMessages = collect();
 
-        $whatsappMessage = WhatsappMessage::create([
-            'phone' => $phone,
-            'name' => $userName,
-            'message' => $messageText,
-            'direction' => 'inbound',
-            'wa_message_id' => $waMessageId,
-            'status' => 'received',
-            'media_url' => $storedMedia['media_url'] ?? $mediaUrl,
-            'media_type' => $mediaType,
-            'media_name' => $storedMedia['media_name'] ?? $mediaName,
-            'media_size' => $storedMedia['media_size'] ?? null,
-        ]);
+        if ($numMedia > 0) {
+            for ($index = 0; $index < $numMedia; $index++) {
+                $mediaUrl = $request->input("MediaUrl{$index}");
+                $mediaContentType = $request->input("MediaContentType{$index}");
+                $mediaType = $this->mediaTypeFromContentType($mediaContentType);
+                $mediaSid = $numMedia > 1 ? "{$waMessageId}_{$index}" : $waMessageId;
+                $storedMedia = $this->storeTwilioMedia($mediaUrl, $mediaContentType, $mediaSid);
+                $mediaName = $this->mediaNameFromBodyOrUrl($text, $storedMedia['media_url'] ?? $mediaUrl, $mediaType);
+
+                $createdMessages->push(WhatsappMessage::create([
+                    'phone' => $phone,
+                    'name' => $userName,
+                    'message' => $index === 0 ? $messageText : '',
+                    'direction' => 'inbound',
+                    'wa_message_id' => $mediaSid,
+                    'status' => 'received',
+                    'media_url' => $storedMedia['media_url'] ?? $mediaUrl,
+                    'media_type' => $mediaType,
+                    'media_name' => $storedMedia['media_name'] ?? $mediaName,
+                    'media_size' => $storedMedia['media_size'] ?? null,
+                ]));
+            }
+        } else {
+            $createdMessages->push(WhatsappMessage::create([
+                'phone' => $phone,
+                'name' => $userName,
+                'message' => $messageText,
+                'direction' => 'inbound',
+                'wa_message_id' => $waMessageId,
+                'status' => 'received',
+            ]));
+        }
+
         Cache::forget($this->typingCacheKey($phone));
 
-        event(new MessageSent($whatsappMessage));
+        $createdMessages->each(fn (WhatsappMessage $message) => event(new MessageSent($message)));
 
         return response()->json(['status' => 'received'], 200);
     }
@@ -218,19 +236,31 @@ private function storeTwilioMedia(?string $mediaUrl, ?string $contentType, ?stri
     }
 
     try {
-        $response = Http::withBasicAuth($sid, $token)->get($mediaUrl);
+        Log::info('Twilio media download started', [
+            'media_url' => $mediaUrl,
+            'content_type' => $contentType,
+            'message_sid' => $messageSid,
+        ]);
+
+        $response = Http::withBasicAuth($sid, $token)
+            ->withOptions(['allow_redirects' => true])
+            ->timeout(30)
+            ->get($mediaUrl);
 
         if (! $response->successful()) {
             Log::warning('Twilio media download failed', [
                 'media_url' => $mediaUrl,
                 'status' => $response->status(),
+                'content_type' => $contentType,
+                'response_content_type' => $response->header('Content-Type'),
             ]);
 
             return [];
         }
 
         $content = $response->body();
-        $extension = $this->extensionFromContentType($contentType ?: $response->header('Content-Type'));
+        $responseContentType = $response->header('Content-Type');
+        $extension = $this->extensionFromContentType($contentType ?: $responseContentType);
         $fileName = uniqid('wa_in_', true) . '.' . $extension;
         $destinationPath = base_path('assets/media/whatsapp');
 
@@ -239,6 +269,13 @@ private function storeTwilioMedia(?string $mediaUrl, ?string $contentType, ?stri
         }
 
         file_put_contents($destinationPath . DIRECTORY_SEPARATOR . $fileName, $content);
+
+        Log::info('Twilio media downloaded', [
+            'media_url' => 'assets/media/whatsapp/' . $fileName,
+            'content_type' => $contentType,
+            'response_content_type' => $responseContentType,
+            'size' => strlen($content),
+        ]);
 
         return [
             'media_url' => 'assets/media/whatsapp/' . $fileName,

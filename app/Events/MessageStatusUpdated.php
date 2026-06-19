@@ -24,9 +24,10 @@ class MessageStatusUpdated implements ShouldBroadcast
 
     public function broadcastOn(): array
     {
-        Log::info('Broadcasting MessageStatusUpdated on: chat.' . $this->message->phone);
+        $channelPhone = preg_replace('/\D+/', '', $this->message->phone);
+        Log::info('Broadcasting MessageStatusUpdated on: chat.' . $channelPhone);
         return [
-            new PrivateChannel('chat.' . $this->message->phone),
+            new PrivateChannel('chat.' . $channelPhone),
         ];
     }
 
