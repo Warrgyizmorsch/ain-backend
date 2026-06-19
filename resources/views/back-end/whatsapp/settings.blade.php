@@ -18,7 +18,7 @@
             <div class="text-muted fw-bold fs-7">Choose one app/provider and configure its connection details.</div>
         </div>
         <button type="submit" class="btn btn-sm btn-success">
-            <i class="fa fa-save me-2"></i>Save Draft
+            <i class="fa fa-save me-2"></i>Save Settings
         </button>
     </div>
 
@@ -32,7 +32,7 @@
                 <div class="card-header border-0 pt-6">
                     <div class="card-title d-block">
                         <h3 class="fw-bolder mb-1">Select WhatsApp App</h3>
-                        <div class="text-muted fs-7">Provider selection is static for now. Saving/API connection will be added later.</div>
+                        <div class="text-muted fs-7">Select the active provider used for WhatsApp send and receive.</div>
                     </div>
                 </div>
                 <div class="card-body pt-0">
@@ -74,7 +74,7 @@
                 <div class="card-header border-0 pt-6">
                     <div class="card-title d-block">
                         <h3 class="fw-bolder mb-1">Integration Options</h3>
-                        <div class="text-muted fs-7">Each app has different credentials. Fill only the selected provider section.</div>
+                        <div class="text-muted fs-7">Each app has different credentials. Fill the selected provider section.</div>
                     </div>
                 </div>
                 <div class="card-body pt-0">
@@ -199,6 +199,10 @@
                                 <label class="form-label fw-bold">Campaign Source</label>
                                 <input type="text" name="settings[interakt][campaign_source]" class="form-control form-control-solid" placeholder="AIN Backend" value="{{ $settingValue('interakt', 'campaign_source') }}">
                             </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">Webhook URL</label>
+                                <input type="text" name="settings[interakt][webhook_url]" class="form-control form-control-solid" value="{{ $webhookUrl }}" readonly>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -226,8 +230,8 @@
                     </div>
 
                     <div class="notice bg-light-primary rounded border-primary border border-dashed p-5 mt-8">
-                        <div class="fw-bolder text-dark mb-2">Static preview</div>
-                        <div class="text-muted fs-7">This screen is UI only. Provider saving and live API connection can be wired after final provider selection.</div>
+                        <div class="fw-bolder text-dark mb-2">Webhook URL</div>
+                        <div class="text-muted fs-7">Copy the selected provider webhook URL into the provider dashboard and keep credentials updated here.</div>
                     </div>
                 </div>
             </div>

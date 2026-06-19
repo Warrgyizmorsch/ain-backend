@@ -49,6 +49,7 @@ class WhatsappController extends Controller
 
         $provider = $validated['provider'];
         $settings = $request->input("settings.{$provider}", []);
+        $settings['webhook_url'] = url('/api/webhooks/whatsapp');
 
         WhatsappSetting::query()->update(['is_active' => false]);
 
@@ -707,35 +708,41 @@ class WhatsappController extends Controller
             return $mediaUrl;
         }
 
-        $publicBaseUrl = env('WHATSAPP_PUBLIC_URL');
-
-        if (
-            ! $publicBaseUrl
-            && ! empty($config['webhook_url'])
-            && ! str_contains($config['webhook_url'], 'localhost')
-            && ! str_contains($config['webhook_url'], '127.0.0.1')
-        ) {
-            $publicBaseUrl = preg_replace('#/api/webhooks/whatsapp/?$#', '', $config['webhook_url']);
-        }
-
-        $publicBaseUrl = rtrim($publicBaseUrl ?: config('app.url'), '/');
+        $publicBaseUrl = $this->providerPublicBaseUrl($config) ?: rtrim(url('/'), '/');
 
         return $publicBaseUrl . '/' . ltrim($mediaUrl, '/');
     }
 
     private function providerWebhookUrl(array $config = []): ?string
     {
-        $webhookUrl = env('WHATSAPP_WEBHOOK_URL') ?: ($config['webhook_url'] ?? null);
+        $webhookUrl = $config['webhook_url'] ?? url('/api/webhooks/whatsapp');
 
-        if (! $webhookUrl) {
-            $publicBaseUrl = env('WHATSAPP_PUBLIC_URL');
-            $webhookUrl = $publicBaseUrl ? rtrim($publicBaseUrl, '/') . '/api/webhooks/whatsapp' : null;
-        }
-
-        if (! $webhookUrl || str_contains($webhookUrl, 'localhost') || str_contains($webhookUrl, '127.0.0.1')) {
+        if (! $this->isPublicProviderUrl($webhookUrl)) {
             return null;
         }
 
         return $webhookUrl;
+    }
+
+    private function providerPublicBaseUrl(array $config = []): ?string
+    {
+        $webhookUrl = $config['webhook_url'] ?? null;
+
+        if (! $this->isPublicProviderUrl($webhookUrl)) {
+            return null;
+        }
+
+        return rtrim(preg_replace('#/api/webhooks/whatsapp/?$#', '', $webhookUrl), '/');
+    }
+
+    private function isPublicProviderUrl(?string $url): bool
+    {
+        if (! $url || ! filter_var($url, FILTER_VALIDATE_URL)) {
+            return false;
+        }
+
+        $host = strtolower((string) parse_url($url, PHP_URL_HOST));
+
+        return ! in_array($host, ['localhost', '127.0.0.1', '::1'], true);
     }
 }
