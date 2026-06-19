@@ -678,6 +678,18 @@ class WhatsappController extends Controller
             $file->move($destinationPath, $fileName);
             $relativePath = 'assets/media/whatsapp/' . $fileName;
 
+            if ($this->isVoiceNote($origName, $extension)) {
+                $converted = $this->convertVoiceNoteToMp3($destinationPath, $fileName, $origName);
+
+                if ($converted) {
+                    $fileName = $converted['file_name'];
+                    $relativePath = $converted['relative_path'];
+                    $origName = $converted['media_name'];
+                    $size = $converted['size'];
+                    $extension = 'mp3';
+                }
+            }
+
             $message = WhatsappMessage::query()->create([
                 'phone'      => $phone,
                 'name'       => Auth::user()?->name ?? 'Admin',
@@ -744,6 +756,65 @@ class WhatsappController extends Controller
         $extension = strtolower((string) $extension);
 
         return $extension === 'webm' && str_starts_with($name, 'voice-note-');
+    }
+
+    private function convertVoiceNoteToMp3(string $destinationPath, string $fileName, string $originalName): ?array
+    {
+        $ffmpeg = $this->ffmpegBinary();
+
+        if (! $ffmpeg) {
+            Log::warning('Voice note conversion skipped because ffmpeg is not available.');
+
+            return null;
+        }
+
+        $sourcePath = $destinationPath . DIRECTORY_SEPARATOR . $fileName;
+        $convertedName = pathinfo($fileName, PATHINFO_FILENAME) . '.mp3';
+        $convertedPath = $destinationPath . DIRECTORY_SEPARATOR . $convertedName;
+
+        $command = sprintf(
+            '%s -y -i %s -vn -ar 44100 -ac 1 -b:a 96k %s 2>&1',
+            escapeshellarg($ffmpeg),
+            escapeshellarg($sourcePath),
+            escapeshellarg($convertedPath)
+        );
+
+        exec($command, $output, $exitCode);
+
+        if ($exitCode !== 0 || ! file_exists($convertedPath) || filesize($convertedPath) <= 0) {
+            Log::warning('Voice note conversion failed', [
+                'exit_code' => $exitCode,
+                'output' => implode("\n", array_slice($output, -8)),
+            ]);
+
+            return null;
+        }
+
+        @unlink($sourcePath);
+
+        return [
+            'file_name' => $convertedName,
+            'relative_path' => 'assets/media/whatsapp/' . $convertedName,
+            'media_name' => preg_replace('/\.webm$/i', '.mp3', $originalName) ?: $convertedName,
+            'size' => filesize($convertedPath),
+        ];
+    }
+
+    private function ffmpegBinary(): ?string
+    {
+        foreach (['ffmpeg', '/usr/bin/ffmpeg', '/usr/local/bin/ffmpeg'] as $candidate) {
+            $command = stripos(PHP_OS_FAMILY, 'Windows') === 0
+                ? 'where ' . escapeshellarg($candidate) . ' 2>NUL'
+                : 'command -v ' . escapeshellarg($candidate) . ' 2>/dev/null';
+
+            exec($command, $output, $exitCode);
+
+            if ($exitCode === 0) {
+                return $candidate;
+            }
+        }
+
+        return null;
     }
 
     private function providerWebhookUrl(array $config = []): ?string

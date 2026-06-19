@@ -3110,6 +3110,7 @@
     let recordedAudioUrl = '';
     let recordedAudio = null;
     let recordedAudioDuration = 0;
+    let recordedAudioExtension = 'webm';
     const defaultTypingLabel = typingLabel?.textContent || selectedPhone || 'ready';
 
     /* ── Toggle sidebar collapse (desktop) ── */
@@ -3661,8 +3662,16 @@
         try {
             resetAudioRecording();
             audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm';
-            mediaRecorder = new MediaRecorder(audioStream, { mimeType });
+            const recorderOptions = [
+                { mimeType: 'audio/ogg;codecs=opus', extension: 'ogg' },
+                { mimeType: 'audio/mp4', extension: 'm4a' },
+                { mimeType: 'audio/webm;codecs=opus', extension: 'webm' },
+                { mimeType: 'audio/webm', extension: 'webm' },
+            ].find(option => MediaRecorder.isTypeSupported(option.mimeType)) || { mimeType: '', extension: 'webm' };
+            recordedAudioExtension = recorderOptions.extension;
+            mediaRecorder = recorderOptions.mimeType
+                ? new MediaRecorder(audioStream, { mimeType: recorderOptions.mimeType })
+                : new MediaRecorder(audioStream);
             audioStartedAt = Date.now();
             setAudioTime(0);
             setAudioUi('recording');
@@ -3677,7 +3686,7 @@
                 audioStream?.getTracks().forEach(track => track.stop());
                 audioStream = null;
                 recordedAudioDuration = Math.max(1, Math.round((Date.now() - audioStartedAt) / 1000));
-                recordedAudioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                recordedAudioBlob = new Blob(audioChunks, { type: mediaRecorder.mimeType || recorderOptions.mimeType || 'audio/webm' });
                 recordedAudioUrl = URL.createObjectURL(recordedAudioBlob);
                 recordedAudio = new Audio(recordedAudioUrl);
                 recordedAudio.addEventListener('ended', () => {
@@ -3711,7 +3720,7 @@
         const formData = new FormData();
         formData.append('phone', selectedPhone);
         formData.append('caption', '');
-        formData.append('files[]', recordedAudioBlob, `voice-note-${Date.now()}.webm`);
+        formData.append('files[]', recordedAudioBlob, `voice-note-${Date.now()}.${recordedAudioExtension}`);
 
         if (sendBtn) sendBtn.disabled = true;
         if (micBtn) micBtn.disabled = true;
