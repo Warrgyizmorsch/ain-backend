@@ -289,7 +289,9 @@
                 <div class="wab-msg-row {{ $message->direction === 'inbound' ? 'wab-incoming' : 'wab-outgoing' }}" data-message-id="{{ $message->id }}">
                     <div class="wab-msg-bubble {{ $message->media_type ? 'wab-bubble--media wab-bubble--' . $message->media_type : '' }}">
                         @if($message->media_url)
-                            @php($messageMediaUrl = $mediaDisplayUrl($message->media_url))
+                            @php
+                                $messageMediaUrl = $mediaDisplayUrl($message->media_url);
+                            @endphp
                             @if($message->media_type === 'image')
                                 <a href="{{ $messageMediaUrl }}" target="_blank" class="wab-media-img-link">
                                     <img src="{{ $messageMediaUrl }}" class="wab-media-img" alt="{{ $message->media_name }}" loading="lazy">
