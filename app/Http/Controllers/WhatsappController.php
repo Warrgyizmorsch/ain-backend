@@ -277,12 +277,22 @@ class WhatsappController extends Controller
         $phone = $this->normalizePhone($validated['country_code'], $validated['mobile']);
 
         if (! empty($validated['message'])) {
-            $this->storeOutboundMessage($phone, $validated['message']);
+            $message = $this->storeOutboundMessage($phone, $validated['message']);
+            $sendResult = $this->sendViaActiveProvider($message);
+
+            if (! $sendResult['success']) {
+                return redirect()
+                    ->route('whatsapp.chat', ['phone' => $phone])
+                    ->with('error', $sendResult['error']);
+            }
         } else {
-            WhatsappMessage::query()->firstOrCreate(
-                ['phone' => $phone, 'message' => ''],
-                ['name' => $phone, 'direction' => 'outbound', 'status' => 'draft']
-            );
+            WhatsappMessage::query()->create([
+                'phone' => $phone,
+                'name' => $phone,
+                'message' => '',
+                'direction' => 'outbound',
+                'status' => 'draft',
+            ]);
         }
 
         return redirect()->route('whatsapp.chat', ['phone' => $phone]);
@@ -296,15 +306,33 @@ class WhatsappController extends Controller
         ]);
 
         $message = $this->storeOutboundMessage($validated['phone'], $validated['message']);
-        $this->sendViaActiveProvider($message);
+        $sendResult = $this->sendViaActiveProvider($message);
         $message->refresh();
 
         if ($request->expectsJson()) {
+            $payload = [
+                'success' => $sendResult['success'],
+                'message' => $this->messagePayload($message),
+                'contacts' => $this->getContacts($validated['phone']),
+            ];
+
+            if (! $sendResult['success']) {
+                $payload['error'] = $sendResult['error'];
+
+                return response()->json($payload, 422);
+            }
+
             return response()->json([
                 'success' => true,
                 'message' => $this->messagePayload($message),
                 'contacts' => $this->getContacts($validated['phone']),
             ]);
+        }
+
+        if (! $sendResult['success']) {
+            return redirect()
+                ->route('whatsapp.chat', ['phone' => $validated['phone']])
+                ->with('error', $sendResult['error']);
         }
 
         return redirect()->route('whatsapp.chat', ['phone' => $validated['phone']]);
@@ -432,12 +460,19 @@ class WhatsappController extends Controller
         ]);
     }
 
-    private function sendViaActiveProvider(WhatsappMessage $message): void
+    private function sendViaActiveProvider(WhatsappMessage $message): array
     {
         $setting = WhatsappSetting::query()->where('is_active', true)->first();
 
         if (! $setting || $setting->provider !== 'twilio') {
-            return;
+            $message->update(['status' => 'failed']);
+
+            return [
+                'success' => false,
+                'error' => $setting
+                    ? ucfirst($setting->provider) . ' sending is not configured for this chat panel.'
+                    : 'No active WhatsApp provider is configured.',
+            ];
         }
 
         $config = $setting->settings ?? [];
@@ -446,7 +481,12 @@ class WhatsappController extends Controller
         $from = $config['whatsapp_from_number'] ?? null;
 
         if (! $sid || ! $token || ! $from) {
-            return;
+            $message->update(['status' => 'failed']);
+
+            return [
+                'success' => false,
+                'error' => 'Twilio WhatsApp settings are incomplete.',
+            ];
         }
 
         try {
@@ -469,7 +509,12 @@ class WhatsappController extends Controller
             }
 
             if (! isset($payload['Body']) && ! isset($payload['MediaUrl'])) {
-                return;
+                $message->update(['status' => 'failed']);
+
+                return [
+                    'success' => false,
+                    'error' => 'Message body or media is required.',
+                ];
             }
 
             $response = Http::withBasicAuth($sid, $token)
@@ -481,16 +526,28 @@ class WhatsappController extends Controller
                     'wa_message_id' => $response->json('sid'),
                     'status' => $response->json('status', 'sent'),
                 ]);
+
+                return ['success' => true, 'error' => null];
             } else {
                 $message->update(['status' => 'failed']);
                 Log::warning('Twilio WhatsApp send failed', [
                     'payload' => collect($payload)->except(['Body'])->all(),
                     'response' => $response->json(),
                 ]);
+
+                return [
+                    'success' => false,
+                    'error' => $response->json('message') ?: 'Twilio WhatsApp send failed.',
+                ];
             }
         } catch (\Throwable $exception) {
             $message->update(['status' => 'failed']);
             Log::error('Twilio WhatsApp send exception', ['exception' => $exception]);
+
+            return [
+                'success' => false,
+                'error' => 'WhatsApp send failed: ' . $exception->getMessage(),
+            ];
         }
     }
 
@@ -645,6 +702,7 @@ class WhatsappController extends Controller
 
         $allowedExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif', 'bmp', 'mp4', 'mov', 'avi', 'mkv', 'webm', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'zip', 'rar', 'mp3', 'ogg', 'wav', 'm4a', 'csv'];
         $messages = collect();
+        $sendErrors = [];
 
         foreach ($files as $index => $file) {
             $extension = strtolower($file->getClientOriginalExtension());
@@ -709,17 +767,29 @@ class WhatsappController extends Controller
                 'media_size' => $size,
             ]);
 
-            $this->sendViaActiveProvider($message);
+            $sendResult = $this->sendViaActiveProvider($message);
+            if (! $sendResult['success']) {
+                $sendErrors[] = $sendResult['error'];
+            }
+
             $message->refresh();
             $messages->push($message);
         }
 
-        return response()->json([
-            'success'  => true,
+        $payload = [
+            'success'  => empty($sendErrors),
             'message'  => $this->messagePayload($messages->first()),
             'messages' => $messages->map(fn (WhatsappMessage $message) => $this->messagePayload($message))->values(),
             'contacts' => $this->getContacts($phone),
-        ]);
+        ];
+
+        if (! empty($sendErrors)) {
+            $payload['error'] = collect($sendErrors)->filter()->unique()->implode(' ');
+
+            return response()->json($payload, 422);
+        }
+
+        return response()->json($payload);
     }
 
     private function providerMediaUrl(string $mediaUrl, array $config = []): string

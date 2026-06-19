@@ -42,6 +42,13 @@
      ====================================================== --}}
 
 <div class="wab-page" id="wabPage">
+    @if(session('error'))
+        <div class="alert alert-danger fw-bold m-3">{{ session('error') }}</div>
+    @endif
+
+    @if(session('success'))
+        <div class="alert alert-success fw-bold m-3">{{ session('success') }}</div>
+    @endif
 
     {{-- ── CONTACT SIDEBAR ── --}}
     <aside class="wab-sidebar" id="wabSidebar">
@@ -3527,6 +3534,7 @@
         const letter = item.querySelector('.wab-avatar-letter');
         if (letter) letter.textContent = initials(contact.name);
         updateBadge(item, Number(contact.badge || 0));
+        list.prepend(item);
     }
 
     function updateContacts(contacts) {
@@ -3739,7 +3747,9 @@
             const data = await response.json();
 
             if (!response.ok) {
-                throw new Error(data.message || 'Audio send failed');
+                (data.messages || (data.message ? [data.message] : [])).forEach(renderMessage);
+                updateContacts(data.contacts);
+                throw new Error(data.error || data.message || 'Audio send failed');
             }
 
             (data.messages || (data.message ? [data.message] : [])).forEach(renderMessage);
@@ -3821,11 +3831,14 @@
                 body: formData,
             });
 
+            const data = await response.json().catch(() => ({}));
+
             if (!response.ok) {
-                throw new Error('Send failed');
+                if (data.message) renderMessage(data.message);
+                updateContacts(data.contacts);
+                throw new Error(data.error || 'Send failed');
             }
 
-            const data = await response.json();
             if (data.message) {
                 renderMessage(data.message);
             }
@@ -3833,8 +3846,7 @@
             pollMessages();
         } catch (error) {
             console.warn('Unable to send WhatsApp message without refresh.', error);
-            input.value = originalText;
-            sendForm.submit();
+            alert(error.message || 'Message send nahi ho paya. Please settings/provider check karo.');
         } finally {
             input.disabled = false;
             if (sendBtn) sendBtn.disabled = false;
@@ -3982,7 +3994,9 @@
 
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
-                throw new Error(errorData.message || 'Media upload failed');
+                (errorData.messages || (errorData.message ? [errorData.message] : [])).forEach(renderMessage);
+                updateContacts(errorData.contacts);
+                throw new Error(errorData.error || errorData.message || 'Media upload failed');
             }
 
             const data = await response.json();
