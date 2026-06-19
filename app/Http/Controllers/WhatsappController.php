@@ -768,6 +768,12 @@ class WhatsappController extends Controller
 
     private function convertVoiceNoteToOgg(string $destinationPath, string $fileName, string $originalName): ?array
     {
+        if (! function_exists('exec')) {
+            Log::warning('Voice note conversion skipped because PHP exec is disabled.');
+
+            return null;
+        }
+
         $ffmpeg = $this->ffmpegBinary();
 
         if (! $ffmpeg) {
@@ -815,6 +821,10 @@ class WhatsappController extends Controller
 
     private function ffmpegBinary(): ?string
     {
+        if (! function_exists('exec')) {
+            return null;
+        }
+
         foreach (['ffmpeg', '/usr/bin/ffmpeg', '/usr/local/bin/ffmpeg'] as $candidate) {
             $command = stripos(PHP_OS_FAMILY, 'Windows') === 0
                 ? 'where ' . escapeshellarg($candidate) . ' 2>NUL'
