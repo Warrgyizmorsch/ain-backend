@@ -301,8 +301,18 @@
                                     <source src="{{ $messageMediaUrl }}">
                                 </video>
                             @elseif($message->media_type === 'audio')
-                                <div class="wab-media-audio-wrap">
-                                    <audio controls class="wab-media-audio"><source src="{{ $messageMediaUrl }}"></audio>
+                                <div class="wab-voice-card">
+                                    <button type="button" class="wab-voice-play" title="Play audio">
+                                        <svg class="wab-voice-play-icon" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                                        <svg class="wab-voice-pause-icon" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" hidden><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>
+                                    </button>
+                                    <div class="wab-voice-wave">
+                                        @for($i = 0; $i < 24; $i++)
+                                            <span style="height: {{ 7 + (($i * 5) % 17) }}px"></span>
+                                        @endfor
+                                    </div>
+                                    <span class="wab-voice-time">0:00</span>
+                                    <audio class="wab-voice-audio" preload="metadata" src="{{ $messageMediaUrl }}"></audio>
                                 </div>
                             @else
                                 @php
@@ -443,6 +453,25 @@
             <div class="wab-input-wrap">
                 <input type="text" class="wab-input" id="wabInput" name="message" placeholder="Type a message…" autocomplete="off" {{ $selectedPhone ? '' : 'disabled' }}>
             </div>
+            <div class="wab-audio-review" id="wabAudioReview" hidden>
+                <button type="button" class="wab-audio-icon-btn" id="wabAudioDelete" title="Delete recording">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 15H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+                </button>
+                <button type="button" class="wab-audio-icon-btn" id="wabAudioPlay" title="Play recording">
+                    <svg class="wab-audio-play-icon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                    <svg class="wab-audio-pause-icon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" hidden><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>
+                </button>
+                <div class="wab-audio-wave" id="wabAudioWave" aria-hidden="true">
+                    @for($i = 0; $i < 22; $i++)
+                        <span style="height: {{ 8 + (($i * 7) % 18) }}px"></span>
+                    @endfor
+                </div>
+                <span class="wab-audio-time" id="wabAudioTime">0:00</span>
+            </div>
+            <button type="button" class="wab-mic-btn" id="wabMicBtn" title="Record audio" {{ $selectedPhone ? '' : 'disabled' }}>
+                <svg class="wab-mic-icon" width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><path d="M12 19v3"/><path d="M8 22h8"/></svg>
+                <svg class="wab-stop-icon" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" hidden><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+            </button>
             <button type="submit" class="wab-send-btn" id="wabSendBtn" title="Send" {{ $selectedPhone ? '' : 'disabled' }}>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
             </button>
@@ -1294,13 +1323,59 @@
     object-fit: cover;
     background: rgba(0,0,0,.06);
 }
-.wab-media-audio-wrap {
+.wab-voice-card {
     min-width: 260px;
-    padding: 6px;
+    max-width: 320px;
+    height: 48px;
+    border-radius: 24px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 12px;
+    background: rgba(255,255,255,.62);
 }
-.wab-media-audio {
-    display: block;
-    width: 100%;
+.wab-incoming .wab-voice-card {
+    background: #f7faf9;
+}
+.wab-outgoing .wab-voice-card {
+    background: rgba(255,255,255,.52);
+}
+.wab-voice-play {
+    width: 34px;
+    height: 34px;
+    border: 0;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    flex: 0 0 auto;
+    cursor: pointer;
+    color: #fff;
+    background: var(--wa-teal);
+}
+.wab-voice-wave {
+    flex: 1;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    overflow: hidden;
+}
+.wab-voice-wave span {
+    width: 3px;
+    border-radius: 4px;
+    background: #9aa8ae;
+}
+.wab-voice-card.is-playing .wab-voice-wave span {
+    background: #25d366;
+}
+.wab-voice-time {
+    min-width: 38px;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--wa-text-main);
+}
+.wab-voice-audio {
+    display: none;
 }
 .wab-media-caption {
     padding: 7px 7px 0;
@@ -1478,6 +1553,99 @@
     box-shadow: 0 4px 14px rgba(0,168,132,.45);
 }
 .wab-send-btn:active { transform: scale(.94); }
+.wab-mic-btn {
+    width: 44px;
+    height: 44px;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: #54656f;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background .15s, color .15s, transform .15s;
+}
+.wab-mic-btn:hover {
+    background: rgba(0,0,0,.06);
+    color: var(--wa-teal);
+}
+.wab-mic-btn.is-recording {
+    background: #ffe4e8;
+    color: #e11d48;
+    animation: mic-pulse 1s infinite ease-in-out;
+}
+.wab-mic-btn:disabled {
+    opacity: .5;
+    cursor: not-allowed;
+}
+.wab-audio-review {
+    flex: 1;
+    height: 48px;
+    min-width: 0;
+    border-radius: 24px;
+    background: #202c33;
+    color: #e9edef;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 0 14px;
+}
+.wab-conv-footer.is-audio-ready .wab-input-wrap,
+.wab-conv-footer.is-audio-recording .wab-input-wrap,
+.wab-conv-footer.is-audio-ready .wab-footer-actions-left,
+.wab-conv-footer.is-audio-recording .wab-footer-actions-left {
+    display: none;
+}
+.wab-conv-footer.is-audio-ready .wab-send-btn {
+    display: flex;
+}
+.wab-conv-footer:not(.is-audio-ready) .wab-send-btn {
+    display: flex;
+}
+.wab-audio-icon-btn {
+    width: 34px;
+    height: 34px;
+    border: 0;
+    border-radius: 50%;
+    color: #f1f5f9;
+    background: transparent;
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+}
+.wab-audio-icon-btn:hover {
+    background: rgba(255,255,255,.08);
+}
+.wab-audio-wave {
+    flex: 1;
+    min-width: 80px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    overflow: hidden;
+}
+.wab-audio-wave span {
+    width: 3px;
+    border-radius: 4px;
+    background: #5f6b72;
+}
+.wab-audio-wave.is-playing span {
+    background: #25d366;
+}
+.wab-audio-time {
+    min-width: 44px;
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: 0;
+    color: #f8fafc;
+}
+@keyframes mic-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(225,29,72,.25); }
+    50% { box-shadow: 0 0 0 8px rgba(225,29,72,0); }
+}
 
 /* ── Emoji Panel ── */
 .wab-emoji-panel {
@@ -2887,6 +3055,12 @@
     const uploadTray    = document.getElementById('wabUploadTray');
     const uploadCaption = document.getElementById('wabUploadCaption');
     const uploadSend    = document.getElementById('wabUploadSend');
+    const micBtn        = document.getElementById('wabMicBtn');
+    const audioReview   = document.getElementById('wabAudioReview');
+    const audioDelete   = document.getElementById('wabAudioDelete');
+    const audioPlay     = document.getElementById('wabAudioPlay');
+    const audioTime     = document.getElementById('wabAudioTime');
+    const audioWave     = document.getElementById('wabAudioWave');
     const searchInput   = document.getElementById('wabSearchInput');
     const mobileBack    = document.getElementById('wabMobileBack');
     const typingRow     = document.getElementById('wabTypingRow');
@@ -2906,6 +3080,15 @@
     let selectedUploadFiles = [];
     let selectedUploadUrls = [];
     let activeUploadIndex = 0;
+    let mediaRecorder = null;
+    let audioChunks = [];
+    let audioStream = null;
+    let audioStartedAt = 0;
+    let audioTimer = null;
+    let recordedAudioBlob = null;
+    let recordedAudioUrl = '';
+    let recordedAudio = null;
+    let recordedAudioDuration = 0;
     const defaultTypingLabel = typingLabel?.textContent || selectedPhone || 'ready';
 
     /* ── Toggle sidebar collapse (desktop) ── */
@@ -3127,7 +3310,18 @@
         } else if (type === 'video') {
             mediaMarkup = `<video class="wab-media-video" controls preload="metadata"><source src="${url}"></video>`;
         } else if (type === 'audio') {
-            mediaMarkup = `<div class="wab-media-audio-wrap"><audio controls class="wab-media-audio"><source src="${url}"></audio></div>`;
+            const bars = Array.from({ length: 24 }, (_, i) => `<span style="height:${7 + ((i * 5) % 17)}px"></span>`).join('');
+            mediaMarkup = `
+                <div class="wab-voice-card">
+                    <button type="button" class="wab-voice-play" title="Play audio">
+                        <svg class="wab-voice-play-icon" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                        <svg class="wab-voice-pause-icon" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" hidden><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>
+                    </button>
+                    <div class="wab-voice-wave">${bars}</div>
+                    <span class="wab-voice-time">0:00</span>
+                    <audio class="wab-voice-audio" preload="metadata" src="${url}"></audio>
+                </div>
+            `;
         } else {
             mediaMarkup = `
                 <a href="${url}" target="_blank" class="wab-media-doc-card" download="${name}">
@@ -3173,10 +3367,74 @@
         `;
 
         body.insertBefore(row, typingRow);
+        initVoiceCards(row);
         lastMessageId = Math.max(lastMessageId, Number(message.id || 0));
         body.dataset.lastMessageId = String(lastMessageId);
         body.scrollTop = body.scrollHeight;
     }
+
+    function initVoiceCards(root = document) {
+        root.querySelectorAll('.wab-voice-card').forEach(card => {
+            if (card.dataset.voiceReady === '1') return;
+            card.dataset.voiceReady = '1';
+
+            const audio = card.querySelector('.wab-voice-audio');
+            const time = card.querySelector('.wab-voice-time');
+            const playIcon = card.querySelector('.wab-voice-play-icon');
+            const pauseIcon = card.querySelector('.wab-voice-pause-icon');
+
+            const setTime = seconds => {
+                if (time) time.textContent = formatAudioTime(seconds);
+            };
+
+            audio?.addEventListener('loadedmetadata', () => {
+                if (Number.isFinite(audio.duration)) setTime(audio.duration);
+            });
+
+            audio?.addEventListener('timeupdate', () => {
+                if (!audio.paused) setTime(audio.currentTime);
+            });
+
+            audio?.addEventListener('ended', () => {
+                card.classList.remove('is-playing');
+                playIcon?.removeAttribute('hidden');
+                pauseIcon?.setAttribute('hidden', 'hidden');
+                if (Number.isFinite(audio.duration)) setTime(audio.duration);
+            });
+        });
+    }
+
+    body?.addEventListener('click', event => {
+        const button = event.target.closest('.wab-voice-play');
+        if (!button) return;
+
+        const card = button.closest('.wab-voice-card');
+        const audio = card?.querySelector('.wab-voice-audio');
+        if (!card || !audio) return;
+
+        document.querySelectorAll('.wab-voice-audio').forEach(other => {
+            if (other !== audio) {
+                other.pause();
+                const otherCard = other.closest('.wab-voice-card');
+                otherCard?.classList.remove('is-playing');
+                otherCard?.querySelector('.wab-voice-play-icon')?.removeAttribute('hidden');
+                otherCard?.querySelector('.wab-voice-pause-icon')?.setAttribute('hidden', 'hidden');
+            }
+        });
+
+        if (audio.paused) {
+            audio.play();
+            card.classList.add('is-playing');
+            card.querySelector('.wab-voice-play-icon')?.setAttribute('hidden', 'hidden');
+            card.querySelector('.wab-voice-pause-icon')?.removeAttribute('hidden');
+            return;
+        }
+
+        audio.pause();
+        card.classList.remove('is-playing');
+        card.querySelector('.wab-voice-play-icon')?.removeAttribute('hidden');
+        card.querySelector('.wab-voice-pause-icon')?.setAttribute('hidden', 'hidden');
+    });
 
     function contactUrl(phone) {
         return @json(route('whatsapp.chat')) + '?phone=' + encodeURIComponent(phone);
@@ -3330,10 +3588,183 @@
     });
 
     /* ── Send message ── */
+    function formatAudioTime(seconds) {
+        const total = Math.max(0, Math.floor(Number(seconds || 0)));
+        return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
+    }
+
+    function setAudioTime(seconds) {
+        if (audioTime) audioTime.textContent = formatAudioTime(seconds);
+    }
+
+    function setAudioUi(state) {
+        sendForm?.classList.toggle('is-audio-recording', state === 'recording');
+        sendForm?.classList.toggle('is-audio-ready', state === 'ready');
+        if (audioReview) audioReview.hidden = !['recording', 'ready'].includes(state);
+        micBtn?.classList.toggle('is-recording', state === 'recording');
+        micBtn?.querySelector('.wab-mic-icon')?.toggleAttribute('hidden', state === 'recording');
+        micBtn?.querySelector('.wab-stop-icon')?.toggleAttribute('hidden', state !== 'recording');
+        if (input) input.disabled = state === 'recording' || state === 'ready';
+    }
+
+    function resetAudioRecording() {
+        if (audioTimer) clearInterval(audioTimer);
+        audioTimer = null;
+        audioChunks = [];
+        recordedAudioBlob = null;
+        recordedAudioDuration = 0;
+        if (recordedAudio) {
+            recordedAudio.pause();
+            recordedAudio = null;
+        }
+        if (recordedAudioUrl) URL.revokeObjectURL(recordedAudioUrl);
+        recordedAudioUrl = '';
+        audioStream?.getTracks().forEach(track => track.stop());
+        audioStream = null;
+        if (audioPlay) {
+            audioPlay.querySelector('.wab-audio-play-icon')?.removeAttribute('hidden');
+            audioPlay.querySelector('.wab-audio-pause-icon')?.setAttribute('hidden', 'hidden');
+        }
+        audioWave?.classList.remove('is-playing');
+        setAudioTime(0);
+        setAudioUi('idle');
+        if (input) input.disabled = false;
+    }
+
+    async function startAudioRecording() {
+        if (!selectedPhone || !navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+            alert('Audio recording is not supported in this browser.');
+            return;
+        }
+
+        try {
+            resetAudioRecording();
+            audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm';
+            mediaRecorder = new MediaRecorder(audioStream, { mimeType });
+            audioStartedAt = Date.now();
+            setAudioTime(0);
+            setAudioUi('recording');
+
+            mediaRecorder.addEventListener('dataavailable', event => {
+                if (event.data?.size) audioChunks.push(event.data);
+            });
+
+            mediaRecorder.addEventListener('stop', () => {
+                if (audioTimer) clearInterval(audioTimer);
+                audioTimer = null;
+                audioStream?.getTracks().forEach(track => track.stop());
+                audioStream = null;
+                recordedAudioDuration = Math.max(1, Math.round((Date.now() - audioStartedAt) / 1000));
+                recordedAudioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                recordedAudioUrl = URL.createObjectURL(recordedAudioBlob);
+                recordedAudio = new Audio(recordedAudioUrl);
+                recordedAudio.addEventListener('ended', () => {
+                    audioWave?.classList.remove('is-playing');
+                    audioPlay?.querySelector('.wab-audio-play-icon')?.removeAttribute('hidden');
+                    audioPlay?.querySelector('.wab-audio-pause-icon')?.setAttribute('hidden', 'hidden');
+                    setAudioTime(recordedAudioDuration);
+                });
+                setAudioTime(recordedAudioDuration);
+                setAudioUi('ready');
+            });
+
+            mediaRecorder.start();
+            audioTimer = setInterval(() => setAudioTime((Date.now() - audioStartedAt) / 1000), 250);
+        } catch (error) {
+            console.warn('Unable to start audio recording.', error);
+            resetAudioRecording();
+            alert('Microphone permission nahi mili. Browser permission allow karke dobara try karo.');
+        }
+    }
+
+    function stopAudioRecording() {
+        if (mediaRecorder && mediaRecorder.state === 'recording') {
+            mediaRecorder.stop();
+        }
+    }
+
+    async function sendRecordedAudio() {
+        if (!recordedAudioBlob || !selectedPhone) return false;
+
+        const formData = new FormData();
+        formData.append('phone', selectedPhone);
+        formData.append('caption', '');
+        formData.append('files[]', recordedAudioBlob, `voice-note-${Date.now()}.webm`);
+
+        if (sendBtn) sendBtn.disabled = true;
+        if (micBtn) micBtn.disabled = true;
+
+        try {
+            const response = await fetch(mediaUploadUrl, {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': csrfToken,
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: formData,
+            });
+
+            if (!response.ok) {
+                throw new Error('Audio send failed');
+            }
+
+            const data = await response.json();
+            (data.messages || (data.message ? [data.message] : [])).forEach(renderMessage);
+            updateContacts(data.contacts);
+            resetAudioRecording();
+            pollMessages();
+            return true;
+        } catch (error) {
+            console.warn('Unable to send audio recording.', error);
+            alert('Audio send nahi ho paya. Please dobara try karo.');
+            return false;
+        } finally {
+            if (sendBtn) sendBtn.disabled = false;
+            if (micBtn) micBtn.disabled = false;
+        }
+    }
+
+    micBtn?.addEventListener('click', () => {
+        if (mediaRecorder?.state === 'recording') {
+            stopAudioRecording();
+            return;
+        }
+
+        startAudioRecording();
+    });
+
+    audioDelete?.addEventListener('click', resetAudioRecording);
+
+    audioPlay?.addEventListener('click', () => {
+        if (!recordedAudio) return;
+
+        if (recordedAudio.paused) {
+            recordedAudio.currentTime = 0;
+            recordedAudio.play();
+            audioWave?.classList.add('is-playing');
+            audioPlay.querySelector('.wab-audio-play-icon')?.setAttribute('hidden', 'hidden');
+            audioPlay.querySelector('.wab-audio-pause-icon')?.removeAttribute('hidden');
+            setAudioTime(recordedAudioDuration);
+            return;
+        }
+
+        recordedAudio.pause();
+        audioWave?.classList.remove('is-playing');
+        audioPlay.querySelector('.wab-audio-play-icon')?.removeAttribute('hidden');
+        audioPlay.querySelector('.wab-audio-pause-icon')?.setAttribute('hidden', 'hidden');
+    });
+
     async function submitCurrentMessage(event) {
         event?.preventDefault();
 
         if (!sendForm || !input || !selectedPhone) return;
+
+        if (recordedAudioBlob) {
+            await sendRecordedAudio();
+            return;
+        }
 
         const text = input.value.trim();
         if (!text) {
@@ -3547,7 +3978,7 @@
     }
 
     sendForm?.addEventListener('submit', submitCurrentMessage);
-    sendBtn?.addEventListener('click', e => { if (!input?.value.trim()) e.preventDefault(); });
+    sendBtn?.addEventListener('click', e => { if (!recordedAudioBlob && !input?.value.trim()) e.preventDefault(); });
     attachBtn?.addEventListener('click', e => {
         e.preventDefault();
         e.stopPropagation();
@@ -3601,6 +4032,7 @@
 
     /* ── Auto scroll on load ── */
     if (body) body.scrollTop = body.scrollHeight;
+    initVoiceCards();
     markSelectedChatRead();
     pollMessages();
     if (selectedPhone) {
