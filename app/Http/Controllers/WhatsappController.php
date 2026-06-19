@@ -362,7 +362,7 @@ class WhatsappController extends Controller
             return $text;
         }
 
-        return match ($contact->media_type ?? null) {
+        return match ($this->displayMediaType($contact->media_type ?? null, $contact->media_name ?? null, null)) {
             'image' => 'Image attachment',
             'video' => 'Video attachment',
             'audio' => 'Audio attachment',
@@ -678,7 +678,7 @@ class WhatsappController extends Controller
             $file->move($destinationPath, $fileName);
             $relativePath = 'assets/media/whatsapp/' . $fileName;
 
-            if ($this->isVoiceNote($origName, $extension)) {
+            if ($this->isVoiceNote($origName, $extension) && $extension !== 'ogg') {
                 $converted = $this->convertVoiceNoteToOgg($destinationPath, $fileName, $origName);
 
                 if ($converted) {
@@ -687,7 +687,7 @@ class WhatsappController extends Controller
                     $origName = $converted['media_name'];
                     $size = $converted['size'];
                     $extension = 'ogg';
-                } elseif ($extension === 'webm') {
+                } else {
                     @unlink($destinationPath . DIRECTORY_SEPARATOR . $fileName);
 
                     return response()->json([
@@ -762,7 +762,8 @@ class WhatsappController extends Controller
         $name = strtolower((string) $mediaName);
         $extension = strtolower((string) $extension);
 
-        return $extension === 'webm' && str_starts_with($name, 'voice-note-');
+        return in_array($extension, ['webm', 'm4a', 'mp4', 'ogg', 'opus'], true)
+            && str_starts_with($name, 'voice-note-');
     }
 
     private function convertVoiceNoteToOgg(string $destinationPath, string $fileName, string $originalName): ?array
