@@ -147,7 +147,7 @@ class OrderController extends Controller
 
         $firstFailedOrderDates = Order::whereIn('uid', $userIds)
             ->where('is_fail', 1)
-            ->selectRaw('uid, MIN(COALESCE(failed_at, order_date, created_at)) as first_failed_at')
+            ->selectRaw('uid, MIN(COALESCE(order_date, created_at, failed_at)) as first_failed_at')
             ->groupBy('uid')
             ->pluck('first_failed_at', 'uid');
 
