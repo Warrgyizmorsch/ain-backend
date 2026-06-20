@@ -1,10 +1,10 @@
 @php
     $orderIdStyle  = "";
-    $latestFailedOrderAt = $lead->latest_failed_order_at ?? null;
+    $firstFailedOrderAt = $lead->first_failed_order_at ?? null;
     $leadCreatedAt = $lead->create_at ?? $lead->created_at ?? null;
 
-    if (!empty($lead->user) && !empty($latestFailedOrderAt) && !empty($leadCreatedAt)) {
-        $failedAt = \Carbon\Carbon::parse($latestFailedOrderAt);
+    if (!empty($lead->user) && !empty($firstFailedOrderAt) && !empty($leadCreatedAt)) {
+        $failedAt = \Carbon\Carbon::parse($firstFailedOrderAt);
         $createdAt = \Carbon\Carbon::parse($leadCreatedAt);
 
         if ($createdAt->gt($failedAt)) {

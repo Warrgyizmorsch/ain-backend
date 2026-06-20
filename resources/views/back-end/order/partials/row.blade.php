@@ -1,32 +1,32 @@
     @php
-    $rowStyle = "";
-    $latestFailedOrderAt = $order->latest_failed_order_at ?? null;
+    $orderIdStyle = "";
+    $firstFailedOrderAt = $order->first_failed_order_at ?? null;
     $orderCreatedAt = $order->order_date ?? $order->created_at ?? null;
 
     if ($order->is_fail == 1) {
-        $rowStyle = "
+        $orderIdStyle = "
             background-color: #ffeaea !important;
             color: #b50000 !important;
             border: 2px solid #ff0000 !important;
         ";
-    } elseif ($latestFailedOrderAt && $orderCreatedAt) {
-        $failedAt = \Carbon\Carbon::parse($latestFailedOrderAt);
+    } elseif ($firstFailedOrderAt && $orderCreatedAt) {
+        $failedAt = \Carbon\Carbon::parse($firstFailedOrderAt);
         $createdAt = \Carbon\Carbon::parse($orderCreatedAt);
 
         if ($createdAt->gt($failedAt)) {
-            $rowStyle = "
+            $orderIdStyle = "
                 background-color: #ffeaea !important;
                 color: #b50000 !important;
                 border: 2px solid #ff0000 !important;
             ";
         }
     } elseif (optional($order->user)->feedback_issue == 1) {
-        $rowStyle = "color: blue;";
+        $orderIdStyle = "color: blue;";
     }
 
     @endphp
     {{-- <tr id="lead-{{ $order->id }}" @if( optional($order->user)->is_fail == 1 || optional($order->user)->feedback_issue == 1) style="color:blue" @endif id="order_{{ $order->id }}" class="{{ ($order->is_read == 1) ? 'bold-row' : '' }}" > --}}
-    <tr id="lead-{{ $order->id }}" style="{{ $rowStyle }}">
+    <tr id="lead-{{ $order->id }}">
         <td class="text-center" style="padding-right: 0px;">
             {{ $index + 1 }}
 
@@ -167,7 +167,7 @@
         @endif
         </td> --}}
 
-        <td id="order-cell-{{ $order->id }}" class="text-center {{ ($order->is_read == 1) ? 'bold-row' : '' }}" style="{{ $rowStyle }}">
+        <td id="order-cell-{{ $order->id }}" class="text-center {{ ($order->is_read == 1) ? 'bold-row' : '' }}" style="{{ $orderIdStyle }}">
            @if(optional($order->lead)->frontendorder == '1')
                 <span class="badge badge-light-primary fs-7 fw-bold">
                     {{ $order->order_id }}

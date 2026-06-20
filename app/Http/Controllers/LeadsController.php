@@ -97,14 +97,14 @@ class LeadsController extends Controller
             }
         }
 
-        $latestFailedOrderDates = Order::whereIn('uid', $userIds)
+        $firstFailedOrderDates = Order::whereIn('uid', $userIds)
             ->where('is_fail', 1)
-            ->selectRaw('uid, MAX(COALESCE(failed_at, order_date, created_at)) as latest_failed_at')
+            ->selectRaw('uid, MIN(COALESCE(failed_at, order_date, created_at)) as first_failed_at')
             ->groupBy('uid')
-            ->pluck('latest_failed_at', 'uid');
+            ->pluck('first_failed_at', 'uid');
 
         foreach ($leads as $lead) {
-            $lead->setAttribute('latest_failed_order_at', $latestFailedOrderDates[$lead->emp_id] ?? null);
+            $lead->setAttribute('first_failed_order_at', $firstFailedOrderDates[$lead->emp_id] ?? null);
         }
     }
 
