@@ -11,7 +11,7 @@
     </script>
     <div class="col-xl-12">
         <!-- Filter Card -->
-        <div class="card card-xxl-stretch mb-5 mb-xl-8">
+        <div class="card card-xxl-stretch mb-5 mb-xl-8 lead-filter-card">
             <div class="card-body py-3">
                 <div class="row mb-3">
                     <div class="col-md-3">
@@ -84,7 +84,6 @@
 
                         </select>
                     </div>
-                    <input type="hidden" id="lead_status_tab" value="">
                     <div class="col-md-3 mt-2">
                         {{-- <a href="/ain-backend/lead" class="btn btn-sm btn-light">Clear Filters</a> --}}
                         <a href="/ain-backend/lead" class="btn btn-sm btn-light" onclick="localStorage.removeItem('lead_filters')">
@@ -98,7 +97,7 @@
         </div>
 
         <!-- Leads Table -->
-        <div class="card card-xl-stretch mb-5">
+        <div class="card card-xl-stretch mb-5 lead-list-card">
             <div class="card-header border-0 pt-5 d-flex justify-content-between align-items-center">
                 <div>
                     <h3 class="card-title fw-bolder fs-3 mb-1">Active Leads</h3>
@@ -116,14 +115,15 @@
                 </div>
             </div>
             <div class="card-body pb-0">
-                <ul class="nav nav-stretch nav-line-tabs nav-line-tabs-2x border-transparent fs-5 fw-bolder flex-nowrap overflow-auto">
+                <ul class="nav lead-status-tabs flex-nowrap overflow-auto">
                     @foreach($status_counts as $name => $count)
                     <li class="nav-item">
-                        <a class="nav-link text-active-primary me-6 {{ $loop->first ? 'active' : '' }}"
+                        <a class="nav-link {{ $loop->first ? 'active' : '' }}"
                             href="javascript:void(0)"
+                            data-status="{{ $name }}"
                             onclick="filterByStatusTab('{{ $name }}', this)">
                             {{ $name }}
-                            <span class="badge badge-light-primary ms-2">{{ $count }}</span>
+                            <span class="lead-tab-count">{{ $count }}</span>
                         </a>
                     </li>
                     @endforeach
@@ -152,7 +152,7 @@
                             @endforeach
                         </tbody>
                     </table>
-                    <div id="load-more-wrapper" class="text-center mt-4">
+                    <div id="load-more-wrapper" class="text-center mt-4" @if(($status_counts['All'] ?? 0) <= count($leads)) style="display:none;" @endif>
                         <button id="load-more" class="btn btn-light-primary">Load More</button>
                     </div>
                 </div>
@@ -170,6 +170,96 @@
 <style>
     .margin-top-on-desktop {
         margin-top: -60px;
+    }
+
+    .lead-filter-card,
+    .lead-list-card {
+        border: 1px solid #e4e6ef;
+        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+    }
+
+    .lead-filter-card .form-control,
+    .lead-filter-card .form-select {
+        border: 1px solid #dbe2ea;
+        background-color: #fff;
+        min-height: 42px;
+    }
+
+    .lead-list-card .card-header {
+        border-bottom: 1px solid #eef1f5 !important;
+        padding-bottom: 1.25rem;
+    }
+
+    .lead-status-tabs {
+        gap: 8px;
+        padding-bottom: 4px;
+    }
+
+    .lead-status-tabs .nav-link {
+        align-items: center;
+        border: 1px solid #dbe2ea;
+        border-radius: 8px;
+        color: #4b5563;
+        display: inline-flex;
+        font-size: 13px;
+        font-weight: 700;
+        gap: 8px;
+        line-height: 1;
+        margin: 0;
+        min-height: 38px;
+        padding: 10px 12px;
+        transition: all .18s ease;
+        white-space: nowrap;
+    }
+
+    .lead-status-tabs .nav-link:hover {
+        border-color: #009ef7;
+        color: #009ef7;
+    }
+
+    .lead-status-tabs .nav-link.active {
+        background: #009ef7;
+        border-color: #009ef7;
+        box-shadow: 0 6px 14px rgba(0, 158, 247, .22);
+        color: #fff !important;
+    }
+
+    .lead-tab-count {
+        align-items: center;
+        background: #f1f5f9;
+        border-radius: 999px;
+        color: #334155;
+        display: inline-flex;
+        font-size: 11px;
+        height: 22px;
+        justify-content: center;
+        min-width: 28px;
+        padding: 0 8px;
+    }
+
+    .lead-status-tabs .nav-link.active .lead-tab-count {
+        background: rgba(255,255,255,.22);
+        color: #fff;
+    }
+
+    #leads-table {
+        border-color: #e5e7eb;
+    }
+
+    #leads-table thead tr {
+        border-bottom: 1px solid #dbe2ea;
+    }
+
+    #leads-table thead th {
+        color: #475569 !important;
+        font-size: 12px;
+        letter-spacing: 0;
+        text-transform: uppercase;
+        vertical-align: middle;
+    }
+
+    #leads-table tbody tr:hover {
+        background: #f8fafc;
     }
 
     @media (max-width: 992px) {

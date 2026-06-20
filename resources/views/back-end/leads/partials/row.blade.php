@@ -1,10 +1,13 @@
 @php
     $orderIdStyle  = "";
+    $latestFailedOrderAt = $lead->latest_failed_order_at ?? null;
+    $leadCreatedAt = $lead->create_at ?? $lead->created_at ?? null;
 
-    if (!empty($lead->user)) {
-        $hasFailedOrder = ($lead->user->failed_orders_count ?? 0) > 0;
+    if (!empty($lead->user) && !empty($latestFailedOrderAt) && !empty($leadCreatedAt)) {
+        $failedAt = \Carbon\Carbon::parse($latestFailedOrderAt);
+        $createdAt = \Carbon\Carbon::parse($leadCreatedAt);
 
-        if ($hasFailedOrder) {
+        if ($createdAt->gt($failedAt)) {
             $orderIdStyle  = "background-color:#ffeaea !important; color:#b50000 !important; border:2px solid #ff0000 !important;";
         }
     }

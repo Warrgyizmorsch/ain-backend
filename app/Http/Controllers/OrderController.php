@@ -138,6 +138,21 @@ class OrderController extends Controller
             $order->setAttribute('current_writer_feedback_points', $currentPoints[$order->id] ?? null);
             $order->setAttribute('writer_total_points', $writerTotals[$order->writer_name] ?? 0);
         }
+
+        $userIds = $orders->pluck('uid')->filter()->unique()->values();
+        if ($userIds->isEmpty()) {
+            return;
+        }
+
+        $latestFailedOrderDates = Order::whereIn('uid', $userIds)
+            ->where('is_fail', 1)
+            ->selectRaw('uid, MAX(COALESCE(failed_at, order_date, created_at)) as latest_failed_at')
+            ->groupBy('uid')
+            ->pluck('latest_failed_at', 'uid');
+
+        foreach ($orders as $order) {
+            $order->setAttribute('latest_failed_order_at', $latestFailedOrderDates[$order->uid] ?? null);
+        }
     }
 
     private function dueAmount(Order $order): float

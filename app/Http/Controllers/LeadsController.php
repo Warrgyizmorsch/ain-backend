@@ -96,6 +96,16 @@ class LeadsController extends Controller
                 $lead->user->setAttribute('active_leads_count', $activeLeadCounts[$lead->emp_id] ?? 0);
             }
         }
+
+        $latestFailedOrderDates = Order::whereIn('uid', $userIds)
+            ->where('is_fail', 1)
+            ->selectRaw('uid, MAX(COALESCE(failed_at, order_date, created_at)) as latest_failed_at')
+            ->groupBy('uid')
+            ->pluck('latest_failed_at', 'uid');
+
+        foreach ($leads as $lead) {
+            $lead->setAttribute('latest_failed_order_at', $latestFailedOrderDates[$lead->emp_id] ?? null);
+        }
     }
 
     public function index()
@@ -1937,12 +1947,16 @@ class LeadsController extends Controller
     public function loadMore(Request $request)
     {
         $offset = $request->get('offset', 0);
+        $limit = 30;
         $leads = Leads::with($this->leadListRelations())
             ->select($this->leadListColumns())
             ->where('status', 0)
             ->where('is_converted', 0)
             ->where('duplicate_lead', 0)
-            ->latest('id')->skip($offset)->take(30)->get();
+            ->latest('id')->skip($offset)->take($limit + 1)->get();
+
+        $hasMore = $leads->count() > $limit;
+        $leads = $leads->take($limit)->values();
 
         $this->attachLeadUserCounts($leads);
 
@@ -1954,7 +1968,7 @@ class LeadsController extends Controller
             ])->render();
         }
 
-        return response()->json(['html' => $html, 'count' => $leads->count()]);
+        return response()->json(['html' => $html, 'count' => $leads->count(), 'has_more' => $hasMore]);
     }
     public function filter(Request $request)
     {
@@ -2055,11 +2069,17 @@ class LeadsController extends Controller
         }
 
         // Filter by status = 0 and order descending
+        $limit = (int) $request->get('limit', 30);
+        $limit = $limit > 0 ? $limit : 30;
+
         $leads = $query->where('status', 0)
             ->orderBy('id', 'desc')
             ->where('is_converted', 0)
-            ->limit((int) $request->get('limit', 100))
+            ->limit($limit + 1)
             ->get();
+
+        $hasMore = $leads->count() > $limit;
+        $leads = $leads->take($limit)->values();
 
         $this->attachLeadUserCounts($leads);
 
@@ -2074,7 +2094,11 @@ class LeadsController extends Controller
         // Broadcast the applied filters (not the data)
         broadcast(new LeadFilterApplied($request->all()))->toOthers();
 
-        return response()->json(['html' => $html]);
+        return response()->json([
+            'html' => $html,
+            'count' => $leads->count(),
+            'has_more' => $hasMore,
+        ]);
     }
 
 

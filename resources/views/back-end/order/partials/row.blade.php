@@ -1,45 +1,32 @@
- @php
-$rowStyle = "";
-// Hum check kar rahe hain ki kya is order ka CLIENT fail ho chuka hai (is_fail == 1 in users table)
-if (optional($order->user)->is_fail == 1) {
-
-// Hum user ke 'failed_at' column se check karenge (Jo client table mein hai)
-// Agar aapke pass users table mein failed_at nahi hai, toh hum order table wala use kar sakte hain
-$failedDate = $order->user->failed_at ? \Carbon\Carbon::parse($order->user->failed_at) : null;
-
-// Agar client fail hua hai aur abhi 1 saal nahi hua, toh RED box dikhao
-if ($failedDate && $failedDate->diffInDays(now()) <= 365) {
-    $rowStyle="background-color: #ffeaea !important; color: #b50000 !important; border: 2px solid #ff0000 !important;" ;
-    } else {
-    // 1 saal baad normal blue text (jaisa aapne manga tha)
-    $rowStyle="color: blue;" ;
-    }
-    }
-    // Baaki normal feedback clients ke liye
-    elseif (optional($order->user)->feedback_issue == 1) {
-    $rowStyle = "color: blue;";
-    }
-    @endphp
-
     @php
-
     $rowStyle = "";
-    // user ka koi bhi failed order hai kya
-    $hasFailedOrder = optional($order->user)->failed_orders_count > 0;
+    $latestFailedOrderAt = $order->latest_failed_order_at ?? null;
+    $orderCreatedAt = $order->order_date ?? $order->created_at ?? null;
 
-    if ($hasFailedOrder || $order->is_fail == 1) {
+    if ($order->is_fail == 1) {
         $rowStyle = "
             background-color: #ffeaea !important;
             color: #b50000 !important;
             border: 2px solid #ff0000 !important;
         ";
+    } elseif ($latestFailedOrderAt && $orderCreatedAt) {
+        $failedAt = \Carbon\Carbon::parse($latestFailedOrderAt);
+        $createdAt = \Carbon\Carbon::parse($orderCreatedAt);
+
+        if ($createdAt->gt($failedAt)) {
+            $rowStyle = "
+                background-color: #ffeaea !important;
+                color: #b50000 !important;
+                border: 2px solid #ff0000 !important;
+            ";
+        }
     } elseif (optional($order->user)->feedback_issue == 1) {
         $rowStyle = "color: blue;";
     }
 
     @endphp
     {{-- <tr id="lead-{{ $order->id }}" @if( optional($order->user)->is_fail == 1 || optional($order->user)->feedback_issue == 1) style="color:blue" @endif id="order_{{ $order->id }}" class="{{ ($order->is_read == 1) ? 'bold-row' : '' }}" > --}}
-    <tr id="lead-{{ $order->id }}">
+    <tr id="lead-{{ $order->id }}" style="{{ $rowStyle }}">
         <td class="text-center" style="padding-right: 0px;">
             {{ $index + 1 }}
 
@@ -173,7 +160,7 @@ if ($failedDate && $failedDate->diffInDays(now()) <= 365) {
         @endif
         </td> --}}
 
-        <td class="text-center" id="order-cell-{{ $order->id }}" style="{{ $rowStyle }}" class="{{ ($order->is_read == 1) ? 'bold-row' : '' }}">
+        <td id="order-cell-{{ $order->id }}" class="text-center {{ ($order->is_read == 1) ? 'bold-row' : '' }}" style="{{ $rowStyle }}">
            @if(optional($order->lead)->frontendorder == '1')
                 <span class="badge badge-light-primary fs-7 fw-bold">
                     {{ $order->order_id }}

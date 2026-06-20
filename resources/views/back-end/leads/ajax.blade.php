@@ -1,5 +1,34 @@
 <script>
     let offset = {{count($leads)}};
+    const leadPageSize = 30;
+
+    function updateLoadMoreVisibility(hasMore) {
+        if (hasMore) {
+            $('#load-more-wrapper').show();
+            $('#load-more').show();
+        } else {
+            $('#load-more-wrapper').hide();
+        }
+    }
+
+    function setActiveLeadTab(status) {
+        $('.lead-status-tabs .nav-link').removeClass('active');
+        $(`.lead-status-tabs .nav-link[data-status="${status}"]`).addClass('active');
+    }
+
+    function clearLeadFilters() {
+        $('#search_order').val('');
+        $('#status_filter').val('').trigger('change');
+        $('#lead_status_tab').val('');
+        $('#type_filter').val('').trigger('change');
+        $('#date_from').val('');
+        $('#date_to').val('');
+        $('#date_type').val('').trigger('change');
+        $('#assign_type').val('').trigger('change');
+        $('#selectedValue').val('');
+        $('#searchInput').val('');
+        $('#lead_source').val('').trigger('change');
+    }
 
     $('#load-more').on('click', function() {
         $('#preloader').show();
@@ -14,9 +43,7 @@
                     $('#lead-rows').append(res.html);
                 }
                 offset += res.count;
-                if (res.count < 30) {
-                    $('#load-more').hide();
-                }
+                updateLoadMoreVisibility(res.has_more);
             },
             error: function() {
                 alert('Failed to load more leads.');
@@ -70,7 +97,8 @@
                 if (res.html !== undefined) {
                     $('#lead-rows').html(res.html);
                 }
-                $('#load-more-wrapper').hide();
+                offset = res.count || 0;
+                updateLoadMoreVisibility(false);
             },
             error: function() {
                 Swal.fire('Error', 'Failed to load leads.', 'error');
@@ -96,6 +124,8 @@
                 if (res.html !== undefined) {
                     $('#lead-rows').html(res.html);
                 }
+                offset = res.count || 0;
+                updateLoadMoreVisibility(false);
             },
             error: function() {
                 Swal.fire('Error', 'Failed to restore lead filters.', 'error');
@@ -123,6 +153,8 @@
             $('#assign_type').val(filters.assign_type).trigger('change');
             $('#selectedValue').val(filters.selectedValue);
             $('#lead_source').val(filters.lead_source).trigger('change');
+            setActiveLeadTab(filters.lead_status_tab || 'All');
+            $('#load-more-wrapper').hide();
 
             applyFilters(filters);
         }
@@ -528,25 +560,34 @@
 // }
 
 function filterByStatusTab(status, element) {
-    $('.nav-link').removeClass('active');
-    $(element).addClass('active');
+    setActiveLeadTab(status);
+
+    if (status === 'All') {
+        localStorage.removeItem('lead_filters');
+        clearLeadFilters();
+        window.location.href = "{{ route('lead.index') }}";
+        return;
+    }
 
     $('#lead_status_tab').val(status);
 
     const filters = {
-        order: $('#search_order').val(),
+        order: '',
         status: '',
         lead_status_tab: status,
-        type: $('#type_filter').val(),
-        date_from: $('#date_from').val(),
-        date_to: $('#date_to').val(),
-        date_type: $('#date_type').val(),
-        assign_type: String($('#assign_type').val() ?? ''),
-        selectedValue: $('#selectedValue').val(),
-        lead_source: $('#lead_source').val()
+        type: '',
+        date_from: '',
+        date_to: '',
+        date_type: '',
+        assign_type: '',
+        selectedValue: '',
+        lead_source: '',
+        limit: leadPageSize
     };
 
     localStorage.setItem('lead_filters', JSON.stringify(filters));
+    clearLeadFilters();
+    $('#lead_status_tab').val(status);
 
     applyFilters(filters);
 }
