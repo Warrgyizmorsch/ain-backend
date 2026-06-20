@@ -69,6 +69,7 @@
 
     {{-- Scripts --}}
     @include('layouts.js')
+    @include('order.section.softphone-call-script')
 
     @if(auth()->check() && in_array(auth()->user()->role_id, [4, 9]))
     <script>

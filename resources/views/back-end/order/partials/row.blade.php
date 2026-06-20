@@ -49,6 +49,13 @@
                     <span>T</span>
                 </button>
 
+                <button type="button"
+                    class="btn btn-icon btn-success btn-sm"
+                    title="Call customer"
+                    onclick="openRingfySoftphone(@js($order->id), @js(optional($order->user)->countrycode), @js(optional($order->user)->mobile_no))">
+                    <i class="fa fa-phone"></i>
+                </button>
+
 
                 <!-- Button to Open Unified Payment Page -->
                 <!-- Button to Open Unified Payment Page -->

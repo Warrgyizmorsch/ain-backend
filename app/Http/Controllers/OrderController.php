@@ -33,6 +33,7 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use App\Jobs\ExportOrdersJob;
@@ -1420,6 +1421,172 @@ class OrderController extends Controller
         $userDetails = $order->user;
 
         return view('order.order_call', compact('order', 'userDetails', 'data'));
+    }
+
+    public function softphoneCallUrl(Request $request)
+    {
+        $validated = $request->validate([
+            'country_code' => ['required', 'string', 'max:10'],
+            'mobile' => ['required', 'string', 'max:30'],
+        ]);
+
+        $targetNumber = $this->normalizeSoftphoneNumber($validated['country_code'], $validated['mobile']);
+
+        if (! $targetNumber) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Customer phone number is not valid.',
+            ], 422);
+        }
+
+        $userId = config('services.softphone.user_id', '10101');
+        $password = config('services.softphone.password', 'fa97ljf13ou24rio32');
+        $baseUrl = rtrim(config('services.softphone.base_url', 'https://ringfy.next2call.com:4000'), '/');
+
+        try {
+            $cacheKey = 'ringfy_softphone_token:' . $userId;
+            $token = Cache::remember($cacheKey, now()->addHours(6), function () use ($baseUrl, $userId, $password) {
+                return $this->fetchSoftphoneToken($baseUrl, $userId, $password);
+            });
+
+            $phoneResponse = $this->fetchSoftphoneLink($baseUrl, $token);
+            $softphoneUrl = $this->extractSoftphoneUrl($phoneResponse->json());
+
+            if (! $phoneResponse->successful() || ! $softphoneUrl) {
+                Cache::forget('ringfy_softphone_token:' . $userId);
+                $token = $this->fetchSoftphoneToken($baseUrl, $userId, $password);
+                Cache::put($cacheKey, $token, now()->addHours(6));
+
+                $phoneResponse = $this->fetchSoftphoneLink($baseUrl, $token);
+                $softphoneUrl = $this->extractSoftphoneUrl($phoneResponse->json());
+            }
+
+            if (! $phoneResponse->successful() || ! $softphoneUrl) {
+                Log::warning('Softphone login URL API failed', [
+                    'status' => $phoneResponse->status(),
+                    'body' => $phoneResponse->body(),
+                ]);
+
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unable to get softphone login URL. API status: ' . $phoneResponse->status(),
+                ], 502);
+            }
+
+            $softphoneUrl = $this->appendSoftphoneAuthParams($softphoneUrl, $userId, $password);
+            $callUrl = $this->appendSoftphoneDialParams($softphoneUrl, $targetNumber);
+
+            return response()->json([
+                'success' => true,
+                'url' => $callUrl,
+                'softphone_url' => $softphoneUrl,
+                'target_number' => $targetNumber,
+            ]);
+        } catch (\Throwable $exception) {
+            report($exception);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Softphone connection failed.',
+            ], 500);
+        }
+    }
+
+    private function fetchSoftphoneToken(string $baseUrl, string $userId, string $password): string
+    {
+        $response = Http::timeout(15)
+            ->acceptJson()
+            ->asJson()
+            ->post($baseUrl . '/log/get-dcdtkn', [
+                'user_id' => $userId,
+                'password' => $password,
+            ]);
+
+        if (! $response->successful() || ! $response->json('token')) {
+            Log::warning('Softphone token API failed', [
+                'status' => $response->status(),
+                'body' => $response->body(),
+            ]);
+
+            throw new \RuntimeException('Softphone token API failed.');
+        }
+
+        return $response->json('token');
+    }
+
+    private function fetchSoftphoneLink(string $baseUrl, string $token)
+    {
+        return Http::timeout(15)
+            ->acceptJson()
+            ->withToken($token)
+            ->get($baseUrl . '/log/phnlink');
+    }
+
+    private function extractSoftphoneUrl($payload): ?string
+    {
+        if (! is_array($payload)) {
+            return null;
+        }
+
+        foreach (['url', 'phoneUrl', 'phone_url', 'softphone_url', 'link'] as $key) {
+            if (! empty($payload[$key]) && is_string($payload[$key])) {
+                return $payload[$key];
+            }
+        }
+
+        foreach (['data', 'result'] as $parentKey) {
+            if (! empty($payload[$parentKey]) && is_array($payload[$parentKey])) {
+                $url = $this->extractSoftphoneUrl($payload[$parentKey]);
+                if ($url) {
+                    return $url;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private function normalizeSoftphoneNumber(string $countryCode, string $mobile): string
+    {
+        $countryCode = preg_replace('/\D+/', '', $countryCode);
+        $mobile = preg_replace('/\D+/', '', $mobile);
+
+        return ltrim($countryCode . $mobile, '0');
+    }
+
+    private function appendSoftphoneDialParams(string $url, string $targetNumber): string
+    {
+        $separator = str_contains($url, '?') ? '&' : '?';
+
+        return $url . $separator . http_build_query([
+            'number' => $targetNumber,
+            'phone' => $targetNumber,
+            'dialNumber' => $targetNumber,
+            'receiverNumber' => $targetNumber,
+        ]);
+    }
+
+    private function appendSoftphoneAuthParams(string $url, string $userId, string $password): string
+    {
+        $existingQuery = parse_url($url, PHP_URL_QUERY) ?: '';
+        parse_str($existingQuery, $query);
+
+        $params = array_filter([
+            'profileName' => $query['profileName'] ?? $userId,
+            'SipDomain' => $query['SipDomain'] ?? 'ringfy.next2call.com',
+            'SipUsername' => $query['SipUsername'] ?? $userId,
+            'SipPassword' => $query['SipPassword'] ?? $password,
+        ], fn ($value) => $value !== null && $value !== '');
+
+        $missingParams = array_diff_key($params, $query);
+
+        if (empty($missingParams)) {
+            return $url;
+        }
+
+        $separator = str_contains($url, '?') ? '&' : '?';
+
+        return $url . $separator . http_build_query($missingParams);
     }
 
     public function orderCommentPage($id)

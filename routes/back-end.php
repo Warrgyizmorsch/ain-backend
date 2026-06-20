@@ -208,6 +208,7 @@ Route::middleware(['auth'])->group(function () {
     route::get('/filter', [OrderController::class, 'filter']);
     route::get('edit/{id}', [OrderController::class, 'orderEditPage'])->name('edit');
     route::get('call/{id}', [OrderController::class, 'orderCallPage'])->name('call');
+    Route::post('/softphone/call-url', [OrderController::class, 'softphoneCallUrl'])->name('softphone.call-url');
     route::get('comment/{id}', [OrderController::class, 'orderCommentPage'])->name('comment');
     route::get('orderpayments/{id}', [OrderController::class, 'orderPayment'])->name('orderpayments');
     route::delete('orderpayments/{id}', [OrderController::class, 'orderPayment_delete'])->name('orderpayments.delete');
