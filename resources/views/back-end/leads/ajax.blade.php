@@ -5,7 +5,6 @@
     const leadBasePath = @json(rtrim(request()->getBaseUrl(), '/'));
     const leadLoadMorePath = @json(route('lead.loadMore', [], false));
     const leadFilterPath = @json(route('lead.filter', [], false));
-    const leadCsrfToken = $('meta[name="csrf-token"]').attr('content');
 
     function leadUrl(path) {
         return leadBasePath + (String(path).startsWith('/') ? path : '/' + path);
@@ -51,10 +50,7 @@
 
         $.ajax({
             url: activeLeadFilters ? leadUrl(leadFilterPath) : leadUrl(leadLoadMorePath),
-            type: activeLeadFilters ? 'POST' : 'GET',
-            headers: activeLeadFilters ? {
-                'X-CSRF-TOKEN': leadCsrfToken
-            } : {},
+            type: 'GET',
             data: loadMoreFilters,
             success: function(res) {
                 if (res.html) {
@@ -110,10 +106,7 @@
 
         $.ajax({
             url: leadUrl(leadFilterPath),
-            method: 'post',
-            headers: {
-                'X-CSRF-TOKEN': leadCsrfToken
-            },
+            method: 'get',
             data: filters,
             success: function(res) {
                 if (res.html !== undefined) {
@@ -141,10 +134,7 @@
         activeLeadFilters = filters;
         $.ajax({
             url: leadUrl(leadFilterPath),
-            method: 'post',
-            headers: {
-                'X-CSRF-TOKEN': leadCsrfToken
-            },
+            method: 'get',
             data: filters,
             success: function(res) {
                 if (res.html !== undefined) {

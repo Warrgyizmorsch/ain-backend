@@ -2071,10 +2071,12 @@ class LeadsController extends Controller
         // Filter by status = 0 and order descending
         $limit = (int) $request->get('limit', 30);
         $limit = $limit > 0 ? $limit : 30;
+        $offset = max(0, (int) $request->get('offset', 0));
 
         $leads = $query->where('status', 0)
             ->orderBy('id', 'desc')
             ->where('is_converted', 0)
+            ->skip($offset)
             ->limit($limit + 1)
             ->get();
 
@@ -2098,6 +2100,7 @@ class LeadsController extends Controller
             'html' => $html,
             'count' => $leads->count(),
             'has_more' => $hasMore,
+            'next_offset' => $offset + $leads->count(),
         ]);
     }
 
