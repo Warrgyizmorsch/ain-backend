@@ -60,6 +60,9 @@
                 if (res.html) {
                     $('#lead-rows').append(res.html);
                 }
+                if (window.initLeadStars) {
+                    window.initLeadStars(document.getElementById('lead-rows'));
+                }
                 offset = res.next_offset ?? (offset + (res.count || 0));
                 updateLoadMoreVisibility(res.has_more);
             },
@@ -119,6 +122,9 @@
                 if (res.html !== undefined) {
                     $('#lead-rows').html(res.html);
                 }
+                if (window.initLeadStars) {
+                    window.initLeadStars(document.getElementById('lead-rows'));
+                }
                 offset = res.next_offset ?? (res.count || 0);
                 updateLoadMoreVisibility(res.has_more);
             },
@@ -149,6 +155,9 @@
             success: function(res) {
                 if (res.html !== undefined) {
                     $('#lead-rows').html(res.html);
+                }
+                if (window.initLeadStars) {
+                    window.initLeadStars(document.getElementById('lead-rows'));
                 }
                 offset = res.next_offset ?? (res.count || 0);
                 updateLoadMoreVisibility(res.has_more);

@@ -531,6 +531,37 @@
 </style>
 
 <script>
+    window.initLeadStars = function(container = document) {
+        const ratings = container.matches && container.matches('.star-rating')
+            ? [container]
+            : container.querySelectorAll('.star-rating');
+
+        ratings.forEach(rating => {
+            const stars = rating.querySelectorAll('.star');
+            const current = rating.getAttribute('data-current');
+
+            let fillCount = 0;
+            if (current === 'Cold') fillCount = 1;
+            if (current === 'Warm') fillCount = 2;
+            if (current === 'Hot') fillCount = 3;
+
+            stars.forEach(star => star.classList.remove('active'));
+            for (let i = 0; i < fillCount; i++) {
+                stars[i].classList.add('active');
+            }
+        });
+    };
+
+    window.updateLeadStatusTabCount = function(status, change) {
+        if (!['Cold', 'Warm', 'Hot'].includes(status) || change === 0) return;
+
+        const badge = document.querySelector(`.lead-status-tabs .nav-link[data-status="${status}"] .lead-tab-count`);
+        if (!badge) return;
+
+        const current = parseInt((badge.textContent || '0').trim(), 10) || 0;
+        badge.textContent = Math.max(0, current + change);
+    };
+
     document.addEventListener('DOMContentLoaded', function() {
 
         // ⭐ Auto fill from DB (run once)
@@ -553,6 +584,8 @@
 
 
     // ⭐ Click handler (EVENT DELEGATION - only once)
+    if (!window.leadStarClickHandlerBound) {
+    window.leadStarClickHandlerBound = true;
     document.addEventListener('click', function(e) {
 
         if (!e.target.classList.contains('star')) return;
@@ -563,6 +596,7 @@
         let stars = rating.querySelectorAll('.star');
         let value = star.getAttribute('data-value');
         let leadId = rating.getAttribute('data-id');
+        let oldStatus = rating.getAttribute('data-current') || '';
 
         // 🔒 Prevent multiple API calls
         if (rating.dataset.loading === "1") return;
@@ -596,17 +630,26 @@
             .then(data => {
                 console.log(data);
                 if (data.status) {
-
+                    if (oldStatus !== status) {
+                        window.updateLeadStatusTabCount(oldStatus, -1);
+                        window.updateLeadStatusTabCount(status, 1);
+                    }
+                    rating.setAttribute('data-current', status);
                 } else {
+                    window.initLeadStars(rating);
                     alert("Failed to update status");
                 }
             })
-            .catch(err => console.error(err))
+            .catch(err => {
+                window.initLeadStars(rating);
+                console.error(err);
+            })
             .finally(() => {
                 rating.dataset.loading = "0";
             });
 
     });
+    }
 </script>
 <script>
     function openReviewModal(userId, existingReview) {
