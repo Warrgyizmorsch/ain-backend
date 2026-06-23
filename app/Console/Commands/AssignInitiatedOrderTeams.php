@@ -3,13 +3,17 @@
 namespace App\Console\Commands;
 
 use App\Models\Order;
+use Carbon\Carbon;
 use Illuminate\Console\Command;
+use Throwable;
 
 class AssignInitiatedOrderTeams extends Command
 {
     protected $signature = 'orders:assign-initiated-teams
         {--dry-run : Show matching orders without assigning teams}
-        {--all-statuses : Assign teams to every order without a team, not only initiated orders}';
+        {--all-statuses : Assign teams to every order without a team, not only initiated orders}
+        {--from= : Only include orders with order_date on or after this date, for example 2024-01-01}
+        {--to= : Only include orders with order_date on or before this date, for example 2026-06-23}';
 
     protected $description = 'Assign Alpha/Giga teams to initiated orders that do not have a team assigned.';
 
@@ -26,6 +30,10 @@ class AssignInitiatedOrderTeams extends Command
 
         if (!$allStatuses) {
             $query->whereRaw('LOWER(TRIM(projectstatus)) = ?', ['initiated']);
+        }
+
+        if (!$this->applyOrderDateFilters($query)) {
+            return self::FAILURE;
         }
 
         $total = (clone $query)->count();
@@ -80,5 +88,41 @@ class AssignInitiatedOrderTeams extends Command
     protected function shouldAssignAllStatuses(): bool
     {
         return (bool) $this->option('all-statuses');
+    }
+
+    protected function applyOrderDateFilters($query): bool
+    {
+        $from = $this->normalizeDateOption('from');
+        $to = $this->normalizeDateOption('to');
+
+        if ($from === false || $to === false) {
+            return false;
+        }
+
+        if ($from) {
+            $query->whereDate('order_date', '>=', $from);
+        }
+
+        if ($to) {
+            $query->whereDate('order_date', '<=', $to);
+        }
+
+        return true;
+    }
+
+    protected function normalizeDateOption(string $option): string|false|null
+    {
+        $value = $this->option($option);
+
+        if (!$value) {
+            return null;
+        }
+
+        try {
+            return Carbon::parse($value)->format('Y-m-d');
+        } catch (Throwable $exception) {
+            $this->error("Invalid --{$option} date. Use YYYY-MM-DD format.");
+            return false;
+        }
     }
 }
