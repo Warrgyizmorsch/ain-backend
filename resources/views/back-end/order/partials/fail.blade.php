@@ -50,6 +50,13 @@
 </script> --}}
 
 <script>
+    var updateOrderStatusUrlTemplate = @json(route('order.update-status', ['id' => '__ORDER_ID__'], false));
+    var appBasePath = @json(rtrim(request()->getBaseUrl(), '/'));
+
+    function updateOrderStatusUrl(orderId) {
+        return appBasePath + updateOrderStatusUrlTemplate.replace('__ORDER_ID__', orderId);
+    }
+
     // --- NAYA LOGIC: Page load hone par check karega ki kaunse orders ATL hain ---
     $(document).ready(function() {
         $('[id^="order-cell-"]').each(function() {
@@ -94,7 +101,7 @@
 
             if (result.isConfirmed) {
                 $.ajax({
-                    url: '/update-status/' + orderId,
+                    url: updateOrderStatusUrl(orderId),
                     type: 'PUT',
                     headers: {
                         'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
