@@ -69,7 +69,7 @@
         });
     });
 
-    $('#applyButton').on('click', function(e) {
+    $(document).on('click', '#applyButton', function(e) {
         e.preventDefault();
         $('#preloader').show();
         const filters = {
