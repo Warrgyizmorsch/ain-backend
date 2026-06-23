@@ -86,7 +86,7 @@
                     </div>
                     <div class="col-md-3 mt-2">
                         {{-- <a href="/ain-backend/lead" class="btn btn-sm btn-light">Clear Filters</a> --}}
-                        <a href="/ain-backend/lead" class="btn btn-sm btn-light" onclick="localStorage.removeItem('lead_filters')">
+                        <a href="{{ route('lead.index') }}" class="btn btn-sm btn-light" onclick="localStorage.removeItem('lead_filters')">
                             Clear Filters
                         </a>
                         <button id="applyButton" class="btn btn-sm btn-primary">Search</button>

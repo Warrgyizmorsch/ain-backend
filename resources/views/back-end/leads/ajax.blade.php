@@ -1,6 +1,14 @@
 <script>
     let offset = {{count($leads)}};
     const leadPageSize = 30;
+    let activeLeadFilters = null;
+    const leadBasePath = @json(rtrim(request()->getBaseUrl(), '/'));
+    const leadLoadMorePath = @json(route('lead.loadMore', [], false));
+    const leadFilterPath = @json(route('lead.filter', [], false));
+
+    function leadUrl(path) {
+        return leadBasePath + (String(path).startsWith('/') ? path : '/' + path);
+    }
 
     function updateLoadMoreVisibility(hasMore) {
         if (hasMore) {
@@ -32,17 +40,23 @@
 
     $('#load-more').on('click', function() {
         $('#preloader').show();
+        const loadMoreFilters = activeLeadFilters ? {
+            ...activeLeadFilters,
+            offset: offset,
+            limit: leadPageSize
+        } : {
+            offset: offset
+        };
+
         $.ajax({
-            url: '{{ route("lead.loadMore") }}',
+            url: activeLeadFilters ? leadUrl(leadFilterPath) : leadUrl(leadLoadMorePath),
             type: 'GET',
-            data: {
-                offset: offset
-            },
+            data: loadMoreFilters,
             success: function(res) {
                 if (res.html) {
                     $('#lead-rows').append(res.html);
                 }
-                offset += res.count;
+                offset = res.next_offset ?? (offset + (res.count || 0));
                 updateLoadMoreVisibility(res.has_more);
             },
             error: function() {
@@ -88,17 +102,18 @@
         }
 
         localStorage.setItem('lead_filters', JSON.stringify(filters));
+        activeLeadFilters = filters;
 
         $.ajax({
-            url: '{{ route("lead.filter") }}',
+            url: leadUrl(leadFilterPath),
             method: 'get',
             data: filters,
             success: function(res) {
                 if (res.html !== undefined) {
                     $('#lead-rows').html(res.html);
                 }
-                offset = res.count || 0;
-                updateLoadMoreVisibility(false);
+                offset = res.next_offset ?? (res.count || 0);
+                updateLoadMoreVisibility(res.has_more);
             },
             error: function() {
                 Swal.fire('Error', 'Failed to load leads.', 'error');
@@ -116,16 +131,17 @@
 
     function applyFilters(filters) {
         $('#preloader').show();
+        activeLeadFilters = filters;
         $.ajax({
-            url: '{{ route("lead.filter") }}',
+            url: leadUrl(leadFilterPath),
             method: 'get',
             data: filters,
             success: function(res) {
                 if (res.html !== undefined) {
                     $('#lead-rows').html(res.html);
                 }
-                offset = res.count || 0;
-                updateLoadMoreVisibility(false);
+                offset = res.next_offset ?? (res.count || 0);
+                updateLoadMoreVisibility(res.has_more);
             },
             error: function() {
                 Swal.fire('Error', 'Failed to restore lead filters.', 'error');
