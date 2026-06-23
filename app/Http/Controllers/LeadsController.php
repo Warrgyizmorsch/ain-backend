@@ -310,22 +310,57 @@ class LeadsController extends Controller
 
     public function userData(Request $request)
     {
-        $mobile = $request->input('mobile');
-        $userData = User::where('mobile_no', $mobile)
-            ->orWhere('mobile_no2', $mobile)
-            ->first();
+        $mobile = preg_replace('/\D+/', '', (string) $request->input('mobile'));
+
+        if (strlen($mobile) < 5) {
+            return response()->json(['user' => null, 'users' => [], 'referUser' => null]);
+        }
+
+        $users = User::select('id', 'name', 'email', 'countrycode', 'mobile_no', 'countrycode2', 'mobile_no2', 'refer_id')
+            ->where(function ($query) use ($mobile) {
+                $query->where('mobile_no', 'like', '%' . $mobile . '%')
+                    ->orWhere('mobile_no2', 'like', '%' . $mobile . '%');
+            })
+            ->orderByRaw('CASE WHEN mobile_no = ? OR mobile_no2 = ? THEN 0 ELSE 1 END', [$mobile, $mobile])
+            ->limit(10)
+            ->get();
+
+        $referUsers = User::select('id', 'name', 'email', 'mobile_no')
+            ->whereIn('id', $users->pluck('refer_id')->filter()->unique())
+            ->get()
+            ->keyBy('id');
+
+        $users->each(function ($user) use ($referUsers) {
+            $user->refer_user = $user->refer_id ? $referUsers->get($user->refer_id) : null;
+        });
+
+        $userData = $users->first(function ($user) use ($mobile) {
+            return $user->mobile_no === $mobile || $user->mobile_no2 === $mobile;
+        });
+
+        if (!$userData && $users->count() === 1) {
+            $userData = $users->first();
+        }
+
+        $exactMatchCount = $users->filter(function ($user) use ($mobile) {
+            return $user->mobile_no === $mobile || $user->mobile_no2 === $mobile;
+        })->count();
+
+        if ($exactMatchCount > 1) {
+            $userData = null;
+        }
+
+        if ($users->count() > 1 && $exactMatchCount === 0) {
+            $userData = null;
+        }
 
         $referUser = null;
         if ($userData && $userData->refer_id) {
+            $referUser = $userData->refer_user;
+        }
 
-            $referUser = User::select('id', 'name', 'email', 'mobile_no')
-                ->where('id', $userData->refer_id)
-                ->first();
-        }    
-
-        return response()->json(['user' => $userData, 'referUser' => $referUser]);
+        return response()->json(['user' => $userData, 'users' => $users, 'referUser' => $referUser]);
     }
-
 
     //    public function insert_leads(Request $request)
     // {
@@ -2315,6 +2350,7 @@ class LeadsController extends Controller
 
         // Step 5: Save order
         $order->save();
+        $order->assignTeamForInitiatedStatus(true);
 
         // Step 6: Update lead
 

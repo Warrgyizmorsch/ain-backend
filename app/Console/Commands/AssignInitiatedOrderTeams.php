@@ -7,27 +7,37 @@ use Illuminate\Console\Command;
 
 class AssignInitiatedOrderTeams extends Command
 {
-    protected $signature = 'orders:assign-initiated-teams {--dry-run : Show matching orders without assigning teams}';
+    protected $signature = 'orders:assign-initiated-teams
+        {--dry-run : Show matching orders without assigning teams}
+        {--all-statuses : Assign teams to every order without a team, not only initiated orders}';
 
     protected $description = 'Assign Alpha/Giga teams to initiated orders that do not have a team assigned.';
 
     public function handle(): int
     {
-        $query = Order::whereRaw('LOWER(TRIM(projectstatus)) = ?', ['initiated'])
+        $allStatuses = $this->shouldAssignAllStatuses();
+
+        $query = Order::query()
             ->where(function ($q) {
                 $q->whereNull('team_id')
                     ->orWhere('team_id', 0)
                     ->orWhere('team_id', '');
             });
 
+        if (!$allStatuses) {
+            $query->whereRaw('LOWER(TRIM(projectstatus)) = ?', ['initiated']);
+        }
+
         $total = (clone $query)->count();
 
         if ($total === 0) {
-            $this->info('No initiated orders found without team assignment.');
+            $scope = $allStatuses ? 'orders' : 'initiated orders';
+            $this->info("No {$scope} found without team assignment.");
             return self::SUCCESS;
         }
 
-        $this->info("Found {$total} initiated orders without team assignment.");
+        $scope = $allStatuses ? 'orders' : 'initiated orders';
+        $this->info("Found {$total} {$scope} without team assignment.");
 
         if ($this->option('dry-run')) {
             $query->orderBy('id')->chunkById(100, function ($orders) {
@@ -42,14 +52,14 @@ class AssignInitiatedOrderTeams extends Command
         $assigned = 0;
         $notAssigned = 0;
 
-        $query->orderBy('id')->chunkById(100, function ($orders) use (&$assigned, &$notAssigned) {
+        $query->orderBy('id')->chunkById(100, function ($orders) use (&$assigned, &$notAssigned, $allStatuses) {
             foreach ($orders as $order) {
                 if (!is_null($order->team_id)) {
                     $order->team_id = null;
                     $order->save();
                 }
 
-                $order->assignTeamForInitiatedStatus();
+                $order->assignTeamForInitiatedStatus($allStatuses);
                 $order->refresh();
 
                 if ($order->team_id) {
@@ -65,5 +75,10 @@ class AssignInitiatedOrderTeams extends Command
         $this->info("Done. Assigned: {$assigned}. Not assigned: {$notAssigned}.");
 
         return self::SUCCESS;
+    }
+
+    protected function shouldAssignAllStatuses(): bool
+    {
+        return (bool) $this->option('all-statuses');
     }
 }

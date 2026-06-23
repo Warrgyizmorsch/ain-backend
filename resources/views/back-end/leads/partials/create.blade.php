@@ -625,13 +625,25 @@
                                         required>
                                 </div>
 
-                                <div class="col-md-3">
+                                <div class="col-md-3 position-relative">
                                     <label class="fs-7 fw-bold">Mobile</label>
-                                    <input type="text"
-                                        name="mobile"
-                                        id="mobile"
-                                        class="form-control form-control-sm form-control-solid"
-                                        required>
+                                    <div class="position-relative">
+                                        <input type="text"
+                                            name="mobile"
+                                            id="mobile"
+                                            class="form-control form-control-sm form-control-solid pe-10"
+                                            required>
+                                        <span id="mobile_lookup_loader"
+                                            class="spinner-border spinner-border-sm text-primary position-absolute top-50 end-0 translate-middle-y me-3"
+                                            role="status"
+                                            aria-hidden="true"
+                                            style="display:none;">
+                                        </span>
+                                    </div>
+                                    <div id="mobile_user_result"
+                                        class="bg-white border rounded shadow-sm position-absolute w-100"
+                                        style="display:none; z-index:9999; max-height:220px; overflow-y:auto;">
+                                    </div>
                                 </div>
                             </div>
                             <div class="row g-3">
@@ -875,6 +887,7 @@
         </div>
     </div>
 
+@push('scripts')
     <script>
     let loggedInRoleId = {{ auth()->user()->role_id ?? 0 }};
 </script>
@@ -1094,8 +1107,81 @@
 $(document).ready(function () {
 
     let mobileTimer = null;
+    const $mobileResult = $('#mobile_user_result');
+    const $mobileLoader = $('#mobile_lookup_loader');
 
-    $('#mobile').on('keyup', function () {
+    function escapeHtml(value) {
+        return String(value ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    function resetUserFields() {
+        $('input[name="user_name"]').val('');
+        $('input[name="countrycode"]').val('');
+        $('input[name="email"]').val('');
+        $('input[name="id"]').val('');
+        $('#refer_id').val('');
+        $('#refer_search').val('').prop('readonly', false);
+        $('input[name="email"]').prop('readonly', false);
+    }
+
+    function fillReferUser(referUser) {
+        if (referUser) {
+            $('#refer_id').val(referUser.id);
+            $('#refer_search').val(
+                (referUser.name || '') + ' - ' +
+                (referUser.mobile_no || '') + ' - ' +
+                (referUser.email || '')
+            );
+
+            $('#refer_search').prop('readonly', loggedInRoleId != 1);
+        } else {
+            $('#refer_id').val('');
+            $('#refer_search').val('').prop('readonly', false);
+        }
+    }
+
+    function fillUser(user, referUser = null) {
+        if (!user) {
+            resetUserFields();
+            return;
+        }
+
+        $('input[name="user_name"]').val(user.name || '');
+        $('input[name="countrycode"]').val(user.countrycode || '');
+        $('input[name="email"]').val(user.email || '');
+        $('input[name="id"]').val(user.id || '');
+        $('#mobile').val(user.mobile_no || $('#mobile').val());
+        $('input[name="email"]').prop('readonly', true);
+        fillReferUser(referUser || user.refer_user || null);
+    }
+
+    function renderMobileDropdown(users) {
+        if (!Array.isArray(users) || users.length === 0) {
+            $mobileResult.hide().html('');
+            return;
+        }
+
+        let html = '';
+        users.forEach(function (user) {
+            html += `
+                <div class="mobile-user-item px-3 py-2 border-bottom"
+                    style="cursor:pointer;"
+                    data-user='${escapeHtml(JSON.stringify(user))}'>
+                    <strong>${escapeHtml(user.name || 'No Name')}</strong><br>
+                    <small>${escapeHtml(user.countrycode || '')} ${escapeHtml(user.mobile_no || '')} | ${escapeHtml(user.email || '')}</small>
+                </div>
+            `;
+        });
+
+        $mobileResult.html(html).show();
+    }
+
+    $('#mobile').on('keyup input', function () {
 
         let mobile = $(this).val().replace(/\D/g, '');
         $(this).val(mobile);
@@ -1103,20 +1189,14 @@ $(document).ready(function () {
         clearTimeout(mobileTimer);
 
         if (mobile.length < 5) {
-
-            $('input[name="user_name"]').val('');
-            $('input[name="countrycode"]').val('');
-            $('input[name="email"]').val('');
-            $('input[name="id"]').val('');
-
-            // REFER RESET
-            $('#refer_id').val('');
-            $('#refer_search').val('');
-
-            $('input[name="email"]').prop('readonly', false);
-
+            resetUserFields();
+            $mobileLoader.hide();
+            $mobileResult.hide().html('');
             return;
         }
+
+        $mobileLoader.show();
+        $mobileResult.hide().html('');
 
         mobileTimer = setTimeout(function () {
 
@@ -1128,57 +1208,21 @@ $(document).ready(function () {
                 },
 
                 success: function (data) {
+                    $mobileLoader.hide();
+                    renderMobileDropdown(data.users || []);
 
                     if (data.user) {
-
-                        // USER AUTO FILL
-                        $('input[name="user_name"]').val(data.user.name);
-                        $('input[name="countrycode"]').val(data.user.countrycode);
-                        $('input[name="email"]').val(data.user.email);
-                        $('input[name="id"]').val(data.user.id);
-
-                        $('input[name="email"]').prop('readonly', true);
-
-                        // REFER AUTO FILL
-                        if (data.referUser) {
-
-                            $('#refer_id').val(data.referUser.id);
-
-                            $('#refer_search').val(
-                                data.referUser.name + ' - ' +
-                                data.referUser.mobile_no + ' - ' +
-                                data.referUser.email
-                            );
-                            if (loggedInRoleId == 1) {
-                                $('#refer_search').prop('readonly', false);
-                            } else {
-                                $('#refer_search').prop('readonly', true);
-                            }
-
-                        } else {
-
-                            $('#refer_id').val('');
-                            $('#refer_search').val('');
-                            $('#refer_search').prop('readonly', false);
+                        fillUser(data.user, data.referUser);
+                        if ((data.users || []).length <= 1) {
+                            $mobileResult.hide();
                         }
-
                     } else {
-
-                        // RESET USER
-                        $('input[name="user_name"]').val('');
-                        $('input[name="countrycode"]').val('');
-                        $('input[name="email"]').val('');
-                        $('input[name="id"]').val('');
-
-                        // RESET REFER
-                        $('#refer_id').val('');
-                        $('#refer_search').val('');
-
-                        $('input[name="email"]').prop('readonly', false);
+                        resetUserFields();
                     }
                 },
 
                 error: function (error) {
+                    $mobileLoader.hide();
                     console.log('UserData Error:', error);
                 }
             });
@@ -1187,5 +1231,23 @@ $(document).ready(function () {
 
     });
 
+    $(document).on('click', '.mobile-user-item', function () {
+        let user = $(this).data('user');
+
+        if (typeof user === 'string') {
+            user = JSON.parse(user);
+        }
+
+        fillUser(user);
+        $mobileResult.hide();
+    });
+
+    $(document).on('click', function (e) {
+        if (!$(e.target).closest('#mobile, #mobile_user_result').length) {
+            $mobileResult.hide();
+        }
+    });
+
 });
 </script>
+@endpush

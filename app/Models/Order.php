@@ -110,16 +110,16 @@ protected $table = 'orders';
         return strtolower(trim((string) $this->projectstatus)) === 'initiated';
     }
 
-    public function assignTeamForInitiatedStatus(): void
+    public function assignTeamForInitiatedStatus(bool $allowNonInitiated = false): void
     {
-        if (!$this->isInitiatedStatus() || !is_null($this->team_id)) {
+        if ((!$allowNonInitiated && !$this->isInitiatedStatus()) || !empty($this->team_id)) {
             return;
         }
 
-        DB::transaction(function () {
+        DB::transaction(function () use ($allowNonInitiated) {
             $order = self::whereKey($this->getKey())->lockForUpdate()->first();
 
-            if (!$order || !$order->isInitiatedStatus() || !is_null($order->team_id)) {
+            if (!$order || (!$allowNonInitiated && !$order->isInitiatedStatus()) || !empty($order->team_id)) {
                 return;
             }
 
@@ -148,20 +148,28 @@ protected $table = 'orders';
                 return;
             }
 
-            $totalAssignedToday = self::whereDate('updated_at', Carbon::today())
-                ->whereRaw('LOWER(projectstatus) = ?', ['initiated'])
-                ->whereNotNull('team_id')
-                ->count();
+            $totalAssignedTodayQuery = self::whereDate('updated_at', Carbon::today())
+                ->whereNotNull('team_id');
+
+            if (!$allowNonInitiated) {
+                $totalAssignedTodayQuery->whereRaw('LOWER(projectstatus) = ?', ['initiated']);
+            }
+
+            $totalAssignedToday = $totalAssignedTodayQuery->count();
 
             $allocations = [];
             $assignedCount = [];
 
             foreach ($teams as $team) {
                 $allocations[$team->id] = floor(((float) $team->percentage / 100) * ($totalAssignedToday + 1));
-                $assignedCount[$team->id] = self::whereDate('updated_at', Carbon::today())
-                    ->whereRaw('LOWER(projectstatus) = ?', ['initiated'])
-                    ->where('team_id', $team->id)
-                    ->count();
+                $assignedCountQuery = self::whereDate('updated_at', Carbon::today())
+                    ->where('team_id', $team->id);
+
+                if (!$allowNonInitiated) {
+                    $assignedCountQuery->whereRaw('LOWER(projectstatus) = ?', ['initiated']);
+                }
+
+                $assignedCount[$team->id] = $assignedCountQuery->count();
             }
 
             foreach ($teams as $team) {
