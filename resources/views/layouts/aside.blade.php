@@ -46,7 +46,7 @@
                 @php
                     $isWhatsappActive = $isActiveRoute('whatsapp/settings') || $isActiveRoute('whatsapp/chat');
                 @endphp
-
+                @if(auth()->check() && auth()->user()->role_id == 1)
                 <div data-kt-menu-trigger="click" class="menu-item menu-accordion {{ $isWhatsappActive ? 'here show' : '' }}">
                     <span class="menu-link {{ $isWhatsappActive ? 'active' : '' }}">
                         <span class="menu-icon">
@@ -75,6 +75,7 @@
                         </div>
                     </div>
                 </div>
+                @endif
 
                 @foreach($premission as $permission)
                     @if(auth()->check() && auth()->user()->role_id == $permission->role_id)
