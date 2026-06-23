@@ -1702,6 +1702,54 @@ class OrderController extends Controller
         return view('order.feedbacksheet', compact('orders', 'data', 'alphaCount', 'gigaCount'));
     }
 
+    public function deleteFeedbackTicket(Request $request)
+    {
+        abort_unless(auth()->check() && (int) auth()->user()->role_id === 1, 403);
+
+        $validated = $request->validate([
+            'order_ids' => 'required|array|min:1',
+            'order_ids.*' => 'integer',
+        ]);
+
+        $orderIds = collect($validated['order_ids'])
+            ->map(fn ($id) => (int) $id)
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($orderIds->isEmpty()) {
+            return response()->json(['message' => 'No orders selected.'], 422);
+        }
+
+        $updateData = [
+            'feedback_ticket' => null,
+            'feedbackissue' => 0,
+            'status_issue' => null,
+            'feedback_date' => null,
+            'updated_at' => now(),
+        ];
+
+        if (Schema::hasColumn('orders', 'feedback_issue')) {
+            $updateData['feedback_issue'] = 0;
+        }
+
+        $updated = Order::whereIn('id', $orderIds)
+            ->whereNotNull('feedback_ticket')
+            ->where('feedback_ticket', '!=', '')
+            ->update($updateData);
+
+        logActivity('Feedback', [
+            'type' => 'Feedback Ticket Deleted',
+            'order_ids' => $orderIds->all(),
+            'message' => 'Feedback ticket deleted by ' . auth()->user()->name,
+        ]);
+
+        return response()->json([
+            'message' => $updated . ' ticket number(s) deleted successfully.',
+            'deleted_count' => $updated,
+        ]);
+    }
+
     public function orderPayment($id)
     {
         $order = Order::with('user')->find($id);

@@ -24,6 +24,13 @@
 						<span class="card-label fw-bolder fs-3 mb-1">All FeedBack Comment</span>
 						<span class="text-muted mt-1 fw-bold fs-7"></span>
 					</h3>
+					@if(auth()->user()->role_id == 1)
+					<div class="card-toolbar">
+						<button type="button" id="delete-selected-tickets" class="btn btn-sm btn-light-danger">
+							Delete Selected Tickets
+						</button>
+					</div>
+					@endif
 				</div>
 				<div class="card-body py-3">
 					
@@ -32,6 +39,11 @@
 							<table  class="table table-row-bordered table-row-gray-100 align-middle gs-0 gy-3">
 								<thead class="p-2">
 									<tr class="fw-bolder text-muted bg-light">
+										@if(auth()->user()->role_id == 1)
+										<th class="min-w-15px text-center">
+											<input type="checkbox" id="select-all-tickets" class="form-check-input">
+										</th>
+										@endif
 										<th class="min-w-15px">SR</th>
 										<th class="min-w-50px">Order Code</th>
 										@if(auth()->user()->role_id != 4)
@@ -47,11 +59,19 @@
 								</thead>
                                 @foreach($orders as $order)
 								<tbody>
-                                  
+									@if(auth()->user()->role_id == 1)
+									<td class="text-center">
+										@if($order->feedback_ticket)
+										<input type="checkbox" class="form-check-input ticket-delete-checkbox" value="{{ $order->id }}">
+										@endif
+									</td>
+									@endif
                                     <td>{{ $loop->index +1}}</td>
                                     <td>
     									{{ $order->order_id}}<br>
+										@if($order->feedback_ticket)
     									<span class="badge badge-light-danger fs-7 fw-bold text-nowrap">TN-{{ $order->feedback_ticket }}</span>
+										@endif
 										 @if($order->team?->team_name)
 										<span class="badge badge-light-primary fs-7 fw-bold mb-1">{{ $order->team->team_name }}</span><br>
 										@endif
@@ -184,6 +204,16 @@
                                                 <li style="color:white" class="fa fa-phone fa-lg"></li>
                                             </span>
                                         </a>
+										@if(auth()->user()->role_id == 1 && $order->feedback_ticket)
+										<button type="button"
+											class="btn btn-icon btn-bg-danger btn-active-color-light btn-sm me-1 delete-ticket-btn"
+											data-order-id="{{ $order->id }}"
+											title="Delete Ticket Number">
+											<span class="svg-icon svg-icon-3" style="color:white">
+												<i class="fa fa-trash"></i>
+											</span>
+										</button>
+										@endif
                                         </div>
                                     </td>
 								</tbody>
@@ -244,6 +274,64 @@
             $('#filter_team_id').val('2'); // Giga ki ID 2 hai
             $('#searchForm').submit();
         });
+
+		$('#select-all-tickets').on('change', function() {
+			$('.ticket-delete-checkbox').prop('checked', $(this).is(':checked'));
+		});
+
+		$(document).on('change', '.ticket-delete-checkbox', function() {
+			const total = $('.ticket-delete-checkbox').length;
+			const checked = $('.ticket-delete-checkbox:checked').length;
+			$('#select-all-tickets').prop('checked', total > 0 && total === checked);
+		});
+
+		$(document).on('click', '.delete-ticket-btn', function() {
+			const orderId = $(this).data('order-id');
+			deleteFeedbackTickets([orderId]);
+		});
+
+		$('#delete-selected-tickets').on('click', function() {
+			const orderIds = $('.ticket-delete-checkbox:checked').map(function() {
+				return $(this).val();
+			}).get();
+
+			deleteFeedbackTickets(orderIds);
+		});
     });
+
+	function deleteFeedbackTickets(orderIds) {
+		if (!orderIds.length) {
+			alert('Please select at least one ticket.');
+			return;
+		}
+
+		if (!confirm('Are you sure you want to delete selected ticket number(s)?')) {
+			return;
+		}
+
+		fetch(@json(route('feedback.ticket.delete')), {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				'Accept': 'application/json',
+				'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+			},
+			body: JSON.stringify({ order_ids: orderIds })
+		})
+		.then(async response => {
+			const data = await response.json().catch(() => ({}));
+			if (!response.ok) {
+				throw new Error(data.message || 'Failed to delete ticket number(s).');
+			}
+			return data;
+		})
+		.then(data => {
+			alert(data.message || 'Ticket number(s) deleted successfully.');
+			window.location.reload();
+		})
+		.catch(error => {
+			alert(error.message || 'Failed to delete ticket number(s).');
+		});
+	}
 </script>
 @endsection

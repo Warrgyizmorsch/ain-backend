@@ -229,6 +229,7 @@ Route::middleware(['auth'])->group(function () {
     // Feedback Managmengment Route 
     Route::get('/feedback', [OrderController::class, 'feedbacksheet'])->name('feedback');
     Route::post('/send-feedback', [OrderController::class, 'sendFeedback'])->name('send.feedback');
+    Route::post('/feedback/delete-ticket', [OrderController::class, 'deleteFeedbackTicket'])->name('feedback.ticket.delete');
     Route::post('/mark-as-read', [OrderController::class, 'markAsRead']);
     route::post('/OrderCallInsert.{id}', [OrderController::class, 'OrderCallInsert']);
     Route::post('/swap-user-data', [OrderController::class, 'swapUserData']);
