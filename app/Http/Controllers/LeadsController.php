@@ -73,6 +73,7 @@ class LeadsController extends Controller
                     ]);
             },
             'source:id,source_name,source_icon',
+            'latestCall.user:id,name',
         ];
     }
 
@@ -452,6 +453,16 @@ class LeadsController extends Controller
 
     public function insert_leads(Request $request)
     {
+        $request->validate([
+            'countrycode' => 'required',
+            'mobile' => 'required',
+            'lead_source' => 'required',
+        ], [
+            'countrycode.required' => 'Country Code is required.',
+            'mobile.required' => 'Mobile is required.',
+            'lead_source.required' => 'Lead Source is required.',
+        ]);
+
         $today = Carbon::today();
 
         // =========================
@@ -2255,6 +2266,12 @@ class LeadsController extends Controller
 
     public function convertLeadData(Request $request, $lead_id)
     {
+        $request->validate([
+            'convert_type' => 'required|in:Original,Discounted,Special Price',
+        ], [
+            'convert_type.required' => 'Convert type is required.',
+        ]);
+
         // Step 1: Find the lead
         $lead = Leads::find($lead_id);
 
@@ -2415,7 +2432,17 @@ class LeadsController extends Controller
         ]);
 
 
-        return response()->json(['success' => true, 'message' => 'Call details saved successfully.']);
+        return response()->json([
+            'success' => true,
+            'message' => 'Call details saved successfully.',
+            'chat' => [
+                'lead_id' => $Calls->lead_id,
+                'description' => $Calls->description,
+                'user_name' => auth()->user()->name ?? 'User',
+                'created_at_human' => $Calls->created_at->diffForHumans(),
+                'created_at_formatted' => $Calls->created_at->format('d M Y, h:i A'),
+            ],
+        ]);
     }
 
 

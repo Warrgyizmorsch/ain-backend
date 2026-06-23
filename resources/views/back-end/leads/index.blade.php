@@ -136,7 +136,7 @@
                             <tr class="fw-bolder text-muted bg-light">
                                 <th class="min-w-50px text-center" style="padding-right: 0px; background: #F5F8FA;">Sr.</th>
                                 <th class="text-center">Action</th>
-                                <!-- <th class="min-w-150px text-center" style="background: #F5F8FA;">Comment</th> -->
+                                <th class="min-w-220px text-center" style="background: #F5F8FA;">Recent Chat</th>
                                 <th class="min-w-100px text-center" style="background: #F5F8FA;">Order ID</th>
                                 <th class="min-w-100px text-center" style="background: #F5F8FA;">Name</th>
                                 <th class="min-w-100px text-center" style="background: #F5F8FA;">Order Date</th>

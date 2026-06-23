@@ -42,6 +42,11 @@ class Leads extends Model
         return $this->hasMany(Calls::class, 'lead_id', 'id' )->orderBy('created_at', 'desc');
     } 
 
+    public function latestCall()
+    {
+        return $this->hasOne(Calls::class, 'lead_id', 'id')->latestOfMany();
+    }
+
     public function user()
     {
         return $this->belongsTo(User::class, 'emp_id');

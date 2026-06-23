@@ -215,7 +215,10 @@
                 body: JSON.stringify({})
             });
 
-            if (!response.ok) throw new Error('Request failed');
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.message || 'Request failed');
+            }
 
             const data = await response.json();
             console.log('Success:', data);
@@ -230,6 +233,7 @@
         } catch (error) {
             console.error('Error:', error);
             btn.innerHTML = '<i class="fa fa-exclamation-triangle text-danger"></i>';
+            Swal.fire('Error', error.message || 'Lead conversion failed.', 'error');
         } finally {
             btn.disabled = false;
         }
@@ -253,14 +257,22 @@
             icon: 'warning',
             showCancelButton: true,
             confirmButtonText: 'Yes, convert it!',
-            cancelButtonText: 'No'
+            cancelButtonText: 'No',
+            preConfirm: () => {
+                const convertType = document.getElementById('convert_type').value;
+                if (!convertType) {
+                    Swal.showValidationMessage('Please select convert type.');
+                    return false;
+                }
+                return convertType;
+            }
         });
 
         if (!confirmResult.isConfirmed) {
             return; // cancel → kuch nahi hoga
         }
 
-        const convertType = document.getElementById('convert_type').value;
+        const convertType = confirmResult.value;
 
 
        const url = "{{ route('lead.convert', ':id') }}".replace(':id', leadId);
@@ -519,14 +531,40 @@
                 message: message,
                 _token: '{{ csrf_token() }}'
             },
-            success: function() {
+            success: function(response) {
                 $('#chatInput').val('');
+                if (response.chat) {
+                    updateLeadRecentChat(response.chat);
+                }
                 loadchat(leadId); // reload chat after send
             },
             error: function() {
                 alert('Message failed to send.');
             }
         });
+    }
+
+    function escapeHtml(value) {
+        return $('<div>').text(value || '').html();
+    }
+
+    function updateLeadRecentChat(chat) {
+        const target = $(`#lead-recent-chat-${chat.lead_id}`);
+        if (!target.length) return;
+
+        target.html(`
+            <div class="lead-comment-box lead-recent-chat-card">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="fw-bold text-gray-800">${escapeHtml(chat.user_name || 'User')}</span>
+                    <span class="text-muted fs-8">${escapeHtml(chat.created_at_human || '')}</span>
+                </div>
+                <div class="text-gray-800 mb-2">${escapeHtml(chat.description || 'No comment')}</div>
+                <div class="text-primary fw-bold fs-7">
+                    <i class="fa fa-calendar-alt me-1"></i>
+                    ${escapeHtml(chat.created_at_formatted || '')}
+                </div>
+            </div>
+        `);
     }
 </script>
 

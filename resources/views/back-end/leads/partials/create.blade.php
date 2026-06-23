@@ -621,7 +621,8 @@
                                     <label class="fs-7 fw-bold">Country Code</label>
                                     <input type="text"
                                         name="countrycode"
-                                        class="form-control form-control-sm form-control-solid">
+                                        class="form-control form-control-sm form-control-solid"
+                                        required>
                                 </div>
 
                                 <div class="col-md-3">
@@ -629,15 +630,16 @@
                                     <input type="text"
                                         name="mobile"
                                         id="mobile"
-                                        class="form-control form-control-sm form-control-solid">
+                                        class="form-control form-control-sm form-control-solid"
+                                        required>
                                 </div>
                             </div>
                             <div class="row g-3">
                                 <div class="col-md-3">
                                     <label class="fs-7 fw-bold mb-1">Lead Source</label>
-                                    <select name="lead_source" id="lead_source" class="form-select form-select-solid">
+                                    <select name="lead_source" id="lead_source" class="form-select form-select-solid" required>
 
-                                        <option value="">All Sources</option>
+                                        <option value="">Select Source</option>
 
                                         @foreach($sources as $source)
                                         <option value="{{ $source->id }}"

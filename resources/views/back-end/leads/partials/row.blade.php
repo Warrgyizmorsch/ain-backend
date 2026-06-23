@@ -194,20 +194,14 @@
         </div>
 
     </td>
-    <!-- <td class="text-center">
+    <td class="text-center" id="lead-recent-chat-{{ $lead->id }}">
         @php
-            $latestCall = \DB::table('calls')
-                ->where('lead_id', $lead->id)
-                ->latest('id')
-                ->first();
-
-            $commentUser = $latestCall
-                ? \App\Models\User::find($latestCall->created_by)
-                : null;
+            $latestCall = $lead->latestCall ?? null;
+            $commentUser = $latestCall?->user;
         @endphp
 
         @if($latestCall)
-            <div class="lead-comment-box">
+            <div class="lead-comment-box lead-recent-chat-card">
                 <div class="d-flex justify-content-between align-items-center mb-2">
                     <span class="fw-bold text-gray-800">
                         {{ $commentUser->name ?? 'User' }}
@@ -228,9 +222,9 @@
                 </div>
             </div>
         @else
-            <span class="text-muted">No Comment</span>
+            <span class="badge badge-light-secondary text-muted fs-8">No Recent Chat</span>
         @endif
-    </td> -->
+    </td>
     <td class="text-center" style="{{ $orderIdStyle }}">
         @if ($lead['frontendorder'] == '1')
         <span class="badge badge-light-primary fs-7 fw-bold">{{ $lead->order_id }}</span>
