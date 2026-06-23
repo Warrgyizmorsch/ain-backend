@@ -26,6 +26,8 @@ use Illuminate\View\Concerns\ManagesFragments;
 use App\Http\Controllers\UserHistoryController; 
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\WhatsappController;
+use App\Http\Controllers\SubjectController;
+use App\Http\Controllers\ServicePageController;
 
 Route::middleware(['auth'])->group(function () {
 
@@ -33,6 +35,12 @@ Route::middleware(['auth'])->group(function () {
 
 });
 Route::post('/lead/export', [LeadsController::class, 'export'])->name('lead.export');
+
+Route::middleware(['auth'])->group(function () {
+    Route::resource('subjects', SubjectController::class)->only(['index', 'store', 'update', 'destroy']);
+    Route::get('service-pages/{servicePage}/preview', [ServicePageController::class, 'preview'])->name('service-pages.preview');
+    Route::resource('service-pages', ServicePageController::class)->except(['show']);
+});
 Route::get('/lead/export/status', [LeadsController::class, 'exportStatus']);
 Route::post('/order/export', [OrderController::class, 'export'])->name('order.export');
 Route::get('/order/export/status', [OrderController::class, 'exportStatus']);
@@ -366,7 +374,7 @@ Route::middleware(['auth'])->group(function () {
     Route::prefix('lead')->group(function () {
         Route::get('/', [LeadsController::class, 'indexLead'])->name('lead.index');
         Route::get('/load-more', [LeadsController::class, 'loadMore'])->name('lead.loadMore');
-        Route::get('/filter', [LeadsController::class, 'filter'])->name('lead.filter');
+        Route::post('/filter', [LeadsController::class, 'filter'])->name('lead.filter');
         Route::get('/edit/{id}', [LeadsController::class, 'editLead'])->name('lead.edit');
         Route::post('/update/{id}', [LeadsController::class, 'update'])->name('lead.update');
         Route::post('/convert/{id}', [LeadsController::class, 'convertLeadData'])->name('lead.convert');
