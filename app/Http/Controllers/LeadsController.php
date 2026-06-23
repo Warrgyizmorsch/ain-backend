@@ -108,24 +108,6 @@ class LeadsController extends Controller
         }
     }
 
-    private function applyLeadListOrdering($query)
-    {
-        $latestHotDate = Leads::where('lead_status', 'Hot')->max('created_at');
-
-        return $query
-            ->orderByRaw("
-                CASE
-                    WHEN lead_status IS NULL
-                         AND created_at > ? THEN 0
-                    WHEN lead_status = 'Hot' THEN 1
-                    WHEN lead_status = 'Warm' THEN 2
-                    WHEN lead_status = 'Cold' THEN 3
-                    ELSE 4
-                END
-            ", [$latestHotDate])
-            ->orderBy('created_at', 'desc');
-    }
-
     public function index()
     {
         // Retrieve all services
@@ -1770,15 +1752,27 @@ class LeadsController extends Controller
 
     public function indexLead()
     {
+        $latestHotDate = Leads::where('lead_status', 'Hot')
+            ->max('created_at');
         // 1. Leads fetch (Top 30)
         // $leads = Leads::with('user', 'source')
-        $query = Leads::with($this->leadListRelations())
+        $leads = Leads::with($this->leadListRelations())
             ->select($this->leadListColumns())
             ->where('status', 0)
             ->where('is_converted', 0)
-            ->where('duplicate_lead', 0);
+            ->where('duplicate_lead', 0)
+            ->orderByRaw("
+        CASE 
+            WHEN lead_status IS NULL 
+                 AND created_at > ? THEN 0
 
-        $leads = $this->applyLeadListOrdering($query)
+            WHEN lead_status = 'Hot' THEN 1
+            WHEN lead_status = 'Warm' THEN 2
+            WHEN lead_status = 'Cold' THEN 3
+            ELSE 4
+        END
+    ", [$latestHotDate])
+            ->orderBy('created_at', 'desc')
             ->take(30)
             ->get();
 
@@ -1952,18 +1946,14 @@ class LeadsController extends Controller
 
     public function loadMore(Request $request)
     {
-        $offset = max(0, (int) $request->get('offset', 0));
+        $offset = $request->get('offset', 0);
         $limit = 30;
-        $query = Leads::with($this->leadListRelations())
+        $leads = Leads::with($this->leadListRelations())
             ->select($this->leadListColumns())
             ->where('status', 0)
             ->where('is_converted', 0)
-            ->where('duplicate_lead', 0);
-
-        $leads = $this->applyLeadListOrdering($query)
-            ->skip($offset)
-            ->take($limit + 1)
-            ->get();
+            ->where('duplicate_lead', 0)
+            ->latest('id')->skip($offset)->take($limit + 1)->get();
 
         $hasMore = $leads->count() > $limit;
         $leads = $leads->take($limit)->values();
@@ -1978,12 +1968,7 @@ class LeadsController extends Controller
             ])->render();
         }
 
-        return response()->json([
-            'html' => $html,
-            'count' => $leads->count(),
-            'has_more' => $hasMore,
-            'next_offset' => $offset + $leads->count(),
-        ]);
+        return response()->json(['html' => $html, 'count' => $leads->count(), 'has_more' => $hasMore]);
     }
     public function filter(Request $request)
     {
