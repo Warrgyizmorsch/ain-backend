@@ -76,12 +76,15 @@
 						<tbody>
 						
 						
+						@php
+							$otherChildrenMenuIds = [2,38,39];
+						@endphp
 						@foreach ($menus as $menu)
 						
 							<tr>
 								<td>
 									<div class="form-check form-check-sm form-check-custom form-check-solid">
-										<input class="form-check-input menu-checkbox" name="menu_id[]" type="checkbox" value="{{$menu['id']}}" data-kt-check="true" data-kt-check-target=".widget-9-check">
+										<input class="form-check-input menu-checkbox" name="menu_id[]" type="checkbox" value="{{$menu['id']}}" data-kt-check="true" data-kt-check-target=".widget-9-check" @if(in_array($menu['id'], $otherChildrenMenuIds)) data-is-other-child="true" @endif>
 									</div>
 								</td>
 								<td>
@@ -220,6 +223,18 @@
         var menuId = $(this).val();
         var isChecked = $(this).is(':checked');
         $('.submenu-checkbox[data-menu-id="' + menuId + '"]').prop('checked', isChecked);
+
+        // Auto-check/uncheck "Other" (id 44) based on child menus belonging to "Other"
+        if ($(this).data('is-other-child') == true) {
+            if (isChecked) {
+                $('.menu-checkbox[value="44"]').prop('checked', true).trigger('change');
+            } else {
+                var anyOtherChildChecked = $('.menu-checkbox[data-is-other-child="true"]:checked').length > 0;
+                if (!anyOtherChildChecked) {
+                    $('.menu-checkbox[value="44"]').prop('checked', false).trigger('change');
+                }
+            }
+        }
     });
 
     // Toggle parent menu when submenus are checked/unchecked
@@ -227,11 +242,11 @@
         var menuId = $(this).data('menu-id');
 
         if ($(this).is(':checked')) {
-            $('.menu-checkbox[value="' + menuId + '"]').prop('checked', true);
+            $('.menu-checkbox[value="' + menuId + '"]').prop('checked', true).trigger('change');
         } else {
             var anyChecked = $('.submenu-checkbox[data-menu-id="' + menuId + '"]:checked').length > 0;
             if (!anyChecked) {
-                $('.menu-checkbox[value="' + menuId + '"]').prop('checked', false);
+                $('.menu-checkbox[value="' + menuId + '"]').prop('checked', false).trigger('change');
             }
         }
     });

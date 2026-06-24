@@ -86,9 +86,81 @@
                     @endif
                 @endforeach
 
+                @php
+                    // Add any menu IDs here that you want to nest inside "Other" (ID 44) - only for admin (role_id == 1)
+                    $otherChildrenMenuIds = (auth()->check() && auth()->user()->role_id == 1) ? [2, 3, 38,39] : []; 
+                @endphp
+
                 @foreach ($menus as $menu)
+                    @if (in_array($menu->id, $otherChildrenMenuIds))
+                        @continue
+                    @endif
                     @if ($menu->show_menu == 'Y' && in_array($menu->id, $menuIds))
-                        @if (count($menu->submenus) > 0)
+                        @if ($menu->id == 44)
+                            @if (auth()->check() && auth()->user()->role_id == 1)
+                                @php
+                                    $isOtherActive = false;
+                                    $visibleGroups = [];
+                                    
+                                    foreach ($otherChildrenMenuIds as $childMenuId) {
+                                        $childMenu = $menus->firstWhere('id', $childMenuId);
+                                        if ($childMenu && in_array($childMenuId, $menuIds)) {
+                                            $visibleSubmenus = $childMenu->submenus->filter(function ($submenu) use ($submenuIds) {
+                                                return $submenu->show == 'Y' && in_array($submenu->id, $submenuIds);
+                                            });
+                                            if ($visibleSubmenus->isNotEmpty()) {
+                                                $hasActiveChild = $visibleSubmenus->contains(function ($submenu) use ($isActiveRoute) {
+                                                    return $isActiveRoute($submenu->routes);
+                                                });
+                                                if ($hasActiveChild) {
+                                                    $isOtherActive = true;
+                                                }
+                                                $visibleGroups[] = [
+                                                    'menu' => $childMenu,
+                                                    'submenus' => $visibleSubmenus,
+                                                    'active' => $hasActiveChild
+                                                ];
+                                            }
+                                        }
+                                    }
+                                @endphp
+
+                                <div data-kt-menu-trigger="click" class="menu-item menu-accordion {{ $isOtherActive ? 'here show' : '' }}">
+                                    <span class="menu-link {{ $isOtherActive ? 'active' : '' }}">
+                                        <span class="menu-icon">
+                                            <li class="{{ $menu['icon_class'] }}"></li>
+                                        </span>
+                                        <span class="menu-title">{{ $menu['menu_name'] }}</span>
+                                        <span class="menu-arrow"></span>
+                                    </span>
+
+                                    <div class="menu-sub menu-sub-accordion menu-active-bg" style="padding-left: 15px;">
+                                        @foreach ($visibleGroups as $group)
+                                            <div data-kt-menu-trigger="click" class="menu-item menu-accordion {{ $group['active'] ? 'here show' : '' }}">
+                                                <span class="menu-link {{ $group['active'] ? 'active' : '' }}">
+                                                    <span class="menu-icon">
+                                                        <li class="{{ $group['menu']->icon_class }}"></li>
+                                                    </span>
+                                                    <span class="menu-title">{{ $group['menu']->menu_name }}</span>
+                                                    <span class="menu-arrow"></span>
+                                                </span>
+                                                <div class="menu-sub menu-sub-accordion menu-active-bg" style="padding-left: 15px;">
+                                                    @foreach ($group['submenus'] as $submenu)
+                                                        @php $isSubmenuActive = $isActiveRoute($submenu->routes); @endphp
+                                                        <div class="menu-item">
+                                                            <a class="menu-link {{ $isSubmenuActive ? 'active' : '' }}" href="{{ url($submenu->routes) }}">
+                                                                <span class="menu-bullet"><span class="bullet bullet-dot"></span></span>
+                                                                <span class="menu-title">{{ $submenu->sub_menu_name }}</span>
+                                                            </a>
+                                                        </div>
+                                                    @endforeach
+                                                </div>
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                </div>
+                            @endif
+                        @elseif (count($menu->submenus) > 0)
                             @php
                                 $visibleSubmenus = $menu->submenus->filter(function ($submenu) use ($submenuIds) {
                                     return $submenu->show == 'Y' && in_array($submenu->id, $submenuIds);
