@@ -13,7 +13,7 @@
 			
 		</div>
 	</div>
-	<form action="{{ route('userright') }}" method="post" id="user-right-form">
+	<form action="{{ route('userright') }}" method="post">
     @csrf
 	<div class="row g-5 g-xl-8">
 		<div class="col-xl-4">
@@ -76,18 +76,21 @@
 						<tbody>
 						
 						
+						@php
+							$otherChildrenMenuIds = [2,38,39];
+						@endphp
 						@foreach ($menus as $menu)
 						
 							<tr>
 								<td>
 									<div class="form-check form-check-sm form-check-custom form-check-solid">
-										<input class="form-check-input menu-checkbox" name="menu_id[]" type="checkbox" value="{{$menu['id']}}" data-kt-check="true" data-kt-check-target=".widget-9-check">
+										<input class="form-check-input menu-checkbox" name="menu_id[]" type="checkbox" value="{{$menu['id']}}" data-kt-check="true" data-kt-check-target=".widget-9-check" @if(in_array($menu['id'], $otherChildrenMenuIds)) data-is-other-child="true" @endif>
 									</div>
 								</td>
 								<td>
 									@if (count($menu->submenus) > 0)
 										<!-- Display as accordion menu with submenus -->
-										<div class="menu-item menu-accordion" data-bs-toggle="collapse" data-bs-target="#submenu{{$menu->id}}" aria-expanded="false" aria-controls="submenu{{$menu->id}}">
+										<div class="menu-item menu-accordion" data-toggle="collapse" data-target="#submenu{{$menu->id}}">
 											<span class="menu-link">
 												<span class="menu-icon">
 													<li class="{{ $menu['icon_class'] }}"></li>
@@ -133,11 +136,16 @@
 			</div>
 		</div>
 	</div>
-	</form>
+	</form>   
 	</div>
 </div>
 </div>
 
+<!-- Include Bootstrap CSS and JavaScript -->
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 {{-- <script>
     $(document).ready(function () {
 
@@ -206,34 +214,41 @@
                 $.each(response.submenuid || [], function (index, id) {
                     $('.submenu-checkbox[value="' + id + '"]').prop('checked', true);
                 });
-
-                $('.submenu-checkbox:checked').each(function () {
-                    $('.menu-checkbox[value="' + $(this).data('menu-id') + '"]').prop('checked', true);
-                });
             }
         });
     });
 
-    $(document).on('change', '.submenu-checkbox', function () {
+    // Toggle all submenus when a parent menu is checked/unchecked
+    $('.menu-checkbox').change(function () {
+        var menuId = $(this).val();
+        var isChecked = $(this).is(':checked');
+        $('.submenu-checkbox[data-menu-id="' + menuId + '"]').prop('checked', isChecked);
+
+        // Auto-check/uncheck "Other" (id 44) based on child menus belonging to "Other"
+        if ($(this).data('is-other-child') == true) {
+            if (isChecked) {
+                $('.menu-checkbox[value="44"]').prop('checked', true).trigger('change');
+            } else {
+                var anyOtherChildChecked = $('.menu-checkbox[data-is-other-child="true"]:checked').length > 0;
+                if (!anyOtherChildChecked) {
+                    $('.menu-checkbox[value="44"]').prop('checked', false).trigger('change');
+                }
+            }
+        }
+    });
+
+    // Toggle parent menu when submenus are checked/unchecked
+    $('.submenu-checkbox').change(function () {
         var menuId = $(this).data('menu-id');
 
         if ($(this).is(':checked')) {
-            $('.menu-checkbox[value="' + menuId + '"]').prop('checked', true);
+            $('.menu-checkbox[value="' + menuId + '"]').prop('checked', true).trigger('change');
+        } else {
+            var anyChecked = $('.submenu-checkbox[data-menu-id="' + menuId + '"]:checked').length > 0;
+            if (!anyChecked) {
+                $('.menu-checkbox[value="' + menuId + '"]').prop('checked', false).trigger('change');
+            }
         }
-    });
-
-    $(document).on('change', '.menu-checkbox', function () {
-        var menuId = $(this).val();
-
-        if (!$(this).is(':checked')) {
-            $('.submenu-checkbox[data-menu-id="' + menuId + '"]').prop('checked', false);
-        }
-    });
-
-    $('#user-right-form').on('submit', function () {
-        $('.submenu-checkbox:checked').each(function () {
-            $('.menu-checkbox[value="' + $(this).data('menu-id') + '"]').prop('checked', true);
-        });
     });
 
 });
