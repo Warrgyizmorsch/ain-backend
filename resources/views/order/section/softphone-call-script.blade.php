@@ -446,6 +446,30 @@
                 softphoneFrame.removeAttribute('src');
             }
         });
+
+        // Listen for hangup events from dialer to close the softphone widget automatically
+        window.addEventListener("message", (event) => {
+            if (event.origin !== "https://ringfy.next2call.com") return;
+            
+            console.log("Received postMessage from Next2Call:", event.data);
+
+            const isHangup = event.data === "CALL_HANGUP" ||
+                             event.data?.type === "CALL_HANGUP" ||
+                             event.data?.event === "hangup" ||
+                             event.data?.type === "hangup" ||
+                             event.data?.type === "CALL_DISCONNECTED" ||
+                             event.data === "CALL_DISCONNECTED";
+
+            if (isHangup) {
+                console.log("Call disconnected, closing softphone widget...");
+                widget.classList.remove('is-open');
+                widget.classList.remove('has-frame');
+                widget.dataset.softphoneUrl = '';
+                if (softphoneFrame) {
+                    softphoneFrame.removeAttribute('src');
+                }
+            }
+        });
     });
 
     function setRingfyWidgetPosition(left, top) {
