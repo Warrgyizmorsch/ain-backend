@@ -1895,6 +1895,7 @@ class OrderController extends Controller
             $order->feedback_ticket = 'TCK-' . substr($order->order_id, 3);
             $order->status_issue = 'Issue Raised';
             $order->feedbackissue = 1;
+            $order->feedback_date = Carbon::now();
         }
 
         // 3. Status handling
@@ -2952,6 +2953,7 @@ class OrderController extends Controller
                     $order->feedback_ticket = 'TCK-' . substr($order->order_id, 3);
                     $order->status_issue = 'Issue Raised';
                     $order->feedbackissue = 1;
+                    $order->feedback_date = Carbon::now();
                     $order->save();
                 }
             }

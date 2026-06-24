@@ -35,30 +35,31 @@
 				<div class="card-body py-3">
 					
 					<div class="card-body py-3">
-						<div class="table-responsive">
-							<table  class="table table-row-bordered table-row-gray-100 align-middle gs-0 gy-3">
-								<thead class="p-2">
-									<tr class="fw-bolder text-muted bg-light">
+						<div id="scroll-feedback-table" class="table-responsive">
+							<table class="table table-bordered table-hover align-middle" id="feedback-table">
+								<thead>
+									<tr class="fw-bolder text-dark bg-light">
 										@if(auth()->user()->role_id == 1)
-										<th class="min-w-15px text-center">
+										<th class="min-w-50px text-center" style="background: #F5F8FA;">
 											<input type="checkbox" id="select-all-tickets" class="form-check-input">
 										</th>
 										@endif
-										<th class="min-w-15px">SR</th>
-										<th class="min-w-50px">Order Code</th>
+										<th class="min-w-50px text-center" style="background: #F5F8FA;">SR</th>
+										<th class="min-w-150px text-center" style="background: #F5F8FA;">Order Code</th>
 										@if(auth()->user()->role_id != 4)
-										<th class="min-w-30px">WriterTeam</th>
+										<th class="min-w-150px text-center" style="background: #F5F8FA;">WriterTeam</th>
 										@endif
-										<th class="min-w-90px">Order Date</th>
-										<th class="min-w-30px">Feddback Date</th>
-										<th class="min-w-30px">Status</th>
-										<th class="min-w-100px">Comments</th>
-										<th class="min-w-40px">Action</th>
+										<th class="min-w-150px text-center" style="background: #F5F8FA;">Order Date</th>
+										<th class="min-w-150px text-center" style="background: #F5F8FA;">Ticket Date</th>
+										<th class="min-w-150px text-center" style="background: #F5F8FA;">Status</th>
+										<th class="min-w-250px text-center" style="background: #F5F8FA;">Comments</th>
+										<th class="min-w-150px text-center" style="background: #F5F8FA;">Action</th>
 									
 									</tr>
 								</thead>
-                                @foreach($orders as $order)
 								<tbody>
+                                @foreach($orders as $order)
+								<tr>
 									@if(auth()->user()->role_id == 1)
 									<td class="text-center">
 										@if($order->feedback_ticket)
@@ -66,27 +67,39 @@
 										@endif
 									</td>
 									@endif
-                                    <td>{{ $loop->index +1}}</td>
-                                    <td>
+                                    <td class="text-center">{{ $loop->index +1}}</td>
+                                    <td class="text-center">
     									{{ $order->order_id}}<br>
 										@if($order->feedback_ticket)
     									<span class="badge badge-light-danger fs-7 fw-bold text-nowrap">TN-{{ $order->feedback_ticket }}</span>
+										@php
+											$ticketDate = $order->feedback_date ?: optional($order->feedback->sortBy('created_at')->first())->created_at;
+										@endphp
+										@if($ticketDate)
+											<div class="text-muted fs-8 fw-bold mt-1">
+												Ticket Date: {{ \Carbon\Carbon::parse($ticketDate)->format('d M Y h:i a') }}
+											</div>
+										@endif
 										@endif
 										 @if($order->team?->team_name)
 										<span class="badge badge-light-primary fs-7 fw-bold mb-1">{{ $order->team->team_name }}</span><br>
 										@endif
 									</td>
 									@if(auth()->user()->role_id != 4)
-										<td>{{  $order->writer_name}}</td>
+										<td class="text-center">{{  $order->writer_name}}</td>
 									@endif
-                                    <td>
+                                    <td class="text-center">
 										@if($order->order_date)
 										{{ \Carbon\Carbon::parse($order->order_date)->format('d M Y') }}
 										@endif
 									</td>
 
-                                    <td>{{ \Carbon\Carbon::parse($order->feedback_date)->format('d M Y h:i a') }}</td>
-                                    <td>
+                                    <td class="text-center">
+										@if($order->feedback_date)
+											{{ \Carbon\Carbon::parse($order->feedback_date)->format('d M Y h:i a') }}
+										@endif
+									</td>
+                                    <td class="text-center">
 										@if($order->status_issue == 'Issue Raised')
 											<span class="badge badge-light-danger fs-7 fw-bold ">{{$order->status_issue}}</span>
 											@elseif($order->status_issue == 'Client Discussion Done')
@@ -106,12 +119,13 @@
 										@endif
 									</td>
 									
-									<td>
-										{{ $order->comment }}
+									<td class="text-center">
+										<div class="feedback-comment-box">
+											{{ $order->comment }}
+										</div>
 										<a href="#" id="{{ $order->order_id }}" data-bs-toggle="modal" data-bs-target="#confirmationModal{{ $order->order_id }}" class="btn btn-icon btn-bg-light btn-active-color-primary btn-sm me-1">
 											More...
 										</a>
-									</td>
 
 									<div class="modal fade" id="confirmationModal{{ $order->order_id }}" tabindex="-1" role="dialog" aria-labelledby="confirmationModalLabel" aria-hidden="true">
 										<div class="modal-dialog modal-dialog-centered mw-650px" role="document">
@@ -179,8 +193,10 @@
 											</div>
 										</div>
 									</div>
+									</td>
 
-                                    <td class="icon-container my-auto d-flex">
+                                    <td class="text-center">
+										<div class="icon-container my-auto d-flex justify-content-center">
                                         <a href="#"  style="background-color:black" data-kt-drawer-toggle="#kt_drawer_chat{{ $order->order_id }}" id="kt_drawer_chat_toggle{{ $order->order_id }}" class="btn btn-icon btn-bg-secondary btn-active-color-primary btn-sm me-1">
                                             <span class="svg-icon svg-icon-3">
                                             <li style="color:white" class="fa fa-edit"></li>
@@ -216,8 +232,9 @@
 										@endif
                                         </div>
                                     </td>
-								</tbody>
+								</tr>
                                 @endforeach
+								</tbody>
 							</table>
 					
 								@if ($orders instanceof \Illuminate\Pagination\AbstractPaginator)
@@ -242,6 +259,47 @@
 .text-gray-700 {
     margin-top: revert;
 }
+
+    #scroll-feedback-table {
+        max-height: 76vh;
+        overflow: auto;
+    }
+
+    #feedback-table {
+        margin-bottom: 0;
+    }
+
+    #feedback-table thead th {
+        position: sticky;
+        top: 0;
+        z-index: 5;
+    }
+
+    #feedback-table td,
+    #feedback-table th {
+        border: 1px solid #dee2e6;
+        vertical-align: middle;
+    }
+
+    .feedback-comment-box {
+        background-color: #f5f8fa;
+        border: 1px solid #e4e6ef;
+        border-radius: 8px;
+        color: #3f4254;
+        font-size: 13px;
+        font-weight: 600;
+        line-height: 1.4;
+        margin: 0 auto 8px;
+        max-width: 280px;
+        padding: 10px 12px;
+        text-align: left;
+        word-break: break-word;
+    }
+
+    #feedback-table .icon-container {
+        gap: 4px;
+        min-width: 145px;
+    }
 
 .timeline-label { position: relative; }
     .timeline-item { position: relative; }
