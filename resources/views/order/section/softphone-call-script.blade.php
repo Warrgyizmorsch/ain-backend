@@ -295,7 +295,8 @@
                 id="ringfySoftphoneFrame"
                 class="ringfy-softphone-frame"
                 title="Ringfy Softphone"
-                allow="microphone; camera; autoplay; clipboard-read; clipboard-write">
+                allow="microphone; camera; speaker-selection; display-capture; autoplay; fullscreen"
+                allowfullscreen>
             </iframe>
         </div>
         <div class="ringfy-softphone-buttons">
@@ -305,9 +306,6 @@
         </div>
     </div>
 </div>
-<button type="button" id="ringfySoftphoneLauncher" class="ringfy-softphone-launcher" title="Open softphone">
-    <i class="fa fa-phone"></i>
-</button>
 
 <script>
     document.addEventListener('DOMContentLoaded', function () {

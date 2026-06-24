@@ -1441,55 +1441,32 @@ class OrderController extends Controller
 
         $userId = config('services.softphone.user_id', '10101');
         $password = config('services.softphone.password', 'fa97ljf13ou24rio32');
-        $baseUrl = rtrim(config('services.softphone.base_url', 'https://ringfy.next2call.com:4000'), '/');
+        $sipDomain = config('services.softphone.sip_domain', 'ringfy.next2call.com');
 
-        try {
-            $cacheKey = 'ringfy_softphone_token:' . $userId;
-            $token = Cache::remember($cacheKey, now()->addHours(6), function () use ($baseUrl, $userId, $password) {
-                return $this->fetchSoftphoneToken($baseUrl, $userId, $password);
-            });
-
-            $phoneResponse = $this->fetchSoftphoneLink($baseUrl, $token);
-            $softphoneUrl = $this->extractSoftphoneUrl($phoneResponse->json());
-
-            if (! $phoneResponse->successful() || ! $softphoneUrl) {
-                Cache::forget('ringfy_softphone_token:' . $userId);
-                $token = $this->fetchSoftphoneToken($baseUrl, $userId, $password);
-                Cache::put($cacheKey, $token, now()->addHours(6));
-
-                $phoneResponse = $this->fetchSoftphoneLink($baseUrl, $token);
-                $softphoneUrl = $this->extractSoftphoneUrl($phoneResponse->json());
-            }
-
-            if (! $phoneResponse->successful() || ! $softphoneUrl) {
-                Log::warning('Softphone login URL API failed', [
-                    'status' => $phoneResponse->status(),
-                    'body' => $phoneResponse->body(),
-                ]);
-
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Unable to get softphone login URL. API status: ' . $phoneResponse->status(),
-                ], 502);
-            }
-
-            $softphoneUrl = $this->appendSoftphoneAuthParams($softphoneUrl, $userId, $password);
-            $callUrl = $this->appendSoftphoneDialParams($softphoneUrl, $targetNumber);
-
-            return response()->json([
-                'success' => true,
-                'url' => $callUrl,
-                'softphone_url' => $softphoneUrl,
-                'target_number' => $targetNumber,
-            ]);
-        } catch (\Throwable $exception) {
-            report($exception);
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Softphone connection failed.',
-            ], 500);
+        // Apply number modification as requested/documented:
+        // if number starts with 91, convert it to 0...
+        $formattedNumber = $targetNumber;
+        if (str_starts_with($formattedNumber, '91')) {
+            $formattedNumber = '0' . substr($formattedNumber, 2);
         }
+
+        // Construct the click-to-dial URL directly as per the documentation
+        $query = http_build_query([
+            'profileName' => $userId,
+            'SipDomain' => $sipDomain,
+            'SipUsername' => $userId,
+            'SipPassword' => $password,
+            'd' => $formattedNumber
+        ]);
+
+        $callUrl = "https://ringfy.next2call.com/softphone/Phone/click-to-dial.html?" . $query;
+
+        return response()->json([
+            'success' => true,
+            'url' => $callUrl,
+            'softphone_url' => $callUrl,
+            'target_number' => $formattedNumber,
+        ]);
     }
 
     private function fetchSoftphoneToken(string $baseUrl, string $userId, string $password): string
