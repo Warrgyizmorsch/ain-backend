@@ -96,6 +96,26 @@
                         @continue
                     @endif
                     @if ($menu->show_menu == 'Y' && in_array($menu->id, $menuIds))
+                        @php
+                            $shouldHideMenu = false;
+                            if (auth()->check() && auth()->user()->role_id == 9) {
+                                $menuRoute = trim($menu->routes, '/');
+                                $currentUserId = auth()->id();
+                                if ($currentUserId == 13715) {
+                                    if ($menuRoute == 'my-break-time-report' || $menuRoute == 'my-revoke-payments') {
+                                        $shouldHideMenu = true;
+                                    }
+                                } else {
+                                    if ($menuRoute == 'break-time-report' || $menuRoute == 'revoke-payments') {
+                                        $shouldHideMenu = true;
+                                    }
+                                }
+                            }
+                        @endphp
+                        @if ($shouldHideMenu)
+                            @continue
+                        @endif
+
                         @if ($menu->id == 44)
                             @if (auth()->check() && auth()->user()->role_id == 1)
                                 @php
@@ -163,7 +183,23 @@
                         @elseif (count($menu->submenus) > 0)
                             @php
                                 $visibleSubmenus = $menu->submenus->filter(function ($submenu) use ($submenuIds) {
-                                    return $submenu->show == 'Y' && in_array($submenu->id, $submenuIds);
+                                    if ($submenu->show != 'Y' || !in_array($submenu->id, $submenuIds)) {
+                                        return false;
+                                    }
+                                    if (auth()->check() && auth()->user()->role_id == 9) {
+                                        $subRoute = trim($submenu->routes, '/');
+                                        $currentUserId = auth()->id();
+                                        if ($currentUserId == 13715) {
+                                            if ($subRoute == 'my-break-time-report' || $subRoute == 'my-revoke-payments') {
+                                                return false;
+                                            }
+                                        } else {
+                                            if ($subRoute == 'break-time-report' || $subRoute == 'revoke-payments') {
+                                                return false;
+                                            }
+                                        }
+                                    }
+                                    return true;
                                 });
 
                                 $hasActiveChild = $visibleSubmenus->contains(function ($submenu) use ($isActiveRoute) {
@@ -178,64 +214,66 @@
                                 $isParentActive = $hasActiveChild || $isReportsPayeeActive;
                             @endphp
 
-                            <div data-kt-menu-trigger="click" class="menu-item menu-accordion {{ $isParentActive ? 'here show' : '' }}">
-                                <span class="menu-link {{ $isParentActive ? 'active' : '' }}">
-                                    <span class="menu-icon">
-                                        <li class="{{ $menu['icon_class'] }}"></li>
+                            @if ($visibleSubmenus->isNotEmpty() || (strtolower($menu['menu_name']) == 'reports' && auth()->check() && auth()->user()->role_id == 1))
+                                <div data-kt-menu-trigger="click" class="menu-item menu-accordion {{ $isParentActive ? 'here show' : '' }}">
+                                    <span class="menu-link {{ $isParentActive ? 'active' : '' }}">
+                                        <span class="menu-icon">
+                                            <li class="{{ $menu['icon_class'] }}"></li>
+                                        </span>
+                                        <span class="menu-title">{{ $menu['menu_name'] }}</span>
+                                        <span class="menu-arrow"></span>
                                     </span>
-                                    <span class="menu-title">{{ $menu['menu_name'] }}</span>
-                                    <span class="menu-arrow"></span>
-                                </span>
 
-                                <div class="menu-sub menu-sub-accordion menu-active-bg">
-                                    {{-- @foreach ($menu->submenus as $submenu)
-                                        <div class="menu-item">
-                                            <a class="menu-link" href="{{ url($submenu->routes) }}">
-                                                <span class="menu-bullet">
-                                                    <span class="bullet bullet-dot"></span>
-                                                </span>
-                                                <span class="menu-title">{{ $submenu->sub_menu_name }}</span>
-                                            </a>
-                                        </div>
-                                    @endforeach --}}
-                                    @foreach ($visibleSubmenus as $submenu)
-                                        @php
-                                            $isSubmenuActive = $isActiveRoute($submenu->routes);
-                                        @endphp
+                                    <div class="menu-sub menu-sub-accordion menu-active-bg">
+                                        {{-- @foreach ($menu->submenus as $submenu)
                                             <div class="menu-item">
-                                                <a class="menu-link {{ $isSubmenuActive ? 'active' : '' }}" href="{{ url($submenu->routes) }}">
+                                                <a class="menu-link" href="{{ url($submenu->routes) }}">
                                                     <span class="menu-bullet">
                                                         <span class="bullet bullet-dot"></span>
                                                     </span>
                                                     <span class="menu-title">{{ $submenu->sub_menu_name }}</span>
-                                                    @if(trim($submenu->routes, '/') == 'revoke-payments')
-                                                        @if(isset($globalRevokeCount) && $globalRevokeCount > 0)
-                                                            <span class="menu-badge">
-                                                                <span class="badge badge-circle badge-danger fw-bold fs-8">{{ $globalRevokeCount }}</span>
-                                                            </span>
-                                                        @endif
-                                                    @elseif(trim($submenu->routes, '/') == 'my-revoke-payments')
-                                                        @if(isset($globalMyRevokeCount) && $globalMyRevokeCount > 0)
-                                                            <span class="menu-badge">
-                                                                <span class="badge badge-circle badge-danger fw-bold fs-8">{{ $globalMyRevokeCount }}</span>
-                                                            </span>
-                                                        @endif
-                                                    @endif
                                                 </a>
                                             </div>
-                                    @endforeach
-                                    @if(strtolower($menu['menu_name']) == 'reports' && auth()->check() && auth()->user()->role_id == 1)
-                                        <div class="menu-item">
-                                            <a class="menu-link {{ $isReportsPayeeActive ? 'active' : '' }}" href="{{ url('payee-report') }}">
-                                                <span class="menu-bullet">
-                                                    <span class="bullet bullet-dot"></span>
-                                                </span>
-                                                <span class="menu-title">Paayment Report</span>
-                                            </a>
-                                        </div>
-                                    @endif
+                                        @endforeach --}}
+                                        @foreach ($visibleSubmenus as $submenu)
+                                            @php
+                                                $isSubmenuActive = $isActiveRoute($submenu->routes);
+                                            @endphp
+                                                <div class="menu-item">
+                                                    <a class="menu-link {{ $isSubmenuActive ? 'active' : '' }}" href="{{ url($submenu->routes) }}">
+                                                        <span class="menu-bullet">
+                                                            <span class="bullet bullet-dot"></span>
+                                                        </span>
+                                                        <span class="menu-title">{{ $submenu->sub_menu_name }}</span>
+                                                        @if(trim($submenu->routes, '/') == 'revoke-payments')
+                                                            @if(isset($globalRevokeCount) && $globalRevokeCount > 0)
+                                                                <span class="menu-badge">
+                                                                    <span class="badge badge-circle badge-danger fw-bold fs-8">{{ $globalRevokeCount }}</span>
+                                                                </span>
+                                                            @endif
+                                                        @elseif(trim($submenu->routes, '/') == 'my-revoke-payments')
+                                                            @if(isset($globalMyRevokeCount) && $globalMyRevokeCount > 0)
+                                                                <span class="menu-badge">
+                                                                    <span class="badge badge-circle badge-danger fw-bold fs-8">{{ $globalMyRevokeCount }}</span>
+                                                                </span>
+                                                            @endif
+                                                        @endif
+                                                    </a>
+                                                </div>
+                                        @endforeach
+                                        @if(strtolower($menu['menu_name']) == 'reports' && auth()->check() && auth()->user()->role_id == 1)
+                                            <div class="menu-item">
+                                                <a class="menu-link {{ $isReportsPayeeActive ? 'active' : '' }}" href="{{ url('payee-report') }}">
+                                                    <span class="menu-bullet">
+                                                        <span class="bullet bullet-dot"></span>
+                                                    </span>
+                                                    <span class="menu-title">Paayment Report</span>
+                                                </a>
+                                            </div>
+                                        @endif
+                                    </div>
                                 </div>
-                            </div>
+                            @endif
 
                         @else
                             @php
@@ -248,6 +286,19 @@
                                         <li class="{{ $menu['icon_class'] }}"></li>
                                     </span>
                                     <span class="menu-title">{{ $menu['menu_name'] }}</span>
+                                    @if(trim($menu['routes'], '/') == 'revoke-payments')
+                                        @if(isset($globalRevokeCount) && $globalRevokeCount > 0)
+                                            <span class="menu-badge">
+                                                <span class="badge badge-circle badge-danger fw-bold fs-8">{{ $globalRevokeCount }}</span>
+                                            </span>
+                                        @endif
+                                    @elseif(trim($menu['routes'], '/') == 'my-revoke-payments')
+                                        @if(isset($globalMyRevokeCount) && $globalMyRevokeCount > 0)
+                                            <span class="menu-badge">
+                                                <span class="badge badge-circle badge-danger fw-bold fs-8">{{ $globalMyRevokeCount }}</span>
+                                            </span>
+                                        @endif
+                                    @endif
                                 </a>
                             </div>
 

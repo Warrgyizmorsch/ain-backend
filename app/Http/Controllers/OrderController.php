@@ -4845,6 +4845,14 @@ class OrderController extends Controller
 
     public function revokePayments(Request $request)
     {
+        $allowedSubAdminId = 13715;
+        if (
+            auth()->user()->role_id != 1 &&
+            !(auth()->user()->role_id == 9 && auth()->id() == $allowedSubAdminId)
+        ) {
+            abort(403, 'Unauthorized access.');
+        }
+
         $data = [
             'Team' => Writer::all(),
             'Status' => Status::all(),
@@ -4901,6 +4909,14 @@ class OrderController extends Controller
 
     public function revokePaymentsFilter(Request $request)
     {
+        $allowedSubAdminId = 13715;
+        if (
+            auth()->user()->role_id != 1 &&
+            !(auth()->user()->role_id == 9 && auth()->id() == $allowedSubAdminId)
+        ) {
+            abort(403, 'Unauthorized access.');
+        }
+
         $limit = $request->input('limit', 50);
         $offset = $request->input('offset', 0);
 
