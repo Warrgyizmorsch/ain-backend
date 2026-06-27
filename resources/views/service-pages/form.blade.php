@@ -6,12 +6,12 @@
 @php($editing = $page->exists)
 <form method="POST" action="{{ $editing ? route('service-pages.update', $page) : route('service-pages.store') }}">
 @csrf @if($editing) @method('PUT') @endif
-<div class="card mb-6"><div class="card-header"><h3 class="card-title">{{ $editing ? 'Edit' : 'Add' }} Dynamic Service Page</h3><div class="card-toolbar"><a href="{{ route('service-pages.index') }}" class="btn btn-light me-2">Back</a>@if($editing)<a target="_blank" href="{{ route('service-pages.preview', $page) }}" class="btn btn-light-info me-2">Preview</a>@endif<button class="btn btn-primary">Save Page</button></div></div>
+<div class="card mb-6"><div class="card-header"><h3 class="card-title">{{ $editing ? 'Edit' : 'Add' }} Dynamic Page</h3><div class="card-toolbar"><a href="{{ route('service-pages.index') }}" class="btn btn-light me-2">Back</a>@if($editing)<button type="button" class="btn btn-light-info me-2 btn-preview" data-url="{{ route('service-pages.preview', $page) }}">Preview</button>@endif<button class="btn btn-primary">Save Page</button></div></div>
 <div class="card-body">@include('layouts.flash')
 @if($errors->any())<div class="alert alert-danger"><ul class="mb-0">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>@endif
 <div class="row g-5">
- <div class="col-md-6"><label class="form-label required">Subject Master</label><select name="subject_id" class="form-select" required><option value="">Select Subject</option>@foreach($subjects as $subject)<option value="{{ $subject->id }}" @selected(old('subject_id',$page->subject_id)==$subject->id)>{{ $subject->name }}</option>@endforeach</select></div>
- <div class="col-md-6"><label class="form-label required">SEO Slug</label><div class="input-group"><span class="input-group-text">/</span><input name="slug" class="form-control" value="{{ old('slug',$page->slug) }}" placeholder="accounting-assignment-help" required></div></div>
+ <div class="col-md-6"><label class="form-label required">Prefix</label><select name="subject_id" id="subject_id" class="form-select" required><option value="">Select Prefix</option>@foreach($subjects as $subject)<option value="{{ $subject->id }}" data-slug="{{ $subject->slug }}" @selected(old('subject_id',$page->subject_id)==$subject->id)>{{ $subject->name }}</option>@endforeach</select></div>
+ <div class="col-md-6"><label class="form-label required">SEO Slug</label><div class="input-group"><span class="input-group-text">/</span><input name="slug" id="slug" class="form-control" value="{{ old('slug',$page->slug) }}" placeholder="accounting/assignment-help" required></div></div>
  <div class="col-md-6"><label class="form-label required">Meta Title</label><input name="meta_title" class="form-control" maxlength="255" value="{{ old('meta_title',$page->meta_title) }}" required></div>
  <div class="col-md-6"><label class="form-label required">Meta Description</label><textarea name="meta_description" class="form-control" rows="2" required>{{ old('meta_description',$page->meta_description) }}</textarea></div>
 </div></div></div>
@@ -30,6 +30,16 @@
 <div class="card mb-6"><div class="card-header"><h3 class="card-title">Final CTA</h3></div><div class="card-body"><div class="row g-5"><div class="col-12"><label class="form-label">CTA Content</label><textarea name="cta_content" class="form-control" rows="3" placeholder="Accounting is a crucial subject...">{{ old('cta_content',$page->cta_content) }}</textarea></div><div class="col-md-6"><label class="form-label">Button Label</label><input name="cta_button_label" class="form-control" value="{{ old('cta_button_label',$page->cta_button_label) }}" placeholder="Get Free Quote Now"></div><div class="col-md-6"><label class="form-label">Button URL</label><input name="cta_button_url" class="form-control" value="{{ old('cta_button_url',$page->cta_button_url) }}" placeholder="/order-now"></div></div></div></div>
 
 <div class="card mb-6"><div class="card-header"><h3 class="card-title">Dynamic FAQs</h3><div class="card-toolbar"><button type="button" id="addFaq" class="btn btn-sm btn-light-primary">Add FAQ</button></div></div><div class="card-body"><div id="faqRows"></div></div></div>
+
+<div class="card mb-6">
+    <div class="card-header">
+        <h3 class="card-title">Long Content Section</h3>
+    </div>
+    <div class="card-body">
+        <textarea id="long_content" name="long_content" class="form-control">{{ old('long_content', $page->long_content) }}</textarea>
+    </div>
+</div>
+
 <div class="card"><div class="card-body d-flex justify-content-between align-items-center"><label class="form-check form-switch form-check-custom form-check-solid"><input type="hidden" name="is_published" value="0"><input class="form-check-input" type="checkbox" name="is_published" value="1" @checked(old('is_published',$page->is_published))><span class="form-check-label fw-bold">Publish on frontend</span></label><button class="btn btn-primary px-10">Save Page</button></div></div>
 </form>
 @php($faqValues = old('faqs', $page->faqs ?: [['question'=>'','answer'=>'']]))
@@ -38,6 +48,95 @@
 <template id="faqTemplate"><div class="faq-row border rounded p-4 mb-4"><div class="d-flex justify-content-end"><button type="button" class="btn btn-sm btn-light-danger remove-faq">Remove</button></div><label class="form-label required">Question</label><input class="form-control faq-question mb-3"><label class="form-label required">Answer</label><textarea class="form-control faq-answer" rows="3"></textarea></div></template>
 <script>document.addEventListener('DOMContentLoaded',function(){const rows=document.getElementById('faqRows'),tpl=document.getElementById('faqTemplate');let index=0;function addFaq(faq={}){const node=tpl.content.cloneNode(true),row=node.querySelector('.faq-row');row.querySelector('.faq-question').name=`faqs[${index}][question]`;row.querySelector('.faq-answer').name=`faqs[${index}][answer]`;row.querySelector('.faq-question').value=faq.question||'';row.querySelector('.faq-answer').value=faq.answer||'';row.querySelector('.remove-faq').onclick=()=>row.remove();rows.appendChild(node);index++;}document.getElementById('addFaq').onclick=()=>addFaq();@json($faqValues).forEach(addFaq);});</script>
 <script>document.addEventListener('DOMContentLoaded',function(){const rows=document.getElementById('whyItemRows'),tpl=document.getElementById('whyItemTemplate');let index=0;function addWhyItem(item={}){const node=tpl.content.cloneNode(true),row=node.querySelector('.why-item-row');row.querySelector('.why-icon').name=`why_items[${index}][icon]`;row.querySelector('.why-heading').name=`why_items[${index}][heading]`;row.querySelector('.why-content').name=`why_items[${index}][content]`;row.querySelector('.why-icon').value=item.icon||'fas fa-clipboard-check';row.querySelector('.why-heading').value=item.heading||'';row.querySelector('.why-content').value=item.content||'';row.querySelector('.remove-why-item').onclick=()=>row.remove();row.querySelector('.clone-why-item').onclick=()=>addWhyItem({icon:row.querySelector('.why-icon').value,heading:row.querySelector('.why-heading').value,content:row.querySelector('.why-content').value});rows.appendChild(node);index++;}document.getElementById('addWhyItem').onclick=()=>addWhyItem();@json($whyItemValues).forEach(addWhyItem);});</script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const subjectSelect = document.getElementById('subject_id');
+    const slugInput = document.getElementById('slug');
+    let lastPrefixSlug = '';
+
+    if (subjectSelect.value) {
+        const selectedOpt = subjectSelect.options[subjectSelect.selectedIndex];
+        lastPrefixSlug = selectedOpt.getAttribute('data-slug') || '';
+    }
+
+    subjectSelect.addEventListener('change', function () {
+        const selectedOpt = this.options[this.selectedIndex];
+        const newPrefixSlug = selectedOpt.getAttribute('data-slug') || '';
+        let currentVal = slugInput.value.trim();
+
+        if (lastPrefixSlug && currentVal.startsWith(lastPrefixSlug + '/')) {
+            currentVal = currentVal.substring(lastPrefixSlug.length + 1);
+        }
+
+        if (newPrefixSlug) {
+            if (currentVal) {
+                slugInput.value = newPrefixSlug + '/' + currentVal;
+            } else {
+                slugInput.value = newPrefixSlug + '/';
+            }
+        } else {
+            slugInput.value = currentVal;
+        }
+
+        lastPrefixSlug = newPrefixSlug;
+    });
+});
+</script>
+
+<!-- Preview Modal -->
+<div class="modal fade" id="previewModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered" style="max-width: 95%;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Page Preview</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-0">
+                <iframe id="previewIframe" src="" style="width: 100%; height: 80vh; border: none;"></iframe>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const modal = new bootstrap.Modal(document.getElementById('previewModal'));
+    const iframe = document.getElementById('previewIframe');
+
+    document.querySelectorAll('.btn-preview').forEach(button => {
+        button.addEventListener('click', function (e) {
+            e.preventDefault();
+            const url = this.getAttribute('data-url');
+            iframe.src = url;
+            modal.show();
+        });
+    });
+
+    document.getElementById('previewModal').addEventListener('hidden.bs.modal', function () {
+        iframe.src = '';
+    });
+});
+</script>
+<link href="https://cdn.jsdelivr.net/npm/summernote@0.9.0/dist/summernote-lite.min.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/summernote@0.9.0/dist/summernote-lite.min.js"></script>
+<script>
+$(document).ready(function() {
+    $('#long_content').summernote({
+        placeholder: 'Enter long content with formatting, points, lists, etc...',
+        tabsize: 2,
+        height: 350,
+        toolbar: [
+            ['style', ['style']],
+            ['font', ['bold', 'underline', 'clear']],
+            ['color', ['color']],
+            ['para', ['ul', 'ol', 'paragraph']],
+            ['table', ['table']],
+            ['insert', ['link', 'picture']],
+            ['view', ['codeview', 'help']]
+        ]
+    });
+});
+</script>
 </div>
 </div>
 @endsection

@@ -11,7 +11,7 @@ class ServicePage extends Model
         'hero_highlight', 'hero_content', 'section_two_heading', 'section_two_content',
         'section_three_heading', 'section_three_content', 'expert_ids', 'review_ids',
         'faqs', 'why_heading', 'why_subheading', 'why_items', 'cta_content',
-        'cta_button_label', 'cta_button_url', 'is_published',
+        'cta_button_label', 'cta_button_url', 'long_content', 'is_published',
     ];
 
     protected $casts = [

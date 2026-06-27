@@ -18,7 +18,7 @@ class SubjectController extends Controller
     {
         $data = $request->validate(['name' => ['required', 'string', 'max:120', 'unique:subjects,name']]);
         Subject::create(['name' => $data['name'], 'slug' => Str::slug($data['name']), 'is_active' => true]);
-        return back()->with('success', 'Subject added successfully.');
+        return back()->with('success', 'Prefix added successfully.');
     }
 
     public function update(Request $request, Subject $subject)
@@ -28,15 +28,15 @@ class SubjectController extends Controller
             'is_active' => ['nullable', 'boolean'],
         ]);
         $subject->update(['name' => $data['name'], 'slug' => Str::slug($data['name']), 'is_active' => $request->boolean('is_active')]);
-        return back()->with('success', 'Subject updated successfully.');
+        return back()->with('success', 'Prefix updated successfully.');
     }
 
     public function destroy(Subject $subject)
     {
         if ($subject->servicePages()->exists()) {
-            return back()->with('error', 'This subject is used by a service page and cannot be deleted.');
+            return back()->with('error', 'This prefix is used by a service page and cannot be deleted.');
         }
         $subject->delete();
-        return back()->with('success', 'Subject deleted successfully.');
+        return back()->with('success', 'Prefix deleted successfully.');
     }
 }

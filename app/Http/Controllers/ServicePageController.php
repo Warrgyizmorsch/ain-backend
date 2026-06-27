@@ -90,6 +90,7 @@ class ServicePageController extends Controller
             'cta_content' => ['nullable', 'string', 'max:2000'],
             'cta_button_label' => ['nullable', 'string', 'max:100'],
             'cta_button_url' => ['nullable', 'string', 'max:500'],
+            'long_content' => ['nullable', 'string'],
             'expert_ids' => ['nullable', 'array'],
             'expert_ids.*' => ['integer', 'exists:expert,id'],
             'review_ids' => ['nullable', 'array'],
@@ -99,7 +100,9 @@ class ServicePageController extends Controller
             'faqs.*.answer' => ['nullable', 'string'],
         ]);
 
-        $data['slug'] = Str::slug($data['slug']);
+        $parts = explode('/', $data['slug']);
+        $parts = array_map(fn($part) => Str::slug($part), $parts);
+        $data['slug'] = implode('/', $parts);
         $data['expert_ids'] = array_values($data['expert_ids'] ?? []);
         $data['review_ids'] = array_values($data['review_ids'] ?? []);
         $data['faqs'] = array_values(array_filter($data['faqs'] ?? [], fn ($faq) => filled($faq['question'] ?? null) && filled($faq['answer'] ?? null)));
