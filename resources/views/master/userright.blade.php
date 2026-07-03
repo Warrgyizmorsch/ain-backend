@@ -9,6 +9,7 @@
 				<h1 class="d-flex align-items-center text-dark fw-bolder fs-3 my-1">User Right
 				<span class="h-20px border-gray-200 border-start ms-3 mx-2"></span>
 				<small class="text-muted fs-7 fw-bold my-1 ms-1">Let's Learn Together</small>
+                </h1>
 			</div>
 			
 		</div>
@@ -77,7 +78,7 @@
 						
 						
 						@php
-							$otherChildrenMenuIds = [2,38,39];
+							$otherChildrenMenuIds = [2,3,12,14,15,16,21,23,25,27,28,30,32,33,34,35,36,37,38,39];
 						@endphp
 						@foreach ($menus as $menu)
 						
@@ -224,14 +225,14 @@
         var isChecked = $(this).is(':checked');
         $('.submenu-checkbox[data-menu-id="' + menuId + '"]').prop('checked', isChecked);
 
-        // Auto-check/uncheck "Other" (id 44) based on child menus belonging to "Other"
+        // Auto-check/uncheck "Other" (id 43) based on child menus belonging to "Other"
         if ($(this).data('is-other-child') == true) {
             if (isChecked) {
-                $('.menu-checkbox[value="44"]').prop('checked', true).trigger('change');
+                $('.menu-checkbox[value="43"]').prop('checked', true).trigger('change');
             } else {
                 var anyOtherChildChecked = $('.menu-checkbox[data-is-other-child="true"]:checked').length > 0;
                 if (!anyOtherChildChecked) {
-                    $('.menu-checkbox[value="44"]').prop('checked', false).trigger('change');
+                    $('.menu-checkbox[value="43"]').prop('checked', false).trigger('change');
                 }
             }
         }

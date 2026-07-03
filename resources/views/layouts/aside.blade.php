@@ -99,8 +99,8 @@
                 @endforeach
 
                 @php
-                    // Add any menu IDs here that you want to nest inside "Other" (ID 44) - only for admin (role_id == 1)
-                    $otherChildrenMenuIds = (auth()->check() && auth()->user()->role_id == 1) ? [2, 3, 38,39] : []; 
+                    // Add any menu IDs here that you want to nest inside "Other" (ID 43) - only for admin (role_id == 1)
+                    $otherChildrenMenuIds = (auth()->check() && auth()->user()->role_id == 1) ? [2,3,12,14,15,16,21,23,25,27,28,30,32,33,34,35,36,37,38,39] : []; 
                 @endphp
 
                 @foreach ($menus as $menu)
@@ -108,27 +108,7 @@
                         @continue
                     @endif
                     @if ($menu->show_menu == 'Y' && in_array($menu->id, $menuIds))
-                        @php
-                            $shouldHideMenu = false;
-                            if (auth()->check() && auth()->user()->role_id == 9) {
-                                $menuRoute = trim($menu->routes, '/');
-                                $currentUserId = auth()->id();
-                                if ($currentUserId == 13715) {
-                                    if ($menuRoute == 'my-break-time-report' || $menuRoute == 'my-revoke-payments') {
-                                        $shouldHideMenu = true;
-                                    }
-                                } else {
-                                    if ($menuRoute == 'break-time-report' || $menuRoute == 'revoke-payments') {
-                                        $shouldHideMenu = true;
-                                    }
-                                }
-                            }
-                        @endphp
-                        @if ($shouldHideMenu)
-                            @continue
-                        @endif
-
-                        @if ($menu->id == 44)
+                        @if ($menu->id == 43)
                             @if (auth()->check() && auth()->user()->role_id == 1)
                                 @php
                                     $isOtherActive = false;
