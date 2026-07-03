@@ -69,6 +69,7 @@ class Kernel extends HttpKernel
         'checkrole' => \App\Http\Middleware\CheckRole::class,
         'letslearn.access' => \App\Http\Middleware\LetsLearnAccess::class,
         'check.permission' => \App\Http\Middleware\CheckPermission::class,
+        'api.key' => \App\Http\Middleware\VerifyApiKey::class,
     ];
 
    

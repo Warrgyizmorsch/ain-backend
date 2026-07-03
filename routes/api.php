@@ -10,6 +10,9 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AppDropdownController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\ServicePageApiController;
+use App\Http\Controllers\Api\BlogApiController;
+use App\Http\Controllers\Api\SampleApiController;
 
 
 
@@ -39,6 +42,21 @@ Route::prefix('public/leads')->group(function () {
 });
 Route::post('/submit-feedback', [FeedbackController::class, 'submitFeedback']);
 Route::post('/save-order', [OrderApiController::class, 'store']);
+
+Route::middleware('api.key')->group(function () {
+    // Dynamic Service Pages
+    Route::get('/service-pages', [ServicePageApiController::class, 'index']);
+    Route::get('/service-pages/prefix/{prefix}', [ServicePageApiController::class, 'getByPrefix'])->where('prefix', '.*');
+    Route::get('/service-pages/{slug}', [ServicePageApiController::class, 'show'])->where('slug', '.*');
+
+    // Blogs APIs
+    Route::get('/blogs', [BlogApiController::class, 'index']);
+    Route::get('/blogs/{slug}', [BlogApiController::class, 'show'])->where('slug', '.*');
+
+    // Samples APIs
+    Route::get('/samples', [SampleApiController::class, 'index']);
+    Route::get('/samples/{slug}', [SampleApiController::class, 'show'])->where('slug', '.*');
+});
 
 Route::prefix('app')->group(function () {
     Route::get('/countries', [AppDropdownController::class, 'countries']);

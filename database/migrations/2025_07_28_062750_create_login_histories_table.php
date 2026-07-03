@@ -11,16 +11,18 @@ return new class extends Migration
      */
     public function up()
     {
-        Schema::create('login_histories', function (Blueprint $table) {
-            $table->id();
-            $table->integer('user_id');
-            $table->ipAddress('ip_address');
-            $table->string('user_agent')->nullable();
-            $table->timestamp('logged_in_at')->nullable();
-            $table->timestamps();
+        if (!Schema::hasTable('login_histories')) {
+            Schema::create('login_histories', function (Blueprint $table) {
+                $table->id();
+                $table->integer('user_id');
+                $table->ipAddress('ip_address');
+                $table->string('user_agent')->nullable();
+                $table->timestamp('logged_in_at')->nullable();
+                $table->timestamps();
 
-            $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
-        });
+                $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
+            });
+        }
     }
 
     /**

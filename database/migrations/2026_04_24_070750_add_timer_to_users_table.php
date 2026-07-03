@@ -11,10 +11,12 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('users', function (Blueprint $table) {
-            $table->bigInteger('total_seconds_today')->default(0); // Aaj ke total seconds
-            $table->timestamp('last_activity_at')->nullable();
-        });
+        if (Schema::hasTable('users') && !Schema::hasColumn('users', 'total_seconds_today')) {
+            Schema::table('users', function (Blueprint $table) {
+                $table->bigInteger('total_seconds_today')->default(0); // Aaj ke total seconds
+                $table->timestamp('last_activity_at')->nullable();
+            });
+        }
     }
 
     /**

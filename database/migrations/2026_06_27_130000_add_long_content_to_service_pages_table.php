@@ -11,9 +11,11 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('service_pages', function (Blueprint $table) {
-            $table->longText('long_content')->nullable()->after('cta_button_url');
-        });
+        if (Schema::hasTable('service_pages') && !Schema::hasColumn('service_pages', 'long_content')) {
+            Schema::table('service_pages', function (Blueprint $table) {
+                $table->longText('long_content')->nullable()->after('cta_button_url');
+            });
+        }
     }
 
     /**

@@ -1672,7 +1672,7 @@ class OrderController extends Controller
             return $currentPage;
         });
 
-        $orders = $query->paginate($perPage);
+        $orders = $query->paginate($perPage)->withQueryString();
         $alphaCount = Order::where('feedbackissue', '1')->where('team_id', 1)->count();
         $gigaCount  = Order::where('feedbackissue', '1')->where('team_id', 2)->count();
 

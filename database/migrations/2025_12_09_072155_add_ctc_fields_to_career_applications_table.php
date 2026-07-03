@@ -9,14 +9,16 @@ return new class extends Migration
     /**
      * Run the migrations.
      */
-   public function up()
-{
-    Schema::table('career_applications', function (Blueprint $table) {
-        $table->string('current_ctc')->nullable()->after('role_title');
-        $table->string('expected_ctc')->nullable()->after('current_ctc');
-        $table->string('notice_period')->nullable()->after('expected_ctc');
-    });
-}
+    public function up()
+    {
+        if (Schema::hasTable('career_applications') && !Schema::hasColumn('career_applications', 'current_ctc')) {
+            Schema::table('career_applications', function (Blueprint $table) {
+                $table->string('current_ctc')->nullable()->after('role_title');
+                $table->string('expected_ctc')->nullable()->after('current_ctc');
+                $table->string('notice_period')->nullable()->after('expected_ctc');
+            });
+        }
+    }
 
 public function down()
 {

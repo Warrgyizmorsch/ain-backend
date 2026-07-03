@@ -11,9 +11,11 @@ return new class extends Migration
      */
     public function up()
     {
-        Schema::table('teams', function (Blueprint $table) {
-            $table->json('member_ids')->nullable()->after('percentage');
-        });
+        if (Schema::hasTable('teams') && !Schema::hasColumn('teams', 'member_ids')) {
+            Schema::table('teams', function (Blueprint $table) {
+                $table->json('member_ids')->nullable()->after('percentage');
+            });
+        }
     }
 
     public function down()

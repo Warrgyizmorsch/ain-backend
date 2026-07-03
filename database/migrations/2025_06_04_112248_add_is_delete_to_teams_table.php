@@ -11,9 +11,11 @@ return new class extends Migration
      */
     public function up()
     {
-        Schema::table('teams', function (Blueprint $table) {
-            $table->boolean('is_delete')->default(false);
-        });
+        if (Schema::hasTable('teams') && !Schema::hasColumn('teams', 'is_delete')) {
+            Schema::table('teams', function (Blueprint $table) {
+                $table->boolean('is_delete')->default(false);
+            });
+        }
     }
 
     public function down()

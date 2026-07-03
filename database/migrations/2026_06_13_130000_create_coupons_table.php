@@ -11,14 +11,16 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('coupons', function (Blueprint $table) {
-            $table->id();
-            $table->string('coupon_code')->unique();
-            $table->enum('discount_type', ['percentage', 'fixed'])->default('percentage');
-            $table->decimal('discount_value', 10, 2);
-            $table->boolean('is_active')->default(true);
-            $table->timestamps();
-        });
+        if (!Schema::hasTable('coupons')) {
+            Schema::create('coupons', function (Blueprint $table) {
+                $table->id();
+                $table->string('coupon_code')->unique();
+                $table->enum('discount_type', ['percentage', 'fixed'])->default('percentage');
+                $table->decimal('discount_value', 10, 2);
+                $table->boolean('is_active')->default(true);
+                $table->timestamps();
+            });
+        }
     }
 
     /**

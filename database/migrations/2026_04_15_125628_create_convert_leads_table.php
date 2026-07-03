@@ -11,13 +11,15 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('convert_leads', function (Blueprint $table) {
-            $table->id();
-            $table->unsignedBigInteger('lead_id'); // Main table ki lead ID
-            $table->string('action_type'); // Isme 'order' ya 'cancel' save hoga
-            $table->text('message')->nullable(); // Cancellation reason ke liye
-            $table->timestamps();
-        });
+        if (!Schema::hasTable('convert_leads')) {
+            Schema::create('convert_leads', function (Blueprint $table) {
+                $table->id();
+                $table->unsignedBigInteger('lead_id'); // Main table ki lead ID
+                $table->string('action_type'); // Isme 'order' ya 'cancel' save hoga
+                $table->text('message')->nullable(); // Cancellation reason ke liye
+                $table->timestamps();
+            });
+        }
     }
 
     /**
