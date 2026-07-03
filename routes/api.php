@@ -13,6 +13,8 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ServicePageApiController;
 use App\Http\Controllers\Api\BlogApiController;
 use App\Http\Controllers\Api\SampleApiController;
+use App\Http\Controllers\Api\WriterApiController;
+use App\Http\Controllers\Api\FaqApiController;
 
 
 
@@ -56,6 +58,14 @@ Route::middleware('api.key')->group(function () {
     // Samples APIs
     Route::get('/samples', [SampleApiController::class, 'index']);
     Route::get('/samples/{slug}', [SampleApiController::class, 'show'])->where('slug', '.*');
+
+    // Writer APIs
+    Route::get('/writer-list', [WriterApiController::class, 'index']);
+    Route::get('/writer-details/{id?}', [WriterApiController::class, 'show']);
+
+    // FAQ APIs
+    Route::get('/faqs', [FaqApiController::class, 'index']);
+    Route::get('/faqs/{slug}', [FaqApiController::class, 'show'])->where('slug', '.*');
 });
 
 Route::prefix('app')->group(function () {
@@ -85,3 +95,5 @@ Route::middleware('auth:sanctum')->prefix('app')->group(function () {
     Route::get('/refer-list', [AuthController::class, 'referList']);
     Route::post('/submit-feedback', [OrderApiController::class, 'submitAppFeedback']);
 });
+
+
