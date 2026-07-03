@@ -76,10 +76,13 @@
                     @csrf
                     @if(isset($editPayment)) @method('PUT') @endif
 
+                    @php
+                        $extraPrice = $order->additionals ? $order->additionals->sum('additional_price') : 0;
+                    @endphp
                     <h4 class="text-center mb-4">
                         {{ isset($editPayment) ? 'Update Payment' : 'Make Payment' }}
                         @if(!isset($editPayment))
-                            (Due: {{ $order->amount - $order->received_amount }} £)
+                            (Due: {{ ($order->amount + $extraPrice) - $order->received_amount }} £)
                         @endif
                     </h4>
 

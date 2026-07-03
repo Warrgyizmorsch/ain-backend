@@ -92,7 +92,7 @@ class OrderController extends Controller
     {
         return [
             'user' => function ($q) {
-                $q->select('id', 'name', 'email', 'countrycode', 'mobile_no', 'is_fail', 'feedback_issue', 'client_review', 'failed_at')
+                $q->select('id', 'name', 'email', 'countrycode', 'mobile_no', 'is_fail', 'feedback_issue', 'client_review')
                     ->withCount([
                         'orders as orders_count',
                         'orders as failed_orders_count' => function ($orderQuery) {
@@ -3422,7 +3422,7 @@ class OrderController extends Controller
             ->select($this->orderListColumns())
             ->selectRaw('(CAST(amount AS SIGNED) - CAST(received_amount AS SIGNED)) as due_balance')
             ->orderByRaw('due_balance > 0 DESC') // Pending payment pehle
-            ->latest('id')
+            ->orderByRaw('COALESCE((SELECT converted_at FROM leads WHERE leads.id = orders.lead_id LIMIT 1), orders.created_at) DESC')
             ->take(20)
             ->get();
 
@@ -3756,7 +3756,7 @@ class OrderController extends Controller
                 });
         }
 
-        $query->orderBy('id', 'desc');
+        $query->orderByRaw('COALESCE((SELECT converted_at FROM leads WHERE leads.id = orders.lead_id LIMIT 1), orders.created_at) DESC');
         $total = $query->count();
         $orders = $query->skip($offset)->take($limit)->get();
         $this->attachWriterFeedbackMeta($orders);
@@ -3833,7 +3833,7 @@ class OrderController extends Controller
 
         $order = Order::with(['payment' => function ($q) use ($paymentId) {
             $q->where('id', $paymentId);
-        }])->findOrFail($orderId);
+        }, 'additionals'])->findOrFail($orderId);
 
         $editPayment = Payment::where('id', $paymentId)
             ->where('order_id', $orderId)
@@ -3841,7 +3841,7 @@ class OrderController extends Controller
 
     } else {
 
-        $order = Order::with('payment')->findOrFail($orderId);
+        $order = Order::with(['payment', 'additionals'])->findOrFail($orderId);
         $editPayment = null;
     }
 
@@ -3863,14 +3863,15 @@ class OrderController extends Controller
         }
 
         // Find order
-        $order = Order::find($orderId);
+        $order = Order::with('additionals')->find($orderId);
         // dd($order);
         if (!$order) {
             return Redirect::back()->with('error', 'Order not found.');
         }
 
         // Remaining amount
-        $remainingAmount = $order->amount - $order->received_amount;
+        $extraPrice = $order->additionals ? $order->additionals->sum('additional_price') : 0;
+        $remainingAmount = ($order->amount + $extraPrice) - $order->received_amount;
 
         $paidAmount       = (float) $request->input('amount');
         $companyAccount   = $request->input('company_accounts');
