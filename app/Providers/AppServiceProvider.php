@@ -68,5 +68,33 @@ class AppServiceProvider extends ServiceProvider
                 'globalMyRevokeCount' => $myRevokeCount
             ]);
         });
+
+        view()->composer(['layouts.header', 'layouts.aside'], function ($view) {
+            $loginOtpCount = 0;
+            $loginOtpNotifications = collect();
+
+            try {
+                $loginOtpCount = \App\Models\LoginOtpNotification::where('status', 'pending')
+                    ->where('purpose', 'user_admin_approval')
+                    ->where(function ($query) {
+                        $query->whereNull('expires_at')
+                            ->orWhere('expires_at', '>', now());
+                    })
+                    ->count();
+
+                $loginOtpNotifications = \App\Models\LoginOtpNotification::with('user')
+                    ->where('purpose', 'user_admin_approval')
+                    ->latest()
+                    ->limit(5)
+                    ->get();
+            } catch (\Exception $e) {
+                // Prevent issues before the OTP notification table is migrated.
+            }
+
+            $view->with([
+                'globalLoginOtpCount' => $loginOtpCount,
+                'globalLoginOtpNotifications' => $loginOtpNotifications,
+            ]);
+        });
     }
 }

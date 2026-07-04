@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Auth;
 
 use Illuminate\Auth\Events\Lockout;
+use App\Models\User;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\RateLimiter;
@@ -37,7 +38,7 @@ class LoginRequest extends FormRequest
      *
      * @throws \Illuminate\Validation\ValidationException
      */
-    public function authenticate()
+    public function authenticate(): User
     {
         $credentials = $this->only('email', 'password');
 
@@ -48,7 +49,7 @@ class LoginRequest extends FormRequest
         }
 
         // Before logging in, check if the email already has an active session
-        $user = \App\Models\User::where('email', $this->email)->first();
+        $user = User::where('email', $this->email)->first();
 
         if ($user) {
             $sessionExists = \DB::table('sessions')
@@ -68,7 +69,7 @@ class LoginRequest extends FormRequest
             }
         }
 
-        Auth::attempt($credentials, $this->boolean('remember'));
+        return $user;
     }
 
 

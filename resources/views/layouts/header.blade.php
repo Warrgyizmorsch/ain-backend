@@ -64,6 +64,74 @@
 			<div class="d-flex align-items-stretch flex-shrink-0">
 				<div class="d-flex align-items-center ms-1 ms-lg-3" id="kt_header_user_menu_toggle">
 					<div class="d-flex align-items-center ms-3 me-4">
+						@if(auth()->check() && auth()->user()->role_id == 1)
+							<div class="dropdown me-3">
+								<button type="button" class="btn btn-icon btn-light-primary position-relative" data-bs-toggle="dropdown" aria-expanded="false" title="Login OTP notifications">
+									<i class="fa fa-bell fs-4"></i>
+									@if(($globalLoginOtpCount ?? 0) > 0)
+										<span class="position-absolute top-0 start-100 translate-middle badge badge-circle badge-danger fw-bold fs-9">
+											{{ $globalLoginOtpCount }}
+										</span>
+									@endif
+								</button>
+
+								<div class="dropdown-menu dropdown-menu-end p-0 shadow-sm" style="width: 380px; max-width: calc(100vw - 24px);">
+									<div class="px-5 py-4 border-bottom">
+										<div class="d-flex align-items-center justify-content-between">
+											<div class="fw-bolder fs-6">Login OTP Notifications</div>
+											@if(($globalLoginOtpCount ?? 0) > 0)
+												<span class="badge badge-light-danger">{{ $globalLoginOtpCount }} pending</span>
+											@endif
+										</div>
+									</div>
+
+									<div class="mh-350px overflow-auto">
+										@forelse(($globalLoginOtpNotifications ?? collect()) as $otpNotification)
+											<a href="{{ route('admin.login-otp-notifications', ['user_id' => $otpNotification->user_id]) }}" class="d-block px-5 py-4 border-bottom bg-hover-light text-decoration-none">
+												<div class="d-flex align-items-start justify-content-between gap-3">
+													<div class="min-w-0">
+														<div class="fw-bolder text-gray-900 text-truncate">
+															{{ $otpNotification->user->name ?? 'Deleted user' }}
+														</div>
+														<div class="text-muted fs-8 text-truncate">
+															{{ $otpNotification->user->email ?? '' }}
+														</div>
+														<div class="text-muted fs-8">
+															IP: {{ $otpNotification->ip_address ?? 'N/A' }}
+														</div>
+														@if(($otpNotification->failed_attempts ?? 0) > 0)
+															<div class="text-danger fs-8 fw-bold">
+																Wrong attempts: {{ $otpNotification->failed_attempts }}
+															</div>
+														@endif
+													</div>
+													<div class="text-end flex-shrink-0">
+														@if($otpNotification->status === 'pending' && (!$otpNotification->expires_at || $otpNotification->expires_at->isFuture()))
+															<span class="badge badge-light-success fs-6 fw-bolder">{{ $otpNotification->otp_code }}</span>
+														@else
+															<span class="badge badge-light-secondary">{{ ucfirst($otpNotification->status) }}</span>
+														@endif
+														<div class="text-muted fs-9 mt-2">
+															{{ optional($otpNotification->created_at)->diffForHumans() }}
+														</div>
+													</div>
+												</div>
+											</a>
+										@empty
+											<div class="px-5 py-8 text-center text-muted">
+												No login OTP notifications.
+											</div>
+										@endforelse
+									</div>
+
+									<div class="px-5 py-3 text-center border-top">
+										<a href="{{ route('admin.login-otp-notifications') }}" class="btn btn-sm btn-light-primary fw-bold w-100">
+											View User History
+										</a>
+									</div>
+								</div>
+							</div>
+						@endif
 						<div class="dropdown me-3">
 							<button type="button" class="btn btn-sm btn-light-warning fw-bold" id="breakBtn" data-bs-toggle="dropdown">
 								Break

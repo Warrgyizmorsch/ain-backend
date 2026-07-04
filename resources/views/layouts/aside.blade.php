@@ -87,6 +87,17 @@
                             <span class="menu-icon"><i class="fa fa-file-text-o"></i></span><span class="menu-title">Dynamic Page</span>
                         </a>
                     </div>
+                    <div class="menu-item">
+                        <a class="menu-link {{ $isActiveRoute('admin/login-otp-notifications') ? 'active' : '' }}" href="{{ route('admin.login-otp-notifications') }}">
+                            <span class="menu-icon"><i class="fa fa-bell"></i></span>
+                            <span class="menu-title">Login OTP</span>
+                            @if(($globalLoginOtpCount ?? 0) > 0)
+                                <span class="menu-badge">
+                                    <span class="badge badge-circle badge-danger fw-bold fs-8">{{ $globalLoginOtpCount }}</span>
+                                </span>
+                            @endif
+                        </a>
+                    </div>
                 @endif
 
                 @foreach($premission as $permission)

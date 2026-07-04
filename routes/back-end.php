@@ -28,10 +28,17 @@ use App\Http\Controllers\ReportController;
 use App\Http\Controllers\WhatsappController;
 use App\Http\Controllers\SubjectController;
 use App\Http\Controllers\ServicePageController;
+use App\Http\Controllers\Auth\AuthenticatedSessionController;
 
 Route::middleware(['auth'])->group(function () {
 
     Route::get('/dashboard', [HomeController::class, 'dashboard'])->name('dashboard');
+    Route::get('/admin/login-otp-notifications', [AuthenticatedSessionController::class, 'loginOtpNotifications'])
+        ->name('admin.login-otp-notifications');
+    Route::post('/admin/login-otp-system-ban', [AuthenticatedSessionController::class, 'banOtpSystem'])
+        ->name('admin.login-otp-system-ban');
+    Route::post('/admin/login-otp-system-unban', [AuthenticatedSessionController::class, 'unbanOtpSystem'])
+        ->name('admin.login-otp-system-unban');
 
 });
 Route::post('/lead/export', [LeadsController::class, 'export'])->name('lead.export');
