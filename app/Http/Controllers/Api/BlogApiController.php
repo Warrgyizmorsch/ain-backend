@@ -38,6 +38,13 @@ class BlogApiController extends Controller
             'meta_title', 'meta_discribtion', 'created_at'
         ]);
 
+        $blogs->getCollection()->transform(function ($blog) {
+            if (!empty($blog->images) && !str_starts_with($blog->images, 'http://') && !str_starts_with($blog->images, 'https://')) {
+                $blog->images = url($blog->images);
+            }
+            return $blog;
+        });
+
         return response()->json([
             'success' => true,
             'data' => $blogs
@@ -58,6 +65,10 @@ class BlogApiController extends Controller
                 'success' => false,
                 'message' => 'Blog not found'
             ], 404);
+        }
+
+        if (!empty($blog->images) && !str_starts_with($blog->images, 'http://') && !str_starts_with($blog->images, 'https://')) {
+            $blog->images = url($blog->images);
         }
 
         return response()->json([
