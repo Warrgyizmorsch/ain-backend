@@ -12,5 +12,6 @@ class Review extends Model
     protected $fillable = [
         'name', 'deadline', 'submission_date', 'services_type', 'location', 'customer_rating', 'description'
     ];
+    public $incrementing = false;
     
 }
