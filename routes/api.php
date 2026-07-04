@@ -15,6 +15,8 @@ use App\Http\Controllers\Api\BlogApiController;
 use App\Http\Controllers\Api\SampleApiController;
 use App\Http\Controllers\Api\WriterApiController;
 use App\Http\Controllers\Api\FaqApiController;
+use App\Http\Controllers\Api\ReviewApiController;
+use App\Http\Controllers\Api\ExpertApiController;
 
 
 
@@ -66,6 +68,14 @@ Route::middleware('api.key')->group(function () {
     // FAQ APIs
     Route::get('/faqs', [FaqApiController::class, 'index']);
     Route::get('/faqs/{slug}', [FaqApiController::class, 'show'])->where('slug', '.*');
+
+    // Review APIs
+    Route::get('/reviews', [ReviewApiController::class, 'index']);
+    Route::get('/reviews/{id}', [ReviewApiController::class, 'show']);
+
+    // Expert APIs
+    Route::get('/experts', [ExpertApiController::class, 'index']);
+    Route::get('/experts/{idOrSlug}', [ExpertApiController::class, 'show'])->where('idOrSlug', '.*');
 });
 
 Route::prefix('app')->group(function () {
