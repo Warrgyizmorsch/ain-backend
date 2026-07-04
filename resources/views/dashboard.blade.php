@@ -1557,11 +1557,127 @@
 
 			<div class="post d-flex flex-column-fluid" id="kt_post">
 				<div id="kt_content_container" class="container-xxl">
-					<div class="row gy-5 g-xl-8">
-						<div class="col-xl-12">
-							<div class="card card-xl-stretch">
-								<div class="card-header border-0 bg-danger py-5">
-									<h1>Coming Soon...</h1>
+					@php
+						$currentUser = auth()->user();
+						$roleName = function_exists('getUserRoleName') ? getUserRoleName($currentUser->role_id) : 'Team Member';
+					@endphp
+
+					<div class="card mb-8">
+						<div class="card-body py-8">
+							<div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-5">
+								<div class="d-flex align-items-center gap-4">
+									<div class="symbol symbol-60px">
+										<img src="{{ asset($currentUser->photo ?? 'assets/media/avatars/blank.png') }}" alt="user" />
+									</div>
+									<div>
+										<h2 class="fw-bolder text-dark mb-1">Welcome back, {{ $currentUser->name }}.</h2>
+										<div class="text-muted fw-bold">{{ $roleName }}</div>
+									</div>
+								</div>
+								<a href="{{ url('/profile') }}" class="btn btn-sm btn-primary">
+									<i class="fa fa-user me-2"></i>My Profile
+								</a>
+							</div>
+						</div>
+					</div>
+
+					<div class="row g-5 g-xl-8">
+						<div class="col-md-4">
+							<div class="card h-100">
+								<div class="card-body">
+									<div class="d-flex align-items-center">
+										<div class="symbol symbol-45px me-4">
+											<span class="symbol-label bg-light-primary">
+												<i class="fa fa-id-badge text-primary fs-3"></i>
+											</span>
+										</div>
+										<div>
+											<div class="text-muted fw-bold fs-7">Role</div>
+											<div class="fw-bolder fs-5 text-dark">{{ $roleName }}</div>
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+
+						<div class="col-md-4">
+							<div class="card h-100">
+								<div class="card-body">
+									<div class="d-flex align-items-center">
+										<div class="symbol symbol-45px me-4">
+											<span class="symbol-label bg-light-success">
+												<i class="fa fa-envelope text-success fs-3"></i>
+											</span>
+										</div>
+										<div class="min-w-0">
+											<div class="text-muted fw-bold fs-7">Email</div>
+											<div class="fw-bolder fs-6 text-dark text-truncate">{{ $currentUser->email }}</div>
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+
+						<div class="col-md-4">
+							<div class="card h-100">
+								<div class="card-body">
+									<div class="d-flex align-items-center">
+										<div class="symbol symbol-45px me-4">
+											<span class="symbol-label bg-light-warning">
+												<i class="fa fa-calendar text-warning fs-3"></i>
+											</span>
+										</div>
+										<div>
+											<div class="text-muted fw-bold fs-7">Today</div>
+											<div class="fw-bolder fs-5 text-dark">{{ now()->format('d M Y') }}</div>
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+
+					<div class="row g-5 g-xl-8 mt-1">
+						<div class="col-xl-8">
+							<div class="card h-100">
+								<div class="card-header border-0 pt-5">
+									<h3 class="card-title fw-bolder text-dark">Quick Actions</h3>
+								</div>
+								<div class="card-body pt-2">
+									<div class="d-flex flex-wrap gap-3">
+										<a href="{{ url('/profile') }}" class="btn btn-light-primary">
+											<i class="fa fa-user me-2"></i>Profile
+										</a>
+										@if($currentUser->role_id != 2)
+											<a href="{{ url('/order') }}" class="btn btn-light-success">
+												<i class="fa fa-list me-2"></i>Orders
+											</a>
+											<a href="{{ url('/leads') }}" class="btn btn-light-info">
+												<i class="fa fa-address-book me-2"></i>Leads
+											</a>
+											<a href="{{ url('/follow-up') }}" class="btn btn-light-warning">
+												<i class="fa fa-clock-o me-2"></i>Follow Up
+											</a>
+										@endif
+									</div>
+								</div>
+							</div>
+						</div>
+
+						<div class="col-xl-4">
+							<div class="card h-100">
+								<div class="card-header border-0 pt-5">
+									<h3 class="card-title fw-bolder text-dark">Status</h3>
+								</div>
+								<div class="card-body pt-2">
+									<div class="d-flex align-items-center justify-content-between mb-4">
+										<span class="text-muted fw-bold">Login</span>
+										<span class="badge badge-light-success">Active</span>
+									</div>
+									<div class="d-flex align-items-center justify-content-between">
+										<span class="text-muted fw-bold">Account</span>
+										<span class="badge badge-light-primary">{{ $roleName }}</span>
+									</div>
 								</div>
 							</div>
 						</div>

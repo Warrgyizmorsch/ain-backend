@@ -503,6 +503,14 @@ class HomeController extends Controller
 
     public function dashboard(Request $request)
     {
+        if (!auth()->check()) {
+            abort(403, 'Unauthorized action.');
+        }
+
+        if ((int) auth()->user()->role_id !== 1) {
+            return view('dashboard');
+        }
+
         // chart-2 
         $selectedDate = $request->input('selectedDate', null);
         $stats = $this->getCountryWiseUsers();

@@ -395,14 +395,14 @@ class AuthenticatedSessionController extends Controller
 
     private function redirectAfterLogin(User $user): RedirectResponse
     {
+        $message = 'Welcome back, ' . $user->name . '.';
+
         if ($user->role_id == 4 || $user->role_id == 9) {
-            return redirect()->intended(RouteServiceProvider::HOME);
+            return redirect()->intended(RouteServiceProvider::HOME)
+                ->with('success', $message);
         }
 
-        if ($user->role_id == 2) {
-            return redirect('/MyOrders');
-        }
-
-        return redirect(RouteServiceProvider::HOME);
+        return redirect(RouteServiceProvider::HOME)
+            ->with('success', $message);
     }
 }
