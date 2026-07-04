@@ -111,7 +111,7 @@
 
                 @php
                     // Add any menu IDs here that you want to nest inside "Other" (ID 43) - only for admin (role_id == 1)
-                    $otherChildrenMenuIds = (auth()->check() && auth()->user()->role_id == 1) ? [2,3,12,14,15,16,21,23,25,27,28,30,32,33,34,35,36,37,38,39] : []; 
+                    $otherChildrenMenuIds = (auth()->check() && auth()->user()->role_id == 1) ? [2,3,12,14,15,16,21,23,25,27,28,30,32,33,34,35,36,37,38,39,73] : []; 
                 @endphp
 
                 @foreach ($menus as $menu)
