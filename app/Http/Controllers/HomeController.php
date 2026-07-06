@@ -23,6 +23,32 @@ use Illuminate\Support\Facades\DB;
 
 class HomeController extends Controller
 {
+    private function getConversionRatioStats(Carbon $startDate, Carbon $endDate): array
+    {
+        $convertedOrders = Order::whereBetween('order_date', [
+                $startDate->toDateString(),
+                $endDate->toDateString(),
+            ])
+            ->whereNotNull('admin_id')
+            ->where('admin_id', '!=', 0)
+            ->count();
+
+        $notConvertedLeads = Leads::whereBetween('create_at', [$startDate, $endDate])
+            ->where('status', 0)
+            ->where('is_converted', 0)
+            ->where('duplicate_lead', 0)
+            ->count();
+
+        $total = $convertedOrders + $notConvertedLeads;
+
+        return [
+            'total' => $total,
+            'converted' => $convertedOrders,
+            'not_converted' => $notConvertedLeads,
+            'ratio' => $total > 0 ? round(($convertedOrders / $total) * 100, 1) : 0,
+        ];
+    }
+
     function BreadcrumbList(array $breadcrumbs): string
     {
         $breadcrumbSchema = [
@@ -751,20 +777,11 @@ class HomeController extends Controller
             $currentMonthEnd   = Carbon::now()->endOfMonth();
         }
 
-        $leadConversionQuery = DB::table('leads')
-            ->whereBetween('create_at', [$currentMonthStart, $currentMonthEnd]);
-
-        $totalLeads1Year = (clone $leadConversionQuery)->count();
-        $convertedOrders1Year = (clone $leadConversionQuery)
-            ->where('is_converted', 1)
-            ->count();
-        $notConvertedCount = (clone $leadConversionQuery)
-            ->where(function ($query) {
-                $query->where('is_converted', 0)
-                    ->orWhereNull('is_converted');
-            })
-            ->count();
-        $conversionRatio = $totalLeads1Year > 0 ? round(($convertedOrders1Year / $totalLeads1Year) * 100, 1): 0;
+        $conversionStats = $this->getConversionRatioStats($currentMonthStart, $currentMonthEnd);
+        $totalLeads1Year = $conversionStats['total'];
+        $convertedOrders1Year = $conversionStats['converted'];
+        $notConvertedCount = $conversionStats['not_converted'];
+        $conversionRatio = $conversionStats['ratio'];
         // ==========================================
         // --- CONVERSION RATIO LOGIC END ---
         // ==========================================
@@ -1134,42 +1151,26 @@ class HomeController extends Controller
         $to = $request->input('to');
 
         if ($filter == 'last_month') {
-            $startDate = \Carbon\Carbon::now()->subMonth()->startOfMonth();
-            $endDate = \Carbon\Carbon::now()->subMonth()->endOfMonth();
+            $startDate = Carbon::now()->subMonth()->startOfMonth();
+            $endDate = Carbon::now()->subMonth()->endOfMonth();
         } elseif ($filter == 'last_week') {
-            $startDate = \Carbon\Carbon::now()->subWeek()->startOfWeek();
-            $endDate = \Carbon\Carbon::now()->subWeek()->endOfWeek();
+            $startDate = Carbon::now()->subWeek()->startOfWeek();
+            $endDate = Carbon::now()->subWeek()->endOfWeek();
         } elseif ($filter == 'custom' && $from && $to) {
-            $startDate = \Carbon\Carbon::parse($from)->startOfDay();
-            $endDate = \Carbon\Carbon::parse($to)->endOfDay();
+            $startDate = Carbon::parse($from)->startOfDay();
+            $endDate = Carbon::parse($to)->endOfDay();
         } else {
-            $startDate = \Carbon\Carbon::now()->startOfMonth();
-            $endDate = \Carbon\Carbon::now()->endOfMonth();
+            $startDate = Carbon::now()->startOfMonth();
+            $endDate = Carbon::now()->endOfMonth();
         }
 
-        $leadConversionQuery = DB::table('leads')
-            ->whereBetween('create_at', [$startDate, $endDate]);
-
-        $totalLeads = (clone $leadConversionQuery)->count();
-        $convertedLeads = (clone $leadConversionQuery)
-            ->where('is_converted', 1)
-            ->count();
-        $notConvertedLeads = (clone $leadConversionQuery)
-            ->where(function ($query) {
-                $query->where('is_converted', 0)
-                    ->orWhereNull('is_converted');
-            })
-            ->count();
-
-        $conversionRatio = $totalLeads > 0
-            ? round(($convertedLeads / $totalLeads) * 100, 1)
-            : 0;
+        $conversionStats = $this->getConversionRatioStats($startDate, $endDate);
 
         return response()->json([
-            'total_leads' => $totalLeads,
-            'converted_leads' => $convertedLeads,
-            'not_converted_leads' => $notConvertedLeads,
-            'conversion_ratio' => $conversionRatio,
+            'total_leads' => $conversionStats['total'],
+            'converted_leads' => $conversionStats['converted'],
+            'not_converted_leads' => $conversionStats['not_converted'],
+            'conversion_ratio' => $conversionStats['ratio'],
         ]);
     }
 

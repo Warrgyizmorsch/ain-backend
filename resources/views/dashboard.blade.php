@@ -836,7 +836,7 @@
 								<div class="card-header pt-5 mb-3">
 									<h3 class="card-title align-items-start flex-column">
 										<span class="card-label fw-bolder text-dark fs-3">Conversion Ratio</span>
-										<span class="text-muted mt-1 fw-bold fs-7">Lead Created vs Converted</span>
+										<span class="text-muted mt-1 fw-bold fs-7">Orders vs Active Leads</span>
 									</h3>
 									{{-- <div class="card-toolbar">
 										<a href="{{ route('analytics.report', 'conversion') }}"
@@ -888,7 +888,7 @@
 											style="flex: 1 1 calc(50% - 12px); min-width: 140px;">
 											<span class="bullet bullet-dot me-2"
 												style="background-color: #50CD89 !important; height: 10px; width: 10px;"></span>
-											<span class="fw-bolder text-gray-800 fs-7">Converted Leads</span>
+											<span class="fw-bolder text-gray-800 fs-7">Converted Orders</span>
 											<span class="text-gray-500 ms-auto fw-bold fs-8"
 												id="convertedLeadsText">({{ $convertedOrders1Year }})</span>
 										</div>
@@ -897,7 +897,7 @@
 											style="flex: 1 1 calc(50% - 12px); min-width: 140px;">
 											<span class="bullet bullet-dot me-2"
 												style="background-color: #E4E6EF !important; height: 10px; width: 10px;"></span>
-											<span class="fw-bolder text-gray-800 fs-7">Not Converted</span>
+											<span class="fw-bolder text-gray-800 fs-7">Active Leads</span>
 											<span class="text-gray-500 ms-auto fw-bold fs-8"
 												id="notConvertedLeadsText">({{ $notConvertedCount }})</span>
 										</div>
@@ -1308,7 +1308,7 @@
 					conversionChart = new Chart(convCtx, {
 						type: 'doughnut',
 						data: {
-							labels: ['Converted Leads', 'Not Converted'],
+							labels: ['Converted Orders', 'Active Leads'],
 							datasets: [{
 								data: [converted, notConverted],
 								backgroundColor: ['#50CD89', '#E4E6EF'],
