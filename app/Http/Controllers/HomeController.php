@@ -29,8 +29,7 @@ class HomeController extends Controller
                 $startDate->toDateString(),
                 $endDate->toDateString(),
             ])
-            ->whereNotNull('admin_id')
-            ->where('admin_id', '!=', 0)
+            ->where('uid', '!=', 0)
             ->count();
 
         $notConvertedLeads = Leads::whereBetween('create_at', [$startDate, $endDate])
