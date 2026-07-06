@@ -113,9 +113,7 @@
 										@endif
 									</td>
                                     <td class="text-center">
-                                        @if($isFailedOrder)
-                                            <span class="failed-order-box">Fail Order</span>
-										@elseif($order->status_issue == 'Issue Raised')
+										@if($order->status_issue == 'Issue Raised')
 											<span class="badge badge-light-danger fs-7 fw-bold ">{{$order->status_issue}}</span>
 											@elseif($order->status_issue == 'Client Discussion Done')
 											<span class="badge badge-light-info fs-7 fw-bold" >{{$order->status_issue}}</span>

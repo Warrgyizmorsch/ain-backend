@@ -304,13 +304,9 @@
                                 </td>
 
                                 <td class="text-center">
-                                    @if($isFailedOrder)
-                                        <span class="failed-order-box">Fail Order</span>
-                                    @else
-                                        <span class="badge badge-light-success fs-8 fw-bold">
-                                            {{ $order->projectstatus ?? 'N/A' }}
-                                        </span>
-                                    @endif
+                                    <span class="badge badge-light-success fs-8 fw-bold">
+                                        {{ $order->projectstatus ?? 'N/A' }}
+                                    </span>
                                 </td>
 
                                 <td class="text-center">
