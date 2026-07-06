@@ -2014,7 +2014,12 @@ class LeadsController extends Controller
             ])->render();
         }
 
-        return response()->json(['html' => $html, 'count' => $leads->count(), 'has_more' => $hasMore]);
+        return response()->json([
+            'html' => $html,
+            'count' => $leads->count(),
+            'has_more' => $hasMore,
+            'next_offset' => $offset + $leads->count(),
+        ]);
     }
     public function filter(Request $request)
     {
@@ -2135,7 +2140,7 @@ class LeadsController extends Controller
         foreach ($leads as $index => $lead) {
             $html .= view('back-end.leads.partials.row', [
                 'lead'  => $lead,
-                'index' => $index,
+                'index' => $offset + $index,
             ])->render();
         }
 
