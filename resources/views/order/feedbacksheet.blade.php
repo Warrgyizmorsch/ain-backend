@@ -59,6 +59,9 @@
 								</thead>
 								<tbody>
                                 @foreach($orders as $order)
+                                @php
+                                    $isFailedOrder = (int) ($order->is_fail ?? 0) === 1;
+                                @endphp
 								<tr>
 									@if(auth()->user()->role_id == 1)
 									<td class="text-center">
@@ -69,7 +72,17 @@
 									@endif
                                     <td class="text-center">{{ $loop->index +1}}</td>
                                     <td class="text-center">
-    									{{ $order->order_id}}<br>
+                                        @if($isFailedOrder)
+                                            <span class="failed-order-box">
+                                                {{ $order->order_id }}<br>
+                                                <span class="fs-8">Fail Order</span>
+                                                @if($order->failed_at)
+                                                    <br><span class="fs-9">{{ \Carbon\Carbon::parse($order->failed_at)->format('d M Y h:i A') }}</span>
+                                                @endif
+                                            </span><br>
+                                        @else
+    									    {{ $order->order_id}}<br>
+                                        @endif
 										@if($order->feedback_ticket)
     									<span class="badge badge-light-danger fs-7 fw-bold text-nowrap">TN-{{ $order->feedback_ticket }}</span>
 										@php
@@ -100,7 +113,9 @@
 										@endif
 									</td>
                                     <td class="text-center">
-										@if($order->status_issue == 'Issue Raised')
+                                        @if($isFailedOrder)
+                                            <span class="failed-order-box">Fail Order</span>
+										@elseif($order->status_issue == 'Issue Raised')
 											<span class="badge badge-light-danger fs-7 fw-bold ">{{$order->status_issue}}</span>
 											@elseif($order->status_issue == 'Client Discussion Done')
 											<span class="badge badge-light-info fs-7 fw-bold" >{{$order->status_issue}}</span>
@@ -294,6 +309,17 @@
         padding: 10px 12px;
         text-align: left;
         word-break: break-word;
+    }
+
+    .failed-order-box {
+        display: inline-block;
+        background: #ffeaea !important;
+        color: #b50000 !important;
+        border: 2px solid #ff0000 !important;
+        border-radius: 8px;
+        padding: 6px 10px;
+        font-weight: 700;
+        line-height: 1.35;
     }
 
     #feedback-table .icon-container {

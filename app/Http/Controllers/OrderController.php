@@ -4170,19 +4170,25 @@ class OrderController extends Controller
     // feedback Rating
     public function feedbackList(Request $request)
     {
-        $query = DB::table('feedbacks');
+        $query = DB::table('feedbacks')
+            ->leftJoin('orders', 'feedbacks.order_id', '=', 'orders.order_id')
+            ->select(
+                'feedbacks.*',
+                'orders.is_fail as order_is_fail',
+                'orders.failed_at as order_failed_at'
+            );
 
         // Search Filter
         if ($request->filled('search')) {
             $searchTerm = $request->search;
             $query->where(function ($q) use ($searchTerm) {
-                $q->where('order_id', 'like', '%' . $searchTerm . '%')
-                    ->orWhere('experience', 'like', '%' . $searchTerm . '%')
-                    ->orWhere('feedback_scope', 'like', '%' . $searchTerm . '%');
+                $q->where('feedbacks.order_id', 'like', '%' . $searchTerm . '%')
+                    ->orWhere('feedbacks.experience', 'like', '%' . $searchTerm . '%')
+                    ->orWhere('feedbacks.feedback_scope', 'like', '%' . $searchTerm . '%');
             });
         }
 
-        $feedbacks = $query->orderBy('id', 'desc')->paginate(20);
+        $feedbacks = $query->orderBy('feedbacks.id', 'desc')->paginate(20);
         return view('back-end.feedback.index', compact('feedbacks'));
     }
 

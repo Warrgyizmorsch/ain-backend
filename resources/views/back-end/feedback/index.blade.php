@@ -1,6 +1,18 @@
 @extends('layouts.app')
 
 @section('content')
+<style>
+    .failed-order-box {
+        display: inline-block;
+        background: #ffeaea !important;
+        color: #b50000 !important;
+        border: 2px solid #ff0000 !important;
+        border-radius: 8px;
+        padding: 6px 10px;
+        font-weight: 700;
+        line-height: 1.35;
+    }
+</style>
 <div class="card card-flush mt-5">
     <div class="card-header border-0 pt-6">
         <h3 class="card-title fw-bolder">Feedbacks Table Data</h3>
@@ -29,9 +41,24 @@
                 </thead>
                 <tbody>
                     @forelse($feedbacks as $fb)
+                    @php
+                        $isFailedOrder = (int) ($fb->order_is_fail ?? 0) === 1;
+                    @endphp
                     <tr>
                         <td class="ps-4">{{ $fb->id }}</td>
-                        <td><span class="badge badge-light-dark">{{ $fb->order_id }}</span></td>
+                        <td>
+                            @if($isFailedOrder)
+                                <span class="failed-order-box">
+                                    {{ $fb->order_id }}<br>
+                                    <span class="fs-8">Fail Order</span>
+                                    @if($fb->order_failed_at)
+                                        <br><span class="fs-9">{{ \Carbon\Carbon::parse($fb->order_failed_at)->format('d M Y h:i A') }}</span>
+                                    @endif
+                                </span>
+                            @else
+                                <span class="badge badge-light-dark">{{ $fb->order_id }}</span>
+                            @endif
+                        </td>
                         <td>{{ $fb->experience ?? 'N/A' }}</td>
                         <td><span class="badge badge-light-primary">{{ $fb->feedback_scope ?? 'N/A' }}</span></td>
                         <td>{{ $fb->your_suggestion ?? 'N/A' }}</td>

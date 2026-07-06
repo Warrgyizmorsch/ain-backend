@@ -99,6 +99,17 @@
         border: 1px solid #f5d59b;
     }
 
+    .failed-order-box {
+        display: inline-block;
+        background: #ffeaea !important;
+        color: #b50000 !important;
+        border: 2px solid #ff0000 !important;
+        border-radius: 8px;
+        padding: 6px 10px;
+        font-weight: 700;
+        line-height: 1.35;
+    }
+
     /* Sort Icon Styles */
     .sort-th-link {
         color: #5e6278;
@@ -240,11 +251,22 @@
                                 $user = $order->user;
                                 $status = strtolower($order->feedback_status ?? '');
                                 $isYes = in_array($status, ['yes', 'completed']);
+                                $isFailedOrder = (int) ($order->is_fail ?? 0) === 1;
                             @endphp
 
                             <tr>
                                 <td class="text-center order-id-cell">
-                                    <strong>{{ $order->order_code ?? $order->order_id ?? 'N/A' }}</strong>
+                                    @if($isFailedOrder)
+                                        <span class="failed-order-box">
+                                            {{ $order->order_code ?? $order->order_id ?? 'N/A' }}<br>
+                                            <span class="fs-8">Fail Order</span>
+                                            @if($order->failed_at)
+                                                <br><span class="fs-9">{{ \Carbon\Carbon::parse($order->failed_at)->format('d M Y h:i A') }}</span>
+                                            @endif
+                                        </span>
+                                    @else
+                                        <strong>{{ $order->order_code ?? $order->order_id ?? 'N/A' }}</strong>
+                                    @endif
                                 </td>
 
                                 <td class="user-info-box">
@@ -282,9 +304,13 @@
                                 </td>
 
                                 <td class="text-center">
-                                    <span class="badge badge-light-success fs-8 fw-bold">
-                                        {{ $order->projectstatus ?? 'N/A' }}
-                                    </span>
+                                    @if($isFailedOrder)
+                                        <span class="failed-order-box">Fail Order</span>
+                                    @else
+                                        <span class="badge badge-light-success fs-8 fw-bold">
+                                            {{ $order->projectstatus ?? 'N/A' }}
+                                        </span>
+                                    @endif
                                 </td>
 
                                 <td class="text-center">
