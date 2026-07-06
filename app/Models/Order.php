@@ -96,9 +96,14 @@ protected $table = 'orders';
     }
 
     public function lead()
-{
-    return $this->belongsTo(Leads::class, 'lead_id');
-}
+    {
+        return $this->belongsTo(Leads::class, 'lead_id');
+    }
+
+    public function frontendLead()
+    {
+        return $this->hasOne(Leads::class, 'order_id', 'order_id');
+    }
 
     public function additionals()
     {

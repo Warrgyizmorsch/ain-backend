@@ -574,7 +574,7 @@
 									<div class="card-toolbar">
 
 										<!-- VIEW BUTTON -->
-										<a href="{{ route('analytics.report', 'seo') }}"
+										<a href="{{ route('analytics.report', ['type' => 'seo', 'from_date' => $seoReportFrom, 'to_date' => $seoReportTo]) }}"
 											class="btn btn-sm btn-light-primary me-3">
 											<i class="fa fa-eye"></i>
 										</a>

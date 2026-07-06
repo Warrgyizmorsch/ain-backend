@@ -103,6 +103,7 @@ class OrderController extends Controller
             'payment:id,order_id,payee_name,company_accounts',
             'team:id,team_name',
             'lead:id,frontendorder,l_status',
+            'frontendLead:id,order_id,frontendorder,l_status',
             'feedback' => function ($q) {
                 $q->select('id', 'order_id', 'comment', 'action_comment', 'status', 'created_by', 'created_at')
                     ->with('user:id,name')

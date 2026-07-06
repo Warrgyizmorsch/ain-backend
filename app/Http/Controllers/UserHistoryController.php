@@ -1799,7 +1799,7 @@ break;
     // Base Query
     // ===============================================
     $seoQuery = \App\Models\Leads::query()
-        ->leftJoin('orders', 'leads.order_id', '=', 'orders.order_id')
+        ->with('user')
         ->where('leads.frontendorder', 1);
 
     // ===============================================
@@ -1807,21 +1807,29 @@ break;
     // ===============================================
     if ($fromDate && $toDate) {
 
-    $seoQuery->whereBetween(
-        'leads.created_at',
-        [
-            \Carbon\Carbon::parse($fromDate)->startOfDay(),
-            \Carbon\Carbon::parse($toDate)->endOfDay()
-        ]
-    );
-}
+        $seoQuery->whereBetween(
+            'leads.create_at',
+            [
+                \Carbon\Carbon::parse($fromDate)->startOfDay(),
+                \Carbon\Carbon::parse($toDate)->endOfDay()
+            ]
+        );
+    } else {
+        $seoQuery->whereBetween(
+            'leads.create_at',
+            [
+                \Carbon\Carbon::now()->subYear()->startOfDay(),
+                \Carbon\Carbon::now()->endOfDay()
+            ]
+        );
+    }
 
     // ===============================================
     // Total Leads
     // ===============================================
     $totalLeads = (clone $seoQuery)
         ->select('leads.*')
-        ->latest('leads.created_at')
+        ->latest('leads.create_at')
         ->get();
 
     // ===============================================
@@ -1830,16 +1838,19 @@ break;
     $convertedLeads = (clone $seoQuery)
         ->where('leads.is_converted', 1)
         ->select('leads.*')
-        ->latest('leads.created_at')
+        ->latest('leads.create_at')
         ->get();
 
     // ===============================================
     // Not Converted Leads
     // ===============================================
     $notConvertedLeads = (clone $seoQuery)
-        ->where('leads.is_converted', 0)
+        ->where(function ($q) {
+            $q->where('leads.is_converted', 0)
+                ->orWhereNull('leads.is_converted');
+        })
         ->select('leads.*')
-        ->latest('leads.created_at')
+        ->latest('leads.create_at')
         ->get();
 
     // ===============================================

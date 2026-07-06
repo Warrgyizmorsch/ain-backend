@@ -694,7 +694,7 @@
 
                                                         <tr>
 
-                                                            <td>{{ $lead->order_id }}</td>
+                                                            <td><span class="badge badge-light-primary fs-7 fw-bold">{{ $lead->order_id }}</span></td>
 
                                                             <td class="text-center">
                                                                 {{ $lead->user->name ?? 'No Name' }}<br>
@@ -728,7 +728,7 @@
                                                             {{-- <td>{{ $lead->status ?? 'N/A' }}</td> --}}
 
                                                             <td>
-                                                                {{ \Carbon\Carbon::parse($lead->created_at)->format('d M Y') }}
+                                                                {{ \Carbon\Carbon::parse($lead->create_at ?? $lead->created_at)->format('d M Y') }}
                                                             </td>
 
                                                         </tr>
@@ -764,7 +764,7 @@
                                     <td colspan="3" class="p-5 bg-light-success">
 
                                         <h5 class="fw-bolder mb-4 text-success">
-                                            Completed SEO Leads
+                                            Converted SEO Leads
                                         </h5>
 
                                         <div class="table-responsive">
@@ -787,7 +787,7 @@
 
                                                         <tr>
 
-                                                            <td>{{ $lead->order_id }}</td>
+                                                            <td><span class="badge badge-light-primary fs-7 fw-bold">{{ $lead->order_id }}</span></td>
 
                                                             <td class="text-center">
                                                                 {{ $lead->user->name ?? 'No Name' }}<br>
@@ -821,7 +821,7 @@
                                                             {{-- <td>{{ $lead->projectstatus ?? 'Completed' }}</td> --}}
 
                                                             <td>
-                                                                {{ \Carbon\Carbon::parse($lead->created_at)->format('d M Y') }}
+                                                                {{ \Carbon\Carbon::parse($lead->create_at ?? $lead->created_at)->format('d M Y') }}
                                                             </td>
 
                                                         </tr>
@@ -847,7 +847,7 @@
                                 </tr>
 
                                 {{-- ========================================= --}}
-                                {{-- Cancelled Leads List --}}
+                                {{-- Not Converted Leads List --}}
                                 {{-- ========================================= --}}
 
                                 <tr id="seo-cancelled-{{ $loop->index }}"
@@ -857,7 +857,7 @@
                                     <td colspan="3" class="p-5 bg-light-danger">
 
                                         <h5 class="fw-bolder mb-4 text-danger">
-                                            Cancelled SEO Leads
+                                            Not Converted SEO Leads
                                         </h5>
 
                                         <div class="table-responsive">
@@ -880,7 +880,7 @@
 
                                                         <tr>
 
-                                                            <td>{{ $lead->order_id }}</td>
+                                                            <td><span class="badge badge-light-primary fs-7 fw-bold">{{ $lead->order_id }}</span></td>
 
                                                             <td class="text-center">
                                                                 {{ $lead->user->name ?? 'No Name' }}<br>
@@ -911,10 +911,10 @@
 
                                                             <td>{{ $lead->project_title ?? 'N/A' }}</td>
 
-                                                            {{-- <td>{{ $lead->projectstatus ?? 'Cancelled' }}</td> --}}
+                                                            {{-- <td>{{ $lead->projectstatus ?? 'Not Converted' }}</td> --}}
 
                                                             <td>
-                                                                {{ \Carbon\Carbon::parse($lead->created_at)->format('d M Y') }}
+                                                                {{ \Carbon\Carbon::parse($lead->create_at ?? $lead->created_at)->format('d M Y') }}
                                                             </td>
 
                                                         </tr>
@@ -922,7 +922,7 @@
 
                                                         <tr>
                                                             <td colspan="5" class="text-center">
-                                                                No Cancelled Leads
+                                                                No Not Converted Leads
                                                             </td>
                                                         </tr>
 

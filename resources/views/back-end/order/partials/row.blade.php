@@ -1,5 +1,7 @@
     @php
     $orderIdStyle = "";
+    $isFrontendOrder = optional($order->lead)->frontendorder == '1'
+        || optional($order->frontendLead)->frontendorder == '1';
     $firstFailedOrderAt = $order->first_failed_order_at ?? null;
     $orderCreatedAt = $order->order_date ?? $order->created_at ?? null;
 
@@ -168,7 +170,7 @@
         </td> --}}
 
         <td id="order-cell-{{ $order->id }}" class="text-center {{ ($order->is_read == 1) ? 'bold-row' : '' }}" style="{{ $orderIdStyle }}">
-           @if(optional($order->lead)->frontendorder == '1')
+           @if($isFrontendOrder)
                 <span class="badge badge-light-primary fs-7 fw-bold">
                     {{ $order->order_id }}
                 </span><br>

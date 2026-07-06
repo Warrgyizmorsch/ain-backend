@@ -99,18 +99,13 @@
 
                             {{-- ORDER ID --}}
                             <td class="text-center">
-                                @if ($isConverted)
-                                    {{-- Converted: green badge --}}
-                                    <span style="display:inline-block;padding:3px 10px;border-radius:6px;border:2px solid #16a34a;background:#f0fdf4;color:#15803d;font-weight:600;font-size:13px">
-                                        {{ $lead->order_id }}
-                                    </span>
+                                @if ($lead['frontendorder'] == '1')
+                                    <span class="badge badge-light-primary fs-7 fw-bold">{{ $lead->order_id }}</span>
                                 @elseif ($hasFailed)
                                     {{-- Failed order: red border badge (like screenshot) --}}
                                     <span style="display:inline-block;padding:3px 10px;border-radius:6px;border:2px solid #dc2626;background:#fff5f5;color:#b91c1c;font-weight:600;font-size:13px">
                                         {{ $lead->order_id }}
                                     </span>
-                                @elseif ($lead['frontendorder'] == '1')
-                                    <span class="badge badge-light-primary fs-7 fw-bold">{{ $lead->order_id }}</span>
                                 @else
                                     <span class="fw-semibold" style="color:#4F46E5">{{ $lead->order_id }}</span>
                                 @endif

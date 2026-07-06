@@ -48,6 +48,59 @@ class HomeController extends Controller
         ];
     }
 
+    private function resolveSeoDateRange(string $filter, ?string $from = null, ?string $to = null): array
+    {
+        if ($filter === 'last_month') {
+            return [
+                Carbon::now()->subMonth()->startOfMonth(),
+                Carbon::now()->subMonth()->endOfMonth(),
+            ];
+        }
+
+        if ($filter === 'last_week') {
+            return [
+                Carbon::now()->subWeek()->startOfWeek(),
+                Carbon::now()->subWeek()->endOfWeek(),
+            ];
+        }
+
+        if ($filter === 'custom' && $from && $to) {
+            return [
+                Carbon::parse($from)->startOfDay(),
+                Carbon::parse($to)->endOfDay(),
+            ];
+        }
+
+        return [
+            Carbon::now()->subYear()->startOfDay(),
+            Carbon::now()->endOfDay(),
+        ];
+    }
+
+    private function getSeoLeadStats(Carbon $startDate, Carbon $endDate): array
+    {
+        $seoStatsQuery = DB::table('leads')
+            ->where('frontendorder', 1)
+            ->whereBetween('create_at', [$startDate, $endDate]);
+
+        $convertedLeads = (clone $seoStatsQuery)
+            ->where('is_converted', 1)
+            ->count();
+
+        $notConvertedLeads = (clone $seoStatsQuery)
+            ->where(function ($q) {
+                $q->where('is_converted', 0)
+                    ->orWhereNull('is_converted');
+            })
+            ->count();
+
+        return [
+            'total' => $convertedLeads + $notConvertedLeads,
+            'converted' => $convertedLeads,
+            'not_converted' => $notConvertedLeads,
+        ];
+    }
+
     function BreadcrumbList(array $breadcrumbs): string
     {
         $breadcrumbSchema = [
@@ -651,74 +704,13 @@ class HomeController extends Controller
             $seoFrom   = request()->input('seo_from');
             $seoTo     = request()->input('seo_to');
 
-            // =========================
-            // SEO LEADS QUERY
-            // frontendorder = 1  => SEO Lead
-            // is_converted = 1   => Converted
-            // =========================
-            $seoStatsQuery = DB::table('leads')
-                ->where('frontendorder', 1);
-
-            // =========================
-            // DATE FILTERS
-            // =========================
-            if ($seoFilter == 'last_week') {
-
-                $seoStatsQuery->whereDate(
-                    'create_at',
-                    '>=',
-                    Carbon::now()->subWeek()
-                );
-
-            } elseif ($seoFilter == 'last_month') {
-
-                $seoStatsQuery->whereDate(
-                    'create_at',
-                    '>=',
-                    Carbon::now()->subMonth()
-                );
-
-            } elseif ($seoFilter == 'custom' && $seoFrom && $seoTo) {
-
-                $seoStatsQuery->whereBetween(
-                    'create_at',
-                    [
-                        Carbon::parse($seoFrom)->startOfDay(),
-                        Carbon::parse($seoTo)->endOfDay()
-                    ]
-                );
-
-            } else {
-
-                // Default => Last 1 Year
-                $seoStatsQuery->whereDate(
-                    'create_at',
-                    '>=',
-                    Carbon::now()->subYear()
-                );
-            }
-
-            // =========================
-            // TOTAL SEO LEADS
-            // =========================
-            $totalSeoLeads = (clone $seoStatsQuery)->count();
-
-            // =========================
-            // CONVERTED LEADS
-            // =========================
-            $convertedLeads = (clone $seoStatsQuery)
-                ->where('is_converted', 1)
-                ->count();
-
-            // =========================
-            // NOT CONVERTED LEADS
-            // =========================
-            $notConvertedLeads = (clone $seoStatsQuery)
-                ->where(function ($q) {
-                    $q->where('is_converted', 0)
-                    ->orWhereNull('is_converted');
-                })
-                ->count();
+            [$seoStartDate, $seoEndDate] = $this->resolveSeoDateRange($seoFilter, $seoFrom, $seoTo);
+            $seoStats = $this->getSeoLeadStats($seoStartDate, $seoEndDate);
+            $totalSeoLeads = $seoStats['total'];
+            $convertedLeads = $seoStats['converted'];
+            $notConvertedLeads = $seoStats['not_converted'];
+            $seoReportFrom = $seoStartDate->toDateString();
+            $seoReportTo = $seoEndDate->toDateString();
 
             // =========================
             // CHART DATA
@@ -1065,7 +1057,7 @@ class HomeController extends Controller
                 case 1:
                     $employees = \App\Models\User::where('role_id', '!=', 2)->get();
                     // NEW VARIABLES ADDED TO COMPACT: sourceData, totalSourceLeads
-                    return view('dashboard', compact('userByWid2', 'userByWid', 'totalOrderCount', 'totalUserCount', 'todayOrdersCount', 'feedbackCount', 'otherOrder', 'cancelledOrder', 'pendingOrder', 'holdWorkOrder', 'inprogressOrder', 'currentMonthOrdersCount', 'chartData', 'employees', 'countryStats', 'dueOrdersList', 'totalDueOrdersCount', 'seoChartData', 'totalSeoLeads', 'seoFilter', 'seoFrom', 'seoTo', 'totalLeads1Year', 'convertedOrders1Year', 'notConvertedCount', 'conversionRatio', 'sourceData', 'totalSourceLeads'));
+                    return view('dashboard', compact('userByWid2', 'userByWid', 'totalOrderCount', 'totalUserCount', 'todayOrdersCount', 'feedbackCount', 'otherOrder', 'cancelledOrder', 'pendingOrder', 'holdWorkOrder', 'inprogressOrder', 'currentMonthOrdersCount', 'chartData', 'employees', 'countryStats', 'dueOrdersList', 'totalDueOrdersCount', 'seoChartData', 'totalSeoLeads', 'seoFilter', 'seoFrom', 'seoTo', 'seoReportFrom', 'seoReportTo', 'totalLeads1Year', 'convertedOrders1Year', 'notConvertedCount', 'conversionRatio', 'sourceData', 'totalSourceLeads'));
                 case 3:
                     return view('dashboard.QcTeam');
                 case 4:
