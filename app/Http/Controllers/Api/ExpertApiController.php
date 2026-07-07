@@ -129,10 +129,18 @@ class ExpertApiController extends Controller
             $expert->helpus = json_decode($expert->helpus, true);
         }
 
+        // If image is empty, use the default blank avatar
+        if (empty($expert->image)) {
+            $expert->image = 'assets/media/avatars/blank.png';
+        }
+
         // Generate full image URL if not empty and doesn't start with http/https
         if (!empty($expert->image) && !str_starts_with($expert->image, 'http://') && !str_starts_with($expert->image, 'https://')) {
-            $expert->image = url($expert->image);
+            $expert->image = request()->root() . '/' . ltrim($expert->image, '/');
         }
+
+        // Set 'images' key (plural) for compatibility with frontend code expecting plural key
+        $expert->setAttribute('images', $expert->image);
 
         return $expert;
     }

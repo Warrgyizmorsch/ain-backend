@@ -17,6 +17,7 @@ use App\Http\Controllers\Api\WriterApiController;
 use App\Http\Controllers\Api\FaqApiController;
 use App\Http\Controllers\Api\ReviewApiController;
 use App\Http\Controllers\Api\ExpertApiController;
+use App\Http\Controllers\Api\SubjectApiController;
 
 
 
@@ -76,6 +77,10 @@ Route::middleware('api.key')->group(function () {
     // Expert APIs
     Route::get('/experts', [ExpertApiController::class, 'index']);
     Route::get('/experts/{idOrSlug}', [ExpertApiController::class, 'show'])->where('idOrSlug', '.*');
+
+    // Subject APIs
+    Route::get('/subjects', [SubjectApiController::class, 'index']);
+    Route::get('/subjects/{idOrSlug}', [SubjectApiController::class, 'show'])->where('idOrSlug', '.*');
 });
 
 Route::prefix('app')->group(function () {
