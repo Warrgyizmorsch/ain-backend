@@ -18,6 +18,7 @@ use App\Http\Controllers\Api\FaqApiController;
 use App\Http\Controllers\Api\ReviewApiController;
 use App\Http\Controllers\Api\ExpertApiController;
 use App\Http\Controllers\Api\SubjectApiController;
+use App\Http\Controllers\Api\SubjectPageApiController;
 
 
 
@@ -78,9 +79,11 @@ Route::middleware('api.key')->group(function () {
     Route::get('/experts', [ExpertApiController::class, 'index']);
     Route::get('/experts/{idOrSlug}', [ExpertApiController::class, 'show'])->where('idOrSlug', '.*');
 
-    // Subject APIs
+    // Subject list APIs
     Route::get('/subjects', [SubjectApiController::class, 'index']);
-    Route::get('/subjects/{idOrSlug}', [SubjectApiController::class, 'show'])->where('idOrSlug', '.*');
+
+    // Dynamic Subject Page APIs
+    Route::get('/subject-pages/{slug}', [SubjectPageApiController::class, 'show'])->where('slug', '.*');
 });
 
 Route::prefix('app')->group(function () {

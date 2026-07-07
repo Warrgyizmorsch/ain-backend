@@ -28,6 +28,7 @@ use App\Http\Controllers\ReportController;
 use App\Http\Controllers\WhatsappController;
 use App\Http\Controllers\SubjectController;
 use App\Http\Controllers\ServicePageController;
+use App\Http\Controllers\SubjectPageController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 
 Route::middleware(['auth'])->group(function () {
@@ -47,6 +48,8 @@ Route::middleware(['auth'])->group(function () {
     Route::resource('subjects', SubjectController::class)->only(['index', 'store', 'update', 'destroy']);
     Route::get('service-pages/{servicePage}/preview', [ServicePageController::class, 'preview'])->name('service-pages.preview');
     Route::resource('service-pages', ServicePageController::class)->except(['show']);
+    Route::get('subject-pages/{subjectPage}/preview', [SubjectPageController::class, 'preview'])->name('subject-pages.preview');
+    Route::resource('subject-pages', SubjectPageController::class)->except(['show']);
 });
 Route::get('/lead/export/status', [LeadsController::class, 'exportStatus']);
 Route::post('/order/export', [OrderController::class, 'export'])->name('order.export');

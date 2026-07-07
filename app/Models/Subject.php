@@ -13,4 +13,9 @@ class Subject extends Model
     {
         return $this->hasMany(ServicePage::class);
     }
+
+    public function subjectPage()
+    {
+        return $this->hasOne(SubjectPage::class);
+    }
 }

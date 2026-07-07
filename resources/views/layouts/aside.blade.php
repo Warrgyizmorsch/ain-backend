@@ -58,6 +58,16 @@
 
                     <div class="menu-sub menu-sub-accordion menu-active-bg">
                         <div class="menu-item">
+                            <a class="menu-link {{ $isActiveRoute('service-pages') ? 'active' : '' }}" href="{{ route('service-pages.index') }}">
+                                <span class="menu-icon"><i class="fa fa-file-text-o"></i></span><span class="menu-title">Dynamic Page</span>
+                            </a>
+                        </div>
+                        <div class="menu-item">
+                            <a class="menu-link {{ $isActiveRoute('subject-pages') ? 'active' : '' }}" href="{{ route('subject-pages.index') }}">
+                                <span class="menu-icon"><i class="fa fa-graduation-cap"></i></span><span class="menu-title">Subject Pages</span>
+                            </a>
+                        </div>
+                        <div class="menu-item">
                             <a class="menu-link {{ $isActiveRoute('whatsapp/settings') ? 'active' : '' }}" href="{{ route('whatsapp.settings') }}">
                                 <span class="menu-bullet">
                                     <span class="bullet bullet-dot"></span>
@@ -77,7 +87,21 @@
                 </div>
                 @endif
                 @if(auth()->check() && auth()->user()->role_id == 1)
-                    
+                    <div class="menu-item">
+                        <a class="menu-link {{ $isActiveRoute('subjects') ? 'active' : '' }}" href="{{ route('subjects.index') }}">
+                            <span class="menu-icon"><i class="fa fa-book"></i></span><span class="menu-title">Prefix</span>
+                        </a>
+                    </div>
+                    <div class="menu-item">
+                        <a class="menu-link {{ $isActiveRoute('service-pages') ? 'active' : '' }}" href="{{ route('service-pages.index') }}">
+                            <span class="menu-icon"><i class="fa fa-file-text-o"></i></span><span class="menu-title">Dynamic Page</span>
+                        </a>
+                    </div>
+                    <div class="menu-item">
+                        <a class="menu-link {{ $isActiveRoute('subject-pages') ? 'active' : '' }}" href="{{ route('subject-pages.index') }}">
+                            <span class="menu-icon"><i class="fa fa-graduation-cap"></i></span><span class="menu-title">Subject Pages</span>
+                        </a>
+                    </div>
                     <div class="menu-item">
                         <a class="menu-link {{ $isActiveRoute('admin/login-otp-notifications') ? 'active' : '' }}" href="{{ route('admin.login-otp-notifications') }}">
                             <span class="menu-icon"><i class="fa fa-bell"></i></span>

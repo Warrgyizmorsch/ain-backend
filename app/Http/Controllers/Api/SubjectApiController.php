@@ -54,45 +54,4 @@ class SubjectApiController extends Controller
             ], 500);
         }
     }
-
-    /**
-     * Display the specified subject by ID or Slug.
-     * Optionally loads associated service pages if 'include_services' parameter is true.
-     */
-    public function show(Request $request, $idOrSlug)
-    {
-        try {
-            $idOrSlug = urldecode($idOrSlug);
-
-            $query = Subject::query();
-
-            // Load service pages relation if requested
-            if ($request->has('include_services') && $request->boolean('include_services')) {
-                $query->with('servicePages');
-            }
-
-            if (is_numeric($idOrSlug)) {
-                $subject = $query->find($idOrSlug);
-            } else {
-                $subject = $query->where('slug', $idOrSlug)->first();
-            }
-
-            if (!$subject) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Subject not found'
-                ], 404);
-            }
-
-            return response()->json([
-                'success' => true,
-                'data' => $subject
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'An error occurred: ' . $e->getMessage()
-            ], 500);
-        }
-    }
 }
