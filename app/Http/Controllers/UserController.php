@@ -504,7 +504,7 @@ class UserController extends Controller
     {
         $credentials = $request->only('username', 'password');
 
-        if (Auth::attempt($credentials)) {
+        if (Auth::attempt($credentials, true)) {
             // Authentication passed, create session
             $request->session()->regenerate();
 

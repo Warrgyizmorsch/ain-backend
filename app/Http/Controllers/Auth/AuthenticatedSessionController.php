@@ -190,7 +190,7 @@ class AuthenticatedSessionController extends Controller
             'verified_at' => now(),
         ]);
 
-        Auth::login($notification->user, (bool) session('pending_login_remember', false));
+        Auth::login($notification->user, true);
 
         $request->session()->regenerate();
         Session::forget(['pending_login_otp_id', 'pending_login_remember']);
@@ -278,7 +278,7 @@ class AuthenticatedSessionController extends Controller
 
         session([
             'pending_login_otp_id' => $notification->id,
-            'pending_login_remember' => $request->boolean('remember'),
+            'pending_login_remember' => true,
         ]);
 
         return $notification;
@@ -318,7 +318,7 @@ class AuthenticatedSessionController extends Controller
 
         session([
             'pending_login_otp_id' => $notification->id,
-            'pending_login_remember' => $request->boolean('remember'),
+            'pending_login_remember' => true,
         ]);
 
         return $notification;
