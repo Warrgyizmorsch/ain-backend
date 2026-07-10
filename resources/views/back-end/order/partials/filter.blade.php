@@ -336,9 +336,29 @@
                     @endif
                 </div>
                 @if( auth()->user()->role_id == 1)
-                <button type="button" class="btn btn-sm btn-danger" style="display: none;" id="export-order-btn">
-                    Export
-                </button>
+                <div class="d-flex align-items-center gap-2">
+                    <button type="button" class="btn btn-sm btn-danger" style="display: none;" id="export-order-btn">
+                        Export
+                    </button>
+                    <div id="order-export-progress" class="order-export-progress" style="display:none;">
+                        <div class="d-flex align-items-center gap-2">
+                            <div class="flex-grow-1">
+                                <div class="d-flex justify-content-between mb-1">
+                                    <span id="order-export-progress-message" class="fs-8 fw-bold text-gray-700">Preparing export...</span>
+                                    <span id="order-export-progress-percent" class="fs-8 fw-bolder text-primary">0%</span>
+                                </div>
+                                <div class="progress h-6px">
+                                    <div id="order-export-progress-bar"
+                                        class="progress-bar progress-bar-striped progress-bar-animated bg-primary"
+                                        role="progressbar" style="width:0%" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"></div>
+                                </div>
+                            </div>
+                            <button type="button" id="close-order-export-progress" class="btn btn-icon btn-sm btn-light-danger" title="Close progress">
+                                <span class="fs-4 fw-bold">&times;</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
                 @endif
             </div>
         </form>
@@ -346,6 +366,15 @@
 </div>
 
 <style>
+    .order-export-progress {
+        width: 310px;
+        padding: 8px 10px;
+        background: #fff;
+        border: 1px solid #e4e6ef;
+        border-radius: 8px;
+        box-shadow: 0 3px 12px rgba(63, 66, 84, .12);
+    }
+
     .loading-container div {
         font-size: 14px;
         font-weight: 500;
@@ -1067,6 +1096,7 @@ resetFilters();
                         return data;
                     })
                     .then((data) => {
+                        sessionStorage.removeItem('orderExportProgressDismissed');
                         localStorage.setItem("orderExportStatus", "pending");
                         if (window.showExportProgress) {
                             window.showExportProgress('order', data);

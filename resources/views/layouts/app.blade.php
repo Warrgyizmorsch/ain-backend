@@ -580,6 +580,26 @@
 
             window.showExportProgress = function(type, data = {}) {
                 const progress = Math.max(0, Math.min(100, Number(data.progress || 0)));
+
+                if (type === 'order') {
+                    const inlinePanel = document.getElementById('order-export-progress');
+                    const inlineBar = document.getElementById('order-export-progress-bar');
+                    const inlinePercent = document.getElementById('order-export-progress-percent');
+                    const inlineMessage = document.getElementById('order-export-progress-message');
+
+                    if (inlinePanel && inlineBar && inlinePercent && inlineMessage) {
+                        if (sessionStorage.getItem('orderExportProgressDismissed') !== '1') {
+                            inlinePanel.style.display = 'block';
+                        }
+                        inlineBar.style.width = `${progress}%`;
+                        inlineBar.setAttribute('aria-valuenow', progress);
+                        inlinePercent.textContent = `${progress}%`;
+                        inlineMessage.textContent = data.message || 'Your file is being prepared.';
+                        preloader.style.display = 'none';
+                        return;
+                    }
+                }
+
                 preloader.style.display = 'block';
                 progressBar.style.width = `${progress}%`;
                 progressBar.setAttribute('aria-valuenow', progress);
@@ -600,10 +620,13 @@
 
                             if (data.status === "ready") {
                                 localStorage.removeItem(statusKey); // clear the flag
+                                sessionStorage.removeItem(`${type}ExportProgressDismissed`);
                                 preloader.style.display = 'none'; // hide dot
                                 if (type === 'order') {
                                     const exportButton = document.getElementById('export-order-btn');
                                     if (exportButton) exportButton.style.display = '';
+                                    const inlinePanel = document.getElementById('order-export-progress');
+                                    if (inlinePanel) inlinePanel.style.display = 'none';
                                 }
 
                                 Swal.fire({
@@ -620,10 +643,13 @@
                                 });
                             } else if (data.status === "failed") {
                                 localStorage.removeItem(statusKey);
+                                sessionStorage.removeItem(`${type}ExportProgressDismissed`);
                                 preloader.style.display = 'none';
                                 if (type === 'order') {
                                     const exportButton = document.getElementById('export-order-btn');
                                     if (exportButton) exportButton.style.display = '';
+                                    const inlinePanel = document.getElementById('order-export-progress');
+                                    if (inlinePanel) inlinePanel.style.display = 'none';
                                 }
                                 Swal.fire('Export Failed', data.message || 'Please try again.', 'error');
                             }
@@ -638,6 +664,14 @@
                 checkExportStatus('lead');
                 checkExportStatus('order');
             }, 1000);
+
+            document.addEventListener('click', function (event) {
+                if (!event.target.closest('#close-order-export-progress')) return;
+
+                const inlinePanel = document.getElementById('order-export-progress');
+                if (inlinePanel) inlinePanel.style.display = 'none';
+                sessionStorage.setItem('orderExportProgressDismissed', '1');
+            });
         });
     </script>
 
