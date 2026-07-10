@@ -83,6 +83,7 @@ Route::middleware('api.key')->group(function () {
     Route::get('/subjects', [SubjectApiController::class, 'index']);
 
     // Dynamic Subject Page APIs
+    Route::get('/subject-pages', [SubjectPageApiController::class, 'index']);
     Route::get('/subject-pages/{slug}', [SubjectPageApiController::class, 'show'])->where('slug', '.*');
 });
 
