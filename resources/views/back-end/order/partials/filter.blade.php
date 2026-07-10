@@ -219,6 +219,20 @@
                     </select>
                 </div>
 
+                <div class="col-lg-3 fv-row fv-plugins-icon-container mt-3">
+                    <select name="marks_filter" id="marks_filter" data-control="select2"
+                        aria-label="Assign Marks" data-placeholder="Assign Marks"
+                        class="form-select form-select-solid form-select-lg" tabindex="-1">
+                        <option value=""></option>
+                        <option value="below-50">Below 50</option>
+                        <option value="50-60">50-60</option>
+                        <option value="60-70">60-70</option>
+                        <option value="70-80">70-80</option>
+                        <option value="80-90">80-90</option>
+                        <option value="90-100">90-100</option>
+                    </select>
+                </div>
+
 
 
             </div>
@@ -814,6 +828,7 @@ resetFilters();
             team_id: $('#filter_team_id').val(),
             offer: $('#offer').val(),
             duec: $('#duec').val(),
+            marks_filter: $('#marks_filter').val(),
             holdBtn: $('#holdBtn').val(),
             today_deadline_filter: $('#today_deadline_filter').val(),
             yesterday_deadline_filter: $('#yesterday_deadline_filter').val(),
@@ -962,6 +977,7 @@ resetFilters();
             $('#filter_team_id').val(filters.team_id);
             $('#offer').val(filters.offer).trigger('change');
             $('#duec').val(filters.duec).trigger('change');
+            $('#marks_filter').val(filters.marks_filter || '').trigger('change');
             $('#today_deadline_filter').val(filters.today_deadline_filter);
             $('#yesterday_deadline_filter').val(filters.yesterday_deadline_filter || '');
             $('#today_writer_deadline_filter').val(filters.today_writer_deadline_filter);
@@ -1021,6 +1037,7 @@ resetFilters();
                     team_id: $('#filter_team_id').val() || "",
                     offer: $('#offer').val() || "",
                     duec: $('#duec').val() || "",
+                    marks_filter: $('#marks_filter').val() || "",
                     today_deadline_filter: $('#today_deadline_filter').val() || "",
                     yesterday_deadline_filter: $('#yesterday_deadline_filter').val() || "",
                     today_writer_deadline_filter: $('#today_writer_deadline_filter').val() || ""

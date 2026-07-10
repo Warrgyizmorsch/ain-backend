@@ -146,6 +146,11 @@ class OrdersExport implements FromQuery, WithChunkReading, WithMapping, WithHead
             $query->whereRaw("(CAST(amount AS SIGNED) - CAST(received_amount AS SIGNED)) {$operator} 0");
         }
 
+
+        if (!empty($filters['marks_filter'])) {
+            $query->where('orders.marks', $filters['marks_filter']);
+        }
+
         if (!empty($filters['team_id'])) {
             $query->where('orders.team_id', $filters['team_id']);
         }

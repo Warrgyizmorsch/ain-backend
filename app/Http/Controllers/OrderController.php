@@ -2979,10 +2979,6 @@ class OrderController extends Controller
                 return response()->json(['error' => 'Order or User not found']);
             }
 
-            // Ticket numbers are intentionally not generated during a status
-            // update. They are generated when the first ticket-chat message is
-            // sent via sendFeedback().
-
             // 1. Delivered status validation (Payment check)
             if ($statusName->status == 'Delivered' && $this->dueAmount($order) > 0) {
                 return response()->json(['warning' => 'Order cannot be marked as Delivered if there is any due payment remaining.']);
@@ -3062,13 +3058,24 @@ class OrderController extends Controller
                 ->first();
 
             if (!$statusCount) {
-                ProjectStatusCount::create([
+                $statusCount = ProjectStatusCount::create([
                     'order_Id' => $order->id,
                     'status' => $statusName->status,
                     'count' => 1
                 ]);
             } else {
                 $statusCount->increment('count');
+                $statusCount->refresh();
+            }
+
+            // Raise a ticket when this same status is selected for the third
+            // time. An existing ticket is retained and never regenerated.
+            if ($statusCount->count >= 3 && empty($order->feedback_ticket)) {
+                $order->feedback_ticket = 'TCK-' . substr($order->order_id, 3);
+                $order->status_issue = 'Issue Raised';
+                $order->feedbackissue = 1;
+                $order->feedback_date = Carbon::now();
+                $order->save();
             }
 
             logActivity('Order', [
@@ -3557,7 +3564,7 @@ class OrderController extends Controller
         $filters = $request->all();
 
         // Check if all filters are empty, return a message if so
-        if (empty($filters['search']) && empty($filters['uid']) && empty($filters['status']) && empty($filters['writer']) && empty($filters['dateStatus']) && empty($filters['fromDate']) && empty($filters['toDate']) && empty($filters['from_date']) && empty($filters['to_date']) && empty($filters['WriterTL']) && empty($filters['SubWriter']) && empty($filters['college']) && empty($filters['extra']) && empty($filters['module_code']) &&  empty($filters['paper_type']) && empty($filters['semester']) && empty($filters['month']) && empty($filters['payment']) && empty($filters['deadline_status']) && empty($filters['offer']) && empty($filters['duec']) && empty($filters['team_id']) && empty($filters['today_deadline_filter']) && empty($filters['yesterday_deadline_filter']) && empty($filters['today_writer_deadline_filter'])) {
+        if (empty($filters['search']) && empty($filters['uid']) && empty($filters['status']) && empty($filters['writer']) && empty($filters['dateStatus']) && empty($filters['fromDate']) && empty($filters['toDate']) && empty($filters['from_date']) && empty($filters['to_date']) && empty($filters['WriterTL']) && empty($filters['SubWriter']) && empty($filters['college']) && empty($filters['extra']) && empty($filters['module_code']) &&  empty($filters['paper_type']) && empty($filters['semester']) && empty($filters['month']) && empty($filters['payment']) && empty($filters['deadline_status']) && empty($filters['offer']) && empty($filters['duec']) && empty($filters['marks_filter']) && empty($filters['team_id']) && empty($filters['today_deadline_filter']) && empty($filters['yesterday_deadline_filter']) && empty($filters['today_writer_deadline_filter'])) {
             return response()->json(['message' => 'No filters applied'], 200);
         }
 
@@ -3688,6 +3695,10 @@ class OrderController extends Controller
                 // No due (<= 0)
                 $query->whereRaw('(CAST(amount AS SIGNED) - CAST(received_amount AS SIGNED)) <= 0');
             }
+        }
+
+        if ($request->filled('marks_filter')) {
+            $query->where('marks', $request->marks_filter);
         }
 
         // Writer logic
