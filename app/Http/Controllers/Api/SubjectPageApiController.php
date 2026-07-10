@@ -27,16 +27,96 @@ class SubjectPageApiController extends Controller
                 });
             }
 
-            $pages = $query->latest()
-                ->get(['id', 'subject_id', 'slug', 'meta_title', 'hero_heading']);
+            $pages = $query->get();
+
+            $parents = [];
+            $childrenByParent = [];
+
+            foreach ($pages as $page) {
+                $slug = trim($page->slug, '/');
+                $segments = explode('/', $slug);
+
+                if (count($segments) === 2) {
+                    $parentId = $segments[1];
+                    $parents[$parentId] = [
+                        'id' => $page->id,
+                        'title' => $page->hero_heading,
+                        'slug' => '/' . $slug,
+                        'hasSubmenu' => false,
+                        'children' => [],
+                        'order' => $page->id,
+                    ];
+                } elseif (count($segments) === 3) {
+                    $parentId = $segments[1];
+                    $childId = $segments[2];
+
+                    $childrenByParent[$parentId][] = [
+                        'id' => $page->id,
+                        'title' => $page->hero_heading,
+                        'slug' => '/' . $slug,
+                        'order' => $page->id,
+                    ];
+                }
+            }
+
+            // Auto-create parents for children that do not have an explicit parent page in DB
+            foreach ($childrenByParent as $parentId => $children) {
+                if (!isset($parents[$parentId])) {
+                    $prefix = 'subject';
+                    if (!empty($children)) {
+                        $childSlug = trim($children[0]['slug'], '/');
+                        $parts = explode('/', $childSlug);
+                        if (count($parts) > 0) {
+                            $prefix = $parts[0];
+                        }
+                    }
+
+                    $parents[$parentId] = [
+                        'id' => $parentId,
+                        'title' => ucwords(str_replace('-', ' ', $parentId)),
+                        'slug' => '/' . $prefix . '/' . $parentId,
+                        'hasSubmenu' => true,
+                        'children' => [],
+                        'order' => 0,
+                    ];
+                }
+            }
+
+            foreach ($parents as $parentId => &$parent) {
+                if (isset($childrenByParent[$parentId])) {
+                    usort($childrenByParent[$parentId], function($a, $b) {
+                        return $a['order'] <=> $b['order'];
+                    });
+
+                    $parent['children'] = array_map(function($child) {
+                        unset($child['order']);
+                        return $child;
+                    }, $childrenByParent[$parentId]);
+
+                    $parent['hasSubmenu'] = true;
+                } else {
+                    $parent['hasSubmenu'] = false;
+                    $parent['children'] = [];
+                }
+            }
+            unset($parent);
+
+            usort($parents, function($a, $b) {
+                return $a['order'] <=> $b['order'];
+            });
+
+            $formattedData = array_map(function($parent) {
+                unset($parent['order']);
+                return $parent;
+            }, $parents);
 
             return response()->json([
-                'success' => true,
-                'data' => $pages
+                'status' => 'success',
+                'data' => $formattedData
             ]);
         } catch (\Exception $e) {
             return response()->json([
-                'success' => false,
+                'status' => 'error',
                 'message' => 'Failed to retrieve subject pages: ' . $e->getMessage()
             ], 500);
         }

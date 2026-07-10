@@ -38,7 +38,7 @@ class ServicePageApiController extends Controller
             if (count($segments) === 2) {
                 $parentId = $segments[1];
                 $parents[$parentId] = [
-                    'id' => $parentId,
+                    'id' => $page->id,
                     'title' => $page->hero_heading,
                     'slug' => '/' . $slug,
                     'hasSubmenu' => false,
@@ -50,7 +50,7 @@ class ServicePageApiController extends Controller
                 $childId = $segments[2];
 
                 $childrenByParent[$parentId][] = [
-                    'id' => $childId,
+                    'id' => $page->id,
                     'title' => $page->hero_heading,
                     'slug' => '/' . $slug,
                     'order' => $page->id,
