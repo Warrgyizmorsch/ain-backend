@@ -50,6 +50,8 @@ Route::post('/submit-feedback', [FeedbackController::class, 'submitFeedback']);
 Route::post('/save-order', [OrderApiController::class, 'store']);
 
 Route::middleware('api.key')->group(function () {
+    Route::post('/web-place-order', [OrderApiController::class, 'webPlaceOrder']);
+
     // Dynamic Service Pages
     Route::get('/service-pages', [ServicePageApiController::class, 'index']);
     Route::get('/service-pages/prefix/{prefix}', [ServicePageApiController::class, 'getByPrefix'])->where('prefix', '.*');

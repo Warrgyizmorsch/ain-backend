@@ -701,4 +701,158 @@ class OrderApiController extends Controller
             'data' => $coupons
         ], 200);
     }
+
+    public function webPlaceOrder(Request $request)
+    {
+        $rules = [
+            'name'         => 'required|string|max:255',
+            'email'        => 'required|email|max:255',
+            'countrycode'  => 'required|string',
+            'phone'        => 'required|string',
+            'service'      => 'required|string',
+            'workType'     => 'required|string',
+            'country'      => 'required|string',
+            'subject'      => 'required|string',
+            'urgency'      => 'required|string',
+            'wordCount'    => 'required|integer|min:250',
+            'pages'        => 'required|integer|min:1',
+            'topic'        => 'nullable|string',
+            'requirements' => 'nullable|string',
+            'finalPrice'   => 'nullable',
+            'source_page'  => 'nullable',
+            'fileUpload.*' => 'nullable|file|max:10240',
+        ];
+
+        $validator = Validator::make($request->all(), $rules);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation error',
+                'errors'  => $validator->errors()
+            ], 422);
+        }
+
+        // Find or create the user by email
+        $user = User::where('email', $request->input('email'))->first();
+        if (!$user) {
+            $user = User::create([
+                'name'        => $request->input('name'),
+                'email'       => $request->input('email'),
+                'countrycode' => preg_replace('/\D/', '', $request->input('countrycode')),
+                'mobile_no'   => preg_replace('/\D/', '', $request->input('phone')),
+                'password'    => Hash::make(\Illuminate\Support\Str::random(12)),
+                'role_id'     => 2, // standard Client role
+            ]);
+        } else {
+            // Update user details if user exists to keep it updated
+            $user->countrycode = preg_replace('/\D/', '', $request->input('countrycode'));
+            $user->mobile_no   = preg_replace('/\D/', '', $request->input('phone'));
+        }
+
+        $user->country = $request->input('country');
+        $user->save();
+
+        // Get cleaned mobile and country code
+        $countryCode = preg_replace('/\D/', '', $request->input('countrycode'));
+        $mobile      = preg_replace('/\D/', '', $request->input('phone'));
+
+        if ($countryCode && substr($mobile, 0, strlen($countryCode)) === $countryCode) {
+            $mobile = substr($mobile, strlen($countryCode));
+        }
+
+        // Calculate Delivery Date
+        $today = now();
+        $urgencyDays = $request->input('urgency');
+
+        if (is_numeric($urgencyDays)) {
+            $deliveryDate = $today->copy()->addDays((int) $urgencyDays);
+        } elseif ($urgencyDays === '16 to 20') {
+            $deliveryDate = $today->copy()->addDays(16);
+        } elseif ($urgencyDays === '21+') {
+            $deliveryDate = $today->copy()->addDays(21);
+        } else {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid urgency selected.'
+            ], 422);
+        }
+
+        // Generate Order ID
+        $latestOrder = Order::orderByDesc('id')->first();
+        $newOrderNumber = 1;
+
+        if ($latestOrder && !empty($latestOrder->order_id)) {
+            $lastNumber = preg_replace('/\D/', '', $latestOrder->order_id);
+            $newOrderNumber = $lastNumber ? ((int) $lastNumber + 1) : 1;
+        }
+
+        $newOrderId = 'UKS' . str_pad($newOrderNumber, 3, '0', STR_PAD_LEFT);
+
+        // File upload
+        $uploadedFiles = [];
+
+        if ($request->hasFile('fileUpload')) {
+            foreach ($request->file('fileUpload') as $file) {
+                $destinationPath = base_path('images/orders');
+
+                if (!file_exists($destinationPath)) {
+                    mkdir($destinationPath, 0755, true);
+                }
+
+                $fileName = time() . '_' . uniqid() . '_' . $file->getClientOriginalName();
+                $file->move($destinationPath, $fileName);
+
+                $filePath = 'images/orders/' . $fileName;
+                $uploadedFiles[] = $filePath;
+
+                // Save to files table
+                $newFile = new \App\Models\Files();
+                $newFile->file_data = $filePath;
+                $newFile->order_id = $newOrderId;
+                $newFile->file_name = $fileName;
+                $newFile->file_type = $file->getClientMimeType();
+                $newFile->save();
+            }
+        }
+
+        // Lead create
+        $lead = Leads::create([
+            'order_id'      => $newOrderId,
+            'emp_id'        => $user->id,
+            'deadline'      => $deliveryDate->format('Y-m-d'),
+            'create_at'     => now(),
+            'message'       => $request->input('requirements') ?? 'Order submitted from website.',
+            'email'         => $user->email,
+            'user_name'     => $user->name,
+            'countrycode'   => $countryCode,
+            'mobile'        => $mobile,
+            'frontendorder' => 1,
+            'is_app_lead'   => 0, // 0 for web lead
+            'project_title' => $request->input('service'),
+            'pages'         => $request->input('pages'), // Using the web 'pages' field!
+            'price'         => $request->input('finalPrice'),
+            'service_type'  => str_replace('FirstClass', 'First Class Work', $request->input('workType')),
+            'page_url'      => $request->input('source_page') ?? 'Website',
+            'subject'       => $request->input('subject'),
+        ]);
+
+        // Pending order create
+        Order::create([
+            'order_id'      => $newOrderId,
+            'projectstatus' => 'Pending',
+            'lead_id'       => $lead->id,
+            'uid'           => $user->id,
+            'title'         => $request->input('topic') ?? $request->input('service'),
+            'module_code'   => $request->input('subject'),
+        ]);
+
+        return response()->json([
+            'success'     => true,
+            'message'     => 'Order placed successfully!',
+            'order_id'    => $newOrderId,
+            'lead_id'     => $lead->id,
+            'is_app_lead' => 0,
+        ], 201);
+    }
 }
