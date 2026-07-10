@@ -12,6 +12,10 @@
                     <div class="mb-0 lh-1">
                         <span class="badge badge-success badge-circle w-10px h-10px me-1"></span>
                         <span class="fs-7 fw-bold text-muted">Action Activity</span>
+                        <span id="feedbackTicketNumber{{$order->id}}"
+                            class="badge badge-light-danger ms-2 {{ $order->feedback_ticket ? '' : 'd-none' }}">
+                            {{ $order->feedback_ticket ?: '' }}
+                        </span>
                     </div>
                     <!--end::Info-->
                 </div>
@@ -68,6 +72,9 @@
                                             elseif($status == 'Client Discussion Done') $badgeClass = 'badge-light-info';
                                         @endphp
                                         <span class="badge {{ $badgeClass }} fw-bold fs-8">{{ $status }}</span>
+                                        <span class="badge badge-light-dark fw-bold fs-8 ms-1">
+                                            Order status: {{ $feedback->order_status ?? 'N/A' }}
+                                        </span>
                                     </div>
                                 </div>
                                 <span class="text-muted fw-bold fs-8 text-end min-w-80px">{{ $feedback->created_at->diffForHumans() }}</span>
@@ -249,7 +256,10 @@ $(document).ready(function () {
                 <div class="pe-3">
                     <a href="#" class="fs-6 text-gray-800 text-hover-primary fw-bolder">You</a>
                     <div class="text-muted fw-bold fs-7 mt-1">${response.message}</div>
-                    <div class="mt-2">${statusBadge}</div>
+                    <div class="mt-2">
+                        ${statusBadge}
+                        <span class="badge badge-light-dark fw-bold fs-8 ms-1">Order status: ${response.order_status}</span>
+                    </div>
                 </div>
                 <span class="text-muted fw-bold fs-8 text-end min-w-80px">${response.created_at}</span>
             </div>
@@ -257,6 +267,9 @@ $(document).ready(function () {
     </div>`;
 
     messageContainer.prepend(html);
+    $('#feedbackTicketNumber{{$order->id}}')
+        .removeClass('d-none')
+        .text(response.ticket);
     $('#message{{$order->id}}').val('');
     $('#drawer_status{{$order->id}}').val(response.f_status);
 

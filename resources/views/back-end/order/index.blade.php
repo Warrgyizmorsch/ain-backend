@@ -492,13 +492,21 @@
 
             <div class="modal-body scroll-y pt-0 pb-10 mx-5">
                 <div class="mb-5 text-center">
-                    <h3 class="mb-2 fw-bolder text-gray-800">Add Referral Comments</h3>
+                    <h3 class="mb-2 fw-bolder text-gray-800">Referral Decision</h3>
                     <div class="text-muted fw-bold fs-6">Order Code: <span id="referralOrderCode" class="text-primary fw-bolder"></span></div>
+                </div>
+
+                <div class="d-flex flex-column mb-5 fv-row">
+                    <label class="fs-6 fw-bold mb-2">Will the client refer someone?</label>
+                    <select id="client_will_refer" class="form-select form-select-solid">
+                        <option value="yes">Yes</option>
+                        <option value="no">No</option>
+                    </select>
                 </div>
 
                 <div class="d-flex flex-column mb-6 fv-row">
                     <label class="d-flex align-items-center fs-6 fw-bold mb-2">
-                        <span class="required">Referral Comment</span>
+                        <span>Referral Comment <span class="text-muted fw-normal">(Optional)</span></span>
                     </label>
                     <textarea id="referral_comment" class="form-control form-control-solid" rows="4" placeholder="Enter referral details, client notes, or comments..."></textarea>
                 </div>
@@ -507,7 +515,7 @@
 
                 <div class="text-center pt-5">
                     <button type="button" data-bs-dismiss="modal" class="btn btn-light me-3 btn-sm">Cancel</button>
-                    <button type="button" class="btn btn-primary btn-sm" onclick="saveReferralDetails()">Submit Comment</button>
+                    <button type="button" class="btn btn-primary btn-sm" onclick="saveReferralDetails()">Save Decision</button>
                 </div>
             </div>
         </div>
@@ -1267,44 +1275,24 @@ function openReferralModal(orderId, orderCode) {
     $('#referral_order_id').val(orderId);
     $('#referralOrderCode').text(orderCode);
     $('#referral_comment').val('');
+    $('#client_will_refer').val('no');
     $('#referralModal').modal('show');
 }
 
 function submitReferral(orderId, status) {
     if (status === 'no') {
-        Swal.fire({
-            title: 'Are you sure?',
-            text: "Do you want to mark this order as 'Not Referred'?",
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonColor: '#F1416C',
-            cancelButtonColor: '#F5F8FA',
-            confirmButtonText: 'Yes, Mark No!',
-            customClass: {
-                confirmButton: 'btn btn-danger btn-sm',
-                cancelButton: 'btn btn-light btn-sm'
-            }
-        }).then((result) => {
-            if (result.isConfirmed) {
-                saveReferralAjax(orderId, 'no', '');
-            }
-        });
+        saveReferralAjax(orderId, 'no', null, '');
     }
 }
 
 function saveReferralDetails() {
     let orderId = $('#referral_order_id').val();
     let comment = $('#referral_comment').val().trim();
-
-    if (!comment) {
-        Swal.fire('Warning', 'Please enter referral comments', 'warning');
-        return;
-    }
-
-    saveReferralAjax(orderId, 'yes', comment);
+    let clientWillRefer = $('#client_will_refer').val();
+    saveReferralAjax(orderId, 'yes', clientWillRefer, comment);
 }
 
-function saveReferralAjax(orderId, status, comment) {
+function saveReferralAjax(orderId, status, clientWillRefer, comment) {
     $.ajax({
         url: "{{ route('orders.save.referral') }}",
         type: "POST",
@@ -1312,6 +1300,7 @@ function saveReferralAjax(orderId, status, comment) {
             _token: "{{ csrf_token() }}",
             order_id: orderId,
             status: status,
+            client_will_refer: clientWillRefer || '',
             comment: comment
         },
         success: function(response) {
@@ -1326,19 +1315,14 @@ function saveReferralAjax(orderId, status, comment) {
 
             let cell = $('#referral-cell-' + orderId);
             if (cell.length) {
-                if (status === 'no') {
-                    let btn = cell.find('button.dropdown-toggle');
-                    if (btn.length) {
-                        btn.removeClass('btn-light btn-active-light-primary').addClass('btn-light-danger text-danger');
-                        btn.html('Not Referred');
-                    }
-                } else {
-                    cell.html('<span class="badge badge-light-success fs-7 fw-bold" data-bs-toggle="tooltip" data-bs-placement="top" title="' + comment + '">Referred</span>');
-                    if (typeof bootstrap !== 'undefined' && bootstrap.Tooltip) {
-                        let badge = cell.find('[data-bs-toggle="tooltip"]')[0];
-                        if (badge) new bootstrap.Tooltip(badge);
-                    }
-                }
+                let badgeClass = status === 'yes' ? 'badge-light-success' : 'badge-light-danger';
+                let referredLabel = status === 'yes' ? 'Conversation: Yes' : 'Conversation: No';
+                let futureClass = clientWillRefer === 'yes' ? 'badge-light-success' : 'badge-light-danger';
+                let futureLabel = clientWillRefer === 'yes' ? 'Will Refer: Yes' : 'Will Refer: No';
+                cell.html(
+                    '<span class="badge ' + badgeClass + ' fs-7 fw-bold mb-1" title="' + response.comment + '">' + referredLabel + '</span><br>' +
+                    (clientWillRefer ? '<span class="badge ' + futureClass + ' fs-7 fw-bold">' + futureLabel + '</span>' : '')
+                );
             }
         },
         error: function(xhr) {

@@ -29,6 +29,7 @@ protected $table = 'orders';
         'marks',
         'offer',
         'referal',
+        'client_will_refer',
         'failed_at'
     ];
     

@@ -307,6 +307,10 @@
                     class="btn btn-sm btn-warning">
                         Today's Deadline
                     </a>
+                    <a href="javascript:void(0)" id="yesterdayDeadlineBtn"
+                    class="btn btn-sm btn-light-warning">
+                        Yesterday's Deadline
+                    </a>
 
                     <a href="javascript:void(0)" id="todayWriterDeadlineBtn"
                     class="btn btn-sm btn-primary">
@@ -314,6 +318,7 @@
                     </a>
 
                     <input type="hidden" id="today_deadline_filter" value="">
+                    <input type="hidden" id="yesterday_deadline_filter" value="">
                     <input type="hidden" id="today_writer_deadline_filter" value="">
                     <a href="javascript:void(0)" id="writerQueryBtn" class="btn btn-sm btn-secondary">
                         Writer Query
@@ -601,8 +606,21 @@ resetFilters();
         e.preventDefault();
 
         $('#today_deadline_filter').val('1');
+        $('#yesterday_deadline_filter').val('');
         $('#today_writer_deadline_filter').val('');
 
+        $('#filter_team_id').val('');
+        $('#deadline_status').val('').trigger('change');
+
+        applyFilters();
+    });
+
+    $(document).on('click', '#yesterdayDeadlineBtn', function(e) {
+        e.preventDefault();
+
+        $('#yesterday_deadline_filter').val('1');
+        $('#today_deadline_filter').val('');
+        $('#today_writer_deadline_filter').val('');
         $('#filter_team_id').val('');
         $('#deadline_status').val('').trigger('change');
 
@@ -614,6 +632,7 @@ resetFilters();
 
         $('#today_writer_deadline_filter').val('1');
         $('#today_deadline_filter').val('');
+        $('#yesterday_deadline_filter').val('');
 
         $('#filter_team_id').val('');
         $('#deadline_status').val('').trigger('change');
@@ -627,6 +646,7 @@ resetFilters();
         $('#status').val('writer query').trigger('change');
 
         $('#today_deadline_filter').val('');
+        $('#yesterday_deadline_filter').val('');
         $('#today_writer_deadline_filter').val('');
         $('#filter_team_id').val('');
         $('#deadline_status').val('').trigger('change');
@@ -640,6 +660,7 @@ resetFilters();
         $('#status').val('Hold Work').trigger('change');
 
         $('#today_deadline_filter').val('');
+        $('#yesterday_deadline_filter').val('');
         $('#today_writer_deadline_filter').val('');
         $('#filter_team_id').val('');
         $('#deadline_status').val('').trigger('change');
@@ -766,6 +787,7 @@ resetFilters();
             duec: $('#duec').val(),
             holdBtn: $('#holdBtn').val(),
             today_deadline_filter: $('#today_deadline_filter').val(),
+            yesterday_deadline_filter: $('#yesterday_deadline_filter').val(),
             today_writer_deadline_filter: $('#today_writer_deadline_filter').val()
             
         };
@@ -912,6 +934,7 @@ resetFilters();
             $('#offer').val(filters.offer).trigger('change');
             $('#duec').val(filters.duec).trigger('change');
             $('#today_deadline_filter').val(filters.today_deadline_filter);
+            $('#yesterday_deadline_filter').val(filters.yesterday_deadline_filter || '');
             $('#today_writer_deadline_filter').val(filters.today_writer_deadline_filter);
 
             offset = 0;

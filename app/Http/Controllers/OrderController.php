@@ -71,6 +71,7 @@ class OrderController extends Controller
             'marks',
             'offer',
             'referal',
+            'client_will_refer',
             'is_fail',
             'failed_at',
             'failed_by',
@@ -1755,22 +1756,16 @@ class OrderController extends Controller
 
     public function insert_feedback(Request $req, $id)
     {
-
         $order = Order::find($id);
+        if (!$order) {
+            return response()->json(['status' => 'error', 'message' => 'Order not found'], 404);
+        }
 
-        $uks = substr($order->order_id, 0, 3);
-        if ($order->feedbackissue == 1 && $order->status_issue == 'Case Resolved') {
-            $order->status_issue = 'Issues Raised Again';
-            // dd($order->feedbackissue,$order->status_issue);
-        }
-        if ($order->feedbackissue != 1) {
-            $order->status_issue = 'Issue Raised';
-            $order->feedback_ticket = 'TCK-' . substr($order->order_id, 3);
-        }
-        $order->feedbackissue = 1;
+        // A regular order-chat message must not create a ticket. Ticket state is
+        // initialized only by sendFeedback(), which handles the Ticket tab.
         $order->comment = $req->input('comment');
-        $order->feedback_date = Carbon::now();
         $order->save();
+
         $feedback = new Feedback;
         $feedback->order_id = $id;
         $feedback->comment = $req->input('comment');
@@ -1792,7 +1787,8 @@ class OrderController extends Controller
         $validator = Validator::make($request->all(), [
             'order_id' => 'required|exists:orders,id',
             'status' => 'required|in:yes,no',
-            'comment' => 'required_if:status,yes|nullable|string',
+            'client_will_refer' => 'required_if:status,yes|nullable|in:yes,no',
+            'comment' => 'nullable|string',
         ]);
 
         if ($validator->fails()) {
@@ -1810,47 +1806,47 @@ class OrderController extends Controller
             ], 404);
         }
 
-        if ($request->status === 'no') {
-            $order->referal = 'no';
-            $order->save();
+        $decision = $request->status;
+        $clientWillRefer = $request->input('client_will_refer');
+        $comment = trim((string) $request->input('comment', ''));
+        $isReferred = $decision === 'yes';
 
-            logActivity('Order', [
-                'type' => 'Referral Rejected',
-                'order_id' => $order->order_id,
-                'message' => 'Order marked as Not Referred',
-            ]);
+        // Store the decision on the order; optional notes live in feedback
+        // history so changing the decision never destroys earlier comments.
+        $order->referal = $decision;
+        $order->client_will_refer = $clientWillRefer;
+        $order->save();
 
-            return response()->json([
-                'status' => 'success',
-                'referral_status' => 'no',
-                'message' => 'Referral status updated to No successfully'
-            ]);
-        } else {
-            $comment = $request->comment;
-            $order->referal = $comment;
-            $order->save();
+        $feedback = new Feedback;
+        $feedback->order_id = $order->id;
+        $feedback->comment = $comment !== ''
+            ? $comment
+            : ($isReferred ? 'Client conversation completed.' : 'No client conversation.');
+        $feedback->status = $isReferred ? 'Conversation: Yes' : 'Conversation: No';
+        $feedback->order_status = $order->projectstatus;
+        $feedback->client_will_refer = $clientWillRefer;
+        $feedback->created_by = auth()->user()->id;
+        $feedback->save();
 
-            $feedback = new Feedback;
-            $feedback->order_id = $order->id;
-            $feedback->comment = $comment;
-            $feedback->status = 'Referred';
-            $feedback->created_by = auth()->user()->id;
-            $feedback->save();
+        logActivity('Order', [
+            'type' => $isReferred ? 'Referral Added' : 'Referral Rejected',
+            'order_id' => $order->order_id,
+            'referral_decision' => $decision,
+            'client_will_refer' => $clientWillRefer,
+            'message' => $feedback->comment,
+        ]);
 
-            logActivity('Order', [
-                'type' => 'Referral Added',
-                'order_id' => $order->order_id,
-                'message' => $comment,
-            ]);
-
-            return response()->json([
-                'status' => 'success',
-                'referral_status' => 'yes',
-                'comment' => $comment,
-                'created_at' => $feedback->created_at->format('d M Y, h:i A'),
-                'message' => 'Referral details saved successfully'
-            ]);
-        }
+        return response()->json([
+            'status' => 'success',
+            'referral_status' => $decision,
+            'referral_label' => $isReferred ? 'Yes' : 'No',
+            'client_will_refer' => $clientWillRefer,
+            'client_will_refer_label' => $clientWillRefer === 'yes' ? 'Yes' : ($clientWillRefer === 'no' ? 'No' : 'N/A'),
+            'comment' => $feedback->comment,
+            'created_at' => $feedback->created_at->format('d M Y, h:i A'),
+            'user_name' => auth()->user()->name,
+            'message' => 'Referral decision saved successfully',
+        ]);
     }
 
     public function sendFeedback(Request $request)
@@ -1866,10 +1862,10 @@ class OrderController extends Controller
             return response()->json(['status' => 'error', 'message' => 'Order not found'], 404);
         }
 
-        // 2. Auto Ticket Logic (Based on Feedback entries count)
-        $feedbackCount = Feedback::where('order_id', $request->order_id)->count();
-
-        if ($feedbackCount >= 1 && empty($order->feedback_ticket)) {
+        // Generate a ticket only when a message is actually sent from the
+        // ticket chat. Merely changing the order status/opening the thread
+        // must not create a ticket number.
+        if (empty($order->feedback_ticket)) {
             $order->feedback_ticket = 'TCK-' . substr($order->order_id, 3);
             $order->status_issue = 'Issue Raised';
             $order->feedbackissue = 1;
@@ -1892,6 +1888,7 @@ class OrderController extends Controller
         $feedback->action_comment = $request->input('message');
         $feedback->order_id = $request->input('order_id');
         $feedback->status = $order->status_issue;
+        $feedback->order_status = $order->projectstatus;
         $feedback->created_by = auth()->user()->id;
         $feedback->save();
 
@@ -1902,6 +1899,7 @@ class OrderController extends Controller
             'message' => $feedback->action_comment,
             'f_status' => $order->status_issue,
             'ticket' => $order->feedback_ticket,
+            'order_status' => $feedback->order_status ?? 'N/A',
             'created_at' => $feedback->created_at->diffForHumans(),
             'user' => [
                 'name' => $user->name,
@@ -2908,40 +2906,16 @@ class OrderController extends Controller
                 return response()->json(['error' => 'Order or User not found']);
             }
 
-            // 1. Ticket logic check (Previous status count)
-            $currentStatusLog = ProjectStatusCount::where('order_Id', $orderId)
-                ->where('status', $statusName->status)
-                ->first();
+            // Ticket numbers are intentionally not generated during a status
+            // update. They are generated when the first ticket-chat message is
+            // sent via sendFeedback().
 
-            // 2. AUTOMATIC TICKET LOGIC
-            // if ($currentStatusLog && $currentStatusLog->count >= 1 && empty($order->feedback_ticket)) {
-            //     if ($statusName->status == 'Feedback' || $statusName->status == 'Other') {
-            //         $order->feedback_ticket = 'TCK-' . substr($order->order_id, 3);
-            //         $order->status_issue = 'Issue Raised';
-            //         $order->feedbackissue = 1;
-            //         $order->save();
-            //     }
-            // }
-            
-            if ($currentStatusLog && $currentStatusLog->count >= 1 && empty($order->feedback_ticket)) {
-                $isFeedbackStatus = strcasecmp(trim($statusName->status), 'Feedback') === 0;
-                $isDissertation = strcasecmp(trim($order->typeofpaper), 'Dissertation') === 0;
-
-                if ($isFeedbackStatus && !$isDissertation) {
-                    $order->feedback_ticket = 'TCK-' . substr($order->order_id, 3);
-                    $order->status_issue = 'Issue Raised';
-                    $order->feedbackissue = 1;
-                    $order->feedback_date = Carbon::now();
-                    $order->save();
-                }
-            }
-
-            // 3. Delivered status validation (Payment check)
+            // 1. Delivered status validation (Payment check)
             if ($statusName->status == 'Delivered' && $this->dueAmount($order) > 0) {
                 return response()->json(['warning' => 'Order cannot be marked as Delivered if there is any due payment remaining.']);
             }
 
-            // 4. Order Update
+            // 2. Order Update
             if ($statusName->status == 'Delivered') {
                 $order->delivery_date = Carbon::now('Asia/Kolkata')->toDateString();
             }
@@ -2960,7 +2934,7 @@ class OrderController extends Controller
                 $order->assignTeamForInitiatedStatus();
             }
 
-            // 5. Feedback Table Entry (Chat Box aur Sheet dono ke liye)
+            // 3. Feedback Table Entry (Chat Box aur Sheet dono ke liye)
             $feedback = new Feedback();
             $feedback->order_id = $order->id;
 
@@ -3009,7 +2983,7 @@ class OrderController extends Controller
                 }
             }
 
-            // 6. Update Status Count History
+            // 4. Update Status Count History
             $statusCount = ProjectStatusCount::where('order_Id', $orderId)
                 ->where('status', $statusName->status)
                 ->first();
@@ -3510,7 +3484,7 @@ class OrderController extends Controller
         $filters = $request->all();
 
         // Check if all filters are empty, return a message if so
-        if (empty($filters['search']) && empty($filters['uid']) && empty($filters['status']) && empty($filters['writer']) && empty($filters['dateStatus']) && empty($filters['fromDate']) && empty($filters['toDate']) && empty($filters['from_date']) && empty($filters['to_date']) && empty($filters['WriterTL']) && empty($filters['SubWriter']) && empty($filters['college']) && empty($filters['extra']) && empty($filters['module_code']) &&  empty($filters['paper_type']) && empty($filters['semester']) && empty($filters['month']) && empty($filters['payment']) && empty($filters['deadline_status']) && empty($filters['offer']) && empty($filters['duec']) && empty($filters['team_id']) && empty($filters['today_deadline_filter']) && empty($filters['today_writer_deadline_filter'])) {
+        if (empty($filters['search']) && empty($filters['uid']) && empty($filters['status']) && empty($filters['writer']) && empty($filters['dateStatus']) && empty($filters['fromDate']) && empty($filters['toDate']) && empty($filters['from_date']) && empty($filters['to_date']) && empty($filters['WriterTL']) && empty($filters['SubWriter']) && empty($filters['college']) && empty($filters['extra']) && empty($filters['module_code']) &&  empty($filters['paper_type']) && empty($filters['semester']) && empty($filters['month']) && empty($filters['payment']) && empty($filters['deadline_status']) && empty($filters['offer']) && empty($filters['duec']) && empty($filters['team_id']) && empty($filters['today_deadline_filter']) && empty($filters['yesterday_deadline_filter']) && empty($filters['today_writer_deadline_filter'])) {
             return response()->json(['message' => 'No filters applied'], 200);
         }
 
@@ -3693,6 +3667,13 @@ class OrderController extends Controller
             $query->where(function ($q) {
                 $q->whereDate('delivery_date', Carbon::today())
                     ->orWhereDate('f_delivery_date', Carbon::today());
+            });
+        }
+
+        if ($request->filled('yesterday_deadline_filter')) {
+            $query->where(function ($q) {
+                $q->whereDate('delivery_date', Carbon::yesterday())
+                    ->orWhereDate('f_delivery_date', Carbon::yesterday());
             });
         }
 

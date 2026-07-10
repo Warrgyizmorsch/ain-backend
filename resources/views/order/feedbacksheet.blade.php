@@ -21,8 +21,8 @@
 			<div class="card card-xl-stretch  mb-xl-">
 				<div class="card-header border-0 pt-5">
 					<h3 class="card-title align-items-start flex-column">
-						<span class="card-label fw-bolder fs-3 mb-1">All FeedBack Comment</span>
-						<span class="text-muted mt-1 fw-bold fs-7"></span>
+						<span class="card-label fw-bolder fs-3 mb-1">Feedback & Ticket Conversations</span>
+						<span class="text-muted mt-1 fw-bold fs-7">Ticket number, issue status and order-status history in one place</span>
 					</h3>
 					@if(auth()->user()->role_id == 1)
 					<div class="card-toolbar">
@@ -84,7 +84,7 @@
     									    {{ $order->order_id}}<br>
                                         @endif
 										@if($order->feedback_ticket)
-    									<span class="badge badge-light-danger fs-7 fw-bold text-nowrap">TN-{{ $order->feedback_ticket }}</span>
+									<span class="badge badge-light-danger fs-7 fw-bold text-nowrap">{{ $order->feedback_ticket }}</span>
 										@php
 											$ticketDate = $order->feedback_date ?: optional($order->feedback->sortBy('created_at')->first())->created_at;
 										@endphp
@@ -294,20 +294,32 @@
         vertical-align: middle;
     }
 
-    .feedback-comment-box {
-        background-color: #f5f8fa;
-        border: 1px solid #e4e6ef;
-        border-radius: 8px;
+	.feedback-comment-box {
+		background: linear-gradient(135deg, #f8f9ff 0%, #f5f8fa 100%);
+		border: 1px solid #dfe3f2;
+		border-left: 4px solid #6f42c1;
+		border-radius: 8px;
         color: #3f4254;
         font-size: 13px;
         font-weight: 600;
         line-height: 1.4;
         margin: 0 auto 8px;
         max-width: 280px;
-        padding: 10px 12px;
-        text-align: left;
-        word-break: break-word;
-    }
+		padding: 10px 12px;
+		text-align: left;
+		word-break: break-word;
+		box-shadow: 0 3px 12px rgba(63, 66, 84, 0.06);
+	}
+
+	#feedback-table tbody tr:hover td {
+		background-color: #fafbff;
+	}
+
+	#feedback-table thead th {
+		text-transform: uppercase;
+		letter-spacing: .03em;
+		font-size: 11px;
+	}
 
     .failed-order-box {
         display: inline-block;

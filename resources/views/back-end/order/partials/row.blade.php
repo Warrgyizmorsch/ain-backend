@@ -213,9 +213,10 @@
              <span class="badge badge-light-success fs-7 fw-bold mb-1">{{$order->offer}}</span><br>
             @endif
 
-            @if($order->feedback_ticket)
-            <span class="badge badge-light-danger fs-7 fw-bold mb-1">{{ $order->feedback_ticket }}</span>
-            @endif
+            <span id="orderTicketNumber{{ $order->id }}"
+                class="badge badge-light-danger fs-7 fw-bold mb-1 {{ $order->feedback_ticket ? '' : 'd-none' }}">
+                {{ $order->feedback_ticket ?: '' }}
+            </span>
 
             @if ($order->resit == 'on')
             <span class="badge badge-light-danger fs-7 fw-bold mb-1">Resit</span><br>
@@ -233,11 +234,16 @@
         </td>
          <td class="text-center" id="referral-cell-{{ $order->id }}">
             @if($order->referal && strtolower($order->referal) !== 'no')
-                <span class="badge badge-light-success fs-7 fw-bold" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ $order->referal }}">Referred</span>
+                <span class="badge badge-light-success fs-7 fw-bold mb-1">Conversation: Yes</span><br>
+                @if($order->client_will_refer)
+                    <span class="badge {{ $order->client_will_refer === 'yes' ? 'badge-light-success' : 'badge-light-danger' }} fs-7 fw-bold">
+                        Will Refer: {{ $order->client_will_refer === 'yes' ? 'Yes' : 'No' }}
+                    </span>
+                @endif
             @else
                 <div class="dropdown d-inline-block">
                     <button class="btn {{ $order->referal && strtolower($order->referal) === 'no' ? 'btn-light-danger text-danger' : 'btn-light btn-active-light-primary' }} btn-sm py-1 px-3 fs-7 fw-bold dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-                        {{ $order->referal && strtolower($order->referal) === 'no' ? 'Not Referred' : 'Referral' }}
+                        {{ $order->referal && strtolower($order->referal) === 'no' ? 'Conversation: No' : 'Referral' }}
                     </button>
                     <ul class="dropdown-menu dropdown-menu-end shadow-sm border-0 fs-7 py-2" style="min-width: 100px;">
                         <li><a class="dropdown-item py-2 text-success fw-bold" href="javascript:void(0)" onclick="openReferralModal('{{ $order->id }}', '{{ $order->order_id }}')">Yes</a></li>

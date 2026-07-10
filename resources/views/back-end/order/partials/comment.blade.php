@@ -1,6 +1,6 @@
 <div style="overflow: hidden;" id="kt_drawer_chat{{ $order->id }}" class="bg-body" data-kt-drawer="true"
     data-kt-drawer-name="chat{{ $order->id }}" data-kt-drawer-activate="true" data-kt-drawer-overlay="true"
-    data-kt-drawer-width="{default:'90%', 'md':'40%', 'lg':'30%'}" data-kt-drawer-direction="end"
+    data-kt-drawer-width="{default:'95%', 'md':'65%', 'lg':'37%'}" data-kt-drawer-direction="end"
     data-kt-drawer-toggle="#kt_drawer_chat_toggle{{ $order->id }}"
     data-kt-drawer-close="#kt_drawer_chat_close{{ $order->id }}">
 
@@ -11,7 +11,13 @@
             <div class="card-title">
                 <div class="d-flex flex-column">
                     <span class="fs-4 fw-bold text-white">Order: {{ $order->order_id }}</span>
-                    <small class="text-white-50">Feedback Thread</small>
+                    <div class="d-flex align-items-center gap-2 mt-1">
+                        <small class="text-white-50">Feedback Thread</small>
+                        <span id="drawerTicketNumber{{ $order->id }}"
+                            class="badge bg-white text-danger {{ $order->feedback_ticket ? '' : 'd-none' }}">
+                            {{ $order->feedback_ticket ?: '' }}
+                        </span>
+                    </div>
                 </div>
             </div>
             <div class="card-toolbar">
@@ -126,6 +132,11 @@
                     <div class="text-muted mt-1">
                         {{ $feedback->action_comment }}
                     </div>
+                    <div class="mt-2">
+                        <span class="badge badge-light-dark fs-9">
+                            Order status: {{ $feedback->order_status ?? 'N/A' }}
+                        </span>
+                    </div>
 
                 </li>
 
@@ -171,19 +182,23 @@
                 @endif
 
                 {{-- Referral Chat --}}
-                @if($order->feedback && $order->feedback->where('status', 'Referred')->count())
+                @if($order->feedback && $order->feedback->whereIn('status', ['Referred', 'Not Referred', 'Conversation: Yes', 'Conversation: No'])->count())
                 <li class="chat-heading referral-heading chat-item referral-chat fw-bold mb-6 text-center" style="background:#f3e8ff; color:#6b21a8; padding:6px; border-radius:6px;">
                     Referral Chat
                 </li>
-                @foreach($order->feedback->where('status', 'Referred')->sortBy('created_at') as $feedback)
+                @foreach($order->feedback->whereIn('status', ['Referred', 'Not Referred', 'Conversation: Yes', 'Conversation: No'])->sortBy('created_at') as $feedback)
                 @if($feedback->comment != '')
                 @php $isCurrentUser = $feedback->created_by == Auth::id(); @endphp
                 <li class="feed-item {{ $isCurrentUser ? 'feed-item-success' : 'feed-item-primary' }} chat-item referral-chat">
                     <div class="d-flex justify-content-between">
                         <div>
                             <strong>{{ $isCurrentUser ? 'You' : ($feedback->user->name ?? 'User') }}</strong>
-                            <span class="badge ms-1 text-white" style="font-size:10px; background-color: #6b21a8;">
-                                Referral
+                            @php $conversationYes = in_array($feedback->status, ['Referred', 'Conversation: Yes'], true); @endphp
+                            <span class="badge ms-1 text-white" style="font-size:10px; background-color: {{ $conversationYes ? '#198754' : '#dc3545' }};">
+                                Conversation: {{ $conversationYes ? 'Yes' : 'No' }}
+                            </span>
+                            <span class="badge ms-1 text-white" style="font-size:10px; background-color: {{ $feedback->client_will_refer === 'yes' ? '#198754' : ($feedback->client_will_refer === 'no' ? '#dc3545' : '#6c757d') }};">
+                                Will Refer: {{ $feedback->client_will_refer === 'yes' ? 'Yes' : ($feedback->client_will_refer === 'no' ? 'No' : 'N/A') }}
                             </span>
                         </div>
                         <small>{{ $feedback->created_at->format('d M Y, h:i A') }}</small>
@@ -200,25 +215,35 @@
         </div>
 
         <div class="mb-2 d-flex gap-2 justify-content-center">
-            <button class="btn btn-sm btn-light-primary" onclick="filterChat('all', {{ $order->id }})">All</button>
-            <button class="btn btn-sm btn-light-warning" onclick="filterChat('lead', {{ $order->id }})">Lead</button>
-            <button class="btn btn-sm btn-light-success" onclick="filterChat('order', {{ $order->id }})">Order</button>
-            <button class="btn btn-sm btn-light-danger" onclick="filterChat('ticket', {{ $order->id }})">
+            <button class="btn btn-sm btn-light-primary chat-filter active" data-chat-filter="all" onclick="filterChat('all', {{ $order->id }}, this)">All</button>
+            <button class="btn btn-sm btn-light-warning chat-filter" data-chat-filter="lead" onclick="filterChat('lead', {{ $order->id }}, this)">Lead</button>
+            <button class="btn btn-sm btn-light-success chat-filter" data-chat-filter="order" onclick="filterChat('order', {{ $order->id }}, this)">Order</button>
+            <button class="btn btn-sm btn-light-danger chat-filter" data-chat-filter="ticket" onclick="filterChat('ticket', {{ $order->id }}, this)">
                 Ticket
             </button>
-            <button class="btn btn-sm btn-light-warning" onclick="filterChat('followup', {{ $order->id }})">
+            <button class="btn btn-sm btn-light-warning chat-filter" data-chat-filter="followup" onclick="filterChat('followup', {{ $order->id }}, this)">
                 Followup
             </button>
-            <button class="btn btn-sm" style="color: #6b21a8; background-color: #f3e8ff;" onclick="filterChat('referral', {{ $order->id }})">
+            <button class="btn btn-sm chat-filter referral-filter" data-chat-filter="referral" onclick="filterChat('referral', {{ $order->id }}, this)">
                 Referral
             </button>
         </div>
 
         <!-- Footer Input -->
-        <div class="card-footer border-top p-3 d-flex">
-            <input type="text" id="description{{ $order->id }}" class="form-control me-2"
-                placeholder="Type your message...">
-            <button class="btn btn-primary" onclick="sendFeedback({{ $order->id }})">Send</button>
+        <div class="card-footer border-top p-3">
+            <div id="referralControls{{ $order->id }}" class="mb-2 d-none">
+                <label class="fs-8 fw-bold text-gray-700 mb-1">Will the client refer someone?</label>
+                <select id="clientWillRefer{{ $order->id }}" class="form-select form-select-sm">
+                    <option value="yes">Yes</option>
+                    <option value="no">No</option>
+                </select>
+            </div>
+            <div class="d-flex">
+                <input type="text" id="description{{ $order->id }}" class="form-control me-2"
+                    placeholder="Type your message...">
+                <button class="btn btn-primary" onclick="sendFeedback({{ $order->id }})">Send</button>
+            </div>
+            <small id="referralCommentHint{{ $order->id }}" class="text-muted d-none mt-1">Referral comment is optional.</small>
         </div>
     </div>
 </div>
@@ -254,7 +279,7 @@
         top: 4px;
         width: 12px;
         height: 12px;
-        border-radius: 50%;
+        border-radius: 45%;
         background: #ccc;
         border: 2px solid #fff;
     }
@@ -270,6 +295,35 @@
 
     .feed-item-danger::before {
         background: #ef4444;
+    }
+
+    .chat-filter {
+        border: 2px solid transparent !important;
+        transition: all .18s ease;
+    }
+
+    .chat-filter.active {
+        border-color: currentColor !important;
+        box-shadow: 0 4px 12px rgba(63, 66, 84, .22) !important;
+        font-weight: 800;
+        transform: translateY(-2px);
+    }
+
+    .chat-filter.active::before {
+        content: "\2713";
+        margin-right: 5px;
+        font-weight: 900;
+    }
+
+    .referral-filter {
+        color: #6b21a8 !important;
+        background-color: #f3e8ff !important;
+    }
+
+    .referral-filter.active {
+        color: #fff !important;
+        background-color: #6b21a8 !important;
+        border-color: #6b21a8 !important;
     }
 
     /* text truncate */
@@ -345,8 +399,19 @@
 
 <!-- Feedback Script -->
 <script>
-   function filterChat(type, orderId) {
+   function filterChat(type, orderId, button) {
     let container = $('#messageContainer' + orderId);
+    container.data('active-chat', type);
+    $(button).siblings('.chat-filter').removeClass('active shadow-sm');
+    $(button).addClass('active shadow-sm');
+    $(button).siblings('.chat-filter').attr('aria-pressed', 'false');
+    $(button).attr('aria-pressed', 'true');
+    $('#referralControls' + orderId).toggleClass('d-none', type !== 'referral');
+    $('#referralCommentHint' + orderId).toggleClass('d-none', type !== 'referral');
+    $('#description' + orderId).attr(
+        'placeholder',
+        type === 'referral' ? 'Referral comment (optional)...' : 'Type your message...'
+    );
 
     // sab hide
     container.find('.chat-item').css('display', 'none');
@@ -372,8 +437,96 @@
 
     function sendFeedback(orderId) {
         var message = $('#description' + orderId).val();
+        var container = $('#messageContainer' + orderId);
+        var activeChat = container.data('active-chat') || 'all';
 
-        if (message.trim() === '') return;
+        if (activeChat !== 'referral' && message.trim() === '') return;
+
+        if (activeChat === 'referral') {
+            var clientWillRefer = $('#clientWillRefer' + orderId).val();
+
+            $.ajax({
+                type: 'POST',
+                url: @json(route('orders.save.referral')),
+                data: {
+                    _token: '{{ csrf_token() }}',
+                    order_id: orderId,
+                    status: 'yes',
+                    client_will_refer: clientWillRefer,
+                    comment: message
+                },
+                success: function(response) {
+                    var isYes = response.referral_status === 'yes';
+                    var badgeColor = isYes ? '#198754' : '#dc3545';
+                    var newMsg = `
+        <li class="feed-item feed-item-success chat-item referral-chat">
+            <div class="d-flex justify-content-between">
+                <div>
+                    <strong>You</strong>
+                    <span class="badge ms-1 text-white" style="font-size:10px; background-color:${badgeColor}">
+                        Conversation: Yes
+                    </span>
+                    <span class="badge ms-1 text-white" style="font-size:10px; background-color:${response.client_will_refer === 'yes' ? '#198754' : '#dc3545'}">
+                        Will Refer: ${response.client_will_refer_label}
+                    </span>
+                </div>
+                <small>${response.created_at}</small>
+            </div>
+            <div class="text-muted mt-1">${response.comment}</div>
+        </li>`;
+
+                    container.append(newMsg);
+                    $('#description' + orderId).val('');
+                    container.scrollTop(container[0].scrollHeight);
+                },
+                error: function(err) {
+                    console.error('Referral send failed:', err);
+                }
+            });
+
+            return;
+        }
+
+        if (activeChat === 'ticket') {
+            $.ajax({
+                type: 'POST',
+                url: @json(route('send.feedback')),
+                data: {
+                    _token: '{{ csrf_token() }}',
+                    message: message,
+                    order_id: orderId
+                },
+                success: function(response) {
+                    var newMsg = `
+        <li class="feed-item feed-item-success chat-item ticket-chat">
+            <div class="d-flex justify-content-between">
+                <div>
+                    <strong>You</strong>
+                    <span class="badge bg-danger ms-1" style="font-size:10px;">Ticket</span>
+                    <span class="badge bg-dark ms-1" style="font-size:10px;">Order: ${response.order_status}</span>
+                </div>
+                <small>${response.created_at}</small>
+            </div>
+            <div class="text-muted mt-1">${response.message}</div>
+        </li>`;
+
+                    container.append(newMsg);
+                    $('#drawerTicketNumber' + orderId)
+                        .removeClass('d-none')
+                        .text(response.ticket);
+                    $('#orderTicketNumber' + orderId)
+                        .removeClass('d-none')
+                        .text(response.ticket);
+                    $('#description' + orderId).val('');
+                    container.scrollTop(container[0].scrollHeight);
+                },
+                error: function(err) {
+                    console.error('Ticket send failed:', err);
+                }
+            });
+
+            return;
+        }
 
         $.ajax({
             type: 'POST',
@@ -384,10 +537,8 @@
                 order_id: orderId
             },
             success: function(response) {
-                var container = $('#messageContainer' + orderId);
-
                 var newMsg = `
-        <li class="feed-item feed-item-success">
+        <li class="feed-item feed-item-success chat-item order-chat">
             <div class="d-flex justify-content-between">
                 <div>
                     <strong>You</strong>
