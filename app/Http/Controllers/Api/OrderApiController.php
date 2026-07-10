@@ -855,4 +855,128 @@ class OrderApiController extends Controller
             'is_app_lead' => 0,
         ], 201);
     }
+
+    public function submitMiniQuote(Request $request)
+    {
+        // Validation rules mapped to the fields in the 'new-hero-form' / frontend screenshot design:
+        // Name, Email, Country Code, Mobile, Project Type (service), Deadline, Word Count, and Description
+        $request->validate([
+            'name'           => 'required|string|max:255',
+            'email'          => 'required|email|max:255',
+            'phone'          => 'required|string',
+            'countryCode'    => 'required|string',
+            'countryIso'     => 'nullable|string',
+            'service'        => 'required|string',        // Project Type (service) -> mapped totypeofpaper
+            'deadline'       => 'required|string',        // Time Period (deadline/urgency)
+            'wordCount'      => 'required|string',        // Word Count (number e.g. 250, 500, 1000) -> pages mapping
+            'description'    => 'nullable|string',        // Nullable description/requirements
+            'source_page'    => 'nullable|string',
+        ]);
+
+        // Clean values
+        $phoneDigits = preg_replace('/\D+/', '', (string) $request->phone);
+        $cc = preg_replace('/\D+/', '', (string) $request->countryCode);
+
+        // Map wordCount to pages: e.g. 250 -> 1, 500 -> 2, 1000 -> 4, etc.
+        $words = (int) $request->wordCount;
+        $pagesCount = max(1, (int) round($words / 250));
+
+        // Calculate delivery/deadline date
+        $deadlineInput = trim((string) $request->deadline);
+        $today = now();
+        if (is_numeric($deadlineInput)) {
+            $days = max(1, (int) $deadlineInput);
+            $deliveryDate = $today->copy()->addDays($days);
+            $deliveryTimeStr = $days . ' Day' . ($days > 1 ? 's' : '');
+        } elseif ($deadlineInput === '16 to 20') {
+            $deliveryDate = $today->copy()->addDays(16);
+            $deliveryTimeStr = '16 to 20 Days';
+        } elseif ($deadlineInput === '21+') {
+            $deliveryDate = $today->copy()->addDays(21);
+            $deliveryTimeStr = '21+ Days';
+        } else {
+            try {
+                $deliveryDate = \Carbon\Carbon::parse($deadlineInput);
+                $deliveryTimeStr = $deadlineInput;
+            } catch (\Exception $e) {
+                $deliveryDate = $today->copy()->addDays(1);
+                $deliveryTimeStr = '1 Day';
+            }
+        }
+
+        // Generate Order ID UKS...
+        $latestOrder = Order::orderByDesc('id')->first();
+        $newOrderNumber = 1;
+        if ($latestOrder && !empty($latestOrder->order_id)) {
+            $lastNumber = preg_replace('/\D/', '', $latestOrder->order_id);
+            $newOrderNumber = $lastNumber ? ((int) $lastNumber + 1) : 1;
+        }
+        $newOrderId = 'UKS' . str_pad($newOrderNumber, 3, '0', STR_PAD_LEFT);
+
+        // Find/Create standard client user by email
+        $user = User::where('email', $request->email)->first();
+        if (!$user) {
+            $user = User::create([
+                'name'        => $request->name,
+                'email'       => $request->email,
+                'mobile_no'   => $phoneDigits,
+                'countrycode' => $cc,
+                'password'    => Hash::make(\Illuminate\Support\Str::random(12)),
+                'role_id'     => 2, // standard Client role
+            ]);
+        } else {
+            // Update missing user details if user exists
+            $dirty = false;
+            if (empty($user->mobile_no) && $phoneDigits) {
+                $user->mobile_no = $phoneDigits;
+                $dirty = true;
+            }
+            if (empty($user->countrycode) && $cc) {
+                $user->countrycode = $cc;
+                $dirty = true;
+            }
+            if (empty($user->name) && $request->name) {
+                $user->name = $request->name;
+                $dirty = true;
+            }
+            if ($dirty) {
+                $user->save();
+            }
+        }
+
+        // Create lead entry
+        $lead = Leads::create([
+            'order_id'       => $newOrderId,
+            'emp_id'         => $user->id,
+            'create_at'      => now(),
+            'frontendorder'  => 1,
+            'is_app_lead'    => 0, // 0 for website lead
+            'user_name'      => $user->name,
+            'email'          => $user->email,
+            'countrycode'    => $cc,
+            'mobile'         => $phoneDigits,
+            'typeofpaper'    => $request->service,          // Project Type
+            'project_title'  => $request->service,          // Mapped service name to project title too
+            'pages'          => $pagesCount,                // Calculated pages from wordCount
+            'deadline'       => $deliveryDate->toDateString(),
+            'delivery_time'  => $deliveryTimeStr,
+            'message'        => $request->input('description') ?? 'Quote request from website hero form.',
+            'page_url'       => $request->input('source_page') ?? ($request->headers->get('referer') ?? $request->fullUrl()),
+        ]);
+
+        // Create pending order
+        Order::create([
+            'order_id'      => $newOrderId,
+            'projectstatus' => 'Pending',
+            'lead_id'       => $lead->id,
+            'uid'           => $user->id,
+            'title'         => $request->service . ' - Quote Request',
+        ]);
+
+        return response()->json([
+            'success'  => true,
+            'message'  => 'Quote submitted successfully!',
+            'order_id' => $newOrderId,
+        ]);
+    }
 }

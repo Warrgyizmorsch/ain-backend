@@ -51,6 +51,7 @@ Route::post('/save-order', [OrderApiController::class, 'store']);
 
 Route::middleware('api.key')->group(function () {
     Route::post('/web-place-order', [OrderApiController::class, 'webPlaceOrder']);
+    Route::post('/web-submit-quote', [OrderApiController::class, 'submitMiniQuote']);
 
     // Dynamic Service Pages
     Route::get('/service-pages', [ServicePageApiController::class, 'index']);

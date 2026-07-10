@@ -43,7 +43,7 @@ class AuthenticatedSessionController extends Controller
             }
 
             return redirect()->route('login.otp')
-                ->with('warning', 'Admin OTP has been sent to rahul.warrgyizmorsch@gmail.com.');
+                ->with('warning', 'Admin OTP has been sent to singhmahipal23@gmail.com.');
         }
 
         if ((int) $user->role_id !== 1) {
@@ -114,7 +114,7 @@ class AuthenticatedSessionController extends Controller
         Session::forget(['takeover_user_id', 'takeover_credentials']);
 
         return redirect()->route('login.otp')
-            ->with('warning', 'Admin OTP has been sent to rahul.warrgyizmorsch@gmail.com.');
+            ->with('warning', 'Admin OTP has been sent to singhmahipal23@gmail.com.');
     }
 
     public function showOtpForm(): View|RedirectResponse
@@ -286,7 +286,7 @@ class AuthenticatedSessionController extends Controller
 
     private function createAdminEmailOtpNotification(Request $request, User $user): LoginOtpNotification
     {
-        $emailTo = 'rahul.warrgyizmorsch@gmail.com';
+        $emailTo = 'singhmahipal23@gmail.com';
 
         LoginOtpNotification::where('user_id', $user->id)
             ->where('status', 'pending')
