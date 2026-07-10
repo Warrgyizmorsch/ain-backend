@@ -31,13 +31,13 @@
                         <div class="row mb-3">
                             <!-- User ID filter -->
                             <div class="col-lg-3 fv-row fv-plugins-icon-container">
-                                <select name="user_id" aria-label="Select a User" data-control="select2" data-placeholder="Search By Name email" class="form-select form-select-solid form-select-lg select2-hidden-accessible">
-                                    <option value="" data-select2-id="select2-data-18-e9lh"></option>
-                                    @foreach($data['all_user'] as $user)
-                                        <option value="{{$user->id}}" {{ $user->id == request('user_id') ? 'selected' : '' }}>
-                                            {{$user->name}} ({{$user->email}}) {{$user->mobile_no}} / {{$user->mobile_no2}}
+                                <select id="user-filter" name="user_id" aria-label="Select a User" data-placeholder="Search by name, email or phone" class="form-select form-select-solid form-select-lg">
+                                    <option value=""></option>
+                                    @if($data['selected_user'])
+                                        <option value="{{ $data['selected_user']->id }}" selected>
+                                            {{ $data['selected_user']->name }} ({{ $data['selected_user']->email }}) {{ $data['selected_user']->mobile_no }} / {{ $data['selected_user']->mobile_no2 }}
                                         </option>
-                                    @endforeach
+                                    @endif
                                 </select>
                                 <div class="fv-plugins-message-container invalid-feedback"></div>
                             </div>
@@ -319,6 +319,31 @@
 </div>
 
 <script>
+    $(function () {
+        $('#user-filter').select2({
+            placeholder: 'Search by name, email or phone',
+            allowClear: true,
+            minimumInputLength: 2,
+            ajax: {
+                url: '{{ route('search-user') }}',
+                dataType: 'json',
+                delay: 300,
+                data: function (params) {
+                    return { user: params.term };
+                },
+                processResults: function (users) {
+                    return {
+                        results: users.map(function (user) {
+                            var contact = user.email || user.mobile_no || user.mobile_no2 || '';
+                            return { id: user.id, text: (user.name || 'Unnamed User') + ' (' + contact + ')' };
+                        })
+                    };
+                },
+                cache: true
+            }
+        });
+    });
+
     function exportUsers() {
         // Retrieve filter parameters
         var userId = $('select[name="user_id"]').val();

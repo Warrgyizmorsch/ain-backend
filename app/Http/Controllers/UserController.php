@@ -366,9 +366,11 @@ class UserController extends Controller
 
         $data['users'] = $query->orderBy('id', 'desc')->paginate($perPage);
 
-        $data['all_user'] = User::where('flag', 0)
-            ->select('id', 'name', 'email', 'mobile_no', 'mobile_no2')
-            ->orderBy('id', 'desc')->get();
+        // Do not load every user into the filter dropdown. The Select2 field
+        // searches remotely and only the currently selected user is needed.
+        $data['selected_user'] = $searchUserId
+            ? User::select('id', 'name', 'email', 'mobile_no', 'mobile_no2')->find($searchUserId)
+            : null;
         $data['role'] = Role::all();
         $data['bank'] = Bank::all();
         $data['countryList'] = array_keys($globalCountries);
