@@ -3,7 +3,6 @@
 namespace App\Exports;
 
 use App\Models\Order;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Maatwebsite\Excel\Concerns\FromQuery;
 use Maatwebsite\Excel\Concerns\WithChunkReading;
 use Maatwebsite\Excel\Concerns\WithBatchInserts;
@@ -13,11 +12,16 @@ use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Maatwebsite\Excel\Events\AfterChunk;
 use Maatwebsite\Excel\Concerns\WithEvents;
+use Illuminate\Support\Facades\Cache;
 
-class OrdersExport implements FromQuery, WithChunkReading, WithMapping, WithHeadings, ShouldQueue, WithBatchInserts, WithEvents
+class OrdersExport implements FromQuery, WithChunkReading, WithMapping, WithHeadings, WithBatchInserts, WithEvents
 {
     protected $filters;
     protected $columns;
+    protected $progressKey;
+    protected $exportId;
+    protected $totalRows;
+    protected $processedRows = 0;
 
     // Default export columns
     protected $defaultColumns = [
@@ -25,10 +29,13 @@ class OrdersExport implements FromQuery, WithChunkReading, WithMapping, WithHead
         'order_date', 'deadline', 'project_title', 'status', 'pages', 'price','received', 'due', 'writer', 'other', 
     ];
 
-    public function __construct($filters = [])
+    public function __construct($filters = [], $progressKey = null, $exportId = null, $totalRows = 0)
     {
         $this->filters = $filters;
         $this->columns = !empty($filters['selected_columns']) ? $filters['selected_columns'] : $this->defaultColumns;
+        $this->progressKey = $progressKey;
+        $this->exportId = $exportId;
+        $this->totalRows = (int) $totalRows;
     }
 
     public function query()
@@ -64,7 +71,7 @@ class OrdersExport implements FromQuery, WithChunkReading, WithMapping, WithHead
                 if ($uidsInMonth->isEmpty()) {
                     // No matching UIDs, force empty result
                     $query->whereRaw('0 = 1');
-                    return;
+                    return $query;
                 }
 
                 // Step 2: Get UIDs that have newer orders after this month
@@ -79,7 +86,7 @@ class OrdersExport implements FromQuery, WithChunkReading, WithMapping, WithHead
 
                 if ($validUIDs->isEmpty()) {
                     $query->whereRaw('0 = 1');
-                    return;
+                    return $query;
                 }
 
                 // Step 4: Filter $query to include only the latest order per UID for that month
@@ -130,6 +137,45 @@ class OrdersExport implements FromQuery, WithChunkReading, WithMapping, WithHead
             $query->where('college_name', $filters['college']);
         }
 
+        if (!empty($filters['offer'])) {
+            $query->where('offer', 'like', '%' . $filters['offer'] . '%');
+        }
+
+        if (!empty($filters['duec'])) {
+            $operator = $filters['duec'] === 'due' ? '>' : '<=';
+            $query->whereRaw("(CAST(amount AS SIGNED) - CAST(received_amount AS SIGNED)) {$operator} 0");
+        }
+
+        if (!empty($filters['team_id'])) {
+            $query->where('orders.team_id', $filters['team_id']);
+        }
+
+        if (!empty($filters['deadline_status']) && $filters['deadline_status'] === 'overdue') {
+            $query->whereDate('delivery_date', '<', Carbon::today())
+                ->whereNotIn('projectstatus', ['Completed', 'Delivered', 'Cancelled', 'Feedback', 'Feedback Delivered']);
+        } elseif (!empty($filters['deadline_status']) && $filters['deadline_status'] === 'missed') {
+            $query->whereIn('projectstatus', ['Completed', 'Delivered', 'Cancelled', 'Feedback', 'Feedback Delivered'])
+                ->whereColumn('updated_at', '>', 'delivery_date');
+        }
+
+        if (!empty($filters['today_deadline_filter'])) {
+            $query->where(function ($q) {
+                $q->whereDate('delivery_date', Carbon::today())
+                    ->orWhereDate('f_delivery_date', Carbon::today());
+            });
+        }
+
+        if (!empty($filters['yesterday_deadline_filter'])) {
+            $query->where(function ($q) {
+                $q->whereDate('delivery_date', Carbon::yesterday())
+                    ->orWhereDate('f_delivery_date', Carbon::yesterday());
+            });
+        }
+
+        if (!empty($filters['today_writer_deadline_filter'])) {
+            $query->whereDate('writer_deadline', Carbon::today());
+        }
+
         // Writer
         if (!empty($filters['writer'])) {
             if ($filters['writer'] === 'team 13') {
@@ -151,7 +197,7 @@ class OrdersExport implements FromQuery, WithChunkReading, WithMapping, WithHead
         // SubWriter (external relation)
         if (!empty($filters['SubWriter'])) {
             $orderIds = \App\Models\multipleswiter::where('user_id', $filters['SubWriter'])->pluck('order_id');
-            $query->whereIn('id', $orderIds);
+            $query->whereIn('orders.id', $orderIds);
         }
 
         // Extra logic
@@ -189,11 +235,13 @@ class OrdersExport implements FromQuery, WithChunkReading, WithMapping, WithHead
             $query->whereDate('order_date', Carbon::today());
         }
 
-        return $query->orderByDesc('id');
+        return $query->orderByDesc('orders.id');
     }
 
     public function map($order): array
     {
+        $this->processedRows++;
+        $this->updateProgress();
         $row = [];
 
         foreach ($this->columns as $column) {
@@ -219,7 +267,7 @@ class OrdersExport implements FromQuery, WithChunkReading, WithMapping, WithHead
                     break;
 
                 case 'order_date':
-                    $row[] = $this->formatDate($order->created_at);
+                    $row[] = $this->formatDate($order->order_date);
                     break;
 
                 case 'deadline':
@@ -331,5 +379,27 @@ class OrdersExport implements FromQuery, WithChunkReading, WithMapping, WithHead
         } catch (\Exception $e) {
             return '';
         }
+    }
+
+    private function updateProgress(): void
+    {
+        if (!$this->progressKey || $this->totalRows < 1) {
+            return;
+        }
+
+        if ($this->processedRows !== $this->totalRows && $this->processedRows % 25 !== 0) {
+            return;
+        }
+
+        $progress = min(95, 8 + (int) floor(($this->processedRows / $this->totalRows) * 87));
+
+        Cache::put($this->progressKey, [
+            'export_id' => $this->exportId,
+            'status' => 'processing',
+            'progress' => $progress,
+            'processed' => $this->processedRows,
+            'total' => $this->totalRows,
+            'message' => 'Exporting orders...',
+        ], now()->addMinutes(30));
     }
 }

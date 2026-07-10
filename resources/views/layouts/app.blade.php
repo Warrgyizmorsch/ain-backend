@@ -47,15 +47,20 @@
         </div>
     </div>
     <!-- export-preloader start -->
-    <div id="export-preloader" style="display:none; position:fixed; top:15px; right:20px; z-index:9999;">
-        <span style="
-            display:inline-block;
-            width:10px;
-            height:10px;
-            background-color:red;
-            border-radius:50%;
-            animation: blink 1s infinite;
-        "></span>
+    <div id="export-preloader" style="display:none; position:fixed; top:18px; right:24px; z-index:9999; width:340px;">
+        <div class="card shadow border-0">
+            <div class="card-body p-4">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span id="export-progress-title" class="fw-bolder text-gray-800">Preparing export...</span>
+                    <span id="export-progress-percent" class="badge badge-light-primary">0%</span>
+                </div>
+                <div class="progress h-8px mb-2">
+                    <div id="export-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated bg-primary"
+                        role="progressbar" style="width:0%" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"></div>
+                </div>
+                <div id="export-progress-message" class="text-muted fs-8">Your file is being prepared.</div>
+            </div>
+        </div>
     </div>
 
     <style>
@@ -568,18 +573,38 @@
     <script>
         document.addEventListener("DOMContentLoaded", function () {
             const preloader = document.getElementById('export-preloader');
+            const progressBar = document.getElementById('export-progress-bar');
+            const progressPercent = document.getElementById('export-progress-percent');
+            const progressTitle = document.getElementById('export-progress-title');
+            const progressMessage = document.getElementById('export-progress-message');
+
+            window.showExportProgress = function(type, data = {}) {
+                const progress = Math.max(0, Math.min(100, Number(data.progress || 0)));
+                preloader.style.display = 'block';
+                progressBar.style.width = `${progress}%`;
+                progressBar.setAttribute('aria-valuenow', progress);
+                progressPercent.textContent = `${progress}%`;
+                progressTitle.textContent = `${type.charAt(0).toUpperCase() + type.slice(1)} export`;
+                progressMessage.textContent = data.message || 'Your file is being prepared.';
+            };
 
             const checkExportStatus = (type) => {
                 const statusKey = `${type}ExportStatus`;
 
                 if (localStorage.getItem(statusKey) === "pending") {
-                    preloader.style.display = 'block'; // show dot
+                    window.showExportProgress(type);
                     fetch(`/${type}/export/status`)
                         .then(res => res.json())
                         .then(data => {
+                            window.showExportProgress(type, data);
+
                             if (data.status === "ready") {
                                 localStorage.removeItem(statusKey); // clear the flag
                                 preloader.style.display = 'none'; // hide dot
+                                if (type === 'order') {
+                                    const exportButton = document.getElementById('export-order-btn');
+                                    if (exportButton) exportButton.style.display = '';
+                                }
 
                                 Swal.fire({
                                     title: `${type.charAt(0).toUpperCase() + type.slice(1)} Export Ready!`,
@@ -593,7 +618,18 @@
                                         window.location.href = data.url;
                                     }
                                 });
+                            } else if (data.status === "failed") {
+                                localStorage.removeItem(statusKey);
+                                preloader.style.display = 'none';
+                                if (type === 'order') {
+                                    const exportButton = document.getElementById('export-order-btn');
+                                    if (exportButton) exportButton.style.display = '';
+                                }
+                                Swal.fire('Export Failed', data.message || 'Please try again.', 'error');
                             }
+                        })
+                        .catch(() => {
+                            progressMessage.textContent = 'Waiting for export status...';
                         });
                 }
             };
@@ -601,7 +637,7 @@
             setInterval(() => {
                 checkExportStatus('lead');
                 checkExportStatus('order');
-            }, 5000);
+            }, 1000);
         });
     </script>
 

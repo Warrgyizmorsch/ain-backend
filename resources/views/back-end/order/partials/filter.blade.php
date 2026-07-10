@@ -986,7 +986,15 @@ resetFilters();
                     module_code: $('#module_code').val() || "",
                     paper_type: $('#paper_type').val() || "",
                     semester: $('#semester').val() || "",
-                    month: $('#month').val() || ""
+                    month: $('#month').val() || "",
+                    payment: $('#payment').val() || "",
+                    deadline_status: $('#deadline_status').val() || "",
+                    team_id: $('#filter_team_id').val() || "",
+                    offer: $('#offer').val() || "",
+                    duec: $('#duec').val() || "",
+                    today_deadline_filter: $('#today_deadline_filter').val() || "",
+                    yesterday_deadline_filter: $('#yesterday_deadline_filter').val() || "",
+                    today_writer_deadline_filter: $('#today_writer_deadline_filter').val() || ""
                 };
 
                 if (result.isConfirmed) {
@@ -1053,20 +1061,21 @@ resetFilters();
                         },
                         body: JSON.stringify(payload),
                     })
-                    .then(res => res.json())
-                    .then(() => {
+                    .then(async res => {
+                        const data = await res.json().catch(() => ({}));
+                        if (!res.ok) throw new Error(data.message || 'Export could not be started.');
+                        return data;
+                    })
+                    .then((data) => {
                         localStorage.setItem("orderExportStatus", "pending");
-                        Swal.fire({
-                            title: 'Export started!',
-                            text: 'Your file will be ready shortly.',
-                            icon: 'info',
-                            timer: 2000,
-                            showConfirmButton: false
-                        });
+                        if (window.showExportProgress) {
+                            window.showExportProgress('order', data);
+                        }
                     })
                     .catch(error => {
                         console.error("Export Error: ", error);
-                        $('#export-order-btn').show(); // Error aane pe wapas button dikha do
+                        $('#export-order-btn').show();
+                        Swal.fire('Export Failed', error.message || 'Please try again.', 'error');
                     });
             }
         });

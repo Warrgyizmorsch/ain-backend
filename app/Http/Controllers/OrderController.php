@@ -188,33 +188,85 @@ class OrderController extends Controller
     public function export(Request $request)
     {
         $filters = $request->all();
-        $timestamp = now()->format('YmdHis');
-        $filename = 'exports/orders_export_' . $timestamp . '.xlsx';
-
         $userId = auth()->id();
+        $exportId = (string) Str::uuid();
+        $filename = 'exports/orders_export_' . $userId . '_' . now()->format('YmdHis') . '.xlsx';
+        $statusKey = 'order_export_status_' . $userId;
 
-        ExportOrdersJob::dispatch($filters, $filename, $userId);
+        Cache::put($statusKey, [
+            'export_id' => $exportId,
+            'status' => 'queued',
+            'progress' => 0,
+            'message' => 'Export queued...',
+        ], now()->addMinutes(30));
+
+        // Run after the HTTP response on the sync connection, so export works
+        // even when a separate queue worker is unavailable.
+        ExportOrdersJob::dispatch($filters, $filename, $userId, $exportId)
+            ->onConnection('sync')
+            ->afterResponse();
 
         return response()->json([
             'status' => 'queued',
+            'export_id' => $exportId,
+            'progress' => 0,
             'message' => 'Export started. It will be available shortly.',
         ]);
     }
 
     public function exportStatus()
     {
-        $filePath = Cache::get('order_export_' . auth()->id());
+        $userId = auth()->id();
+        $exportStatus = Cache::get('order_export_status_' . $userId);
 
-        if ($filePath && Storage::disk('public')->exists($filePath)) {
-            // Clear the cache so that next export will be generated fresh  
-            Cache::forget('order_export_' . auth()->id());
+        if (!$exportStatus) {
             return response()->json([
-                'status' => 'ready',
-                'url' => asset('storage/app/public/' . $filePath),
+                'status' => 'idle',
+                'progress' => 0,
             ]);
         }
 
-        return response()->json(['status' => 'pending']);
+        if (($exportStatus['status'] ?? null) === 'ready') {
+            $filePath = $exportStatus['file_path'] ?? null;
+            if (!$filePath || !Storage::disk('public')->exists($filePath)) {
+                return response()->json([
+                    'status' => 'failed',
+                    'progress' => 0,
+                    'message' => 'Export file is no longer available. Please export again.',
+                ]);
+            }
+
+            // Use an authenticated application route instead of the public
+            // storage URL. This avoids APP_URL/base-path and symlink 404s.
+            $exportStatus['url'] = route('order.export.download', [
+                'exportId' => $exportStatus['export_id'],
+            ], false);
+        }
+
+        return response()->json($exportStatus);
+    }
+
+    public function downloadExport(string $exportId)
+    {
+        $userId = auth()->id();
+        $exportStatus = Cache::get('order_export_status_' . $userId);
+
+        abort_unless(
+            $exportStatus
+            && ($exportStatus['status'] ?? null) === 'ready'
+            && hash_equals((string) ($exportStatus['export_id'] ?? ''), $exportId),
+            404,
+            'Export not found or expired.'
+        );
+
+        $filePath = $exportStatus['file_path'] ?? null;
+        abort_unless($filePath && Storage::disk('public')->exists($filePath), 404, 'Export file has expired.');
+
+        return Storage::disk('public')->download(
+            $filePath,
+            basename($filePath),
+            ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']
+        );
     }
 
     public function index(Request $request)
