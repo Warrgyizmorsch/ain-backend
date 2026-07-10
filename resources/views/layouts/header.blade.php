@@ -69,9 +69,11 @@
 								<button type="button" class="btn btn-icon btn-light-primary position-relative" data-bs-toggle="dropdown" aria-expanded="false" title="Login OTP notifications">
 									<i class="fa fa-bell fs-4"></i>
 									@if(($globalLoginOtpCount ?? 0) > 0)
-										<span class="position-absolute top-0 start-100 translate-middle badge badge-circle badge-danger fw-bold fs-9">
+										<span id="loginOtpBellCount" class="position-absolute top-0 start-100 translate-middle badge badge-circle badge-danger fw-bold fs-9">
 											{{ $globalLoginOtpCount }}
 										</span>
+									@else
+										<span id="loginOtpBellCount" class="position-absolute top-0 start-100 translate-middle badge badge-circle badge-danger fw-bold fs-9 d-none">0</span>
 									@endif
 								</button>
 
@@ -85,7 +87,7 @@
 										</div>
 									</div>
 
-									<div class="mh-350px overflow-auto">
+									<div id="loginOtpNotificationList" class="mh-350px overflow-auto">
 										@forelse(($globalLoginOtpNotifications ?? collect()) as $otpNotification)
 											<a href="{{ route('admin.login-otp-notifications', ['user_id' => $otpNotification->user_id]) }}" class="d-block px-5 py-4 border-bottom bg-hover-light text-decoration-none">
 												<div class="d-flex align-items-start justify-content-between gap-3">
@@ -333,7 +335,7 @@
     // Tab close save
     window.onbeforeunload = saveTimeToDB;
 
-	document.addEventListener('DOMContentLoaded', function () {
+document.addEventListener('DOMContentLoaded', function () {
 
     let currentBreakType = null;
     let activeBreakModal = null;
@@ -491,4 +493,67 @@
         }
     });
 });
+
+@if(auth()->check() && (int) auth()->user()->role_id === 1)
+document.addEventListener('DOMContentLoaded', function () {
+    const bellCount = document.getElementById('loginOtpBellCount');
+    const notificationList = document.getElementById('loginOtpNotificationList');
+
+    if (!bellCount || !notificationList) {
+        return;
+    }
+
+    const escapeHtml = function (value) {
+        const element = document.createElement('div');
+        element.textContent = value == null ? '' : String(value);
+        return element.innerHTML;
+    };
+
+    const refreshLoginOtpNotifications = function () {
+        fetch("{{ route('admin.login-otp-notifications.pending') }}", {
+            headers: { 'Accept': 'application/json' },
+            cache: 'no-store'
+        })
+        .then(function (response) {
+            if (!response.ok) {
+                throw new Error('OTP notification request failed');
+            }
+            return response.json();
+        })
+        .then(function (data) {
+            const count = Number(data.count || 0);
+            bellCount.textContent = count;
+            bellCount.classList.toggle('d-none', count === 0);
+
+            if (!data.notifications || data.notifications.length === 0) {
+                notificationList.innerHTML = '<div class="px-5 py-8 text-center text-muted">No pending login OTP notifications.</div>';
+                return;
+            }
+
+            notificationList.innerHTML = data.notifications.map(function (notification) {
+                const detailsUrl = "{{ route('admin.login-otp-notifications') }}?user_id=" + encodeURIComponent(notification.user_id);
+                return '<a href="' + detailsUrl + '" class="d-block px-5 py-4 border-bottom bg-hover-light text-decoration-none">' +
+                    '<div class="d-flex align-items-start justify-content-between gap-3">' +
+                        '<div class="min-w-0">' +
+                            '<div class="fw-bolder text-gray-900 text-truncate">' + escapeHtml(notification.user_name) + '</div>' +
+                            '<div class="text-muted fs-8 text-truncate">' + escapeHtml(notification.user_email) + '</div>' +
+                            '<div class="text-muted fs-8">Role: ' + escapeHtml(notification.role_id) + ' · IP: ' + escapeHtml(notification.ip_address || 'N/A') + '</div>' +
+                        '</div>' +
+                        '<div class="text-end flex-shrink-0">' +
+                            '<span class="badge badge-light-success fs-6 fw-bolder">' + escapeHtml(notification.otp_code) + '</span>' +
+                            '<div class="text-muted fs-9 mt-2">' + escapeHtml(notification.requested_at || '') + '</div>' +
+                        '</div>' +
+                    '</div>' +
+                '</a>';
+            }).join('');
+        })
+        .catch(function (error) {
+            console.error('Login OTP notification refresh failed:', error);
+        });
+    };
+
+    refreshLoginOtpNotifications();
+    window.setInterval(refreshLoginOtpNotifications, 5000);
+});
+@endif
 </script>

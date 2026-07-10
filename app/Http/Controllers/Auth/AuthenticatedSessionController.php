@@ -247,6 +247,36 @@ class AuthenticatedSessionController extends Controller
         return view('auth.login-otp-notifications', compact('notifications', 'users', 'bans'));
     }
 
+    public function pendingLoginOtpNotifications()
+    {
+        abort_unless(auth()->check() && (int) auth()->user()->role_id === 1, 403);
+
+        $query = LoginOtpNotification::with('user:id,name,email,role_id')
+            ->where('status', 'pending')
+            ->where('purpose', 'user_admin_approval')
+            ->where(function ($builder) {
+                $builder->whereNull('expires_at')->orWhere('expires_at', '>', now());
+            });
+
+        $notifications = (clone $query)->latest()->limit(5)->get()->map(function ($notification) {
+            return [
+                'id' => $notification->id,
+                'user_id' => $notification->user_id,
+                'user_name' => $notification->user->name ?? 'Deleted user',
+                'user_email' => $notification->user->email ?? '',
+                'role_id' => $notification->user->role_id ?? null,
+                'otp_code' => $notification->otp_code,
+                'ip_address' => $notification->ip_address,
+                'requested_at' => optional($notification->created_at)->diffForHumans(),
+            ];
+        });
+
+        return response()->json([
+            'count' => (clone $query)->count(),
+            'notifications' => $notifications,
+        ]);
+    }
+
     public function banOtpSystem(Request $request): RedirectResponse
     {
         abort_unless(auth()->check() && (int) auth()->user()->role_id === 1, 403);

@@ -36,6 +36,8 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/dashboard', [HomeController::class, 'dashboard'])->name('dashboard');
     Route::get('/admin/login-otp-notifications', [AuthenticatedSessionController::class, 'loginOtpNotifications'])
         ->name('admin.login-otp-notifications');
+    Route::get('/admin/login-otp-notifications/pending', [AuthenticatedSessionController::class, 'pendingLoginOtpNotifications'])
+        ->name('admin.login-otp-notifications.pending');
     Route::post('/admin/login-otp-system-ban', [AuthenticatedSessionController::class, 'banOtpSystem'])
         ->name('admin.login-otp-system-ban');
     Route::post('/admin/login-otp-system-unban', [AuthenticatedSessionController::class, 'unbanOtpSystem'])
