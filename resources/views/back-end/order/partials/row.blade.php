@@ -2,26 +2,12 @@
     $orderIdStyle = "";
     $isFrontendOrder = optional($order->lead)->frontendorder == '1'
         || optional($order->frontendLead)->frontendorder == '1';
-    $firstFailedOrderAt = $order->first_failed_order_at ?? null;
-    $orderCreatedAt = $order->order_date ?? $order->created_at ?? null;
-
-    if ($order->is_fail == 1) {
+    if ($order->failed_followup_highlight ?? false) {
         $orderIdStyle = "
             background-color: #ffeaea !important;
             color: #b50000 !important;
             border: 2px solid #ff0000 !important;
         ";
-    } elseif ($firstFailedOrderAt && $orderCreatedAt) {
-        $failedAt = \Carbon\Carbon::parse($firstFailedOrderAt);
-        $createdAt = \Carbon\Carbon::parse($orderCreatedAt);
-
-        if ($createdAt->gt($failedAt)) {
-            $orderIdStyle = "
-                background-color: #ffeaea !important;
-                color: #b50000 !important;
-                border: 2px solid #ff0000 !important;
-            ";
-        }
     } elseif (optional($order->user)->feedback_issue == 1) {
         $orderIdStyle = "color: blue;";
     }

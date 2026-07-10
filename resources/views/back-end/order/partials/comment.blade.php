@@ -17,6 +17,9 @@
                             class="badge bg-white text-danger {{ $order->feedback_ticket ? '' : 'd-none' }}">
                             {{ $order->feedback_ticket ?: '' }}
                         </span>
+                        @if((int) $order->is_fail === 1)
+                            <span class="badge bg-danger text-white">Failed Order</span>
+                        @endif
                     </div>
                 </div>
             </div>

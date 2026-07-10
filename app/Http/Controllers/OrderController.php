@@ -147,14 +147,35 @@ class OrderController extends Controller
             return;
         }
 
-        $firstFailedOrderDates = Order::whereIn('uid', $userIds)
-            ->where('is_fail', 1)
-            ->selectRaw('uid, MIN(COALESCE(order_date, created_at, failed_at)) as first_failed_at')
-            ->groupBy('uid')
-            ->pluck('first_failed_at', 'uid');
+        // A failed order highlights itself and only the next five orders from
+        // the same user. A later failed order starts a fresh five-order window.
+        $highlightedOrderIds = collect();
+        $orderHistory = Order::whereIn('uid', $userIds)
+            ->select('id', 'uid', 'is_fail')
+            ->orderBy('uid')
+            ->orderBy('id')
+            ->get()
+            ->groupBy('uid');
+
+        foreach ($orderHistory as $userOrders) {
+            $remainingHighlights = 0;
+
+            foreach ($userOrders as $historyOrder) {
+                if ((int) $historyOrder->is_fail === 1) {
+                    $highlightedOrderIds->put($historyOrder->id, true);
+                    $remainingHighlights = 5;
+                    continue;
+                }
+
+                if ($remainingHighlights > 0) {
+                    $highlightedOrderIds->put($historyOrder->id, true);
+                    $remainingHighlights--;
+                }
+            }
+        }
 
         foreach ($orders as $order) {
-            $order->setAttribute('first_failed_order_at', $firstFailedOrderDates[$order->uid] ?? null);
+            $order->setAttribute('failed_followup_highlight', $highlightedOrderIds->has($order->id));
         }
     }
 
