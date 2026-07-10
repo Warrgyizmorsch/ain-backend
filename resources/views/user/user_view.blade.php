@@ -1,12 +1,17 @@
 @extends('layouts.app')
 @section('content')
 <style>
-    .shadow-sm {
-    display: none;
-}
-.text-gray-700 {
-    margin-top: revert;
-}
+    .user-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+    .user-tab { border: 1px solid #e4e6ef; border-radius: 12px; padding: 18px; color: #5e6278; background: #fff; transition: .2s ease; }
+    .user-tab:hover { border-color: #b5b5c3; transform: translateY(-1px); }
+    .user-tab.active { color: #fff; border-color: #009ef7; background: linear-gradient(135deg, #009ef7, #006ae6); box-shadow: 0 8px 22px rgba(0, 158, 247, .22); }
+    .user-tab.confirmed.active { border-color: #50cd89; background: linear-gradient(135deg, #50cd89, #20a86b); box-shadow: 0 8px 22px rgba(80, 205, 137, .22); }
+    .user-tab.not-confirmed.active { border-color: #f1a208; background: linear-gradient(135deg, #ffc700, #e89600); box-shadow: 0 8px 22px rgba(255, 199, 0, .22); }
+    .user-tab .tab-count { font-size: 24px; font-weight: 700; line-height: 1; }
+    .user-tab .tab-label { font-weight: 700; margin-top: 8px; }
+    .user-tab .tab-note { font-size: 12px; margin-top: 4px; opacity: .78; }
+    .user-list-table tbody tr:hover { background: #f9fbfd; }
+    @media (max-width: 767.98px) { .user-tabs { grid-template-columns: 1fr; } }
 </style>
     <div class="content d-flex flex-column flex-column-fluid" id="kt_content">
         <div id="kt_content_container" class="container-xxl">
@@ -129,43 +134,42 @@
                     <div class="card card-xl-stretch mb-5 mb-xl-8">
                         <div class="card-header border-0 pt-5">
                             <h3 class="card-title align-items-start flex-column">
-                                <span class="card-label fw-bolder fs-3 mb-1">All User</span>
-                                <span class="text-muted mt-1 fw-bold fs-7"></span>
+                            <span class="card-label fw-bolder fs-3 mb-1">User Management</span>
+                            <span class="text-muted mt-1 fw-bold fs-7">Manage lead conversion and customer status in one place</span>
                             </h3>
                             <a onclick="exportUsers()" style="height: fit-content;" class="btn btn-sm btn-danger">Export</a>
                         </div>
 
-                        <!-- YAHAN TABS ADD KIYE GAYE HAIN -->
-                        {{-- <div class="card-header pt-7 pb-0 border-0">
-                            <div class="d-flex align-items-center">
-                                <a href="{{ request()->fullUrlWithQuery(['tab' => 'all']) }}" class="text-decoration-none me-6 {{ isset($tab) && $tab == 'all' ? 'text-primary fw-bolder' : 'text-muted fw-bold text-hover-primary' }} fs-5">
-                                    All <span class="badge badge-light-primary fw-bolder ms-1">{{ $countAll ?? 0 }}</span>
+                        <div class="card-body pb-0 pt-4">
+                            <div class="user-tabs">
+                                <a href="{{ request()->fullUrlWithQuery(['tab' => 'all', 'page' => null]) }}" class="user-tab text-decoration-none {{ $tab === 'all' ? 'active' : '' }}">
+                                    <div class="tab-count">{{ number_format($countAll ?? 0) }}</div>
+                                    <div class="tab-label"><i class="fa fa-users me-2"></i>All Customers</div>
+                                    <div class="tab-note">Customers with a lead or an order</div>
                                 </a>
-                                
-                                <a href="{{ request()->fullUrlWithQuery(['tab' => 'new']) }}" class="text-decoration-none me-6 {{ isset($tab) && $tab == 'new' ? 'text-primary fw-bolder' : 'text-muted fw-bold text-hover-primary' }} fs-5">
-                                    New <span class="badge badge-light-primary fw-bolder ms-1">{{ $countNew ?? 0 }}</span>
+                                <a href="{{ request()->fullUrlWithQuery(['tab' => 'confirmed', 'page' => null]) }}" class="user-tab confirmed text-decoration-none {{ $tab === 'confirmed' ? 'active' : '' }}">
+                                    <div class="tab-count">{{ number_format($countConfirmed ?? 0) }}</div>
+                                    <div class="tab-label"><i class="fa fa-check-circle me-2"></i>Confirmed Users</div>
+                                    <div class="tab-note">Customers who have placed at least one order</div>
                                 </a>
-                                
-                                <a href="{{ request()->fullUrlWithQuery(['tab' => 'retained']) }}" class="text-decoration-none me-6 {{ isset($tab) && $tab == 'retained' ? 'text-primary fw-bolder' : 'text-muted fw-bold text-hover-primary' }} fs-5">
-                                    Retained <span class="badge badge-light-primary fw-bolder ms-1">{{ $countRetained ?? 0 }}</span>
-                                </a>
-
-                                <a href="{{ request()->fullUrlWithQuery(['tab' => 'loyal']) }}" class="text-decoration-none me-6 {{ isset($tab) && $tab == 'loyal' ? 'text-primary fw-bolder' : 'text-muted fw-bold text-hover-primary' }} fs-5">
-                                    Loyal Customers <span class="badge badge-light-success fw-bolder ms-1">{{ $countLoyal ?? 0 }}</span>
+                                <a href="{{ request()->fullUrlWithQuery(['tab' => 'not_confirmed', 'page' => null]) }}" class="user-tab not-confirmed text-decoration-none {{ $tab === 'not_confirmed' ? 'active' : '' }}">
+                                    <div class="tab-count">{{ number_format($countNotConfirmed ?? 0) }}</div>
+                                    <div class="tab-label"><i class="fa fa-user-clock me-2"></i>Not Confirmed</div>
+                                    <div class="tab-note">Lead created, but no order has been placed</div>
                                 </a>
                             </div>
-                        </div> --}}
-                        <!-- TABS END -->
+                        </div>
 
                         <div class="card-body py-3">
                             <div class="table-responsive">
-                                <table class="table table-row-dashed table-row-gray-300 align-middle gs-0 gy-4">
+                                <table class="table user-list-table table-row-dashed table-row-gray-300 align-middle gs-0 gy-4">
                                     <thead>
                                         <tr class="fw-bolder text-muted">
                                             
                                             <th class="min-w-150px">User</th>
                                             <th class="min-w-140px">Contact</th>
-                                            <th class="min-w-140px">role</th>
+                                            <th class="min-w-140px">Conversion</th>
+                                            <th class="min-w-140px">Role</th>
                                             <th class="min-w-120px">Join Date</th>
                                             <th class="min-w-120px">Order Count<br>(Last 1.5 Years)</th>
                                             <th class="min-w-120px">Follow-ups<br>(Last 1 Year)</th>
@@ -189,7 +193,7 @@
                                                         <span class="text-muted fs-7">
                                                             <i class="fa fa-globe text-info"></i>
                                                             @php
-                                                                $cleanCode = ltrim($user->countrycode, '+');
+                                                                $cleanCode = ltrim((string) $user->countrycode, '+');
                                                             @endphp
                                                             {{ $codeToCountry[$cleanCode] ?? 'Unknown' }}
                                                         </span>
@@ -211,6 +215,18 @@
                                             <td>
                                                 <a href="#" class="text-dark fw-bolder text-hover-primary d-block fs-6">@if($user->countrycode)+{{$user->countrycode}} @endif {{$user->mobile_no}}</a>
                                                 <span class="text-muted fw-bold text-muted d-block fs-7">{{$user->email}}</span>
+                                            </td>
+                                            <td>
+                                                @if(($user->total_orders_count ?? 0) > 0)
+                                                    <span class="badge badge-light-success fw-bolder">Confirmed</span>
+                                                    <span class="text-muted d-block fs-8 mt-1">{{ $user->total_orders_count }} total order(s)</span>
+                                                @elseif(($user->leads_count ?? 0) > 0)
+                                                    <span class="badge badge-light-warning fw-bolder">Not Confirmed</span>
+                                                    <span class="text-muted d-block fs-8 mt-1">{{ $user->leads_count }} lead(s), no order</span>
+                                                @else
+                                                    <span class="badge badge-light-secondary fw-bolder">No Activity</span>
+                                                    <span class="text-muted d-block fs-8 mt-1">No lead or order</span>
+                                                @endif
                                             </td>
                                             <td class="text-end">
                                                 <div class="d-flex flex-column w-100 me-2">
@@ -281,6 +297,15 @@
                                             </td>
                                         </tr>
                                         @endforeach
+                                        @if($data['users']->isEmpty())
+                                            <tr>
+                                                <td colspan="8" class="text-center py-10">
+                                                    <i class="fa fa-search fs-2x text-muted mb-3"></i>
+                                                    <div class="fw-bolder text-gray-700 fs-5">No users found</div>
+                                                    <div class="text-muted fs-7">Try changing the filters and search again.</div>
+                                                </td>
+                                            </tr>
+                                        @endif
                                     </tbody>
                                 </table>
                                 {{ $data['users']->appends(request()->except('page'))->links() }}

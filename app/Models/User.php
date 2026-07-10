@@ -72,6 +72,11 @@ class User extends Authenticatable
         return $this->hasMany(Order::class, 'uid', 'id');
     }
 
+    public function leads()
+    {
+        return $this->hasMany(Leads::class, 'emp_id', 'id');
+    }
+
     public function followups()
     {
         // Yahan 'Followup::class' ko apne actual follow-up model se replace karein

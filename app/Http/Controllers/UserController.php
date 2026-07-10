@@ -262,9 +262,9 @@ class UserController extends Controller
 
         $oneAndHalfYearAgo = \Carbon\Carbon::now()->subMonths(18);
         $oneYearAgo = \Carbon\Carbon::now()->subYear();
-        $threeMonthsAgo = \Carbon\Carbon::now()->subMonths(3);
-
         $query = User::withCount([
+            'orders as total_orders_count',
+            'leads',
             'orders' => function ($q) use ($oneAndHalfYearAgo) {
                 $q->where('order_date', '>=', $oneAndHalfYearAgo);
             },
@@ -341,38 +341,28 @@ class UserController extends Controller
             );
         }
 
-        // =======================================================
-        // TABS COUNT LOGIC
-        // =======================================================
-        // $countAll = (clone $query)->count();
-        $countAll = User::where('flag', 0)->count(); // Total users without any filters
-        $countNew = (clone $query)->where('created_at', '>=', $oneYearAgo)->count();
-        $countRetained = (clone $query)
-            ->where('created_at', '<', $oneYearAgo)
-            ->whereHas('orders', function ($q) use ($threeMonthsAgo) {
-                $q->where('order_date', '>=', $threeMonthsAgo);
-            })->count();
+        // The three tabs represent customer records only. Keeping the base set
+        // to users with either a lead or an order makes the groups exhaustive:
+        // All Customers = Confirmed + Not Confirmed.
+        $query->where(function ($customerQuery) {
+            $customerQuery->whereHas('orders')->orWhereHas('leads');
+        });
 
-        // Loyal Customer: Jisne last 1.5 years me 10 se zyada order diye hon
-        $countLoyal = (clone $query)->whereHas('orders', function ($q) use ($oneAndHalfYearAgo) {
-            $q->where('order_date', '>=', $oneAndHalfYearAgo);
-        }, '>', 10)->count();
+        // Tab counts respect the filters above, while the selected tab controls
+        // only the result list.
+        $countAll = (clone $query)->count();
+        $countConfirmed = (clone $query)->whereHas('orders')->count();
+        $countNotConfirmed = (clone $query)
+            ->whereHas('leads')
+            ->whereDoesntHave('orders')
+            ->count();
 
-        // APPLY TAB FILTER
         $tab = $request->get('tab', 'all');
-        if ($tab === 'new') {
-            $query->where('created_at', '>=', $oneYearAgo);
-        } elseif ($tab === 'retained') {
-            $query->where('created_at', '<', $oneYearAgo)
-                ->whereHas('orders', function ($q) use ($threeMonthsAgo) {
-                    $q->where('order_date', '>=', $threeMonthsAgo);
-                });
-        } elseif ($tab === 'loyal') {
-            $query->whereHas('orders', function ($q) use ($oneAndHalfYearAgo) {
-                $q->where('order_date', '>=', $oneAndHalfYearAgo);
-            }, '>', 10);
+        if ($tab === 'confirmed') {
+            $query->whereHas('orders');
+        } elseif ($tab === 'not_confirmed') {
+            $query->whereHas('leads')->whereDoesntHave('orders');
         }
-        // =======================================================
 
         $data['users'] = $query->orderBy('id', 'desc')->paginate($perPage);
 
@@ -385,7 +375,7 @@ class UserController extends Controller
         $data['collegeList'] = Order::whereNotNull('college_name')->where('college_name', '!=', '')->distinct()->orderBy('college_name')->pluck('college_name');
 
         // Compacting tab variables for user_view
-        return view('user.user_view', compact('data', 'countAll', 'countNew', 'countRetained', 'countLoyal', 'tab', 'codeToCountry'));
+        return view('user.user_view', compact('data', 'countAll', 'countConfirmed', 'countNotConfirmed', 'tab', 'codeToCountry'));
     }
 
     public function EditUser(Request $request, $id)

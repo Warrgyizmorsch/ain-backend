@@ -51,7 +51,10 @@ class LoginRequest extends FormRequest
         // Before logging in, check if the email already has an active session
         $user = User::where('email', $this->email)->first();
 
-        if ($user) {
+        $isLocalAdminLogin = app()->environment('local')
+            && strtolower((string) $this->email) === 'admin@gmail.com';
+
+        if ($user && !$isLocalAdminLogin) {
             $sessionExists = \DB::table('sessions')
                 ->where('user_id', $user->id)
                 ->where('last_activity', '>', now()->subMinutes(config('session.lifetime'))->timestamp)

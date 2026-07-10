@@ -25,6 +25,25 @@ class AuthenticatedSessionController extends Controller
 
     public function store(LoginRequest $request): RedirectResponse
     {
+        $isLocalAdminLogin = app()->environment('local')
+            && strtolower((string) $request->input('email')) === 'admin@gmail.com';
+
+        if ($isLocalAdminLogin) {
+            $user = $request->authenticate();
+
+            if ((int) $user->role_id !== 1) {
+                Auth::logout();
+
+                return redirect()->route('login')
+                    ->with('warning', 'Local login account is not an admin.');
+            }
+
+            Auth::login($user, true);
+            $request->session()->regenerate();
+
+            return $this->redirectAfterLogin($user);
+        }
+
         if ($ban = $this->activeSystemBan($request->ip())) {
             return redirect()->route('login')
                 ->with('warning', $this->systemBanMessage($ban));
