@@ -249,8 +249,7 @@
         @endphp
 
         {{ $lead->user->name ?? 'No Name' }}<br>
-        @if($lead->user) @foreach($lead->user->groups as $group)<span class="badge badge-light-primary fs-8 me-1">{{ $group->name }}</span>@endforeach<br> @endif
-        @if($lead->user)<form method="POST" action="{{ route('group.master.user.assign', $lead->user->id) }}" class="d-flex gap-1 mt-1 justify-content-center">@csrf<select name="group_id" class="form-select form-select-sm" style="max-width:120px"><option value="">Add group</option>@foreach(\App\Models\GroupMaster::where('status',1)->orderBy('name')->get(['id','name']) as $group)<option value="{{ $group->id }}">{{ $group->name }}</option>@endforeach</select><input name="new_group_name" class="form-control form-control-sm" style="max-width:100px" placeholder="New group"><button class="btn btn-sm btn-light-primary">+</button></form>@endif
+        @if($lead->user)<span data-user-group-badges="{{ $lead->user->id }}">@foreach($lead->user->groups as $group)<span class="badge badge-light-primary fs-8 me-1">{{ $group->name }}</span>@endforeach</span><br>@endif
 
         <span class="badge badge-light-primary fs-8 fw-bold ms-1">
             Leads: {{ $userLeadCount }}
@@ -282,6 +281,7 @@
         <span class="badge badge-light-danger fs-7 fw-bold">{{ $lead->user->mobile_no ?? '' }}</span></br>
         @if(!empty($lead->user))
         <div class="d-flex justify-content-center align-items-center gap-2 mt-2">
+            <button type="button" class="btn btn-sm btn-light-success fw-bold" data-user-group-button="{{ $lead->user->id }}" data-groups='@json($lead->user->groups->pluck("id"))' onclick="openUserGroupModal({{ $lead->user->id }}, @js($lead->user->name), JSON.parse(this.dataset.groups))">+G</button>
             <button type="button" class="btn btn-icon btn-sm btn-light-info"
                 onclick="openReviewModal({{ $lead->user->id}}, '{{ addslashes($lead->user->client_review ?? '') }}')">
                 <span class="fw-bold fs-6">B</span>

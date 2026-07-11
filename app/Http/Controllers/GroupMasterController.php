@@ -60,11 +60,19 @@ class GroupMasterController extends Controller
     }
     public function assignUser(Request $request, User $user)
     {
-        $data = $request->validate(['group_id'=>['nullable','exists:group_masters,id'],'new_group_name'=>['nullable','string','max:255']]);
-        if (empty($data['group_id']) && empty($data['new_group_name'])) return response()->json(['message'=>'Select or create a group.'], 422);
-        $group = !empty($data['group_id']) ? GroupMaster::findOrFail($data['group_id']) : GroupMaster::firstOrCreate(['name'=>trim($data['new_group_name'])], ['status'=>1]);
-        $user->groups()->syncWithoutDetaching([$group->id]);
-        if (!$request->expectsJson()) return back()->with('success', 'User added to '.$group->name.'.');
-        return response()->json(['message'=>'User added to group.','group'=>$group]);
+        $data = $request->validate([
+            'group_id'=>['nullable','exists:group_masters,id'], 'group_ids'=>['nullable','array'],
+            'group_ids.*'=>['integer','exists:group_masters,id'], 'new_group_name'=>['nullable','string','max:255']
+        ]);
+        $groupIds = $data['group_ids'] ?? [];
+        if (!empty($data['group_id'])) $groupIds[] = (int) $data['group_id'];
+        if (!empty($data['new_group_name'])) {
+            $newGroup = GroupMaster::firstOrCreate(['name'=>trim($data['new_group_name'])], ['status'=>1]);
+            $groupIds[] = $newGroup->id;
+        }
+        $user->groups()->sync(array_values(array_unique($groupIds)));
+        $groups = $user->groups()->orderBy('name')->get(['group_masters.id','name']);
+        if (!$request->expectsJson()) return back()->with('success', 'User groups updated.');
+        return response()->json(['message'=>'User groups updated.','groups'=>$groups]);
     }
 }

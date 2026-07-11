@@ -96,7 +96,8 @@
             date_type: $('#date_type').val(),
             assign_type: String($('#assign_type').val() ?? ''),
             selectedValue: $('#selectedValue').val(),
-            lead_source: $('#lead_source').val()
+            lead_source: $('#lead_source').val(),
+            group_id: $('#lead_group_id').val()
 
         };
 
@@ -197,6 +198,7 @@
             $('#assign_type').val(filters.assign_type).trigger('change');
             $('#selectedValue').val(filters.selectedValue);
             $('#lead_source').val(filters.lead_source).trigger('change');
+            $('#lead_group_id').val(filters.group_id).trigger('change');
             setActiveLeadTab(filters.lead_status_tab || 'All');
             $('#load-more-wrapper').hide();
 

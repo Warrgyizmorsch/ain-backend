@@ -1,5 +1,6 @@
 @extends('layouts.app')
 @section('content')
+@include('back-end.group-master.user-modal')
 <style>
     .user-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
     .user-tab { border: 1px solid #e4e6ef; border-radius: 12px; padding: 18px; color: #5e6278; background: #fff; transition: .2s ease; }
@@ -218,7 +219,7 @@
                                                 <a href="#" class="text-dark fw-bolder text-hover-primary d-block fs-6">@if($user->countrycode)+{{$user->countrycode}} @endif {{$user->mobile_no}}</a>
                                                 <span class="text-muted fw-bold text-muted d-block fs-7">{{$user->email}}</span>
                                             </td>
-                                            <td>@forelse($user->groups as $group)<span class="badge badge-light-primary me-1 mb-1">{{ $group->name }}</span>@empty<span class="text-muted">-</span>@endforelse</td>
+                                            <td data-user-group-badges="{{ $user->id }}">@forelse($user->groups as $group)<span class="badge badge-light-primary me-1 mb-1">{{ $group->name }}</span>@empty<span class="text-muted">-</span>@endforelse</td>
                                             <td>
                                                 @if(($user->total_orders_count ?? 0) > 0)
                                                     <span class="badge badge-light-success fw-bolder">Confirmed</span>
@@ -273,6 +274,7 @@
                                             </td>
                                             <td>
                                                 <div class="d-flex justify-content-end flex-shrink-0">
+                                                    <button type="button" class="btn btn-sm btn-light-success fw-bold me-1" data-user-group-button="{{ $user->id }}" data-groups='@json($user->groups->pluck("id"))' onclick="openUserGroupModal({{ $user->id }}, @js($user->name), JSON.parse(this.dataset.groups))">+G</button>
                                                     <a  data-bs-toggle="modal" data-bs-target="#kt_modal_create_app{{$user->id}}"  href="#" class="btn btn-icon btn-bg-light btn-active-color-primary btn-sm me-1" >
                                                         <span class="svg-icon svg-icon-3">
                                                             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">

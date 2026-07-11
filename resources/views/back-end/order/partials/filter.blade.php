@@ -960,6 +960,7 @@ resetFilters();
 
             $('#search').val(filters.search);
             $('#selectedValue').val(filters.uid);
+            $('#group_id').val(filters.group_id || '').trigger('change');
             $('#status').val(filters.status).trigger('change');
             $('#writer').val(filters.writer).trigger('change');
             $('#date_status').val(filters.dateStatus).trigger('change');

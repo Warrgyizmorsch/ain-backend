@@ -1,6 +1,7 @@
 @extends('layouts.app')
 
 @section('content')
+@include('back-end.group-master.user-modal')
 
 <style>
     /* Red Blinking Animation */

@@ -1,6 +1,7 @@
 @extends('layouts.app')
 
 @section('content')
+@include('back-end.group-master.user-modal')
 <div class="margin-top-on-desktop" id="kt_content">
     <script>
         if (localStorage.getItem('lead_filters')) {
@@ -84,6 +85,7 @@
 
                         </select>
                     </div>
+                    <div class="col-md-3 mt-2"><select id="lead_group_id" class="form-select form-select-solid"><option value="">All User Groups</option>@foreach(\App\Models\GroupMaster::where('status',1)->orderBy('name')->get(['id','name']) as $group)<option value="{{ $group->id }}">{{ $group->name }}</option>@endforeach</select></div>
                     <div class="col-md-3 mt-2">
                         {{-- <a href="/ain-backend/lead" class="btn btn-sm btn-light">Clear Filters</a> --}}
                         <a href="{{ route('lead.index') }}" class="btn btn-sm btn-light" onclick="localStorage.removeItem('lead_filters')">
