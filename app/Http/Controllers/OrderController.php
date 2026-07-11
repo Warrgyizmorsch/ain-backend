@@ -3459,7 +3459,7 @@ class OrderController extends Controller
         return redirect()->back()->with('success', 'Payment details updated successfully');
     }
 
-    public function indexOrder()
+    public function indexOrder(Request $request)
     {
         $data = [
             'Team' => Writer::select('id', 'writer_name')->get(),
@@ -3475,6 +3475,8 @@ class OrderController extends Controller
         // Priority Logic: Due balance (Amount - Received) > 0 wale orders sabse upar
         $orders = Order::with($this->orderListRelations())
             ->where('uid', '!=', 0)
+            ->when($request->filled('uid'), fn ($query) => $query->where('uid', $request->uid))
+            ->when($request->filled('group_id'), fn ($query) => $query->whereHas('user.groups', fn ($groupQuery) => $groupQuery->where('group_masters.id', $request->group_id)))
             ->select($this->orderListColumns())
             ->selectRaw('(CAST(amount AS SIGNED) - CAST(received_amount AS SIGNED)) as due_balance')
             ->orderByRaw('due_balance > 0 DESC') // Pending payment pehle

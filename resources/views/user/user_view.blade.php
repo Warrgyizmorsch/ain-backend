@@ -273,7 +273,18 @@
                                                 <span class="badge badge-circle badge-info fw-bold">{{ $user->followups_count ?? 0 }}</span>
                                             </td>
                                             <td>
-                                                <div class="d-flex justify-content-end flex-shrink-0">
+                                                <div class="dropdown text-end">
+                                                    <button class="btn btn-sm btn-light-primary dropdown-toggle fw-bold" type="button" data-bs-toggle="dropdown">Actions</button>
+                                                    <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                                                        <li><a class="dropdown-item" href="{{ route('orders.index', ['uid' => $user->id]) }}"><i class="fa fa-shopping-cart me-2 text-primary"></i>Orders</a></li>
+                                                        <li><button type="button" class="dropdown-item" data-user-group-button="{{ $user->id }}" data-groups='@json($user->groups->pluck("id"))' onclick="openUserGroupModal({{ $user->id }}, @js($user->name), JSON.parse(this.dataset.groups))"><i class="fa fa-users me-2 text-success"></i>Groups</button></li>
+                                                        <li><a class="dropdown-item" href="{{ route('user.report', $user->id) }}"><i class="fa fa-eye me-2 text-info"></i>View Profile</a></li>
+                                                        <li><button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#kt_modal_create_app{{$user->id}}"><i class="fa fa-edit me-2 text-warning"></i>Edit User</button></li>
+                                                        <li><hr class="dropdown-divider"></li>
+                                                        <li><button type="button" class="dropdown-item text-danger" data-bs-toggle="modal" data-bs-target="#kt_modal_create_delete{{$user->id}}"><i class="fa fa-trash me-2"></i>Delete User</button></li>
+                                                    </ul>
+                                                </div>
+                                                <div class="d-none">
                                                     <button type="button" class="btn btn-sm btn-light-success fw-bold me-1" data-user-group-button="{{ $user->id }}" data-groups='@json($user->groups->pluck("id"))' onclick="openUserGroupModal({{ $user->id }}, @js($user->name), JSON.parse(this.dataset.groups))">+G</button>
                                                     <a  data-bs-toggle="modal" data-bs-target="#kt_modal_create_app{{$user->id}}"  href="#" class="btn btn-icon btn-bg-light btn-active-color-primary btn-sm me-1" >
                                                         <span class="svg-icon svg-icon-3">
