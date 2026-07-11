@@ -16,10 +16,7 @@
     <td class="text-center" style="padding-right: 0px;">{{ $index + 1 }}</td>
 
     <td class="text-center">
-        <div style="display: flex; justify-content: center; align-items: center; gap: 8px;">
-            @if($lead->user)
-                <button type="button" class="btn btn-sm btn-light-success fw-bold" title="Manage User Groups" data-user-group-button="{{ $lead->user->id }}" data-groups='@json($lead->user->groups->pluck("id"))' onclick="openUserGroupModal({{ $lead->user->id }}, @js($lead->user->name), JSON.parse(this.dataset.groups))">+G</button>
-            @endif
+        <div style="display:grid; grid-template-columns:repeat(4, max-content); justify-content:center; align-items:center; gap:8px;">
             @if($lead->flag == '1')
             <div class="form-check form-check-sm form-check-custom form-check-solid">
                 <input onchange="checkedLead(this, {{ $lead->id }})" class="form-check-input widget-13-check" type="checkbox"
@@ -30,6 +27,9 @@
                 <input onchange="checkedLead(this, {{ $lead->id }})" class="form-check-input widget-13-check" type="checkbox"
                     value="1">
             </div>
+            @endif
+            @if($lead->user)
+                <button type="button" class="btn btn-sm btn-light-success fw-bold" title="Manage User Groups" data-user-group-button="{{ $lead->user->id }}" data-groups='@json($lead->user->groups->pluck("id"))' onclick="openUserGroupModal({{ $lead->user->id }}, @js($lead->user->name), JSON.parse(this.dataset.groups))">+G</button>
             @endif
             <div class="form-check form-switch">
                 <input class="form-check-input" type="checkbox" id="{{ $lead->id }}" role="switch" checked
