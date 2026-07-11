@@ -30,6 +30,7 @@ use App\Http\Controllers\SubjectController;
 use App\Http\Controllers\ServicePageController;
 use App\Http\Controllers\SubjectPageController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
+use App\Http\Controllers\EnquiryController;
 
 Route::middleware(['auth'])->group(function () {
 
@@ -48,6 +49,7 @@ Route::post('/lead/export', [LeadsController::class, 'export'])->name('lead.expo
 
 Route::middleware(['auth'])->group(function () {
     Route::resource('subjects', SubjectController::class)->only(['index', 'store', 'update', 'destroy']);
+    Route::resource('enquiries', EnquiryController::class)->only(['index', 'destroy']);
     Route::get('service-pages/{servicePage}/preview', [ServicePageController::class, 'preview'])->name('service-pages.preview');
     Route::resource('service-pages', ServicePageController::class)->except(['show']);
     Route::get('subject-pages/{subjectPage}/preview', [SubjectPageController::class, 'preview'])->name('subject-pages.preview');
