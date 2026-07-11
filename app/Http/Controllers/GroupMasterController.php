@@ -9,9 +9,13 @@ use Illuminate\Validation\Rule;
 
 class GroupMasterController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $groups = GroupMaster::with('users:id,name,email,mobile_no')->withCount('users')->orderBy('id', 'desc')->get();
+        $groups = GroupMaster::query()
+            ->with(['users' => fn ($query) => $query->select('users.id','name','email','mobile_no')->withCount('orders')->orderBy('name')])
+            ->withCount('users')
+            ->when($request->filled('search'), fn ($query) => $query->where('name', 'like', '%'.$request->search.'%'))
+            ->orderByDesc('id')->paginate(9)->withQueryString();
         $users = User::where('flag', 0)->select('id','name','email','mobile_no')->orderBy('name')->get();
         return view('back-end.group-master.index', compact('groups', 'users'));
     }
