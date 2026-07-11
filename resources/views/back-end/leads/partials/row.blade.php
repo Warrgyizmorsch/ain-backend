@@ -249,6 +249,8 @@
         @endphp
 
         {{ $lead->user->name ?? 'No Name' }}<br>
+        @if($lead->user) @foreach($lead->user->groups as $group)<span class="badge badge-light-primary fs-8 me-1">{{ $group->name }}</span>@endforeach<br> @endif
+        @if($lead->user)<form method="POST" action="{{ route('group.master.user.assign', $lead->user->id) }}" class="d-flex gap-1 mt-1 justify-content-center">@csrf<select name="group_id" class="form-select form-select-sm" style="max-width:120px"><option value="">Add group</option>@foreach(\App\Models\GroupMaster::where('status',1)->orderBy('name')->get(['id','name']) as $group)<option value="{{ $group->id }}">{{ $group->name }}</option>@endforeach</select><input name="new_group_name" class="form-control form-control-sm" style="max-width:100px" placeholder="New group"><button class="btn btn-sm btn-light-primary">+</button></form>@endif
 
         <span class="badge badge-light-primary fs-8 fw-bold ms-1">
             Leads: {{ $userLeadCount }}

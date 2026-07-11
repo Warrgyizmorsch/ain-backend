@@ -60,6 +60,7 @@
                     <!-- Hidden field to store the selected value -->
                     <input type="hidden" id="selectedValue" name="uid">
                 </div>
+                <div class="col-md-3 fv-row"><select id="group_id" name="group_id" class="form-select form-select-solid" data-control="select2" data-placeholder="User Group"><option value="">All Groups</option>@foreach(\App\Models\GroupMaster::where('status',1)->orderBy('name')->get(['id','name']) as $group)<option value="{{ $group->id }}">{{ $group->name }}</option>@endforeach</select></div>
 
                 <script>
                     $(document).ready(function() {
@@ -503,7 +504,7 @@ disableScrollHandler();
 
 filters = {
 search: $('#search').val(),
-uid: $('#selectedValue').val(),
+uid: $('#selectedValue').val(), group_id: $('#group_id').val(),
 status: $('#status').val(),
 writer: $('#writer').val(),
 dateStatus: $('#date_status').val(),
@@ -809,7 +810,7 @@ resetFilters();
         // NAYA UPDATE YAHAN HAI: deadline_status add kar diya gaya hai
         filters = {
             search: $('#search').val(),
-            uid: $('#selectedValue').val(),
+            uid: $('#selectedValue').val(), group_id: $('#group_id').val(),
             status: $('#status').val(),
             writer: $('#writer').val(),
             dateStatus: $('#date_status').val(),
@@ -1018,7 +1019,7 @@ resetFilters();
                 // jQuery se smoothly values get karna
                 const filters = {
                     search: $('#search').val() || "",
-                    uid: $('#selectedValue').val() || "",
+                    uid: $('#selectedValue').val() || "", group_id: $('#group_id').val() || "",
                     status: $('#status').val() || "",
                     writer: $('#writer').val() || "",
                     dateStatus: $('#date_status').val() || "",

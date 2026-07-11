@@ -288,6 +288,8 @@
             </span>
             <span class="badge badge-light-danger fs-7 fw-bold">+{{ $order->user->countrycode }} {{ $order->user->mobile_no }}</span><br>
             <span class="fs-7 fw-bold">{{ $order->user->email }}</span><br>
+            @foreach($order->user->groups as $group)<span class="badge badge-light-primary fs-8 me-1">{{ $group->name }}</span>@endforeach
+            <form method="POST" action="{{ route('group.master.user.assign', $order->user->id) }}" class="d-flex gap-1 mt-1 justify-content-center">@csrf<select name="group_id" class="form-select form-select-sm" style="max-width:120px"><option value="">Add group</option>@foreach(\App\Models\GroupMaster::where('status',1)->orderBy('name')->get(['id','name']) as $group)<option value="{{ $group->id }}">{{ $group->name }}</option>@endforeach</select><input name="new_group_name" class="form-control form-control-sm" style="max-width:100px" placeholder="New group"><button class="btn btn-sm btn-light-primary">+</button></form>
 
             <div class="d-flex justify-content-center align-items-center gap-2 mt-2">
                 <button type="button" class="btn btn-icon btn-sm btn-light-info" title="Add Review" onclick="openReviewModal({{ $order->user->id }})">

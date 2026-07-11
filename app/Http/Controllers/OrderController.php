@@ -94,6 +94,7 @@ class OrderController extends Controller
         return [
             'user' => function ($q) {
                 $q->select('id', 'name', 'email', 'countrycode', 'mobile_no', 'is_fail', 'feedback_issue', 'client_review')
+                    ->with('groups:id,name')
                     ->withCount([
                         'orders as orders_count',
                         'orders as failed_orders_count' => function ($orderQuery) {
@@ -3676,6 +3677,7 @@ class OrderController extends Controller
 
         // Basic filters
         $query->when($request->filled('uid'), fn($q) => $q->where('uid', $request->uid));
+        $query->when($request->filled('group_id'), fn($q) => $q->whereHas('user.groups', fn($g) => $g->where('group_masters.id', $request->group_id)));
         $query->when($request->filled('semester'), fn($q) => $q->where('semester', $request->semester));
         $query->when($request->filled('status'), fn($q) => $q->where('projectstatus', $request->status));
         $query->when($request->filled('module_code'), fn($q) => $q->where('module_code', 'like', '%' . $request->module_code . '%'));

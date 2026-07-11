@@ -497,6 +497,7 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/group-master/store', [GroupMasterController::class, 'store'])->name('group.master.store');
         Route::post('/group-master/update/{id}', [GroupMasterController::class, 'update'])->name('group.master.update');
         Route::delete('/group-master/delete/{id}', [GroupMasterController::class, 'destroy'])->name('group.master.delete');
+        Route::post('/group-master/user/{user}/assign', [GroupMasterController::class, 'assignUser'])->name('group.master.user.assign');
         Route::get('/search-refer-users', [LeadsController::class, 'searchReferUsers'])->name('search.refer.users');
         Route::get('/refer-user-report', [UserController::class, 'referUserReport'])->name('refer.user.report');
         Route::get('/module-code-report', [OrderController::class, 'moduleCodeReport'])->name('module.code.report');

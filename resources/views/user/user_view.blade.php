@@ -108,6 +108,7 @@
         @endforeach
     </select>
 </div>
+                            <div class="col-lg-3 fv-row"><select name="group_id" class="form-select form-select-solid" data-control="select2" data-placeholder="Filter By Group"><option value="">All Groups</option>@foreach($data['groups'] as $group)<option value="{{ $group->id }}" {{ (string)request('group_id') === (string)$group->id ? 'selected' : '' }}>{{ $group->name }}</option>@endforeach</select></div>
                     
                             <!-- Search and Reset buttons -->
                             <div class="col-lg-3 fv-row fv-plugins-icon-container">
@@ -168,6 +169,7 @@
                                             
                                             <th class="min-w-150px">User</th>
                                             <th class="min-w-140px">Contact</th>
+                                            <th class="min-w-120px">Groups</th>
                                             <th class="min-w-140px">Conversion</th>
                                             <th class="min-w-140px">Role</th>
                                             <th class="min-w-120px">Join Date</th>
@@ -216,6 +218,7 @@
                                                 <a href="#" class="text-dark fw-bolder text-hover-primary d-block fs-6">@if($user->countrycode)+{{$user->countrycode}} @endif {{$user->mobile_no}}</a>
                                                 <span class="text-muted fw-bold text-muted d-block fs-7">{{$user->email}}</span>
                                             </td>
+                                            <td>@forelse($user->groups as $group)<span class="badge badge-light-primary me-1 mb-1">{{ $group->name }}</span>@empty<span class="text-muted">-</span>@endforelse</td>
                                             <td>
                                                 @if(($user->total_orders_count ?? 0) > 0)
                                                     <span class="badge badge-light-success fw-bolder">Confirmed</span>

@@ -11,6 +11,7 @@ use App\Models\Bank;
 use App\Models\LoginHistory;
 use App\Models\UserLog;
 use App\Models\Order;
+use App\Models\GroupMaster;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
 
@@ -183,6 +184,7 @@ class UserController extends Controller
         $countrycode = $request->input('countrycode');
         $orderFilter = $request->input('order_category');
         $collegeName = $request->input('college_name');
+        $groupId = $request->input('group_id');
         $perPage = 10;
 
         // 1. MASTER LIST (Duniya ki sari badi countries)
@@ -262,7 +264,7 @@ class UserController extends Controller
 
         $oneAndHalfYearAgo = \Carbon\Carbon::now()->subMonths(18);
         $oneYearAgo = \Carbon\Carbon::now()->subYear();
-        $query = User::withCount([
+        $query = User::with('groups:id,name')->withCount([
             'orders as total_orders_count',
             'leads',
             'orders' => function ($q) use ($oneAndHalfYearAgo) {
@@ -285,6 +287,9 @@ class UserController extends Controller
         }
         if ($roleId) {
             $query->where('role_id', $roleId);
+        }
+        if ($groupId) {
+            $query->whereHas('groups', fn ($q) => $q->where('group_masters.id', $groupId));
         }
 
         // ==========================================
@@ -375,6 +380,7 @@ class UserController extends Controller
         $data['bank'] = Bank::all();
         $data['countryList'] = array_keys($globalCountries);
         $data['collegeList'] = Order::whereNotNull('college_name')->where('college_name', '!=', '')->distinct()->orderBy('college_name')->pluck('college_name');
+        $data['groups'] = GroupMaster::where('status', 1)->orderBy('name')->get(['id','name']);
 
         // Compacting tab variables for user_view
         return view('user.user_view', compact('data', 'countAll', 'countConfirmed', 'countNotConfirmed', 'tab', 'codeToCountry'));

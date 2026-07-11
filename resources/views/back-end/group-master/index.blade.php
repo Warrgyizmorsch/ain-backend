@@ -28,6 +28,7 @@
                     <th>Sr.</th>
                     <th>Group Name</th>
                     <th>Description</th>
+                    <th>Users</th>
                     <th>Status</th>
                     <th width="150">Action</th>
                 </tr>
@@ -39,6 +40,7 @@
                         <td>{{ $index + 1 }}</td>
                         <td>{{ $group->name }}</td>
                         <td>{{ $group->description ?? '-' }}</td>
+                        <td><span class="badge badge-light-primary">{{ $group->users_count }}</span> {{ $group->users->pluck('name')->join(', ') ?: '-' }}</td>
                         <td>
                             @if($group->status == 1)
                                 <span class="badge badge-light-success">Active</span>
@@ -90,6 +92,7 @@
                                                 <option value="0" {{ $group->status == 0 ? 'selected' : '' }}>Inactive</option>
                                             </select>
                                         </div>
+                                        <div class="mb-3"><label>Group Users</label><select name="user_ids[]" class="form-select" data-control="select2" multiple data-placeholder="Select users">@foreach($users as $user)<option value="{{ $user->id }}" {{ $group->users->contains('id', $user->id) ? 'selected' : '' }}>{{ $user->name }} — {{ $user->email ?: $user->mobile_no }}</option>@endforeach</select></div>
                                     </div>
 
                                     <div class="modal-footer">
@@ -193,6 +196,7 @@
                             <option value="0">Inactive</option>
                         </select>
                     </div>
+                    <div class="mb-3"><label>Group Users</label><select name="user_ids[]" class="form-select" data-control="select2" multiple data-placeholder="Select users">@foreach($users as $user)<option value="{{ $user->id }}">{{ $user->name }} — {{ $user->email ?: $user->mobile_no }}</option>@endforeach</select></div>
                 </div>
 
                 <div class="modal-footer">

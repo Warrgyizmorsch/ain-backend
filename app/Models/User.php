@@ -76,6 +76,7 @@ class User extends Authenticatable
     {
         return $this->hasMany(Leads::class, 'emp_id', 'id');
     }
+    public function groups() { return $this->belongsToMany(GroupMaster::class)->withTimestamps(); }
 
     public function followups()
     {

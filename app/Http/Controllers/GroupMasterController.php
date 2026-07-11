@@ -4,27 +4,31 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\GroupMaster;
+use App\Models\User;
+use Illuminate\Validation\Rule;
 
 class GroupMasterController extends Controller
 {
     public function index()
     {
-        $groups = GroupMaster::orderBy('id', 'desc')->get();
-
-        return view('back-end.group-master.index', compact('groups'));
+        $groups = GroupMaster::with('users:id,name,email,mobile_no')->withCount('users')->orderBy('id', 'desc')->get();
+        $users = User::where('flag', 0)->select('id','name','email','mobile_no')->orderBy('name')->get();
+        return view('back-end.group-master.index', compact('groups', 'users'));
     }
 
     public function store(Request $request)
     {
         $request->validate([
-            'name' => 'required|string|max:255',
+            'name' => ['required','string','max:255','unique:group_masters,name'],
+            'user_ids' => ['nullable','array'], 'user_ids.*' => ['integer','exists:users,id'],
         ]);
 
-        GroupMaster::create([
+        $group = GroupMaster::create([
             'name' => $request->name,
             'description' => $request->description,
             'status' => $request->status ?? 1,
         ]);
+        $group->users()->sync($request->input('user_ids', []));
 
         return redirect()->back()->with('success', 'Group created successfully.');
     }
@@ -32,7 +36,8 @@ class GroupMasterController extends Controller
     public function update(Request $request, $id)
     {
         $request->validate([
-            'name' => 'required|string|max:255',
+            'name' => ['required','string','max:255',Rule::unique('group_masters','name')->ignore($id)],
+            'user_ids' => ['nullable','array'], 'user_ids.*' => ['integer','exists:users,id'],
         ]);
 
         $group = GroupMaster::findOrFail($id);
@@ -42,6 +47,7 @@ class GroupMasterController extends Controller
             'description' => $request->description,
             'status' => $request->status ?? 1,
         ]);
+        $group->users()->sync($request->input('user_ids', []));
 
         return redirect()->back()->with('success', 'Group updated successfully.');
     }
@@ -51,5 +57,14 @@ class GroupMasterController extends Controller
         GroupMaster::findOrFail($id)->delete();
 
         return redirect()->back()->with('success', 'Group deleted successfully.');
+    }
+    public function assignUser(Request $request, User $user)
+    {
+        $data = $request->validate(['group_id'=>['nullable','exists:group_masters,id'],'new_group_name'=>['nullable','string','max:255']]);
+        if (empty($data['group_id']) && empty($data['new_group_name'])) return response()->json(['message'=>'Select or create a group.'], 422);
+        $group = !empty($data['group_id']) ? GroupMaster::findOrFail($data['group_id']) : GroupMaster::firstOrCreate(['name'=>trim($data['new_group_name'])], ['status'=>1]);
+        $user->groups()->syncWithoutDetaching([$group->id]);
+        if (!$request->expectsJson()) return back()->with('success', 'User added to '.$group->name.'.');
+        return response()->json(['message'=>'User added to group.','group'=>$group]);
     }
 }

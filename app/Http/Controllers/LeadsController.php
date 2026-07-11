@@ -65,6 +65,7 @@ class LeadsController extends Controller
         return [
             'user' => function ($q) {
                 $q->select('id', 'name', 'mobile_no', 'client_review')
+                    ->with('groups:id,name')
                     ->withCount([
                         'orders as orders_count',
                         'orders as failed_orders_count' => function ($orderQuery) {
@@ -2108,6 +2109,9 @@ class LeadsController extends Controller
         // Filter by emp_id
         if ($request->filled('selectedValue')) {
             $query->where('emp_id', $request->input('selectedValue'));
+        }
+        if ($request->filled('group_id')) {
+            $query->whereHas('user.groups', fn($g) => $g->where('group_masters.id', $request->group_id));
         }
 
         // Filter by assign_type (0/1 both work)
