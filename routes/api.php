@@ -19,6 +19,7 @@ use App\Http\Controllers\Api\ReviewApiController;
 use App\Http\Controllers\Api\ExpertApiController;
 use App\Http\Controllers\Api\SubjectApiController;
 use App\Http\Controllers\Api\SubjectPageApiController;
+use App\Http\Controllers\Api\EnquiryApiController;
 
 
 
@@ -48,6 +49,7 @@ Route::prefix('public/leads')->group(function () {
 });
 Route::post('/submit-feedback', [FeedbackController::class, 'submitFeedback']);
 Route::post('/save-order', [OrderApiController::class, 'store']);
+Route::post('/submit-enquiry', [EnquiryApiController::class, 'store']);
 
 Route::middleware('api.key')->group(function () {
     Route::post('/web-place-order', [OrderApiController::class, 'webPlaceOrder']);

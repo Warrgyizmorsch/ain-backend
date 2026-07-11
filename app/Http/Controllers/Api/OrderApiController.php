@@ -859,7 +859,7 @@ class OrderApiController extends Controller
     public function submitMiniQuote(Request $request)
     {
         // Validation rules mapped to the fields in the 'new-hero-form' / frontend screenshot design:
-        // Name, Email, Country Code, Mobile, Project Type (service), Deadline, Word Count, and Description
+        // Name, Email, Country Code, Mobile, Project Type (service), Subject, Deadline, Word Count, and Description
         $request->validate([
             'name'           => 'required|string|max:255',
             'email'          => 'required|email|max:255',
@@ -867,6 +867,7 @@ class OrderApiController extends Controller
             'countryCode'    => 'required|string',
             'countryIso'     => 'nullable|string',
             'service'        => 'required|string',        // Project Type (service) -> mapped totypeofpaper
+            'subject'        => 'required|string|max:255', // Subject dropdown value -> mapped to project_title
             'deadline'       => 'required|string',        // Time Period (deadline/urgency)
             'wordCount'      => 'required|string',        // Word Count (number e.g. 250, 500, 1000) -> pages mapping
             'description'    => 'nullable|string',        // Nullable description/requirements
@@ -956,7 +957,7 @@ class OrderApiController extends Controller
             'countrycode'    => $cc,
             'mobile'         => $phoneDigits,
             'typeofpaper'    => $request->service,          // Project Type
-            'project_title'  => $request->service,          // Mapped service name to project title too
+            'project_title'  => $request->subject,          // Dynamic Subject
             'pages'          => $pagesCount,                // Calculated pages from wordCount
             'deadline'       => $deliveryDate->toDateString(),
             'delivery_time'  => $deliveryTimeStr,
@@ -970,7 +971,7 @@ class OrderApiController extends Controller
             'projectstatus' => 'Pending',
             'lead_id'       => $lead->id,
             'uid'           => $user->id,
-            'title'         => $request->service . ' - Quote Request',
+            'title'         => $request->subject . ' - ' . $request->service . ' - Quote Request',
         ]);
 
         return response()->json([
