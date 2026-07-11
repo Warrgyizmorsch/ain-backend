@@ -17,6 +17,9 @@
 
     <td class="text-center">
         <div style="display: flex; justify-content: center; align-items: center; gap: 8px;">
+            @if($lead->user)
+                <button type="button" class="btn btn-sm btn-light-success fw-bold" title="Manage User Groups" data-user-group-button="{{ $lead->user->id }}" data-groups='@json($lead->user->groups->pluck("id"))' onclick="openUserGroupModal({{ $lead->user->id }}, @js($lead->user->name), JSON.parse(this.dataset.groups))">+G</button>
+            @endif
             @if($lead->flag == '1')
             <div class="form-check form-check-sm form-check-custom form-check-solid">
                 <input onchange="checkedLead(this, {{ $lead->id }})" class="form-check-input widget-13-check" type="checkbox"
@@ -281,7 +284,6 @@
         <span class="badge badge-light-danger fs-7 fw-bold">{{ $lead->user->mobile_no ?? '' }}</span></br>
         @if(!empty($lead->user))
         <div class="d-flex justify-content-center align-items-center gap-2 mt-2">
-            <button type="button" class="btn btn-sm btn-light-success fw-bold" data-user-group-button="{{ $lead->user->id }}" data-groups='@json($lead->user->groups->pluck("id"))' onclick="openUserGroupModal({{ $lead->user->id }}, @js($lead->user->name), JSON.parse(this.dataset.groups))">+G</button>
             <button type="button" class="btn btn-icon btn-sm btn-light-info"
                 onclick="openReviewModal({{ $lead->user->id}}, '{{ addslashes($lead->user->client_review ?? '') }}')">
                 <span class="fw-bold fs-6">B</span>

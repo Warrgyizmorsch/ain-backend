@@ -26,6 +26,10 @@
         <td class="text-center" style="position: sticky; left: 0; background: white; z-index: 2;">
             <div style="display: flex; justify-content: center; align-items: center; gap: 8px;">
 
+                @if($order->user)
+                    <button type="button" class="btn btn-sm btn-light-success fw-bold" title="Manage User Groups" data-user-group-button="{{ $order->user->id }}" data-groups='@json($order->user->groups->pluck("id"))' onclick="openUserGroupModal({{ $order->user->id }}, @js($order->user->name), JSON.parse(this.dataset.groups))">+G</button>
+                @endif
+
                 <!-- Edit Order Button -->
                 <a target="_blank" style="background-color: #1e1e2d;" href="orders/edit/{{ $order->id }}" class="btn btn-icon btn-sm" title="Edit Order">
                     <i style="color: white;" class="fa fa-edit"></i>
@@ -291,7 +295,6 @@
             <span data-user-group-badges="{{ $order->user->id }}">@foreach($order->user->groups as $group)<span class="badge badge-light-primary fs-8 me-1">{{ $group->name }}</span>@endforeach</span>
 
             <div class="d-flex justify-content-center align-items-center gap-2 mt-2">
-                <button type="button" class="btn btn-sm btn-light-success fw-bold" data-user-group-button="{{ $order->user->id }}" data-groups='@json($order->user->groups->pluck("id"))' onclick="openUserGroupModal({{ $order->user->id }}, @js($order->user->name), JSON.parse(this.dataset.groups))">+G</button>
                 <button type="button" class="btn btn-icon btn-sm btn-light-info" title="Add Review" onclick="openReviewModal({{ $order->user->id }})">
                     <span class="fw-bold fs-6">B</span>
                 </button>
