@@ -27,7 +27,7 @@
             <div style="display:grid; grid-template-columns:repeat(4, max-content); justify-content:center; align-items:center; gap:8px;">
 
                 @if($order->user)
-                    <button type="button" class="btn btn-sm btn-light-success fw-bold" title="Manage User Groups" data-user-group-button="{{ $order->user->id }}" data-groups='@json($order->user->groups->pluck("id"))' onclick="openUserGroupModal({{ $order->user->id }}, @js($order->user->name), JSON.parse(this.dataset.groups))">+G</button>
+                    <button type="button" class="btn btn-sm btn-light-success fw-bold" title="Manage User Groups" data-user-group-button="{{ $order->user->id }}" data-groups='@json($order->user->groups->pluck("id"))' onclick="openUserGroupModal({{ $order->user->id }}, @js($order->user->name), JSON.parse(this.dataset.groups))">G</button>
                 @endif
 
                 <!-- Edit Order Button -->

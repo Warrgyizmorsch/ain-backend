@@ -29,7 +29,7 @@
             </div>
             @endif
             @if($lead->user)
-                <button type="button" class="btn btn-sm btn-light-success fw-bold" title="Manage User Groups" data-user-group-button="{{ $lead->user->id }}" data-groups='@json($lead->user->groups->pluck("id"))' onclick="openUserGroupModal({{ $lead->user->id }}, @js($lead->user->name), JSON.parse(this.dataset.groups))">+G</button>
+                <button type="button" class="btn btn-sm btn-light-success fw-bold" title="Manage User Groups" data-user-group-button="{{ $lead->user->id }}" data-groups='@json($lead->user->groups->pluck("id"))' onclick="openUserGroupModal({{ $lead->user->id }}, @js($lead->user->name), JSON.parse(this.dataset.groups))">G</button>
             @endif
             <div class="form-check form-switch">
                 <input class="form-check-input" type="checkbox" id="{{ $lead->id }}" role="switch" checked
