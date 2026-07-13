@@ -226,7 +226,7 @@ class OrderApiController extends Controller
         // Non-confirmed leads
         $leadsRaw = DB::table('leads')
             ->where('emp_id', $user->id)
-            ->where('is_app_lead', 1)
+            // ->where('is_app_lead', 1)
             ->orderByDesc('id')
             ->limit(50)
             ->select(
