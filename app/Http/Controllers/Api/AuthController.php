@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use Kreait\Firebase\Contract\Auth as FirebaseAuth;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
@@ -16,6 +17,13 @@ use Illuminate\Validation\Rules;
 
 class AuthController extends Controller
 {
+    protected $firebaseAuth;
+
+    public function __construct(FirebaseAuth $firebaseAuth)
+    {
+        $this->firebaseAuth = $firebaseAuth;
+    }
+    
     // REGISTER API
     public function register(Request $request)
     {
@@ -239,5 +247,52 @@ class AuthController extends Controller
             'count' => $referredUsers->count(),
             'data' => $referredUsers
         ]);
+    }
+
+    public function googleLogin(Request $request)
+    {
+        $request->validate([
+            'id_token' => 'required|string',
+        ]);
+
+        try {
+
+            // Verify Firebase Token
+            $verifiedIdToken = $this->firebaseAuth->verifyIdToken($request->id_token);
+
+            $uid = $verifiedIdToken->claims()->get('sub');
+
+            $firebaseUser = $this->firebaseAuth->getUser($uid);
+
+            $email = $firebaseUser->email;
+            $name  = $firebaseUser->displayName;
+
+            $user = User::firstOrCreate(
+                ['email' => $email],
+                [
+                    'name' => $name,
+                    'password' => Hash::make(Str::random(20)),
+                    'role_id' => 2,
+                ]
+            );
+
+            $token = $user->createToken('app_token')->plainTextToken;
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Google Login Successful',
+                'token' => $token,
+                'data' => $user
+            ]);
+
+        } catch (\Exception $e) {
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid Google Token',
+                'error' => $e->getMessage()
+            ],401);
+
+        }
     }
 }

@@ -104,6 +104,7 @@ Route::prefix('app')->group(function () {
     Route::post('/reset-password', [AuthController::class, 'resetPassword']);
     Route::post('/apply-coupon', [OrderApiController::class, 'applyCoupon']);
     Route::get('/coupons', [OrderApiController::class, 'couponList']);
+    Route::post('/google-login', [AuthController::class, 'googleLogin']);
 });
 
 Route::middleware('auth:sanctum')->prefix('app')->group(function () {
