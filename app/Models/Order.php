@@ -30,7 +30,17 @@ protected $table = 'orders';
         'offer',
         'referal',
         'client_will_refer',
-        'failed_at'
+        'failed_at',
+        'projectstatus',
+        'module_code',
+        'pages',
+        'delivery_date',
+        'delivery_time',
+        'services',
+        'typeofpaper',
+        'message',
+        'tech',
+        'resit'
     ];
     
      protected $casts = [

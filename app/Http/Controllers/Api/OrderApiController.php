@@ -184,6 +184,7 @@ class OrderApiController extends Controller
             'lead_id'       => $lead->id,
             'uid'           => $authUser->id,
             'title'         => $request->input('topic'),
+            'amount'        => $request->input('finalPrice'),
             'module_code'   => $request->input('subject'),
         ]);
 
@@ -844,6 +845,7 @@ class OrderApiController extends Controller
             'lead_id'       => $lead->id,
             'uid'           => $user->id,
             'title'         => $request->input('topic') ?? $request->input('service'),
+            'amount'        => $request->input('finalPrice'),
             'module_code'   => $request->input('subject'),
         ]);
 
