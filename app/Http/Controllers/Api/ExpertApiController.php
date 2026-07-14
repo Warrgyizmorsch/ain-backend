@@ -142,6 +142,17 @@ class ExpertApiController extends Controller
         // Set 'images' key (plural) for compatibility with frontend code expecting plural key
         $expert->setAttribute('images', $expert->image);
 
+        // Convert HTML content to plain text for description
+        $content = $expert->content ?? '';
+        $contentWithLines = str_replace(
+            ['</p>', '</h2>', '</h3>', '</h1>', '</div>', '</td>', '</tr>', '</li>', '<br>', '<br/>', '<br />'],
+            ["\n\n", "\n\n", "\n\n", "\n\n", "\n", "\n", "\n", "\n", "\n", "\n", "\n"],
+            $content
+        );
+        $plainText = trim(html_entity_decode(strip_tags($contentWithLines), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+        $plainText = preg_replace("/\n{3,}/", "\n\n", $plainText);
+        $expert->description = $plainText;
+
         return $expert;
     }
 }
