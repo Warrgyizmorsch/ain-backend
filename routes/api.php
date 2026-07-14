@@ -66,6 +66,7 @@ Route::middleware('api.key')->group(function () {
 
     // Samples APIs
     Route::get('/samples', [SampleApiController::class, 'index']);
+    Route::get('/sample-categories', [SampleApiController::class, 'categories']);
     Route::get('/samples/{slug}', [SampleApiController::class, 'show'])->where('slug', '.*');
 
     // Writer APIs

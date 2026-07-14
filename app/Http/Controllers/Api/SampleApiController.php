@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Sample;
+use App\Models\SampleCategory;
 use Illuminate\Http\Request;
 
 class SampleApiController extends Controller
@@ -105,6 +106,28 @@ class SampleApiController extends Controller
         return response()->json([
             'success' => true,
             'data' => $sample
+        ]);
+    }
+
+    /**
+     * Get all sample categories with sample count.
+     */
+    public function categories(Request $request)
+    {
+        $categories = SampleCategory::withCount('Sample')
+            ->orderBy('name', 'asc')
+            ->get()
+            ->map(function ($cat) {
+                return [
+                    'id'           => $cat->id,
+                    'name'         => $cat->name,
+                    'sample_count' => $cat->sample_count,
+                ];
+            });
+
+        return response()->json([
+            'success' => true,
+            'data'    => $categories,
         ]);
     }
 }
