@@ -41,7 +41,7 @@ class SubjectPageApiController extends Controller
                     $parents[$parentId] = [
                         'id' => $page->id,
                         'title' => $page->hero_heading,
-                        'slug' => '/' . $slug,
+                        'slug' => end($segments),
                         'hasSubmenu' => false,
                         'children' => [],
                         'order' => $page->id,
@@ -53,7 +53,7 @@ class SubjectPageApiController extends Controller
                     $childrenByParent[$parentId][] = [
                         'id' => $page->id,
                         'title' => $page->hero_heading,
-                        'slug' => '/' . $slug,
+                        'slug' => end($segments),
                         'order' => $page->id,
                     ];
                 }
@@ -74,7 +74,7 @@ class SubjectPageApiController extends Controller
                     $parents[$parentId] = [
                         'id' => $parentId,
                         'title' => ucwords(str_replace('-', ' ', $parentId)),
-                        'slug' => '/' . $prefix . '/' . $parentId,
+                        'slug' => $parentId,
                         'hasSubmenu' => true,
                         'children' => [],
                         'order' => 0,
@@ -132,9 +132,17 @@ class SubjectPageApiController extends Controller
             $slug = urldecode($slug);
 
             $page = SubjectPage::with('subject')
-                ->where('slug', $slug)
+                ->where(function ($query) use ($slug) {
+                    $query->where('slug', $slug)
+                          ->orWhere('slug', 'like', '%/' . $slug);
+                })
                 ->where('is_published', true)
                 ->first();
+
+            if ($page) {
+                $segments = explode('/', trim($page->slug, '/'));
+                $page->slug = end($segments);
+            }
 
             if (!$page) {
                 return response()->json([

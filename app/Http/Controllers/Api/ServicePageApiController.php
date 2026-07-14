@@ -40,7 +40,7 @@ class ServicePageApiController extends Controller
                 $parents[$parentId] = [
                     'id' => $page->id,
                     'title' => $page->hero_heading,
-                    'slug' => '/' . $slug,
+                    'slug' => end($segments),
                     'hasSubmenu' => false,
                     'children' => [],
                     'order' => $page->id,
@@ -52,7 +52,7 @@ class ServicePageApiController extends Controller
                 $childrenByParent[$parentId][] = [
                     'id' => $page->id,
                     'title' => $page->hero_heading,
-                    'slug' => '/' . $slug,
+                    'slug' => end($segments),
                     'order' => $page->id,
                 ];
             }
@@ -74,7 +74,7 @@ class ServicePageApiController extends Controller
                 $parents[$parentId] = [
                     'id' => $parentId,
                     'title' => ucwords(str_replace('-', ' ', $parentId)),
-                    'slug' => '/' . $prefix . '/' . $parentId,
+                    'slug' => $parentId,
                     'hasSubmenu' => true,
                     'children' => [],
                     'order' => 0,
@@ -132,6 +132,12 @@ class ServicePageApiController extends Controller
             ->latest()
             ->get(['id', 'subject_id', 'slug', 'meta_title', 'hero_heading']);
 
+        $pages->map(function ($page) {
+            $segments = explode('/', trim($page->slug, '/'));
+            $page->slug = end($segments);
+            return $page;
+        });
+
         return response()->json([
             'success' => true,
             'data' => $pages
@@ -146,9 +152,17 @@ class ServicePageApiController extends Controller
         $slug = urldecode($slug);
 
         $page = ServicePage::with('subject')
-            ->where('slug', $slug)
+            ->where(function ($query) use ($slug) {
+                $query->where('slug', $slug)
+                      ->orWhere('slug', 'like', '%/' . $slug);
+            })
             ->where('is_published', true)
             ->first();
+
+        if ($page) {
+            $segments = explode('/', trim($page->slug, '/'));
+            $page->slug = end($segments);
+        }
 
         if (!$page) {
             return response()->json([
