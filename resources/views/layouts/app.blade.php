@@ -857,7 +857,8 @@
                 inputPlaceholder: 'Select status',
                 allowOutsideClick: false,
                 allowEscapeKey: false,
-                showCancelButton: false,
+                showCancelButton: true,
+                cancelButtonText: 'Cancel',
                 confirmButtonText: 'Update Status',
 
                 preConfirm: (selectedStatus) => {
@@ -904,7 +905,10 @@
                     });
 
                 } else {
-                    forceStatusUpdate(orderId);
+                    // User clicked cancel - clear lock and snooze to prevent loop/ lockout
+                    clearForceStatus(orderId);
+                    setSnooze(orderId);
+                    location.reload();
                 }
             });
         }
