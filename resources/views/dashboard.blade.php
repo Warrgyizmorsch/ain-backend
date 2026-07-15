@@ -2,6 +2,147 @@
 
 @section('content')
 	<style>
+		:root {
+			--ain-navy: #101828;
+			--ain-indigo: #4f46e5;
+			--ain-blue: #2563eb;
+			--ain-surface: #ffffff;
+			--ain-border: #e7ecf3;
+			--ain-muted: #667085;
+		}
+
+		.ain-admin-dashboard {
+			background: #f5f7fb;
+			font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+			min-height: 100vh;
+		}
+
+		.ain-admin-dashboard #kt_toolbar {
+			background: transparent;
+			padding: 18px 0 8px;
+		}
+
+		.ain-admin-dashboard #kt_toolbar_container {
+			background: linear-gradient(125deg, #101828 0%, #243b72 58%, #4f46e5 100%);
+			border-radius: 18px;
+			min-height: 96px;
+			padding: 22px 28px;
+			box-shadow: 0 16px 35px rgba(16, 24, 40, .18);
+		}
+
+		.ain-admin-dashboard #kt_toolbar h1,
+		.ain-admin-dashboard #kt_toolbar h1 small { color: #fff !important; }
+		.ain-admin-dashboard #kt_toolbar h1 { font-size: 1.65rem !important; letter-spacing: -.025em; }
+		.ain-admin-dashboard #kt_toolbar h1 small { opacity: .65; font-weight: 500 !important; }
+		.ain-admin-dashboard #kt_toolbar h1 .border-start { border-color: rgba(255,255,255,.3) !important; }
+
+		.ain-admin-dashboard #kt_post { padding-top: 20px; }
+		.ain-admin-dashboard .row.gy-5 { row-gap: 22px; }
+
+		.ain-admin-dashboard .card {
+			border: 1px solid var(--ain-border);
+			border-radius: 16px;
+			background: var(--ain-surface);
+			box-shadow: 0 7px 24px rgba(16, 24, 40, .055) !important;
+			overflow: hidden;
+			transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+		}
+
+		.ain-admin-dashboard .card:hover {
+			border-color: #d9e1ee;
+			box-shadow: 0 12px 32px rgba(16, 24, 40, .085) !important;
+		}
+
+		.ain-admin-dashboard .card-header {
+			min-height: 72px;
+			padding-left: 24px;
+			padding-right: 24px;
+			border-bottom: 1px solid #eef1f6 !important;
+		}
+
+		.ain-admin-dashboard .card-title,
+		.ain-admin-dashboard .card-label { color: var(--ain-navy) !important; letter-spacing: -.018em; }
+		.ain-admin-dashboard .card-body { padding: 24px; }
+
+		.ain-admin-dashboard .card-header.bg-danger {
+			background: linear-gradient(120deg, #1d4ed8, #4f46e5) !important;
+			border-bottom: 0 !important;
+		}
+
+		.ain-admin-dashboard .card-header.bg-danger .card-title { color: #fff !important; font-size: 1.2rem; }
+		.ain-admin-dashboard .mixed-widget-2-chart.bg-danger {
+			background: linear-gradient(120deg, #1d4ed8, #4f46e5) !important;
+			height: 145px !important;
+		}
+
+		.ain-admin-dashboard .card-p { padding: 0 24px 24px; }
+		.ain-admin-dashboard .card-p > .row { gap: 14px; flex-wrap: nowrap; }
+		.ain-admin-dashboard .card-p > .row > .col {
+			margin: 0 0 14px !important;
+			padding: 20px 22px !important;
+			border: 1px solid rgba(15, 23, 42, .055);
+			border-radius: 13px !important;
+			min-height: 116px;
+		}
+
+		.ain-admin-dashboard .card-p h2 {
+			font-size: 2rem;
+			font-weight: 750;
+			letter-spacing: -.045em;
+			color: var(--ain-navy);
+			margin: 0 !important;
+		}
+
+		.ain-admin-dashboard .card-p .svg-icon { margin-top: 0 !important; }
+		.ain-admin-dashboard .card-p a { color: #475467 !important; font-size: .82rem !important; }
+
+		.ain-admin-dashboard .form-select,
+		.ain-admin-dashboard .form-control {
+			border: 1px solid #dbe2ec;
+			border-radius: 9px;
+			background-color: #fff;
+			min-height: 40px;
+		}
+
+		.ain-admin-dashboard .btn { border-radius: 9px; font-weight: 650; }
+		.ain-admin-dashboard .btn-primary { background: var(--ain-indigo); border-color: var(--ain-indigo); }
+
+		.ain-admin-dashboard .table { margin-bottom: 0; }
+		.ain-admin-dashboard .table thead th {
+			background: #f8fafc;
+			color: #667085;
+			font-size: .72rem;
+			text-transform: uppercase;
+			letter-spacing: .045em;
+			border-bottom: 1px solid #e8edf4;
+			padding-top: 14px;
+			padding-bottom: 14px;
+		}
+
+		.ain-admin-dashboard .table tbody td { border-color: #eef2f6; padding-top: 15px; padding-bottom: 15px; }
+		.ain-admin-dashboard .table tbody tr:hover { background: #fafbff; }
+		.ain-admin-dashboard canvas { max-width: 100%; }
+
+		.ain-admin-dashboard .text-muted { color: var(--ain-muted) !important; }
+		.ain-admin-dashboard .badge { border-radius: 7px; }
+		.ain-admin-dashboard #teamMembersContainer { scrollbar-width: thin; scrollbar-color: #cbd5e1 transparent; }
+
+		@media (max-width: 991.98px) {
+			.ain-admin-dashboard #kt_toolbar_container { margin: 0 16px; padding: 20px; min-height: 84px; }
+			.ain-admin-dashboard .card-p > .row { flex-wrap: wrap; }
+			.ain-admin-dashboard .card-p > .row > .col { flex: 1 1 calc(50% - 10px); }
+		}
+
+		@media (max-width: 575.98px) {
+			.ain-admin-dashboard #kt_toolbar h1 { font-size: 1.35rem !important; }
+			.ain-admin-dashboard #kt_toolbar h1 small,
+			.ain-admin-dashboard #kt_toolbar h1 .border-start { display: none; }
+			.ain-admin-dashboard .card-header,
+			.ain-admin-dashboard .card-body { padding-left: 17px; padding-right: 17px; }
+			.ain-admin-dashboard .card-p { padding-left: 15px; padding-right: 15px; }
+			.ain-admin-dashboard .card-p > .row > .col { flex: 1 1 100%; min-width: 100%; }
+		}
+
 		#teamMembersContainer {
 			max-height: 500px;
 			/* Set a maximum height for the container */
@@ -19,7 +160,7 @@
 		}
 	</style>
 	@if (auth()->check() && auth()->user()->role_id == 1)
-		<div class="content d-flex flex-column flex-column-fluid" id="kt_content">
+		<div class="content d-flex flex-column flex-column-fluid ain-admin-dashboard" id="kt_content">
 			<div class="toolbar" id="kt_toolbar">
 				<div id="kt_toolbar_container" class="container-fluid d-flex flex-stack">
 					<div data-kt-swapper="true" data-kt-swapper-mode="prepend"

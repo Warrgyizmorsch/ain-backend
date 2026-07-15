@@ -9,6 +9,10 @@ return [
         ))))),
     ],
 
+    'mobile_app' => [
+        'password_reset_url' => env('MOBILE_PASSWORD_RESET_URL', 'ain://reset-password'),
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Third Party Services

@@ -14,6 +14,8 @@ use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rules;
 use Google\Auth\AccessToken as GoogleAccessToken;
+use Illuminate\Support\Facades\Http;
+use App\Notifications\AppResetPasswordNotification;
 
 
 class AuthController extends Controller
@@ -100,30 +102,36 @@ class AuthController extends Controller
     // FORGOT PASSWORD API
     public function forgotPassword(Request $request)
     {
-        try {
+        $request->validate(['email' => ['required', 'email']]);
 
-            $request->validate([
-                'email' => 'required|email'
+        $user = User::where('email', strtolower($request->email))->first();
+
+        // Do not reveal whether an email address is registered.
+        if (!$user) {
+            return response()->json([
+                'success' => true,
+                'message' => 'If this email is registered, a password reset link has been sent.',
             ]);
+        }
 
-            $status = Password::sendResetLink(
-                $request->only('email')
-            );
-            
+        try {
+            $token = Password::broker()->createToken($user);
+            $user->notify(new AppResetPasswordNotification($token));
 
             return response()->json([
-                'success' => $status === Password::RESET_LINK_SENT,
-                'message' => __($status)
-            ], 200);
-
-        } catch (\Exception $e) {
-
-            \Log::error('Forgot Password Error: ' . $e->getMessage());
+                'success' => true,
+                'message' => 'Password reset link has been sent to your email.',
+            ]);
+        } catch (\Throwable $e) {
+            \Log::error('App forgot password email failed.', [
+                'user_id' => $user->id,
+                'exception' => get_class($e),
+                'reason' => $e->getMessage(),
+            ]);
 
             return response()->json([
                 'success' => false,
-                'message' => 'Unable to send reset password email.',
-                'error' => $e->getMessage() // Production me hata dena
+                'message' => 'Unable to send reset password email. Please try again later.',
             ], 500);
         }
     }
@@ -147,6 +155,7 @@ class AuthController extends Controller
                 ])->save();
 
                 event(new PasswordReset($user));
+                $user->tokens()->delete();
             }
         );
 
@@ -352,12 +361,39 @@ class AuthController extends Controller
                 throw new \RuntimeException('Google token audience is not allowed.');
             }
 
-            $claims = (new GoogleAccessToken())->verify($idToken, [
-                'audience' => $audience,
-                'throwException' => true,
-            ]);
+            try {
+                $claims = (new GoogleAccessToken())->verify($idToken, [
+                    'audience' => $audience,
+                    'throwException' => true,
+                ]);
+            } catch (\Throwable $verificationException) {
+                if (!str_contains(strtolower($verificationException->getMessage()), 'phpseclib')) {
+                    throw $verificationException;
+                }
 
-            if (empty($claims['email']) || empty($claims['email_verified'])) {
+                $response = Http::acceptJson()
+                    ->timeout(10)
+                    ->get('https://oauth2.googleapis.com/tokeninfo', ['id_token' => $idToken]);
+
+                if (!$response->successful()) {
+                    throw new \RuntimeException('Google rejected the ID token.');
+                }
+
+                $claims = $response->json();
+
+                if (
+                    ($claims['aud'] ?? null) !== $audience
+                    || !in_array($claims['iss'] ?? null, [GoogleAccessToken::OAUTH2_ISSUER, GoogleAccessToken::OAUTH2_ISSUER_HTTPS], true)
+                    || (int) ($claims['exp'] ?? 0) <= time()
+                ) {
+                    throw new \RuntimeException('Google ID token claims are invalid.');
+                }
+            }
+
+            if (
+                empty($claims['email'])
+                || !filter_var($claims['email_verified'] ?? false, FILTER_VALIDATE_BOOLEAN)
+            ) {
                 throw new \RuntimeException('Google account email is not verified.');
             }
 
