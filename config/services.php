@@ -3,7 +3,10 @@
 return [
 
     'google' => [
-        'client_ids' => array_values(array_filter(array_map('trim', explode(',', env('GOOGLE_CLIENT_IDS', ''))))),
+        'client_ids' => array_values(array_filter(array_map('trim', explode(',', env(
+            'GOOGLE_CLIENT_IDS',
+            '876740242049-r98097ovv704bel16q34ancr5eacr673.apps.googleusercontent.com'
+        ))))),
     ],
 
     /*
