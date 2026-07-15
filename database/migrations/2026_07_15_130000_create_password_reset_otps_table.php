@@ -7,9 +7,14 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration {
     public function up(): void
     {
+        // A failed unique-index creation on older MySQL can leave this new table
+        // behind even though the migration was not recorded as completed.
+        Schema::dropIfExists('password_reset_otps');
+
         Schema::create('password_reset_otps', function (Blueprint $table) {
             $table->id();
-            $table->string('email')->unique();
+            // 191 chars keeps the utf8mb4 unique index below legacy 1000-byte limits.
+            $table->string('email', 191)->unique();
             $table->string('otp_hash');
             $table->unsignedTinyInteger('attempts')->default(0);
             $table->timestamp('expires_at');
