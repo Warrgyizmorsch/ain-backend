@@ -303,11 +303,21 @@ class AuthController extends Controller
             ]);
 
         } catch (\Exception $e) {
+            \Log::warning('Google social login rejected.', [
+                'exception' => get_class($e),
+                'reason' => $e->getMessage(),
+            ]);
 
-            return response()->json([
+            $response = [
                 'success' => false,
                 'message' => 'Invalid Google Token',
-            ],401);
+            ];
+
+            if (app()->environment('local')) {
+                $response['reason'] = $e->getMessage();
+            }
+
+            return response()->json($response, 401);
 
         }
     }
@@ -328,6 +338,10 @@ class AuthController extends Controller
             return [strtolower($firebaseUser->email), $firebaseUser->displayName];
         } catch (\Throwable $firebaseException) {
             $segments = explode('.', $idToken);
+            if (count($segments) !== 3 || strlen($segments[2]) < 300) {
+                throw new \RuntimeException('Google ID token is incomplete or truncated.');
+            }
+
             $payload = count($segments) === 3
                 ? json_decode(base64_decode(strtr($segments[1], '-_', '+/')), true)
                 : null;
@@ -340,7 +354,6 @@ class AuthController extends Controller
 
             $claims = (new GoogleAccessToken())->verify($idToken, [
                 'audience' => $audience,
-                'issuer' => GoogleAccessToken::OAUTH2_ISSUER_HTTPS,
                 'throwException' => true,
             ]);
 
