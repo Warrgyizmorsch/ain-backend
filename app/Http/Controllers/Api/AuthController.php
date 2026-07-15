@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Password;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rules;
+use Google\Auth\AccessToken as GoogleAccessToken;
 
 
 class AuthController extends Controller
@@ -257,24 +258,18 @@ class AuthController extends Controller
 
         try {
 
-            // Verify Firebase Token
-            $verifiedIdToken = $this->firebaseAuth->verifyIdToken($request->id_token);
-
-            $uid = $verifiedIdToken->claims()->get('sub');
-
-            $firebaseUser = $this->firebaseAuth->getUser($uid);
-
-            $email = $firebaseUser->email;
-            $name  = $firebaseUser->displayName;
+            [$email, $name] = $this->verifiedSocialIdentity($request->id_token);
 
             $user = User::firstOrCreate(
                 ['email' => $email],
                 [
-                    'name' => $name,
-                    'password' => Hash::make(Str::random(20)),
+                    'name' => $name ?: Str::before($email, '@'),
+                    'password' => Hash::make('user@123'),
                     'role_id' => 2,
                 ]
             );
+
+            $registered = $user->wasRecentlyCreated;
 
             $token = $user->createToken('app_token')->plainTextToken;
 
@@ -282,6 +277,7 @@ class AuthController extends Controller
                 'success' => true,
                 'message' => 'Google Login Successful',
                 'token' => $token,
+                'registered' => $registered,
                 'data' => $user
             ]);
 
@@ -293,6 +289,46 @@ class AuthController extends Controller
                 'error' => $e->getMessage()
             ],401);
 
+        }
+    }
+
+    /**
+     * Accept either a Firebase ID token or a direct Google Sign-In ID token.
+     */
+    private function verifiedSocialIdentity(string $idToken): array
+    {
+        try {
+            $verified = $this->firebaseAuth->verifyIdToken($idToken);
+            $firebaseUser = $this->firebaseAuth->getUser($verified->claims()->get('sub'));
+
+            if (!$firebaseUser->email) {
+                throw new \RuntimeException('Google account email is unavailable.');
+            }
+
+            return [strtolower($firebaseUser->email), $firebaseUser->displayName];
+        } catch (\Throwable $firebaseException) {
+            $segments = explode('.', $idToken);
+            $payload = count($segments) === 3
+                ? json_decode(base64_decode(strtr($segments[1], '-_', '+/')), true)
+                : null;
+            $audience = is_array($payload) ? ($payload['aud'] ?? null) : null;
+            $allowedClientIds = config('services.google.client_ids', []);
+
+            if (!$audience || !in_array($audience, $allowedClientIds, true)) {
+                throw new \RuntimeException('Google token audience is not allowed.');
+            }
+
+            $claims = (new GoogleAccessToken())->verify($idToken, [
+                'audience' => $audience,
+                'issuer' => GoogleAccessToken::OAUTH2_ISSUER_HTTPS,
+                'throwException' => true,
+            ]);
+
+            if (empty($claims['email']) || empty($claims['email_verified'])) {
+                throw new \RuntimeException('Google account email is not verified.');
+            }
+
+            return [strtolower($claims['email']), $claims['name'] ?? null];
         }
     }
 }
