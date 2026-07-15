@@ -30,10 +30,11 @@ class AppResetPasswordNotification extends Notification
 
         return (new MailMessage)
             ->subject('Reset your AIN app password')
-            ->greeting('Hello '.$notifiable->name.',')
-            ->line('We received a password reset request for your AIN mobile app account.')
-            ->action('Reset Password in App', $resetUrl)
-            ->line('This secure link expires in '.config('auth.passwords.users.expire').' minutes.')
-            ->line('If you did not request a password reset, you can safely ignore this email.');
+            ->view('mail.app-reset-password', [
+                'name' => $notifiable->name ?: 'there',
+                'email' => $notifiable->getEmailForPasswordReset(),
+                'resetUrl' => $resetUrl,
+                'expiresIn' => config('auth.passwords.users.expire'),
+            ]);
     }
 }
