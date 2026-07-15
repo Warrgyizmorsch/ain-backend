@@ -254,11 +254,26 @@ class AuthController extends Controller
     {
         $request->validate([
             'id_token' => 'required|string',
+            'email' => 'nullable|email',
+            'name' => 'nullable|string|max:255',
+            'mobile_no' => 'nullable|string|max:20',
         ]);
 
         try {
 
             [$email, $name] = $this->verifiedSocialIdentity($request->id_token);
+
+            if ($request->filled('email') && strtolower($request->email) !== $email) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Email does not match the verified Google account.',
+                ], 422);
+            }
+
+            $name = $request->input('name') ?: $name;
+            $mobile = $request->filled('mobile_no')
+                ? preg_replace('/\D/', '', $request->mobile_no)
+                : null;
 
             $user = User::firstOrCreate(
                 ['email' => $email],
@@ -266,10 +281,16 @@ class AuthController extends Controller
                     'name' => $name ?: Str::before($email, '@'),
                     'password' => Hash::make('user@123'),
                     'role_id' => 2,
+                    'mobile_no' => $mobile,
                 ]
             );
 
             $registered = $user->wasRecentlyCreated;
+
+            if (!$registered && $mobile && !$user->mobile_no) {
+                $user->mobile_no = $mobile;
+                $user->save();
+            }
 
             $token = $user->createToken('app_token')->plainTextToken;
 
@@ -286,7 +307,6 @@ class AuthController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Invalid Google Token',
-                'error' => $e->getMessage()
             ],401);
 
         }
