@@ -2,10 +2,6 @@
 
 return [
 
-    'password_reset' => [
-        'web_url' => env('PASSWORD_RESET_WEB_URL', rtrim(env('APP_URL', ''), '/').'/reset-password'),
-    ],
-
     'google' => [
         'client_ids' => array_values(array_filter(array_map('trim', explode(',', env(
             'GOOGLE_CLIENT_IDS',

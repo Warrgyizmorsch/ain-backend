@@ -9,13 +9,13 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
-use Illuminate\Support\Facades\Password;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rules;
 use Google\Auth\AccessToken as GoogleAccessToken;
 use Illuminate\Support\Facades\Http;
-use App\Notifications\AppResetPasswordNotification;
+use App\Notifications\PasswordResetOtpNotification;
+use Illuminate\Support\Facades\DB;
 
 
 class AuthController extends Controller
@@ -115,12 +115,28 @@ class AuthController extends Controller
         }
 
         try {
-            $token = Password::broker()->createToken($user);
-            $user->notify(new AppResetPasswordNotification($token));
+            $otp = (string) random_int(100000, 999999);
+
+            DB::table('password_reset_otps')->updateOrInsert(
+                ['email' => strtolower($user->email)],
+                [
+                    'otp_hash' => Hash::make($otp),
+                    'attempts' => 0,
+                    'expires_at' => now()->addMinutes(10),
+                    'verified_at' => null,
+                    'reset_token_hash' => null,
+                    'reset_token_expires_at' => null,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]
+            );
+
+            $user->notify(new PasswordResetOtpNotification($otp));
 
             return response()->json([
                 'success' => true,
-                'message' => 'Password reset link has been sent to your email.',
+                'message' => 'Password reset OTP has been sent to your email.',
+                'expires_in' => 600,
             ]);
         } catch (\Throwable $e) {
             \Log::error('App forgot password email failed.', [
@@ -136,40 +152,91 @@ class AuthController extends Controller
         }
     }
 
+    public function verifyForgotPasswordOtp(Request $request)
+    {
+        $request->validate([
+            'email' => ['required', 'email'],
+            'otp' => ['required', 'digits:6'],
+        ]);
+
+        $email = strtolower($request->email);
+        $record = DB::table('password_reset_otps')->where('email', $email)->first();
+
+        if (!$record || now()->greaterThan($record->expires_at) || $record->attempts >= 5) {
+            return response()->json([
+                'success' => false,
+                'message' => 'OTP is invalid or expired. Please request a new OTP.',
+            ], 422);
+        }
+
+        if (!Hash::check($request->otp, $record->otp_hash)) {
+            DB::table('password_reset_otps')->where('email', $email)->increment('attempts');
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid OTP.',
+                'attempts_remaining' => max(0, 4 - $record->attempts),
+            ], 422);
+        }
+
+        $resetToken = Str::random(64);
+        DB::table('password_reset_otps')->where('email', $email)->update([
+            'verified_at' => now(),
+            'reset_token_hash' => hash('sha256', $resetToken),
+            'reset_token_expires_at' => now()->addMinutes(15),
+            'updated_at' => now(),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'OTP verified successfully.',
+            'reset_token' => $resetToken,
+            'expires_in' => 900,
+        ]);
+    }
+
     // RESET PASSWORD API
 
     public function resetPassword(Request $request)
     {
         $request->validate([
-            'token' => 'required',
             'email' => 'required|email',
+            'reset_token' => 'required|string|size:64',
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
         ]);
 
-        $status = Password::reset(
-            $request->only('email', 'password', 'password_confirmation', 'token'),
-            function ($user) use ($request) {
-                $user->forceFill([
-                    'password' => Hash::make($request->password),
-                    'remember_token' => Str::random(60),
-                ])->save();
+        $email = strtolower($request->email);
+        $record = DB::table('password_reset_otps')->where('email', $email)->first();
+        $validToken = $record
+            && $record->verified_at
+            && $record->reset_token_hash
+            && now()->lessThanOrEqualTo($record->reset_token_expires_at)
+            && hash_equals($record->reset_token_hash, hash('sha256', $request->reset_token));
 
-                event(new PasswordReset($user));
-                $user->tokens()->delete();
-            }
-        );
-
-        if ($status === Password::PASSWORD_RESET) {
+        if (!$validToken) {
             return response()->json([
-                'success' => true,
-                'message' => __($status)
-            ]);
+                'success' => false,
+                'message' => 'Reset token is invalid or expired.',
+            ], 422);
         }
 
+        $user = User::where('email', $email)->first();
+        if (!$user) {
+            return response()->json(['success' => false, 'message' => 'Unable to reset password.'], 422);
+        }
+
+        $user->forceFill([
+            'password' => Hash::make($request->password),
+            'remember_token' => Str::random(60),
+        ])->save();
+        $user->tokens()->delete();
+        DB::table('password_reset_otps')->where('email', $email)->delete();
+        event(new PasswordReset($user));
+
         return response()->json([
-            'success' => false,
-            'message' => __($status)
-        ], 400);
+            'success' => true,
+            'message' => 'Password reset successfully. Please login with your new password.',
+        ]);
     }
 
     // GET PROFILE API
