@@ -15,14 +15,6 @@ Route::get('/', function () {
     return redirect('/login');
 });
 
-Route::get('/app/reset-password', function (Request $request) {
-    abort_unless($request->filled(['token', 'email']), 404);
-
-    $deepLink = rtrim(config('services.mobile_app.deep_link'), '?&')
-        .'?'.http_build_query($request->only(['token', 'email']));
-
-    return view('auth.app-reset-bridge', compact('deepLink'));
-})->middleware('throttle:20,1')->name('app.password-reset.bridge');
 
 Route::post('/takeover-confirm', [AuthenticatedSessionController::class, 'doTakeover'])->name('do-takeover');
 

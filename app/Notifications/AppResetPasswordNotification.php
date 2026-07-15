@@ -21,9 +21,7 @@ class AppResetPasswordNotification extends Notification
 
     public function toMail(object $notifiable): MailMessage
     {
-        $baseUrl = rtrim(config('services.mobile_app.password_reset_url'), '?&');
-        $separator = str_contains($baseUrl, '?') ? '&' : '?';
-        $resetUrl = $baseUrl.$separator.http_build_query([
+        $resetUrl = route('password.reset', [
             'token' => $this->token,
             'email' => $notifiable->getEmailForPasswordReset(),
         ]);

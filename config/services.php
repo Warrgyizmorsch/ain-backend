@@ -9,10 +9,6 @@ return [
         ))))),
     ],
 
-    'mobile_app' => [
-        'password_reset_url' => env('MOBILE_PASSWORD_RESET_URL', rtrim(env('APP_URL', ''), '/').'/app/reset-password'),
-        'deep_link' => env('MOBILE_PASSWORD_DEEP_LINK', 'ain://reset-password'),
-    ],
 
     /*
     |--------------------------------------------------------------------------
