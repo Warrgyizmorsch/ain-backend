@@ -3472,15 +3472,14 @@ class OrderController extends Controller
         ];
 
 
-        // Priority Logic: Due balance (Amount - Received) > 0 wale orders sabse upar
+        // Show orders with the latest order date first.
         $orders = Order::with($this->orderListRelations())
             ->where('uid', '!=', 0)
             ->when($request->filled('uid'), fn ($query) => $query->where('uid', $request->uid))
             ->when($request->filled('group_id'), fn ($query) => $query->whereHas('user.groups', fn ($groupQuery) => $groupQuery->where('group_masters.id', $request->group_id)))
             ->select($this->orderListColumns())
             ->selectRaw('(CAST(amount AS SIGNED) - CAST(received_amount AS SIGNED)) as due_balance')
-            ->orderByRaw('due_balance > 0 DESC') // Pending payment pehle
-            ->orderByRaw('COALESCE((SELECT converted_at FROM leads WHERE leads.id = orders.lead_id LIMIT 1), orders.created_at) DESC')
+            ->orderByDesc('orders.order_date')
             ->take(20)
             ->get();
 
