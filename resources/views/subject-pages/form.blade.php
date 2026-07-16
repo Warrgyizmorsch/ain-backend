@@ -123,22 +123,30 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 </script>
 <link href="https://cdn.jsdelivr.net/npm/summernote@0.9.0/dist/summernote-lite.min.css" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/summernote@0.9.0/dist/summernote-lite.min.js"></script>
 <script>
-$(document).ready(function() {
-    $('#long_content').summernote({
-        placeholder: 'Enter long content with formatting, points, lists, etc...',
-        tabsize: 2,
-        height: 350,
-        toolbar: [
-            ['style', ['style']],
-            ['font', ['bold', 'underline', 'clear']],
-            ['color', ['color']],
-            ['para', ['ul', 'ol', 'paragraph']],
-            ['table', ['table']],
-            ['insert', ['link', 'picture']],
-            ['view', ['codeview', 'help']]
-        ]
+document.addEventListener('DOMContentLoaded', function () {
+    function loadScript(src, callback) {
+        let script = document.createElement('script');
+        script.src = src;
+        script.onload = callback;
+        document.body.appendChild(script);
+    }
+
+    loadScript('https://cdn.jsdelivr.net/npm/summernote@0.9.0/dist/summernote-lite.min.js', function () {
+        $('#long_content').summernote({
+            placeholder: 'Enter long content with formatting, points, lists, etc...',
+            tabsize: 2,
+            height: 350,
+            toolbar: [
+                ['style', ['style']],
+                ['font', ['bold', 'italic', 'underline', 'clear']],
+                ['color', ['color']],
+                ['para', ['ul', 'ol', 'paragraph']],
+                ['table', ['table']],
+                ['insert', ['link', 'picture']],
+                ['view', ['codeview', 'help']]
+            ]
+        });
     });
 });
 </script>
