@@ -41,7 +41,7 @@ class SubjectPageApiController extends Controller
                     $parents[$parentId] = [
                         'id' => $page->id,
                         'title' => $page->hero_heading,
-                        'slug' => end($segments),
+                        'slug' => $page->slug,
                         'hasSubmenu' => false,
                         'children' => [],
                         'order' => $page->id,
@@ -53,7 +53,7 @@ class SubjectPageApiController extends Controller
                     $childrenByParent[$parentId][] = [
                         'id' => $page->id,
                         'title' => $page->hero_heading,
-                        'slug' => end($segments),
+                        'slug' => $page->slug,
                         'order' => $page->id,
                     ];
                 }
@@ -138,11 +138,6 @@ class SubjectPageApiController extends Controller
                 })
                 ->where('is_published', true)
                 ->first();
-
-            if ($page) {
-                $segments = explode('/', trim($page->slug, '/'));
-                $page->slug = end($segments);
-            }
 
             if (!$page) {
                 return response()->json([

@@ -40,7 +40,7 @@ class ServicePageApiController extends Controller
                 $parents[$parentId] = [
                     'id' => $page->id,
                     'title' => $page->hero_heading,
-                    'slug' => end($segments),
+                    'slug' => $page->slug,
                     'hasSubmenu' => false,
                     'children' => [],
                     'order' => $page->id,
@@ -52,7 +52,7 @@ class ServicePageApiController extends Controller
                 $childrenByParent[$parentId][] = [
                     'id' => $page->id,
                     'title' => $page->hero_heading,
-                    'slug' => end($segments),
+                    'slug' => $page->slug,
                     'order' => $page->id,
                 ];
             }
@@ -132,12 +132,6 @@ class ServicePageApiController extends Controller
             ->latest()
             ->get(['id', 'subject_id', 'slug', 'meta_title', 'hero_heading']);
 
-        $pages->map(function ($page) {
-            $segments = explode('/', trim($page->slug, '/'));
-            $page->slug = end($segments);
-            return $page;
-        });
-
         return response()->json([
             'success' => true,
             'data' => $pages
@@ -158,11 +152,6 @@ class ServicePageApiController extends Controller
             })
             ->where('is_published', true)
             ->first();
-
-        if ($page) {
-            $segments = explode('/', trim($page->slug, '/'));
-            $page->slug = end($segments);
-        }
 
         if (!$page) {
             return response()->json([

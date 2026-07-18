@@ -10,7 +10,7 @@
 <div class="card-body">@include('layouts.flash')
 @if($errors->any())<div class="alert alert-danger"><ul class="mb-0">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>@endif
 <div class="row g-5">
- <div class="col-md-6"><label class="form-label required">Prefix</label><select name="subject_id" id="subject_id" class="form-select" required><option value="">Select Prefix</option>@foreach($subjects as $subject)<option value="{{ $subject->id }}" data-slug="{{ $subject->slug }}" @selected(old('subject_id',$page->subject_id)==$subject->id)>{{ $subject->name }}</option>@endforeach</select></div>
+  <div class="col-md-6"><label class="form-label required">Prefix</label><select name="subject_id" id="subject_id" class="form-select" required><option value="">Select Prefix</option>@foreach($subjects as $subject)<option value="{{ $subject->id }}" data-slug="{{ $subject->slug }}" @selected(old('subject_id', $page->subject_id ?? (is_iterable($subjects) ? (collect($subjects)->where('slug', 'service')->first()->id ?? null) : null)) == $subject->id)>{{ $subject->name }}</option>@endforeach</select></div>
  <div class="col-md-6"><label class="form-label required">SEO Slug</label><div class="input-group"><span class="input-group-text">/</span><input name="slug" id="slug" class="form-control" value="{{ old('slug',$page->slug) }}" placeholder="accounting/assignment-help" required></div></div>
  <div class="col-md-6"><label class="form-label required">Meta Title</label><input name="meta_title" class="form-control" maxlength="255" value="{{ old('meta_title',$page->meta_title) }}" required></div>
  <div class="col-md-6"><label class="form-label required">Meta Description</label><textarea name="meta_description" class="form-control" rows="2" required>{{ old('meta_description',$page->meta_description) }}</textarea></div>
@@ -80,6 +80,18 @@ document.addEventListener('DOMContentLoaded', function () {
 
         lastPrefixSlug = newPrefixSlug;
     });
+
+    // Auto-fill slug from subject on new page
+    @if(!$editing)
+    if (!slugInput.value && subjectSelect.value) {
+        const selectedOpt = subjectSelect.options[subjectSelect.selectedIndex];
+        const newPrefixSlug = selectedOpt.getAttribute('data-slug') || '';
+        if (newPrefixSlug) {
+            slugInput.value = newPrefixSlug + '/';
+            lastPrefixSlug = newPrefixSlug;
+        }
+    }
+    @endif
 });
 </script>
 
