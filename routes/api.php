@@ -121,6 +121,8 @@ Route::middleware('auth:sanctum')->prefix('app')->group(function () {
     Route::get('/wallet-history', [OrderApiController::class, 'walletTransactions']);
     Route::get('/refer-list', [AuthController::class, 'referList']);
     Route::post('/submit-feedback', [OrderApiController::class, 'submitAppFeedback']);
+    Route::get('/banks', [OrderApiController::class, 'getBanks']);
+    Route::post('/add-payment', [OrderApiController::class, 'addPayment']);
 });
 
 

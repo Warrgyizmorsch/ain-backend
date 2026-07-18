@@ -86,7 +86,17 @@
                     </div>
                 </div>
                 @endif
+                
                 @if(auth()->check() && auth()->user()->role_id == 1)
+                <div class="menu-item">
+                    <a class="menu-link {{ $isActiveRoute('Banks') ? 'active' : '' }}" href="{{ route('Banks') }}">
+                        <span class="menu-icon"><i class="fa fa-bank"></i></span>
+                        <span class="menu-title">Bank Master</span>
+                    </a>
+                </div>
+                @endif
+
+                <!-- @if(auth()->check() && auth()->user()->role_id == 1)
                     <div class="menu-item">
                         <a class="menu-link {{ $isActiveRoute('subjects') ? 'active' : '' }}" href="{{ route('subjects.index') }}">
                             <span class="menu-icon"><i class="fa fa-book"></i></span><span class="menu-title">Prefix</span>
@@ -113,7 +123,7 @@
                             @endif
                         </a>
                     </div>
-                @endif
+                @endif -->
 
                 @foreach($premission as $permission)
                     @if(auth()->check() && auth()->user()->role_id == $permission->role_id)
@@ -124,47 +134,41 @@
                     @endif
                 @endforeach
 
-                @php
-                    // Add any menu IDs here that you want to nest inside "Other" (ID 43) - only for admin (role_id == 1)
-                    $otherChildrenMenuIds = (auth()->check() && auth()->user()->role_id == 1) ? [2,3,12,14,15,16,21,23,25,27,28,30,32,33,34,35,36,37,38,39,73] : []; 
-                @endphp
-
                 @foreach ($menus as $menu)
-                    @if (in_array($menu->id, $otherChildrenMenuIds))
+                    @if ($menu->parent_id !== null)
                         @continue
                     @endif
                     @if ($menu->show_menu == 'Y' && in_array($menu->id, $menuIds))
-                        @if ($menu->id == 43)
-                            @if (auth()->check() && auth()->user()->role_id == 1)
-                                @php
-                                    $isOtherActive = false;
-                                    $visibleGroups = [];
-                                    
-                                    foreach ($otherChildrenMenuIds as $childMenuId) {
-                                        $childMenu = $menus->firstWhere('id', $childMenuId);
-                                        if ($childMenu && in_array($childMenuId, $menuIds)) {
-                                            $visibleSubmenus = $childMenu->submenus->filter(function ($submenu) use ($submenuIds) {
-                                                return $submenu->show == 'Y' && in_array($submenu->id, $submenuIds);
+                        @if ($menu->children->count() > 0)
+                            @php
+                                $isParentActive = false;
+                                $visibleGroups = [];
+                                
+                                foreach ($menu->children as $childMenu) {
+                                    if ($childMenu->show_menu == 'Y' && in_array($childMenu->id, $menuIds)) {
+                                        $visibleSubmenus = $childMenu->submenus->filter(function ($submenu) use ($submenuIds) {
+                                            return $submenu->show == 'Y' && in_array($submenu->id, $submenuIds);
+                                        });
+                                        if ($visibleSubmenus->isNotEmpty()) {
+                                            $hasActiveChild = $visibleSubmenus->contains(function ($submenu) use ($isActiveRoute) {
+                                                return $isActiveRoute($submenu->routes);
                                             });
-                                            if ($visibleSubmenus->isNotEmpty()) {
-                                                $hasActiveChild = $visibleSubmenus->contains(function ($submenu) use ($isActiveRoute) {
-                                                    return $isActiveRoute($submenu->routes);
-                                                });
-                                                if ($hasActiveChild) {
-                                                    $isOtherActive = true;
-                                                }
-                                                $visibleGroups[] = [
-                                                    'menu' => $childMenu,
-                                                    'submenus' => $visibleSubmenus,
-                                                    'active' => $hasActiveChild
-                                                ];
+                                            if ($hasActiveChild) {
+                                                $isParentActive = true;
                                             }
+                                            $visibleGroups[] = [
+                                                'menu' => $childMenu,
+                                                'submenus' => $visibleSubmenus,
+                                                'active' => $hasActiveChild
+                                            ];
                                         }
                                     }
-                                @endphp
+                                }
+                            @endphp
 
-                                <div data-kt-menu-trigger="click" class="menu-item menu-accordion {{ $isOtherActive ? 'here show' : '' }}">
-                                    <span class="menu-link {{ $isOtherActive ? 'active' : '' }}">
+                            @if (count($visibleGroups) > 0)
+                                <div data-kt-menu-trigger="click" class="menu-item menu-accordion {{ $isParentActive ? 'here show' : '' }}">
+                                    <span class="menu-link {{ $isParentActive ? 'active' : '' }}">
                                         <span class="menu-icon">
                                             <li class="{{ $menu['icon_class'] }}"></li>
                                         </span>

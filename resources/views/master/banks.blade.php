@@ -47,15 +47,15 @@
                                         <div class="fv-plugins-message-container invalid-feedback"></div>
                                     </div>
                                     <div class="card-toolbar mt-12">
-                                        <button class="btn btn-primary w-100" type=" submit"> Submit </button>
-                                    </div>
+                                        <button class="btn btn-primary w-100" type="submit"> Submit </button>
+                                     </div>
+                                </div>
                             </div>
                         </div>
                     </form>   
                 </div>
 			</div>
 		</div>
-	</div>
 	<div class="col-xl-8">
 		<div class="card card-xxl-stretch mb-5 mb-xl-8">
 			<div class="card-header border-0 pt-5">

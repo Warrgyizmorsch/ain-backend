@@ -27,7 +27,7 @@
 										<th class="min-w-30px">Payment Date</th>
 										<th class="min-w-30px">Amount</th>
 										<th class="min-w-40px">References</th>
-
+										<th class="min-w-30px">Receipt</th>
 										<th class="min-w-40px">Action</th>
 									</tr>
 								</thead>
@@ -39,6 +39,15 @@
                                             <td>{{$payment->payment_date}}</td>
                                             <td>{{ $payment->paid_amount }}</td> <!-- Replace with the actual attribute you want to display -->
                                             <td>{{ $payment->reference }}</td> <!-- Replace with the actual attribute you want to display -->
+                                            <td>
+                                                @if($payment->screenshot)
+                                                    <a href="{{ asset($payment->screenshot) }}" target="_blank" class="btn btn-sm btn-icon btn-bg-light btn-active-color-primary" title="View Receipt">
+                                                        <i class="fa fa-image text-success fs-4"></i>
+                                                    </a>
+                                                @else
+                                                    <span class="text-muted fs-8">-</span>
+                                                @endif
+                                            </td>
                                             <!-- Include SweetAlert library -->
                                             <!--<script src="sweetalert2.min.js"></script>-->
                                             <!--<link rel="stylesheet" href="sweetalert2.min.css">-->

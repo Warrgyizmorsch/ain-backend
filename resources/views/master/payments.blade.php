@@ -55,9 +55,10 @@
                                         @if (auth()->user()->role_id == 1)
                                         <th>Update By</th>
                                         @endif
-                                        <th>Payee Name</th>
-                                        <th>Company Account</th>
-                                        <th class='text-center'>Action</th>
+                                         <th>Payee Name</th>
+                                         <th>Company Account</th>
+                                         <th>Receipt</th>
+                                         <th class='text-center'>Action</th>
                                     </tr>
                                 </thead>
                                 <tbody style="display:none" id="content" class="searchData">
@@ -136,9 +137,18 @@
                                         @if (auth()->user()->role_id == 1)
                                         <td>{{ $payment->payment_update_by }}</td>
                                         @endif
-                                        <td>{{ $payment->payee_name }}</td>
-                                        <td>{{ $payment->company_accounts }}</td>
-                                        <td  style="justify-content:center" class=" text-center icon-container my-auto d-flex">
+                                         <td>{{ $payment->payee_name }}</td>
+                                         <td>{{ $payment->company_accounts }}</td>
+                                         <td>
+                                             @if($payment->screenshot)
+                                                 <a href="{{ asset($payment->screenshot) }}" target="_blank" class="btn btn-sm btn-icon btn-bg-light btn-active-color-primary" title="View Receipt">
+                                                     <i class="fa fa-image text-success fs-4"></i>
+                                                 </a>
+                                             @else
+                                                 <span class="text-muted fs-8">-</span>
+                                             @endif
+                                         </td>
+                                         <td  style="justify-content:center" class=" text-center icon-container my-auto d-flex">
                                         @if (auth()->user()->role_id == 1)
                                             
                                             <a href="#" style="color:white" class="btn btn-icon btn-bg-danger btn-active-color-light btn-sm me-1 delete-link" id="delete-payment-{{$payment->id}}" onclick="deletePayment({{$payment->id}})">

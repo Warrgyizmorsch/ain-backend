@@ -982,4 +982,110 @@ class OrderApiController extends Controller
             'order_id' => $newOrderId,
         ]);
     }
+
+    public function getBanks(Request $request)
+    {
+        $banks = \App\Models\Bank::select('id', 'name', 'account_holder', 'account_number', 'sort_code')->get();
+
+        return response()->json([
+            'success' => true,
+            'data'    => $banks
+        ], 200);
+    }
+
+    public function addPayment(Request $request)
+    {
+        $authUser = $request->user();
+
+        $rules = [
+            'order_db_id'      => 'nullable|integer',
+            'order_id'         => 'nullable|string',
+            'paid_amount'      => 'required|numeric|min:0.01',
+            'company_accounts' => 'required|string',
+            'payee_name'       => 'nullable|string',
+            'reference'        => 'nullable|string',
+            'screenshot'       => 'nullable|file|image|mimes:jpeg,png,jpg,gif,pdf|max:10240',
+        ];
+
+        $validator = Validator::make($request->all(), $rules);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation error',
+                'errors'  => $validator->errors()
+            ], 422);
+        }
+
+        $orderQuery = Order::where('uid', $authUser->id);
+
+        if ($request->filled('order_db_id')) {
+            $orderQuery->where('id', $request->input('order_db_id'));
+        } elseif ($request->filled('order_id')) {
+            $orderQuery->where('order_id', $request->input('order_id'));
+        } else {
+            return response()->json([
+                'success' => false,
+                'message' => 'Either order_db_id or order_id is required.'
+            ], 422);
+        }
+
+        $order = $orderQuery->first();
+
+        if (!$order) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Order not found.'
+            ], 404);
+        }
+
+        $remainingAmount = (float)$order->amount - (float)$order->received_amount;
+        $paidAmount = (float)$request->input('paid_amount');
+
+        if ($paidAmount > $remainingAmount) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Paid amount exceeds the remaining due amount of ' . $remainingAmount
+            ], 422);
+        }
+
+        $screenshotPath = null;
+        if ($request->hasFile('screenshot')) {
+            $file = $request->file('screenshot');
+            $destinationPath = base_path('images/payments');
+
+            if (!file_exists($destinationPath)) {
+                mkdir($destinationPath, 0755, true);
+            }
+
+            $fileName = time() . '_' . uniqid() . '_' . $file->getClientOriginalName();
+            $file->move($destinationPath, $fileName);
+
+            $screenshotPath = 'images/payments/' . $fileName;
+        }
+
+        $payment = new \App\Models\Payment();
+        $payment->order_id = $order->id;
+        $payment->payment_date = now()->format('l d F Y h:i A');
+        $payment->paid_amount = $paidAmount;
+        $payment->reference = $request->input('reference') ?? $request->input('message');
+        $payment->payee_name = $request->input('payee_name') ?? $authUser->name;
+        $payment->payment_update_by = 'Mobile App';
+        $payment->account_status = 0;
+        $payment->company_accounts = $request->input('company_accounts');
+        $payment->screenshot = $screenshotPath;
+        $payment->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Payment details and receipt uploaded successfully. Awaiting admin approval.',
+            'payment' => [
+                'id' => $payment->id,
+                'order_id' => $order->order_id,
+                'paid_amount' => $payment->paid_amount,
+                'account_status' => $payment->account_status,
+                'screenshot_url' => $payment->screenshot ? asset($payment->screenshot) : null
+            ]
+        ], 201);
+    }
 }

@@ -29,6 +29,7 @@
                                 <th>Payee Name</th>
                                 <th>Account</th>
                                 <th>References</th>
+                                <th>Receipt</th>
                                 <th>Action</th>
                             </tr>
                         </thead>
@@ -42,6 +43,15 @@
                                         <td>{{ $payment->payee_name }}</td>
                                         <td>{{ $payment->company_accounts }}</td>
                                         <td>{{ $payment->reference }}</td>
+                                        <td>
+                                            @if($payment->screenshot)
+                                                <a href="{{ asset($payment->screenshot) }}" target="_blank" class="btn btn-sm btn-icon btn-bg-light btn-active-color-primary" title="View Receipt">
+                                                    <i class="fa fa-image text-success fs-4"></i>
+                                                </a>
+                                            @else
+                                                <span class="text-muted fs-8">-</span>
+                                            @endif
+                                        </td>
                                         <td>
                                             <a href="{{ route('orders.payment.form', ['orderId' => $order->id, 'paymentId' => $payment->id]) }}"
                                             class="btn btn-sm btn-icon btn-bg-light btn-active-color-primary btn-color-dark">
@@ -57,9 +67,9 @@
                                         </td>
                                     </tr>
                                 @endforeach
-                            @else
-                                <tr><td colspan="5" class="text-center">No payments found.</td></tr>
-                            @endif
+                             @else
+                                 <tr><td colspan="8" class="text-center">No payments found.</td></tr>
+                             @endif
                         </tbody>
                     </table>
                 </div>

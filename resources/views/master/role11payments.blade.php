@@ -57,6 +57,7 @@
                                         @endif
                                         <th>Payee Name</th>
                                         <th>Company Account</th>
+                                        <th>Receipt</th>
                                         <th class='text-center'>Action</th>
                                     </tr>
                                 </thead>
@@ -106,6 +107,15 @@
                                         @endif
                                         <td>{{ $payment->payee_name }}</td>
                                         <td>{{ $payment->company_accounts }}</td>
+                                        <td>
+                                            @if($payment->screenshot)
+                                                <a href="{{ asset($payment->screenshot) }}" target="_blank" class="btn btn-sm btn-icon btn-bg-light btn-active-color-primary" title="View Receipt">
+                                                    <i class="fa fa-image text-success fs-4"></i>
+                                                </a>
+                                            @else
+                                                <span class="text-muted fs-8">-</span>
+                                            @endif
+                                        </td>
                                         <td  style="justify-content:center" class=" text-center icon-container my-auto d-flex">
                                         @if (auth()->user()->role_id == 1)
                                             

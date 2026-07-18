@@ -289,8 +289,10 @@ class MasterController extends Controller
         $payment->save();
 
         //receive ammount
-        $payments = Payment::where('order_id', $request->order_id)->get();
-        $totalPaidAmount = $payments->sum('paid_amount');
+        $totalPaidAmount = Payment::where('order_id', $request->order_id)
+            ->where('is_revoked', 0)
+            ->where('account_status', 1)
+            ->sum('paid_amount');
 
         $order->received_amount = $totalPaidAmount;
         $order->save();
@@ -309,11 +311,11 @@ class MasterController extends Controller
             // Delete the payment
             $payment->delete();
 
-            // Get all payments related to the order
-            $payments = Payment::where('order_id', $orderId)->get();
-
             // Calculate the total paid amount for the order
-            $totalPaidAmount = $payments->sum('paid_amount');
+            $totalPaidAmount = Payment::where('order_id', $orderId)
+                ->where('is_revoked', 0)
+                ->where('account_status', 1)
+                ->sum('paid_amount');
 
             // Find the order by ID
             $order = Order::find($orderId);
@@ -397,6 +399,7 @@ class MasterController extends Controller
 
         $totalPaidAmount = Payment::where('order_id', $payment->order_id)
             ->where('is_revoked', 0)
+            ->where('account_status', 1)
             ->sum('paid_amount');
 
         $order = Order::find($payment->order_id);
@@ -766,6 +769,17 @@ class MasterController extends Controller
 
             $payment->save();
 
+            // Recalculate order's received amount when account status changes
+            $order = Order::find($payment->order_id);
+            if ($order) {
+                $totalPaidAmount = Payment::where('order_id', $payment->order_id)
+                    ->where('is_revoked', 0)
+                    ->where('account_status', 1)
+                    ->sum('paid_amount');
+                $order->received_amount = $totalPaidAmount;
+                $order->save();
+            }
+
             return response()->json([
                 'success' => true,
                 'message' => 'Account status updated successfully'
@@ -783,6 +797,7 @@ class MasterController extends Controller
     public function bulkUpdateStatus(Request $request)
     {
         $payments = $request->input('payments');
+        $orderIds = [];
 
         foreach ($payments as $paymentData) {
             $paymentId = $paymentData['payment_id'];
@@ -791,10 +806,21 @@ class MasterController extends Controller
             $payment = Payment::find($paymentId);
 
             if ($payment) {
-                // $payment->account_status = $status ? 0 : 1;
                 $payment->account_status = $status;
-
                 $payment->save();
+                $orderIds[] = $payment->order_id;
+            }
+        }
+
+        $orderIds = array_unique($orderIds);
+        foreach ($orderIds as $orderId) {
+            $order = Order::find($orderId);
+            if ($order) {
+                $order->received_amount = Payment::where('order_id', $orderId)
+                    ->where('is_revoked', 0)
+                    ->where('account_status', 1)
+                    ->sum('paid_amount');
+                $order->save();
             }
         }
     }
