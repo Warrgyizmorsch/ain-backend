@@ -89,6 +89,7 @@ Route::middleware('api.key')->group(function () {
     Route::get('/services', [AppDropdownController::class, 'services']);
     Route::get('/subjects', [AppDropdownController::class, 'subjects']);
     Route::get('/urgencies', [AppDropdownController::class, 'urgencies']);
+    Route::get('/word-count', [AppDropdownController::class, 'wordCount']);
 
     // Dynamic Subject Page APIs
     Route::get('/subject-pages', [SubjectPageApiController::class, 'index']);
