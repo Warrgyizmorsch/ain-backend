@@ -85,8 +85,10 @@ Route::middleware('api.key')->group(function () {
     Route::get('/experts', [ExpertApiController::class, 'index']);
     Route::get('/experts/{idOrSlug}', [ExpertApiController::class, 'show'])->where('idOrSlug', '.*');
 
-    // Subject list APIs
-    Route::get('/subjects', [SubjectApiController::class, 'index']);
+    // Order Dropdown APIs for Web
+    Route::get('/services', [AppDropdownController::class, 'services']);
+    Route::get('/subjects', [AppDropdownController::class, 'subjects']);
+    Route::get('/urgencies', [AppDropdownController::class, 'urgencies']);
 
     // Dynamic Subject Page APIs
     Route::get('/subject-pages', [SubjectPageApiController::class, 'index']);

@@ -68,7 +68,7 @@ class OrderApiController extends Controller
         $rules = [
             'service'      => 'required|string',
             'workType'     => 'required|string',
-            'country'      => 'required|string',
+            'country'      => 'nullable|string',
             'subject'      => 'required|string',
             'urgency'      => 'required|string',
             'wordCount'    => 'required|integer|min:250',
