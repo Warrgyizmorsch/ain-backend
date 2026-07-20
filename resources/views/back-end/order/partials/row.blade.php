@@ -535,6 +535,8 @@
 
             @if($order->pages)
                 {{ $order->pages }}@if($extraWords > 0)+{{ $extraWords }}@endif
+            @elseif($extraWords > 0)
+                {{ $extraWords }}
             @else
                 <span class="badge badge-light-danger fs-7 fw-bold">N/A</span>
             @endif
@@ -552,6 +554,8 @@
 
             @if($order->amount)
                 £{{ $order->amount }}@if($extraPrice > 0)+{{ $extraPrice }}@endif
+            @elseif($extraPrice > 0)
+                £{{ $extraPrice }}
             @else
                 <span class="badge badge-light-danger fs-7 fw-bold">£00.00</span>
             @endif
