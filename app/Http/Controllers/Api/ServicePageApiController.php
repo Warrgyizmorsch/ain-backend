@@ -24,10 +24,50 @@ class ServicePageApiController extends Controller
                 $q->where('slug', $prefix)
                   ->orWhere('name', 'like', '%' . $prefix . '%');
             });
+
+            $pages = $query->get();
+            $formatted = $this->formatPages($pages);
+
+            $response = [
+                'status' => 'success',
+                'data' => $formatted
+            ];
+
+            if ($prefix === 'city') {
+                $response['city'] = $formatted;
+            }
+
+            return response()->json($response);
         }
 
         $pages = $query->get();
 
+        $servicePages = [];
+        $cityPages = [];
+
+        foreach ($pages as $page) {
+            $slug = trim($page->slug, '/');
+            $segments = explode('/', $slug);
+
+            if (($segments[0] ?? '') === 'city' || ($page->subject->slug ?? '') === 'city') {
+                $cityPages[] = $page;
+            } else {
+                $servicePages[] = $page;
+            }
+        }
+
+        return response()->json([
+            'status' => 'success',
+            'data' => $this->formatPages($servicePages),
+            'city' => $this->formatPages($cityPages)
+        ]);
+    }
+
+    /**
+     * Helper to format pages into parent-child structure.
+     */
+    private function formatPages($pages)
+    {
         $parents = [];
         $childrenByParent = [];
 
@@ -110,10 +150,7 @@ class ServicePageApiController extends Controller
             return $parent;
         }, $parents);
 
-        return response()->json([
-            'status' => 'success',
-            'data' => $formattedData
-        ]);
+        return $formattedData;
     }
 
     /**

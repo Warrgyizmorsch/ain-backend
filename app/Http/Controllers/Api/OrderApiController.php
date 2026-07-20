@@ -1000,8 +1000,8 @@ class OrderApiController extends Controller
         $rules = [
             'order_db_id'      => 'nullable|integer',
             'order_id'         => 'nullable|string',
-            'paid_amount'      => 'required|numeric|min:0.01',
-            'company_accounts' => 'required|string',
+            'paid_amount'      => 'nullable|numeric|min:0.01',
+            'company_accounts' => 'nullable|string',
             'payee_name'       => 'nullable|string',
             'reference'        => 'nullable|string',
             'screenshot'       => 'nullable|file|image|mimes:jpeg,png,jpg,gif,pdf|max:10240',

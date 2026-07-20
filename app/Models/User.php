@@ -27,7 +27,8 @@ class User extends Authenticatable
         'team_id',
         'Wallet',
         'verifyed',
-        'otp'
+        'otp',
+        'photo'
     ];
 
     /**

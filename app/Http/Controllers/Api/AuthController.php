@@ -254,6 +254,7 @@ class AuthController extends Controller
                 'countrycode' => $user->countrycode,
                 'country' => $user->country,
                 'role_id' => $user->role_id,
+                'photo' => $user->photo ? asset($user->photo) : null,
                 'created_at' => $user->created_at,
             ]
         ]);
@@ -275,6 +276,7 @@ class AuthController extends Controller
             'mobile_no' => 'required|string|max:20',
             'countrycode' => 'nullable|string|max:10',
             'country' => 'nullable|string|max:100',
+            'photo' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:5120',
         ]);
 
         if ($validator->fails()) {
@@ -285,15 +287,41 @@ class AuthController extends Controller
             ], 422);
         }
 
+        $photoPath = null;
+        if ($request->hasFile('photo')) {
+            $file = $request->file('photo');
+            $destinationPath = base_path('images/users');
+
+            if (!file_exists($destinationPath)) {
+                mkdir($destinationPath, 0755, true);
+            }
+
+            $fileName = time() . '_' . uniqid() . '_' . $file->getClientOriginalName();
+            $file->move($destinationPath, $fileName);
+
+            $photoPath = 'images/users/' . $fileName;
+
+            // Delete old photo if it exists
+            if ($user->photo && file_exists(base_path($user->photo))) {
+                @unlink(base_path($user->photo));
+            }
+        }
+
         $mobile = preg_replace('/\D/', '', $request->mobile_no);
 
-        $user->update([
+        $updateData = [
             'name' => $request->name,
             'email' => $request->email,
             'mobile_no' => $mobile,
             'countrycode' => $request->countrycode,
             'country' => $request->country,
-        ]);
+        ];
+
+        if ($photoPath) {
+            $updateData['photo'] = $photoPath;
+        }
+
+        $user->update($updateData);
 
         return response()->json([
             'success' => true,
@@ -305,6 +333,7 @@ class AuthController extends Controller
                 'mobile_no' => $user->mobile_no,
                 'countrycode' => $user->countrycode,
                 'country' => $user->country,
+                'photo' => $user->photo ? asset($user->photo) : null,
             ]
         ]);
     }
