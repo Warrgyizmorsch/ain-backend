@@ -48,6 +48,18 @@
                                     </div>
                                     <div class="row mb-6" data-select2-id="select2-data-239-d5v8">
                                        
+									<label class="col-lg-4 col-form-label fw-bold fs-6">Parent Menu</label>
+									<div class="col-lg-12 fv-row fv-plugins-icon-container">
+										<select name="parent_id" data-control="select2" class="form-select form-select-solid form-select-lg fw-bold">
+											<option value="">None (Top Level)</option>
+											@foreach($menus as $parentMenu)
+												@if($parentMenu->parent_id === null)
+													<option value="{{ $parentMenu->id }}">{{ $parentMenu->menu_name }}</option>
+												@endif
+											@endforeach
+										</select>
+									</div>
+
 									<label class="col-lg-4 col-form-label fw-bold fs-6">Sort Order</label>
 									<div class="col-lg-12 fv-row fv-plugins-icon-container">
 										<input type="number" name="sort_order" class="form-control form-control-lg form-control-solid" placeholder="Sort Order">
@@ -91,6 +103,7 @@
 						<thead>
 							<tr class="fw-bolder text-muted">
 								<th class="min-w-150px">Menu</th>
+								<th class="min-w-120px">Parent</th>
 								<th class="min-w-140px">Routes</th>
 								<th class="min-w-120px">Status</th>
 								<th class="min-w-100px text-end">Actions</th>
@@ -106,6 +119,11 @@
 											<a href="#" class="text-dark fw-bolder text-hover-primary fs-6">{{ $menu->menu_name }}</a>
 										</div>
 									</div>
+								</td>
+								<td>
+									<span class="text-dark fw-bolder d-block fs-6">
+										{{ $menu->parent ? $menu->parent->menu_name : '-' }}
+									</span>
 								</td>
 								<td>
 									<a href="#" class="text-dark fw-bolder text-hover-primary d-block fs-6">{{ $menu->routes }}</a>
@@ -175,6 +193,18 @@
 																	</div>
 																	<div class="row mb-6" data-select2-id="select2-data-239-d5v8">
 																		
+																	<label class="col-lg-4 col-form-label fw-bold fs-6">Parent Menu</label>
+																	<div class="col-lg-12 fv-row fv-plugins-icon-container">
+																		<select name="parent_id" class="form-select form-select-solid form-select-lg fw-bold">
+																			<option value="">None (Top Level)</option>
+																			@foreach($menus as $parentMenu)
+																				@if($parentMenu->parent_id === null && $parentMenu->id !== $menu->id)
+																					<option value="{{ $parentMenu->id }}" @if($menu->parent_id == $parentMenu->id) selected @endif>{{ $parentMenu->menu_name }}</option>
+																				@endif
+																			@endforeach
+																		</select>
+																	</div>
+
 																	<label class="col-lg-4 col-form-label fw-bold fs-6">Sort Order</label>
 																	<div class="col-lg-12 fv-row fv-plugins-icon-container">
 																		<input type="number" name="sort_order" value="{{ $menu->sort_order }}" class="form-control form-control-lg form-control-solid" placeholder="Sort Order">

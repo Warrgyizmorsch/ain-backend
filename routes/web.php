@@ -15,6 +15,39 @@ Route::get('/', function () {
     return redirect('/login');
 });
 
+Route::get('/debug-db', function () {
+    try {
+        $menus = \Illuminate\Support\Facades\DB::table('menu')->get();
+        return response()->json($menus);
+    } catch (\Exception $e) {
+        return response()->json([
+            'status' => 'error',
+            'message' => $e->getMessage()
+        ], 500);
+    }
+});
+
+Route::get('/fix-parent-id', function () {
+    try {
+        $affected = \Illuminate\Support\Facades\DB::table('menu')
+            ->where('parent_id', 43)
+            ->update(['parent_id' => 44]);
+        return response()->json([
+            'status' => 'success',
+            'affected_rows' => $affected
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'status' => 'error',
+            'message' => $e->getMessage()
+        ], 500);
+    }
+});
+
+
+
+
+
 
 Route::post('/takeover-confirm', [AuthenticatedSessionController::class, 'doTakeover'])->name('do-takeover');
 

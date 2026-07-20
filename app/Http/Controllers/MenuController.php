@@ -26,6 +26,7 @@ class MenuController extends Controller
         $menu->show_menu = $request->input('status');
         $menu->routes = $request->input('route');
         $menu->sort_order = $request->input('sort_order', 0);
+        $menu->parent_id = $request->input('parent_id') ?: null;
         $menu->save();
 
         return redirect()->back()->with('Success', 'Menu Succesfully Created');
@@ -49,6 +50,7 @@ class MenuController extends Controller
         $menu->icon_class = $request->input('icon');
         $menu->show_menu = $request->input('status');
         $menu->sort_order = $request->input('sort_order', 0);
+        $menu->parent_id = $request->input('parent_id') ?: null;
         $menu->save();
     
         return redirect()->back()->with('success', 'Menu Updated Successfully');
