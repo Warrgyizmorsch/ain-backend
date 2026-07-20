@@ -232,7 +232,7 @@
                 @endif
             @else
                 <div class="dropdown d-inline-block">
-                    <button class="btn {{ $order->referal && strtolower($order->referal) === 'no' ? 'btn-light-danger text-danger' : 'btn-light btn-active-light-primary' }} btn-sm py-1 px-3 fs-7 fw-bold dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                    <button class="btn {{ $order->referal && strtolower($order->referal) === 'no' ? 'btn-light-danger btn-referral-no' : 'btn-light btn-active-light-primary' }} btn-sm py-1 px-3 fs-7 fw-bold dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
                         {{ $order->referal && strtolower($order->referal) === 'no' ? 'Conversation: No' : 'Referral' }}
                     </button>
                     <ul class="dropdown-menu dropdown-menu-end shadow-sm border-0 fs-7 py-2" style="min-width: 100px;">
@@ -723,6 +723,14 @@
         /* hover on full wrapper */
         .duplicate-info-wrapper:hover .duplicate-popup {
             display: block;
+        }
+
+        .btn.btn-light-danger.btn-referral-no:hover,
+        .btn.btn-light-danger.btn-referral-no:focus,
+        .btn.btn-light-danger.btn-referral-no:active,
+        .btn.btn-light-danger.btn-referral-no.show {
+            background-color: #ffe6e8 !important;
+            color: #f1416c !important;
         }
     </style>
     <script>
