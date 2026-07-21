@@ -19,6 +19,7 @@ use App\Http\Controllers\Api\ReviewApiController;
 use App\Http\Controllers\Api\ExpertApiController;
 use App\Http\Controllers\Api\SubjectApiController;
 use App\Http\Controllers\Api\SubjectPageApiController;
+use App\Http\Controllers\Api\CityPageApiController;
 use App\Http\Controllers\Api\EnquiryApiController;
 
 
@@ -94,7 +95,17 @@ Route::middleware('api.key')->group(function () {
     // Dynamic Subject Page APIs
     Route::get('/subject-pages', [SubjectPageApiController::class, 'index']);
     Route::get('/subject-pages/{slug}', [SubjectPageApiController::class, 'show'])->where('slug', '.*');
+
+    // Dynamic City Page APIs
+    Route::get('/city-pages', [CityPageApiController::class, 'index']);
+    Route::get('/city-pages/prefix/{prefix}', [CityPageApiController::class, 'getByPrefix'])->where('prefix', '.*');
+    Route::get('/city-pages/{slug}', [CityPageApiController::class, 'show'])->where('slug', '.*');
 });
+
+// Public City Page APIs
+Route::get('/city-pages', [CityPageApiController::class, 'index']);
+Route::get('/city-pages/prefix/{prefix}', [CityPageApiController::class, 'getByPrefix'])->where('prefix', '.*');
+Route::get('/city-pages/{slug}', [CityPageApiController::class, 'show'])->where('slug', '.*');
 
 Route::prefix('app')->group(function () {
     Route::get('/countries', [AppDropdownController::class, 'countries']);
