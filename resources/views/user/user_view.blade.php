@@ -32,15 +32,11 @@
                         <div class="row mb-3">
                             <!-- User ID filter -->
                             <div class="col-lg-3 fv-row fv-plugins-icon-container">
-                                <select id="user-filter" name="user_id" aria-label="Select a User" data-placeholder="Search by name, email or phone" class="form-select form-select-solid form-select-lg">
-                                    <option value=""></option>
-                                    @if($data['selected_user'])
-                                        <option value="{{ $data['selected_user']->id }}" selected>
-                                            {{ $data['selected_user']->name }} ({{ $data['selected_user']->email }}) {{ $data['selected_user']->mobile_no }} / {{ $data['selected_user']->mobile_no2 }}
-                                        </option>
-                                    @endif
-                                </select>
-                                <div class="fv-plugins-message-container invalid-feedback"></div>
+                                <input type="text" list="searchDatalist" id="searchInput" name="user"
+                                    class="form-control form-control-solid" placeholder="User-Name,Number,Email" autocomplete="off" value="{{ request('user') }}">
+                                <datalist id="searchDatalist"></datalist>
+                                <div id="searchResultss"></div>
+                                <input type="hidden" id="selectedValue" name="user_id" value="{{ request('user_id') }}">
                             </div>
                     
                             <!-- Start Date filter -->
@@ -335,27 +331,41 @@
 </div>
 
 <script>
-    $(function () {
-        $('#user-filter').select2({
-            placeholder: 'Search by name, email or phone',
-            allowClear: true,
-            minimumInputLength: 2,
-            ajax: {
-                url: '{{ route('search-user') }}',
-                dataType: 'json',
-                delay: 300,
-                data: function (params) {
-                    return { user: params.term };
-                },
-                processResults: function (users) {
-                    return {
-                        results: users.map(function (user) {
-                            var contact = user.email || user.mobile_no || user.mobile_no2 || '';
-                            return { id: user.id, text: (user.name || 'Unnamed User') + ' (' + contact + ')' };
-                        })
-                    };
-                },
-                cache: true
+    $(document).ready(function() {
+        $('#searchInput').on('input', function() {
+            var searchValue = $(this).val();
+
+            if (searchValue.length >= 3) {
+                $.ajax({
+                    url: "{{ route('search-order') }}",
+                    type: "GET",
+                    data: {
+                        user: searchValue
+                    },
+                    success: function(response) {
+                        var results = '';
+                        if (response.length > 0) {
+                            $('#searchDatalist').empty();
+                            $.each(response, function(key, value) {
+                                $('#searchDatalist').append('<option value="' + value.email + '" data-id="' + value.id + '">' + value.name + ' (' + value.mobile_no + ')</option>');
+                            });
+                        } else {
+                            $('#searchDatalist').empty();
+                        }
+                        $('#searchResultss').html(results);
+                    }
+                });
+            } else {
+                $('#searchResultss').empty();
+            }
+        });
+
+        $('#searchInput').on('change blur input', function() {
+            var selectedEmail = $(this).val();
+            var selectedOption = $('#searchDatalist option[value="' + selectedEmail + '"]');
+            if (selectedOption.length > 0) {
+                var selectedId = selectedOption.attr('data-id') || selectedOption.data('id');
+                $('#selectedValue').val(selectedId);
             }
         });
     });

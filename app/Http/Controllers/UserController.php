@@ -177,7 +177,8 @@ class UserController extends Controller
 
     public function index(Request $request)
     {
-        $searchUserId = $request->input('user_id');
+        $searchUserId = $request->input('user_id') ?? $request->input('uid');
+        $userText = trim((string) $request->input('user', ''));
         $startDate = $request->input('start_date');
         $endDate = $request->input('end_date');
         $roleId = $request->input('role');
@@ -278,6 +279,13 @@ class UserController extends Controller
         // Basic Filters
         if ($searchUserId) {
             $query->where('id', $searchUserId);
+        } elseif ($userText !== '') {
+            $query->where(function ($q) use ($userText) {
+                $q->where('name', 'like', '%' . $userText . '%')
+                  ->orWhere('email', 'like', '%' . $userText . '%')
+                  ->orWhere('mobile_no', 'like', '%' . $userText . '%')
+                  ->orWhere('mobile_no2', 'like', '%' . $userText . '%');
+            });
         }
         if ($startDate && !$endDate) {
             $query->whereDate('created_at', $startDate);
@@ -349,9 +357,11 @@ class UserController extends Controller
         // The three tabs represent customer records only. Keeping the base set
         // to users with either a lead or an order makes the groups exhaustive:
         // All Customers = Confirmed + Not Confirmed.
-        $query->where(function ($customerQuery) {
-            $customerQuery->whereHas('orders')->orWhereHas('leads');
-        });
+        if (!$searchUserId && $userText === '') {
+            $query->where(function ($customerQuery) {
+                $customerQuery->whereHas('orders')->orWhereHas('leads');
+            });
+        }
 
         // Tab counts respect the filters above, while the selected tab controls
         // only the result list.
@@ -1069,14 +1079,5 @@ public function userReportList(Request $request)
 
     return view('user.refer-user-report', compact('users', 'sort'));
 }
-
-
-}
-        ->paginate(20)
-        ->appends($request->query());
-
-    return view('user.refer-user-report', compact('users', 'sort'));
-}
-
 
 }
