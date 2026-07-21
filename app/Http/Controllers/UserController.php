@@ -1072,3 +1072,11 @@ public function userReportList(Request $request)
 
 
 }
+        ->paginate(20)
+        ->appends($request->query());
+
+    return view('user.refer-user-report', compact('users', 'sort'));
+}
+
+
+}

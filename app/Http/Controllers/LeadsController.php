@@ -2029,20 +2029,27 @@ class LeadsController extends Controller
             ->select($this->leadListColumns());
         $query->where('duplicate_lead', 0);
 
-        // Filter by order or project title
-        if ($request->filled('order')) {
-            $order = $request->input('order');
-            $query->where(function ($q) use ($order) {
-                $q->where('order_id', 'like', '%' . $order . '%')
-                    ->orWhere('project_title', 'like', '%' . $order . '%');
-            });
+        // Filter by user ID (selectedValue) OR search term (order, user, searchInput, project title, email, mobile)
+        if ($request->filled('selectedValue')) {
+            $query->where('emp_id', $request->input('selectedValue'));
+        } else {
+            $searchTerm = trim($request->input('order') ?? $request->input('user') ?? $request->input('searchInput') ?? '');
+            if ($searchTerm !== '') {
+                $query->where(function ($q) use ($searchTerm) {
+                    $q->where('order_id', 'like', '%' . $searchTerm . '%')
+                        ->orWhere('project_title', 'like', '%' . $searchTerm . '%')
+                        ->orWhere('email', 'like', '%' . $searchTerm . '%')
+                        ->orWhere('user_name', 'like', '%' . $searchTerm . '%')
+                        ->orWhere('mobile', 'like', '%' . $searchTerm . '%')
+                        ->orWhereHas('user', function ($uq) use ($searchTerm) {
+                            $uq->where('name', 'like', '%' . $searchTerm . '%')
+                              ->orWhere('email', 'like', '%' . $searchTerm . '%')
+                              ->orWhere('mobile_no', 'like', '%' . $searchTerm . '%')
+                              ->orWhere('mobile_no2', 'like', '%' . $searchTerm . '%');
+                        });
+                });
+            }
         }
-
-        // if ($request->filled('lead_status_tab')) {
-        //     if ($request->lead_status_tab != 'All') {
-        //         $query->where('lead_status', $request->lead_status_tab);
-        //     }
-        // }
 
         if ($request->filled('lead_status_tab')) {
             $tab = $request->lead_status_tab;
@@ -2057,9 +2064,6 @@ class LeadsController extends Controller
         }
 
         // Filter by status
-        // if ($request->filled('status')) {
-        //     $query->where('l_status', $request->input('status'));
-        // }
         if ($request->filled('status')) {
             $status = $request->input('status');
 
@@ -2083,8 +2087,7 @@ class LeadsController extends Controller
             }
         }
 
-        // ================= DATE FILTER ONLY UPDATED =================
-
+        // Date Filter
         $dateFrom = $request->input('date_from');
         $dateTo   = $request->input('date_to');
         $dateType = $request->input('date_type');
@@ -2104,12 +2107,6 @@ class LeadsController extends Controller
             $query->whereDate($dateColumn, '=', $dateTo);
         }
 
-    // ================= END DATE FILTER =================
-
-        // Filter by emp_id
-        if ($request->filled('selectedValue')) {
-            $query->where('emp_id', $request->input('selectedValue'));
-        }
         if ($request->filled('group_id')) {
             $query->whereHas('user.groups', fn($g) => $g->where('group_masters.id', $request->group_id));
         }

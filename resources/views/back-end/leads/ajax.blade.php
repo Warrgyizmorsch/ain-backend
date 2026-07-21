@@ -87,7 +87,8 @@
         e.preventDefault();
         $('#preloader').show();
         const filters = {
-            order: $('#search_order').val(),
+            order: $('#searchInput').val() || $('#search_order').val() || '',
+            user: $('#searchInput').val() || '',
             status: $('#status_filter').val(),
             lead_status_tab: $('#lead_status_tab').val(),
             type: $('#type_filter').val(),
@@ -98,7 +99,6 @@
             selectedValue: $('#selectedValue').val(),
             lead_source: $('#lead_source').val(),
             group_id: $('#lead_group_id').val()
-
         };
 
         const hasFilters = Object.values(filters).some(val => {
@@ -426,51 +426,40 @@
                     success: function(response) {
                         var results = '';
                         if (response.length > 0) {
-                            // Populate the datalist with search results
                             $('#searchDatalist').empty();
                             $.each(response, function(key, value) {
-                                // Append each option with email, name, and mobile number
-                                $('#searchDatalist').append('<option value="' + value.email + '">' + value.name + ' (' + value.mobile_no + ')</option>');
+                                $('#searchDatalist').append('<option value="' + value.email + '" data-id="' + value.id + '">' + value.name + ' (' + value.mobile_no + ')</option>');
                             });
                             if (response.length === 1) {
-                                // If there is only one result, automatically fill in the search input
                                 $('#searchInput').val(response[0].email);
-                                // Store the selected value in the hidden field
                                 $('#selectedValue').val(response[0].id);
                             }
                         } else {
                             results = '<div>No results found</div>';
                         }
                         $('#searchResultss').html(results);
+
+                        var selectedOption = $('#searchDatalist option[value="' + searchValue + '"]');
+                        if (selectedOption.length > 0) {
+                            var selectedId = selectedOption.attr('data-id') || selectedOption.data('id');
+                            $('#selectedValue').val(selectedId);
+                        }
                     }
                 });
             } else {
                 $('#searchResultss').empty();
-            }
-        });
-
-        // Handle click on search result
-        $('#searchInput').on('input', function() {
-            var selectedEmail = $(this).val();
-            var selectedOption = $('#searchDatalist option[value="' + selectedEmail + '"]');
-            if (selectedOption.length > 0) {
-                resetPasswordBtn.addEventListener('click', function() {
-                    // Get the reset password button
-                    var resetPasswordBtn = document.getElementById('resetFiltersBtn');
-
-                    // Clear the value of the selectedValue input
-                    $('#selectedValue').val('');
-                });
-                // If the selected value exists in the datalist, get its associated ID
-                var selectedId = selectedOption.data('id');
-                $('#selectedValue').val(selectedId);
-            } else {
-                // If the selected value doesn't exist in the datalist, clear the hidden field
                 $('#selectedValue').val('');
             }
         });
 
-
+        $('#searchInput').on('change blur', function() {
+            var selectedEmail = $(this).val();
+            var selectedOption = $('#searchDatalist option[value="' + selectedEmail + '"]');
+            if (selectedOption.length > 0) {
+                var selectedId = selectedOption.attr('data-id') || selectedOption.data('id');
+                $('#selectedValue').val(selectedId);
+            }
+        });
     });
 </script>
 
