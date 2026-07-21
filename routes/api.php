@@ -102,11 +102,6 @@ Route::middleware('api.key')->group(function () {
     Route::get('/city-pages/{slug}', [CityPageApiController::class, 'show'])->where('slug', '.*');
 });
 
-// Public City Page APIs
-Route::get('/city-pages', [CityPageApiController::class, 'index']);
-Route::get('/city-pages/prefix/{prefix}', [CityPageApiController::class, 'getByPrefix'])->where('prefix', '.*');
-Route::get('/city-pages/{slug}', [CityPageApiController::class, 'show'])->where('slug', '.*');
-
 Route::prefix('app')->group(function () {
     Route::get('/countries', [AppDropdownController::class, 'countries']);
     Route::get('/services', [AppDropdownController::class, 'services']);
