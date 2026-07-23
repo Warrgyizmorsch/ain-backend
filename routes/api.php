@@ -120,6 +120,7 @@ Route::prefix('app')->group(function () {
 
 Route::middleware('auth:sanctum')->prefix('app')->group(function () {
     Route::post('/place-order', [OrderApiController::class, 'placeOrder']);
+    Route::post('/edit-order', [OrderApiController::class, 'editOrder']);
     Route::get('/order-list', [OrderApiController::class, 'orderList']);
     Route::get('/profile', [AuthController::class, 'profile']);
     Route::post('/profile-update', [AuthController::class, 'updateProfile']);

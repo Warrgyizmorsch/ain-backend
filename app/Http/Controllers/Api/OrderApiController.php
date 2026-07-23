@@ -1088,4 +1088,162 @@ class OrderApiController extends Controller
             ]
         ], 201);
     }
+
+    public function editOrder(Request $request)
+    {
+        // Authenticated user info (from sanctum token)
+        $authUser = $request->user();
+
+        $rules = [
+            'order_id'     => 'required',
+            'service'      => 'nullable|string',
+            'workType'     => 'nullable|string',
+            'country'      => 'nullable|string',
+            'subject'      => 'nullable|string',
+            'urgency'      => 'nullable|string',
+            'wordCount'    => 'nullable|integer|min:250',
+            'topic'        => 'nullable|string',
+            'requirements' => 'nullable|string',
+            'finalPrice'   => 'nullable',
+            'source_page'  => 'nullable',
+            'fileUpload.*' => 'nullable|file|max:10240',
+        ];
+
+        $validator = Validator::make($request->all(), $rules);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation error',
+                'errors'  => $validator->errors()
+            ], 422);
+        }
+
+        $orderIdInput = $request->input('order_id');
+
+        // Find Lead or Order belonging to authenticated user
+        $lead = Leads::where(function ($q) use ($orderIdInput) {
+            $q->where('order_id', $orderIdInput)
+              ->orWhere('id', $orderIdInput);
+        })->where('emp_id', $authUser->id)->first();
+
+        $order = Order::where(function ($q) use ($orderIdInput) {
+            $q->where('order_id', $orderIdInput)
+              ->orWhere('id', $orderIdInput);
+        })->where('uid', $authUser->id)->first();
+
+        if (!$lead && !$order) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Order not found or access denied.'
+            ], 404);
+        }
+
+        $actualOrderId = $lead->order_id ?? $order->order_id ?? $orderIdInput;
+
+        // Delivery date calculation if urgency is provided
+        $deliveryDate = null;
+        if ($request->filled('urgency')) {
+            $today = now();
+            $urgencyDays = $request->input('urgency');
+
+            if (is_numeric($urgencyDays)) {
+                $deliveryDate = $today->copy()->addDays((int) $urgencyDays);
+            } elseif ($urgencyDays === '16 to 20') {
+                $deliveryDate = $today->copy()->addDays(16);
+            } elseif ($urgencyDays === '21+') {
+                $deliveryDate = $today->copy()->addDays(21);
+            } else {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid urgency selected.'
+                ], 422);
+            }
+        }
+
+        // Update user country if provided
+        if ($request->filled('country')) {
+            $authUser->country = $request->input('country');
+            $authUser->save();
+        }
+
+        // Upload new files if present
+        if ($request->hasFile('fileUpload')) {
+            foreach ($request->file('fileUpload') as $file) {
+                $destinationPath = base_path('images/orders');
+
+                if (!file_exists($destinationPath)) {
+                    mkdir($destinationPath, 0755, true);
+                }
+
+                $fileName = time() . '_' . uniqid() . '_' . $file->getClientOriginalName();
+                $file->move($destinationPath, $fileName);
+
+                $filePath = 'images/orders/' . $fileName;
+
+                $newFile = new \App\Models\Files();
+                $newFile->file_data = $filePath;
+                $newFile->order_id = $actualOrderId;
+                $newFile->file_name = $fileName;
+                $newFile->file_type = $file->getClientMimeType();
+                $newFile->save();
+            }
+        }
+
+        // Update Lead if exists
+        if ($lead) {
+            if ($request->filled('service')) {
+                $lead->project_title = $request->input('service');
+            }
+            if ($request->filled('workType')) {
+                $lead->service_type = str_replace('FirstClass', 'First Class Work', $request->input('workType'));
+            }
+            if ($request->filled('subject')) {
+                $lead->subject = $request->input('subject');
+            }
+            if ($deliveryDate) {
+                $lead->deadline = $deliveryDate->format('Y-m-d');
+            }
+            if ($request->filled('wordCount')) {
+                $lead->pages = $request->input('wordCount');
+            }
+            if ($request->filled('requirements')) {
+                $lead->message = $request->input('requirements');
+            }
+            if ($request->filled('finalPrice')) {
+                $lead->price = $request->input('finalPrice');
+            }
+            if ($request->filled('source_page')) {
+                $lead->page_url = $request->input('source_page');
+            }
+            $lead->save();
+        }
+
+        // Update Order if exists
+        if ($order) {
+            if ($request->filled('topic')) {
+                $order->title = $request->input('topic');
+            }
+            if ($request->filled('subject')) {
+                $order->module_code = $request->input('subject');
+            }
+            if ($request->filled('finalPrice')) {
+                $order->amount = $request->input('finalPrice');
+            }
+            if ($request->filled('wordCount')) {
+                $order->pages = $request->input('wordCount');
+            }
+            if ($deliveryDate) {
+                $order->delivery_date = $deliveryDate->format('Y-m-d');
+            }
+            $order->save();
+        }
+
+        return response()->json([
+            'success'   => true,
+            'message'   => 'Order updated successfully!',
+            'order_id'  => $actualOrderId,
+            'lead_id'   => $lead ? $lead->id : null,
+        ], 200);
+    }
 }
