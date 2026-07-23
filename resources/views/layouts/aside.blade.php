@@ -43,6 +43,7 @@
                     </div>
                 </div>
 
+                @if(auth()->check() && auth()->user()->role_id == 1)
                 @php
                     $isChatbotActive = $isActiveRoute('chatbot');
                 @endphp
@@ -54,6 +55,7 @@
                         <span class="menu-title">AI Chatbot</span>
                     </a>
                 </div>
+                @endif
 
                 @php
                     $isWhatsappActive = $isActiveRoute('whatsapp/settings') || $isActiveRoute('whatsapp/chat');
