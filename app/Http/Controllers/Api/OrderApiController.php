@@ -253,26 +253,65 @@ class OrderApiController extends Controller
             )
             ->get();
 
-        // Get all unique order IDs
-        $orderIds = $ordersRaw->pluck('order_id')->merge($leadsRaw->pluck('order_id'))->unique()->filter()->toArray();
+        // Collect all possible order identifiers (string order_id, order db id, lead id)
+        $allIds = collect();
+        foreach ($ordersRaw as $o) {
+            if (!empty($o->order_id)) $allIds->push((string) $o->order_id);
+            if (!empty($o->id)) $allIds->push((string) $o->id);
+            if (!empty($o->lead_id)) $allIds->push((string) $o->lead_id);
+        }
+        foreach ($leadsRaw as $l) {
+            if (!empty($l->order_id)) $allIds->push((string) $l->order_id);
+            if (!empty($l->id)) $allIds->push((string) $l->id);
+        }
+        $allIds = $allIds->unique()->filter()->values()->toArray();
 
-        // Fetch files grouped by order_id
-        $filesGrouped = collect();
-        if (!empty($orderIds)) {
-            $filesGrouped = DB::table('files')
-                ->whereIn('order_id', $orderIds)
-                ->get()
-                ->groupBy('order_id');
+        // Fetch files for any of these identifiers
+        $filesRaw = collect();
+        if (!empty($allIds)) {
+            $filesQuery = DB::table('files');
+            if (\Illuminate\Support\Facades\Schema::hasColumn('files', 'lead_id')) {
+                $filesQuery->where(function ($q) use ($allIds) {
+                    $q->whereIn('order_id', $allIds)
+                      ->orWhereIn('lead_id', $allIds);
+                });
+            } else {
+                $filesQuery->whereIn('order_id', $allIds);
+            }
+            $filesRaw = $filesQuery->get();
         }
 
-        $getFileUrls = function ($orderId) use ($filesGrouped) {
-            $files = $filesGrouped->get($orderId);
-            if ($files) {
-                return $files->map(function ($file) {
-                    return asset($file->file_data);
-                })->all();
-            }
-            return [];
+        $getFileUrls = function ($orderId, $dbId = null, $leadId = null, $onlyImages = false) use ($filesRaw) {
+            $matchedFiles = $filesRaw->filter(function ($file) use ($orderId, $dbId, $leadId) {
+                $fOrderId = isset($file->order_id) ? (string) $file->order_id : null;
+                $fLeadId  = isset($file->lead_id)  ? (string) $file->lead_id  : null;
+
+                return ($orderId && $fOrderId === (string) $orderId) ||
+                       ($dbId    && $fOrderId === (string) $dbId) ||
+                       ($leadId  && $fOrderId === (string) $leadId) ||
+                       ($leadId  && $fLeadId  === (string) $leadId) ||
+                       ($dbId    && $fLeadId  === (string) $dbId);
+            });
+
+            return $matchedFiles->map(function ($file) use ($onlyImages) {
+                $path = $file->file_data ?? $file->file_name ?? $file->path ?? '';
+                if (empty($path)) {
+                    return null;
+                }
+
+                if ($onlyImages) {
+                    $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+                    $imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp'];
+                    if (!in_array($ext, $imageExtensions) && (!isset($file->file_type) || !str_contains($file->file_type, 'image'))) {
+                        return null;
+                    }
+                }
+
+                if (str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) {
+                    return $path;
+                }
+                return asset(ltrim($path, '/'));
+            })->filter()->values()->all();
         };
 
         // Confirmed orders map
@@ -297,8 +336,8 @@ class OrderApiController extends Controller
                 'received_amount' => $order->received_amount,
                 'due_amount' => $amount - $received,
                 'created_at' => $order->created_at,
-                'images' => $getFileUrls($order->order_id),
-                'files' => $getFileUrls($order->order_id),
+                'images' => $getFileUrls($order->order_id, $order->id, $order->lead_id, true),
+                'files' => $getFileUrls($order->order_id, $order->id, $order->lead_id, false),
             ];
         });
 
@@ -325,8 +364,8 @@ class OrderApiController extends Controller
                 'converted_at' => $lead->converted_at,
                 'created_at' => $lead->create_at,
                 'subject' => $lead->subject,
-                'images' => $getFileUrls($lead->order_id),
-                'files' => $getFileUrls($lead->order_id),
+                'images' => $getFileUrls($lead->order_id, null, $lead->id, true),
+                'files' => $getFileUrls($lead->order_id, null, $lead->id, false),
             ];
         });
 
