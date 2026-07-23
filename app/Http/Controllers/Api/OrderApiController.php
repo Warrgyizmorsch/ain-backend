@@ -77,15 +77,6 @@ class OrderApiController extends Controller
             'finalPrice'   => 'nullable',
             'source_page'  => 'nullable',
             'fileUpload.*' => 'nullable|file|max:10240',
-            'image.*'      => 'nullable|file|max:10240',
-            'images.*'     => 'nullable|file|max:10240',
-            'file.*'       => 'nullable|file|max:10240',
-            'files.*'      => 'nullable|file|max:10240',
-            'fileUpload'   => 'nullable',
-            'image'        => 'nullable',
-            'images'       => 'nullable',
-            'file'         => 'nullable',
-            'files'        => 'nullable',
         ];
 
         $validator = Validator::make($request->all(), $rules);
@@ -295,31 +286,41 @@ class OrderApiController extends Controller
         $filesRaw = collect();
         if (!empty($allIds)) {
             $filesQuery = DB::table('files');
-            if (\Illuminate\Support\Facades\Schema::hasColumn('files', 'lead_id')) {
-                $filesQuery->where(function ($q) use ($allIds) {
-                    $q->whereIn('order_id', $allIds)
-                      ->orWhereIn('lead_id', $allIds);
-                });
-            } else {
-                $filesQuery->whereIn('order_id', $allIds);
-            }
+            $filesQuery->where(function ($q) use ($allIds) {
+                $q->whereIn('order_id', $allIds);
+                if (\Illuminate\Support\Facades\Schema::hasColumn('files', 'order_Id')) {
+                    $q->orWhereIn('order_Id', $allIds);
+                }
+                if (\Illuminate\Support\Facades\Schema::hasColumn('files', 'lead_id')) {
+                    $q->orWhereIn('lead_id', $allIds);
+                }
+                if (\Illuminate\Support\Facades\Schema::hasColumn('files', 'lead_Id')) {
+                    $q->orWhereIn('lead_Id', $allIds);
+                }
+            });
             $filesRaw = $filesQuery->get();
         }
 
         $getFileUrls = function ($orderId, $dbId = null, $leadId = null, $onlyImages = false) use ($filesRaw) {
             $matchedFiles = $filesRaw->filter(function ($file) use ($orderId, $dbId, $leadId) {
-                $fOrderId = isset($file->order_id) ? (string) $file->order_id : null;
-                $fLeadId  = isset($file->lead_id)  ? (string) $file->lead_id  : null;
+                $fileArr = array_change_key_case((array) $file, CASE_LOWER);
+                $fOrderId = isset($fileArr['order_id']) ? (string) $fileArr['order_id'] : null;
+                $fLeadId  = isset($fileArr['lead_id'])  ? (string) $fileArr['lead_id']  : null;
 
-                return ($orderId && $fOrderId === (string) $orderId) ||
-                       ($dbId    && $fOrderId === (string) $dbId) ||
-                       ($leadId  && $fOrderId === (string) $leadId) ||
-                       ($leadId  && $fLeadId  === (string) $leadId) ||
-                       ($dbId    && $fLeadId  === (string) $dbId);
+                $targetOrderId = $orderId ? (string) $orderId : null;
+                $targetDbId    = $dbId    ? (string) $dbId    : null;
+                $targetLeadId  = $leadId  ? (string) $leadId  : null;
+
+                return ($targetOrderId && $fOrderId === $targetOrderId) ||
+                       ($targetDbId    && $fOrderId === $targetDbId)    ||
+                       ($targetLeadId  && $fOrderId === $targetLeadId)  ||
+                       ($targetLeadId  && $fLeadId  === $targetLeadId)  ||
+                       ($targetDbId    && $fLeadId  === $targetDbId);
             });
 
             return $matchedFiles->map(function ($file) use ($onlyImages) {
-                $path = $file->file_data ?? $file->file_name ?? $file->path ?? '';
+                $fileArr = array_change_key_case((array) $file, CASE_LOWER);
+                $path = $fileArr['file_data'] ?? $fileArr['file_name'] ?? $fileArr['path'] ?? '';
                 if (empty($path)) {
                     return null;
                 }
@@ -327,7 +328,8 @@ class OrderApiController extends Controller
                 if ($onlyImages) {
                     $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
                     $imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp'];
-                    if (!in_array($ext, $imageExtensions) && (!isset($file->file_type) || !str_contains($file->file_type, 'image'))) {
+                    $fileType = strtolower($fileArr['file_type'] ?? '');
+                    if (!in_array($ext, $imageExtensions) && !str_contains($fileType, 'image')) {
                         return null;
                     }
                 }
@@ -335,6 +337,11 @@ class OrderApiController extends Controller
                 if (str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) {
                     return $path;
                 }
+
+                if (!str_contains($path, '/')) {
+                    $path = 'images/orders/' . $path;
+                }
+
                 return asset(ltrim($path, '/'));
             })->filter()->values()->all();
         };
