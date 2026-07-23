@@ -44,6 +44,18 @@
                 </div>
 
                 @php
+                    $isChatbotActive = $isActiveRoute('chatbot');
+                @endphp
+                <div class="menu-item">
+                    <a class="menu-link {{ $isChatbotActive ? 'active' : '' }}" href="{{ route('chatbot.index') }}">
+                        <span class="menu-icon">
+                            <i class="fa fa-comments text-info fs-3"></i>
+                        </span>
+                        <span class="menu-title">AI Chatbot</span>
+                    </a>
+                </div>
+
+                @php
                     $isWhatsappActive = $isActiveRoute('whatsapp/settings') || $isActiveRoute('whatsapp/chat');
                 @endphp
                 @if(auth()->check() && auth()->user()->role_id == 1)

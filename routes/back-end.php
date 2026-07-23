@@ -31,10 +31,12 @@ use App\Http\Controllers\ServicePageController;
 use App\Http\Controllers\SubjectPageController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\EnquiryController;
+use App\Http\Controllers\ChatbotController;
 
 Route::middleware(['auth'])->group(function () {
 
     Route::get('/dashboard', [HomeController::class, 'dashboard'])->name('dashboard');
+    Route::get('/chatbot', [ChatbotController::class, 'index'])->name('chatbot.index');
     Route::get('/admin/login-otp-notifications', [AuthenticatedSessionController::class, 'loginOtpNotifications'])
         ->name('admin.login-otp-notifications');
     Route::get('/admin/login-otp-notifications/pending', [AuthenticatedSessionController::class, 'pendingLoginOtpNotifications'])
