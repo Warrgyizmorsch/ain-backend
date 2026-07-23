@@ -77,6 +77,15 @@ class OrderApiController extends Controller
             'finalPrice'   => 'nullable',
             'source_page'  => 'nullable',
             'fileUpload.*' => 'nullable|file|max:10240',
+            'image.*'      => 'nullable|file|max:10240',
+            'images.*'     => 'nullable|file|max:10240',
+            'file.*'       => 'nullable|file|max:10240',
+            'files.*'      => 'nullable|file|max:10240',
+            'fileUpload'   => 'nullable',
+            'image'        => 'nullable',
+            'images'       => 'nullable',
+            'file'         => 'nullable',
+            'files'        => 'nullable',
         ];
 
         $validator = Validator::make($request->all(), $rules);
@@ -129,17 +138,33 @@ class OrderApiController extends Controller
 
         $newOrderId = 'UKS' . str_pad($newOrderNumber, 3, '0', STR_PAD_LEFT);
 
-        // File upload
+        // File upload (supports fileUpload, image, images, file, files - single or array)
         $uploadedFiles = [];
+        $fileKeys = ['fileUpload', 'image', 'images', 'file', 'files'];
+        $filesToProcess = [];
 
-        if ($request->hasFile('fileUpload')) {
-            foreach ($request->file('fileUpload') as $file) {
-                $destinationPath = base_path('images/orders');
-
-                if (!file_exists($destinationPath)) {
-                    mkdir($destinationPath, 0755, true);
+        foreach ($fileKeys as $key) {
+            if ($request->hasFile($key)) {
+                $files = $request->file($key);
+                if (is_array($files)) {
+                    foreach ($files as $f) {
+                        if ($f && $f->isValid()) {
+                            $filesToProcess[] = $f;
+                        }
+                    }
+                } elseif ($files && $files->isValid()) {
+                    $filesToProcess[] = $files;
                 }
+            }
+        }
 
+        if (!empty($filesToProcess)) {
+            $destinationPath = base_path('images/orders');
+            if (!file_exists($destinationPath)) {
+                mkdir($destinationPath, 0755, true);
+            }
+
+            foreach ($filesToProcess as $file) {
                 $fileName = time() . '_' . uniqid() . '_' . $file->getClientOriginalName();
                 $file->move($destinationPath, $fileName);
 
@@ -1206,15 +1231,32 @@ class OrderApiController extends Controller
             $authUser->save();
         }
 
-        // Upload new files if present
-        if ($request->hasFile('fileUpload')) {
-            foreach ($request->file('fileUpload') as $file) {
-                $destinationPath = base_path('images/orders');
+        // Upload new files if present (supports fileUpload, image, images, file, files)
+        $fileKeys = ['fileUpload', 'image', 'images', 'file', 'files'];
+        $filesToProcess = [];
 
-                if (!file_exists($destinationPath)) {
-                    mkdir($destinationPath, 0755, true);
+        foreach ($fileKeys as $key) {
+            if ($request->hasFile($key)) {
+                $files = $request->file($key);
+                if (is_array($files)) {
+                    foreach ($files as $f) {
+                        if ($f && $f->isValid()) {
+                            $filesToProcess[] = $f;
+                        }
+                    }
+                } elseif ($files && $files->isValid()) {
+                    $filesToProcess[] = $files;
                 }
+            }
+        }
 
+        if (!empty($filesToProcess)) {
+            $destinationPath = base_path('images/orders');
+            if (!file_exists($destinationPath)) {
+                mkdir($destinationPath, 0755, true);
+            }
+
+            foreach ($filesToProcess as $file) {
                 $fileName = time() . '_' . uniqid() . '_' . $file->getClientOriginalName();
                 $file->move($destinationPath, $fileName);
 
