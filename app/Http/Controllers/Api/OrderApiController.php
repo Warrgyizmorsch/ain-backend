@@ -764,6 +764,69 @@ class OrderApiController extends Controller
         ], 200);
     }
 
+    public function addWalletAmount(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'amount'         => 'required|numeric|gt:0',
+            'description'    => 'nullable|string',
+            'transaction_id' => 'nullable|string',
+            'payment_gateway' => 'nullable|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation error',
+                'errors'  => $validator->errors()
+            ], 422);
+        }
+
+        $user = $request->user();
+        $amount = (float) $request->input('amount');
+
+        $credits = \App\Models\WalletTransaction::where('user_id', $user->id)
+            ->where('type', 'credit')
+            ->sum('amount');
+
+        $debits = \App\Models\WalletTransaction::where('user_id', $user->id)
+            ->where('type', 'debit')
+            ->sum('amount');
+
+        $calcBalance = (float) ($credits - $debits);
+        $userColBalance = !is_null($user->Wallet) ? (float) $user->Wallet : null;
+
+        $currentBalance = max(0, $userColBalance ?? $calcBalance);
+        $newBalance = $currentBalance + $amount;
+
+        $desc = $request->input('description')
+            ?? $request->input('message')
+            ?? ($request->filled('transaction_id') ? 'Wallet top-up (Txn: ' . $request->input('transaction_id') . ')' : 'Wallet amount added via Mobile App');
+
+        $transaction = \App\Models\WalletTransaction::create([
+            'user_id'       => $user->id,
+            'amount'        => $amount,
+            'type'          => 'credit',
+            'description'   => $desc,
+            'balance_after' => $newBalance,
+        ]);
+
+        // Update User wallet column
+        $user->Wallet = $newBalance;
+        $user->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Wallet amount added successfully!',
+            'data'    => [
+                'transaction_id'       => $transaction->id,
+                'added_amount'         => $amount,
+                'total_wallet_balance' => $newBalance,
+                'currency'             => 'GBP',
+                'created_at'           => $transaction->created_at ? $transaction->created_at->format('d M Y, h:i A') : now()->format('d M Y, h:i A'),
+            ]
+        ], 200);
+    }
+
     public function submitAppFeedback(Request $request)
     {
         $user = $request->user();
