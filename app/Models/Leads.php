@@ -35,6 +35,7 @@ class Leads extends Model
         'lead_source',
         'is_app_lead',
         'subject',
+        'writer_id',
     ];
 
     public function call()

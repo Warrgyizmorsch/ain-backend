@@ -76,6 +76,7 @@ class OrderApiController extends Controller
             'requirements' => 'required|string',
             'finalPrice'   => 'nullable',
             'source_page'  => 'nullable',
+            'writer_id'    => 'nullable|integer|exists:expert,id',
             'fileUpload.*' => 'nullable|file|max:10240',
         ];
 
@@ -191,6 +192,7 @@ class OrderApiController extends Controller
             'service_type'  => str_replace('FirstClass', 'First Class Work', $request->input('workType')),
             'page_url'      => $request->input('source_page') ?? 'Mobile App',
             'subject'       => $request->input('subject'),
+            'writer_id'     => $request->input('writer_id'),
         ]);
 
         // Check if user requested wallet usage
@@ -253,6 +255,7 @@ class OrderApiController extends Controller
             'amount'          => $finalPrice,
             'received_amount' => $usedWalletAmount,
             'module_code'     => $request->input('subject'),
+            'writer_id'       => $request->input('writer_id'),
         ]);
 
         if ($usedWalletAmount > 0) {
@@ -278,6 +281,7 @@ class OrderApiController extends Controller
             'order_id'         => $newOrderId,
             'lead_id'          => $lead->id,
             'is_app_lead'      => 1,
+            'writer_id'        => $request->input('writer_id'),
             'total_amount'     => $finalPrice,
             'received_amount'  => $usedWalletAmount,
             'due_amount'       => $remainingDueAmount,
@@ -293,34 +297,42 @@ class OrderApiController extends Controller
 
         // Confirmed orders
         $ordersRaw = DB::table('orders')
+            ->leftJoin('expert', 'orders.writer_id', '=', 'expert.id')
             ->where('uid', $user->id)
-            ->orderByDesc('id')
+            ->orderByDesc('orders.id')
             ->limit(50)
             ->select(
-                'id',
-                'order_id',
-                'uid',
-                'lead_id',
-                'order_date',
-                'delivery_date',
-                'title',
-                'module_code',
-                'projectstatus',
-                'pages',
-                'amount',
-                'received_amount',
-                'created_at'
+                'orders.id',
+                'orders.order_id',
+                'orders.uid',
+                'orders.lead_id',
+                'orders.order_date',
+                'orders.delivery_date',
+                'orders.title',
+                'orders.module_code',
+                'orders.projectstatus',
+                'orders.pages',
+                'orders.amount',
+                'orders.received_amount',
+                'orders.created_at',
+                'orders.writer_id',
+                'expert.name as writer_name',
+                'expert.image as writer_image',
+                'expert.subject as writer_subject',
+                'expert.service as writer_service',
+                'expert.slug as writer_slug'
             )
             ->get();
 
         // Non-confirmed leads
         $leadsRaw = DB::table('leads')
+            ->leftJoin('expert', 'leads.writer_id', '=', 'expert.id')
             ->where('emp_id', $user->id)
             // ->where('is_app_lead', 1)
-            ->orderByDesc('id')
+            ->orderByDesc('leads.id')
             ->limit(50)
             ->select(
-                'id',
+                'leads.id',
                 'order_id',
                 'emp_id',
                 'user_name',
@@ -339,7 +351,13 @@ class OrderApiController extends Controller
                 'is_converted',
                 'converted_at',
                 'create_at',
-                'subject'
+                'leads.subject',
+                'leads.writer_id',
+                'expert.name as writer_name',
+                'expert.image as writer_image',
+                'expert.subject as writer_subject',
+                'expert.service as writer_service',
+                'expert.slug as writer_slug'
             )
             ->get();
 
@@ -442,6 +460,15 @@ class OrderApiController extends Controller
                 'received_amount' => $order->received_amount,
                 'due_amount' => $amount - $received,
                 'created_at' => $order->created_at,
+                'writer_id' => $order->writer_id,
+                'writer' => $order->writer_id ? [
+                    'id' => $order->writer_id,
+                    'writer_name' => $order->writer_name,
+                    'image' => $order->writer_image,
+                    'subject' => $order->writer_subject,
+                    'service' => $order->writer_service,
+                    'slug' => $order->writer_slug,
+                ] : null,
                 'images' => $getFileUrls($order->order_id, $order->id, $order->lead_id, true),
                 'files' => $getFileUrls($order->order_id, $order->id, $order->lead_id, false),
             ];
@@ -470,6 +497,15 @@ class OrderApiController extends Controller
                 'converted_at' => $lead->converted_at,
                 'created_at' => $lead->create_at,
                 'subject' => $lead->subject,
+                'writer_id' => $lead->writer_id,
+                'writer' => $lead->writer_id ? [
+                    'id' => $lead->writer_id,
+                    'writer_name' => $lead->writer_name,
+                    'image' => $lead->writer_image,
+                    'subject' => $lead->writer_subject,
+                    'service' => $lead->writer_service,
+                    'slug' => $lead->writer_slug,
+                ] : null,
                 'images' => $getFileUrls($lead->order_id, null, $lead->id, true),
                 'files' => $getFileUrls($lead->order_id, null, $lead->id, false),
             ];

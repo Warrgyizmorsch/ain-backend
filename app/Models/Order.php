@@ -24,6 +24,7 @@ protected $table = 'orders';
         'created_at',
         'updated_at',
         'lead_id',
+        'writer_id',
         'team_id',
         'team_assigned_at',
         'marks',
