@@ -193,23 +193,97 @@ class OrderApiController extends Controller
             'subject'       => $request->input('subject'),
         ]);
 
+        // Check if user requested wallet usage
+        $useWallet = $request->boolean('use_wallet')
+            || $request->boolean('wallet')
+            || $request->boolean('is_wallet')
+            || $request->input('use_wallet') == '1'
+            || strtolower((string)$request->input('use_wallet')) === 'true'
+            || $request->input('wallet') == '1'
+            || strtolower((string)$request->input('wallet')) === 'true';
+
+        $finalPrice = (float) $request->input('finalPrice', 0);
+        $usedWalletAmount = 0.0;
+        $newWalletBalance = null;
+
+        if ($useWallet) {
+            // Get user's wallet balance
+            $credits = \App\Models\WalletTransaction::where('user_id', $authUser->id)
+                ->where('type', 'credit')
+                ->sum('amount');
+
+            $debits = \App\Models\WalletTransaction::where('user_id', $authUser->id)
+                ->where('type', 'debit')
+                ->sum('amount');
+
+            $calcBalance = (float) ($credits - $debits);
+            $userColBalance = !is_null($authUser->Wallet) ? (float) $authUser->Wallet : null;
+
+            $currentBalance = max(0, $userColBalance ?? $calcBalance);
+
+            if ($currentBalance > 0 && $finalPrice > 0) {
+                // Deduct maximum possible amount up to finalPrice
+                $usedWalletAmount = min($currentBalance, $finalPrice);
+                $newWalletBalance = $currentBalance - $usedWalletAmount;
+
+                // Create debit transaction record
+                \App\Models\WalletTransaction::create([
+                    'user_id'       => $authUser->id,
+                    'amount'        => $usedWalletAmount,
+                    'type'          => 'debit',
+                    'description'   => 'Payment for Order #' . $newOrderId . ' (wallet debit)',
+                    'balance_after' => $newWalletBalance,
+                ]);
+
+                // Update user's Wallet column
+                $authUser->Wallet = $newWalletBalance;
+                $authUser->save();
+            }
+        }
+
+        $remainingDueAmount = max(0, $finalPrice - $usedWalletAmount);
+
         // Pending order create
-        Order::create([
-            'order_id'      => $newOrderId,
-            'projectstatus' => 'Pending',
-            'lead_id'       => $lead->id,
-            'uid'           => $authUser->id,
-            'title'         => $request->input('topic'),
-            'amount'        => $request->input('finalPrice'),
-            'module_code'   => $request->input('subject'),
+        $order = Order::create([
+            'order_id'        => $newOrderId,
+            'projectstatus'   => 'Pending',
+            'lead_id'         => $lead->id,
+            'uid'             => $authUser->id,
+            'title'           => $request->input('topic'),
+            'amount'          => $finalPrice,
+            'received_amount' => $usedWalletAmount,
+            'module_code'     => $request->input('subject'),
         ]);
 
+        if ($usedWalletAmount > 0) {
+            $order->received_amount = $usedWalletAmount;
+            $order->save();
+
+            // Record in payment_details table
+            $payment = new \App\Models\Payment();
+            $payment->order_id = $order->id;
+            $payment->payment_date = now()->format('l d F Y h:i A');
+            $payment->paid_amount = $usedWalletAmount;
+            $payment->reference = 'Wallet Payment for Order #' . $newOrderId;
+            $payment->payee_name = $authUser->name;
+            $payment->payment_update_by = 'Wallet (Mobile App)';
+            $payment->account_status = 1;
+            $payment->company_accounts = 'Wallet';
+            $payment->save();
+        }
+
         return response()->json([
-            'success'     => true,
-            'message'     => 'Order placed successfully!',
-            'order_id'    => $newOrderId,
-            'lead_id'     => $lead->id,
-            'is_app_lead' => 1,
+            'success'          => true,
+            'message'          => 'Order placed successfully!',
+            'order_id'         => $newOrderId,
+            'lead_id'          => $lead->id,
+            'is_app_lead'      => 1,
+            'total_amount'     => $finalPrice,
+            'received_amount'  => $usedWalletAmount,
+            'due_amount'       => $remainingDueAmount,
+            'wallet_used'      => $usedWalletAmount > 0,
+            'wallet_deducted'  => $usedWalletAmount,
+            'wallet_balance'   => $newWalletBalance !== null ? $newWalletBalance : (float) ($authUser->Wallet ?? 0),
         ], 201);
     }
 
@@ -601,6 +675,12 @@ class OrderApiController extends Controller
             ->sum('amount');
 
         $walletAmount = (float) ($credits - $debits);
+        if (!is_null($user->Wallet)) {
+            $walletAmount = (float) $user->Wallet;
+        }
+        if ($walletAmount < 0) {
+            $walletAmount = 0;
+        }
 
         return response()->json([
             'success' => true,
