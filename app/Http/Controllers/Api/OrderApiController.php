@@ -76,7 +76,7 @@ class OrderApiController extends Controller
             'requirements' => 'required|string',
             'finalPrice'   => 'nullable',
             'source_page'  => 'nullable',
-            'writer_id'    => 'nullable|integer|exists:writer_list,id',
+            'writer_id'    => 'nullable|integer|exists:expert,id',
             'fileUpload.*' => 'nullable|file|max:10240',
         ];
 
@@ -223,7 +223,7 @@ class OrderApiController extends Controller
 
         // Confirmed orders
         $ordersRaw = DB::table('orders')
-            ->leftJoin('writer_list', 'orders.writer_id', '=', 'writer_list.id')
+            ->leftJoin('expert', 'orders.writer_id', '=', 'expert.id')
             ->where('uid', $user->id)
             ->orderByDesc('orders.id')
             ->limit(50)
@@ -242,14 +242,17 @@ class OrderApiController extends Controller
                 'orders.received_amount',
                 'orders.created_at',
                 'orders.writer_id',
-                'writer_list.writer_name',
-                'writer_list.writer_number'
+                'expert.name as writer_name',
+                'expert.image as writer_image',
+                'expert.subject as writer_subject',
+                'expert.service as writer_service',
+                'expert.slug as writer_slug'
             )
             ->get();
 
         // Non-confirmed leads
         $leadsRaw = DB::table('leads')
-            ->leftJoin('writer_list', 'leads.writer_id', '=', 'writer_list.id')
+            ->leftJoin('expert', 'leads.writer_id', '=', 'expert.id')
             ->where('emp_id', $user->id)
             // ->where('is_app_lead', 1)
             ->orderByDesc('leads.id')
@@ -276,8 +279,11 @@ class OrderApiController extends Controller
                 'create_at',
                 'leads.subject',
                 'leads.writer_id',
-                'writer_list.writer_name',
-                'writer_list.writer_number'
+                'expert.name as writer_name',
+                'expert.image as writer_image',
+                'expert.subject as writer_subject',
+                'expert.service as writer_service',
+                'expert.slug as writer_slug'
             )
             ->get();
 
@@ -384,7 +390,10 @@ class OrderApiController extends Controller
                 'writer' => $order->writer_id ? [
                     'id' => $order->writer_id,
                     'writer_name' => $order->writer_name,
-                    'writer_number' => $order->writer_number,
+                    'image' => $order->writer_image,
+                    'subject' => $order->writer_subject,
+                    'service' => $order->writer_service,
+                    'slug' => $order->writer_slug,
                 ] : null,
                 'images' => $getFileUrls($order->order_id, $order->id, $order->lead_id, true),
                 'files' => $getFileUrls($order->order_id, $order->id, $order->lead_id, false),
@@ -418,7 +427,10 @@ class OrderApiController extends Controller
                 'writer' => $lead->writer_id ? [
                     'id' => $lead->writer_id,
                     'writer_name' => $lead->writer_name,
-                    'writer_number' => $lead->writer_number,
+                    'image' => $lead->writer_image,
+                    'subject' => $lead->writer_subject,
+                    'service' => $lead->writer_service,
+                    'slug' => $lead->writer_slug,
                 ] : null,
                 'images' => $getFileUrls($lead->order_id, null, $lead->id, true),
                 'files' => $getFileUrls($lead->order_id, null, $lead->id, false),
