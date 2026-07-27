@@ -73,7 +73,7 @@ class OrderApiController extends Controller
             'urgency'      => 'required|string',
             'wordCount'    => 'required|integer|min:250',
             'topic'        => 'required|string',
-            'requirements' => 'required|string',
+            'requirements' => 'nullable|string',
             'finalPrice'   => 'nullable',
             'source_page'  => 'nullable',
             'writer_id'    => 'nullable|integer|exists:expert,id',
