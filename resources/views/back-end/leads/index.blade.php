@@ -145,6 +145,7 @@
                                 <th class="min-w-100px text-center" style="background: #F5F8FA;">Project Title</th>
                                 <th class="min-w-100px text-center" style="background: #F5F8FA;">Words</th>
                                 <th class="min-w-100px text-center" style="background: #F5F8FA;">Price</th>
+                                <th class="min-w-100px text-center" style="background: #F5F8FA;">Due</th>
                                 <th class="min-w-150px text-center" style="background: #F5F8FA;">Delivery Date</th>
                             </tr>
                         </thead>

@@ -373,7 +373,33 @@
         {!! $lead->pages ? e($lead->pages) : '<span class="badge badge-light-danger fs-7 fw-bold">No Pages</span>' !!}
     </td>
     <td class="text-center">
-        {!! $lead->price ? e($lead->price) : '<span class="badge badge-light-danger fs-7 fw-bold">No Price</span>' !!}
+        {!! $lead->price ? (is_numeric($lead->price) ? '£' . e($lead->price) : e($lead->price)) : '<span class="badge badge-light-danger fs-7 fw-bold">No Price</span>' !!}
+    </td>
+    <td class="text-center">
+        @php
+            $orderRecord = \App\Models\Order::where(function($q) use ($lead) {
+                $q->where('lead_id', $lead->id);
+                if (!empty($lead->order_id)) {
+                    $q->orWhere('order_id', (string)$lead->order_id);
+                }
+            })->first();
+
+            $basePriceAmt = $orderRecord && is_numeric($orderRecord->amount) 
+                ? (float)$orderRecord->amount 
+                : (is_numeric($lead->price) ? (float)$lead->price : 0);
+
+            $recvPriceAmt = $orderRecord && is_numeric($orderRecord->received_amount) 
+                ? (float)$orderRecord->received_amount 
+                : 0;
+
+            $dueAmt = max(0, $basePriceAmt - $recvPriceAmt);
+        @endphp
+
+        @if($basePriceAmt > 0 || is_numeric($lead->price))
+            £{{ $dueAmt }}
+        @else
+            <span class="badge badge-light-danger fs-7 fw-bold">N/A</span>
+        @endif
     </td>
     <td class="text-center">
         {{ \Carbon\Carbon::parse($lead->deadline)->format('d M Y') }}

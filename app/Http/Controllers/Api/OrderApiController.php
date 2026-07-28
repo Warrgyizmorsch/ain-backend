@@ -920,6 +920,85 @@ class OrderApiController extends Controller
         ], 200);
     }
 
+    public function paymentHistory(Request $request)
+    {
+        $user = $request->user();
+
+        // Fetch all orders belonging to this user
+        $userOrders = Order::with(['payment', 'additionals'])
+            ->where('uid', $user->id)
+            ->orderByDesc('id')
+            ->get();
+
+        $userOrderDbIds = $userOrders->pluck('id')->toArray();
+
+        // Query all payments for user orders
+        $payments = \App\Models\Payment::with('order:id,order_id,title,module_code,amount,received_amount')
+            ->whereIn('order_id', $userOrderDbIds)
+            ->orderByDesc('id')
+            ->get();
+
+        $paymentsFormatted = $payments->map(function ($p) {
+            $order = $p->order;
+            return [
+                'payment_id'     => $p->id,
+                'order_db_id'    => $p->order_id,
+                'order_code'     => $order->order_id ?? 'N/A',
+                'order_title'    => $order->title ?? ($order->module_code ?? 'Assignment Order'),
+                'paid_amount'    => (float) $p->paid_amount,
+                'payment_date'   => $p->payment_date ?? ($p->created_at ? $p->created_at->format('d M Y, h:i A') : 'N/A'),
+                'payment_method' => $p->payment_update_by ?? ($p->company_accounts ?? 'Other'),
+                'payee_name'     => $p->payee_name ?? 'N/A',
+                'account_status' => (int) $p->account_status === 1 ? 'Verified' : 'Pending',
+                'created_at'     => $p->created_at ? $p->created_at->format('Y-m-d H:i:s') : null,
+            ];
+        });
+
+        // Group summary per order
+        $ordersSummary = $userOrders->map(function ($order) {
+            $extraPrice = $order->additionals ? (float) $order->additionals->sum('additional_price') : 0.0;
+            $baseAmount = is_numeric($order->amount) ? (float) $order->amount : 0.0;
+            $totalOrderPrice = $baseAmount + $extraPrice;
+            $receivedAmt = is_numeric($order->received_amount) ? (float) $order->received_amount : 0.0;
+            $dueAmt = max(0, $totalOrderPrice - $receivedAmt);
+
+            $orderPayments = $order->payment->map(function ($p) {
+                return [
+                    'payment_id'     => $p->id,
+                    'paid_amount'    => (float) $p->paid_amount,
+                    'payment_date'   => $p->payment_date ?? ($p->created_at ? $p->created_at->format('d M Y, h:i A') : 'N/A'),
+                    'payment_method' => $p->payment_update_by ?? ($p->company_accounts ?? 'Other'),
+                    'payee_name'     => $p->payee_name ?? 'N/A',
+                    'account_status' => (int) $p->account_status === 1 ? 'Verified' : 'Pending',
+                    'created_at'     => $p->created_at ? $p->created_at->format('Y-m-d H:i:s') : null,
+                ];
+            });
+
+            return [
+                'order_db_id'           => $order->id,
+                'order_code'            => $order->order_id ?? 'N/A',
+                'order_title'           => $order->title ?? ($order->module_code ?? 'Assignment Order'),
+                'total_order_amount'    => (float) $totalOrderPrice,
+                'total_received_amount' => (float) $receivedAmt,
+                'remaining_due_amount'  => (float) $dueAmt,
+                'times_paid_count'      => $order->payment->count(),
+                'payment_records'       => $orderPayments,
+            ];
+        });
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Payment history fetched successfully.',
+            'data'    => [
+                'total_payments_count' => $paymentsFormatted->count(),
+                'total_amount_paid'    => (float) $paymentsFormatted->sum('paid_amount'),
+                'currency'             => 'GBP',
+                'all_payments'         => $paymentsFormatted,
+                'orders_summary'       => $ordersSummary,
+            ]
+        ], 200);
+    }
+
     public function submitAppFeedback(Request $request)
     {
         $user = $request->user();

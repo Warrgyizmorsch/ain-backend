@@ -49,7 +49,20 @@ class ServicePageApiController extends Controller
             $slug = trim($page->slug, '/');
             $segments = explode('/', $slug);
 
-            if (($segments[0] ?? '') === 'city' || ($page->subject->slug ?? '') === 'city') {
+            $firstSegment = strtolower($segments[0] ?? '');
+            $subjectSlug  = strtolower($page->subject->slug ?? '');
+            $subjectName  = strtolower($page->subject->name ?? '');
+
+            if (
+                in_array($firstSegment, ['city', 'cities']) ||
+                in_array($subjectSlug, ['city', 'cities']) ||
+                str_contains($firstSegment, 'city') ||
+                str_contains($firstSegment, 'cities') ||
+                str_contains($subjectSlug, 'city') ||
+                str_contains($subjectSlug, 'cities') ||
+                str_contains($subjectName, 'city') ||
+                str_contains($subjectName, 'cities')
+            ) {
                 $cityPages[] = $page;
             } else {
                 $servicePages[] = $page;
@@ -58,8 +71,8 @@ class ServicePageApiController extends Controller
 
         return response()->json([
             'status' => 'success',
-            'data' => $this->formatPages($servicePages),
-            'city' => $this->formatPages($cityPages)
+            'data'   => $this->formatPages($servicePages),
+            'city'   => $this->formatPages($cityPages)
         ]);
     }
 

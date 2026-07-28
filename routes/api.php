@@ -136,6 +136,7 @@ Route::middleware('auth:sanctum')->prefix('app')->group(function () {
     Route::get('/banks', [OrderApiController::class, 'getBanks']);
     Route::post('/add-payment', [OrderApiController::class, 'addPayment']);
     Route::get('/total-spent', [OrderApiController::class, 'userSpending']);
+    Route::get('/payment-history', [OrderApiController::class, 'paymentHistory']);
 });
 
 

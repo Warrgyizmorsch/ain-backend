@@ -41,11 +41,14 @@ class CityPageApiController extends Controller
                 ->where('is_published', true)
                 ->where(function ($q) {
                     $q->whereHas('subject', function ($sq) {
-                        $sq->where('slug', 'city')
-                          ->orWhere('name', 'like', '%city%');
+                        $sq->whereIn('slug', ['city', 'cities'])
+                          ->orWhere('name', 'like', '%city%')
+                          ->orWhere('name', 'like', '%cities%');
                     })
                     ->orWhere('slug', 'like', 'city/%')
-                    ->orWhere('slug', 'like', '%/city/%');
+                    ->orWhere('slug', 'like', 'cities/%')
+                    ->orWhere('slug', 'like', '%/city/%')
+                    ->orWhere('slug', 'like', '%/cities/%');
                 });
 
             if ($request->has('prefix')) {
