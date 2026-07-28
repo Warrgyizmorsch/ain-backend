@@ -182,7 +182,18 @@ class OrderController extends Controller
 
     private function dueAmount(Order $order): float
     {
-        return round((float) $order->amount - (float) $order->received_amount, 2);
+        $extraPrice = 0.0;
+        if ($order->relationLoaded('additionals') && $order->additionals) {
+            $extraPrice = (float) $order->additionals->sum('additional_price');
+        } else {
+            $extraPrice = (float) DB::table('additional')
+                ->where('order_id', (string) $order->order_id)
+                ->orWhere('order_id', (string) $order->id)
+                ->sum('additional_price');
+        }
+
+        $totalAmount = (float) $order->amount + $extraPrice;
+        return round(max(0, $totalAmount - (float) $order->received_amount), 2);
     }
 
 
@@ -3488,7 +3499,8 @@ class OrderController extends Controller
 
         $totals = [
             'total_amount' => $orders->sum(function ($o) {
-                return (float) $o->amount;
+                $extra = $o->relationLoaded('additionals') && $o->additionals ? (float) $o->additionals->sum('additional_price') : 0.0;
+                return (float) $o->amount + $extra;
             }),
 
             'total_paid' => $orders->sum(function ($o) {
@@ -3832,7 +3844,8 @@ class OrderController extends Controller
 
         $totals = [
             'total_amount' => $orders->sum(function ($o) {
-                return (float) $o->amount;
+                $extra = $o->relationLoaded('additionals') && $o->additionals ? (float) $o->additionals->sum('additional_price') : 0.0;
+                return (float) $o->amount + $extra;
             }),
 
             'total_paid' => $orders->sum(function ($o) {

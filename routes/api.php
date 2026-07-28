@@ -135,6 +135,7 @@ Route::middleware('auth:sanctum')->prefix('app')->group(function () {
     Route::post('/submit-feedback', [OrderApiController::class, 'submitAppFeedback']);
     Route::get('/banks', [OrderApiController::class, 'getBanks']);
     Route::post('/add-payment', [OrderApiController::class, 'addPayment']);
+    Route::get('/total-spent', [OrderApiController::class, 'userSpending']);
 });
 
 

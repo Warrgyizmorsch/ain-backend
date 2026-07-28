@@ -241,6 +241,30 @@
         @if ($lead['service_type'] == 'First Class Work')
         <span class="badge badge-light-info fs-7 fw-bold">First Class Work</span>
         @endif
+
+        @php
+            $filesList = \App\Models\Files::where(function($q) use ($lead) {
+                if (!empty($lead->order_id)) {
+                    $q->where('order_id', (string)$lead->order_id);
+                }
+                $q->orWhere('order_id', (string)$lead->id);
+                if (\Illuminate\Support\Facades\Schema::hasColumn('files', 'lead_id')) {
+                    $q->orWhere('lead_id', (string)$lead->id);
+                }
+            })->get();
+        @endphp
+
+        @if($filesList->count() > 0)
+            <div class="mt-2">
+                <button type="button" class="btn btn-sm btn-light-primary fw-bold px-2 py-1 fs-8 d-inline-flex align-items-center gap-1 shadow-sm border border-primary border-opacity-25"
+                    data-bs-toggle="modal" data-bs-target="#leadFilesModal-{{ $lead->id }}"
+                    title="View & Download Attachments">
+                    <i class="fa fa-paperclip text-primary fs-7"></i>
+                    <span>Files</span>
+                    <span class="badge bg-primary text-white rounded-pill ms-1" style="font-size: 10px; padding: 2px 6px;">{{ $filesList->count() }}</span>
+                </button>
+            </div>
+        @endif
     </td>
 
     <td class="text-center">
@@ -363,6 +387,108 @@
         @endif
     </td>
 </tr>
+
+@if(isset($filesList) && $filesList->count() > 0)
+<div class="modal fade text-start" id="leadFilesModal-{{ $lead->id }}" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content shadow-lg border-0" style="border-radius: 12px; overflow: hidden;">
+            
+            <!-- Modal Header -->
+            <div class="modal-header bg-dark text-white px-4 py-3 align-items-center justify-content-between">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="fa fa-folder-open text-warning fs-4"></i>
+                    <h5 class="modal-title fw-bold text-white mb-0">
+                        Lead Files & Attachments
+                        <span class="badge bg-primary fs-8 ms-2">#{{ $lead->order_id ?? $lead->id }}</span>
+                    </h5>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+
+            <!-- Modal Body -->
+            <div class="modal-body p-4 bg-light">
+                <div class="row g-3">
+                    @foreach($filesList as $f)
+                        @php
+                            $path = $f->file_data ?? $f->file_name ?? '';
+                            if (!str_starts_with($path, 'http://') && !str_starts_with($path, 'https://')) {
+                                if (!str_contains($path, '/')) {
+                                    $path = 'images/orders/' . $path;
+                                }
+                                $fullUrl = asset(ltrim($path, '/'));
+                            } else {
+                                $fullUrl = $path;
+                            }
+
+                            $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+                            $isImage = in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp']) || str_contains(strtolower($f->file_type ?? ''), 'image');
+                            $fileName = $f->file_name ?? basename($path);
+                        @endphp
+
+                        <div class="col-md-6 col-lg-4">
+                            <div class="card h-100 border-0 shadow-sm rounded-3 overflow-hidden" style="background: #ffffff;">
+                                
+                                <!-- File Preview Container -->
+                                <div class="text-center p-3 d-flex align-items-center justify-content-center" style="height: 140px; background: #f8f9fa; border-bottom: 1px solid #eef2f5;">
+                                    @if($isImage)
+                                        <a href="{{ $fullUrl }}" target="_blank" title="Click to view full image">
+                                            <img src="{{ $fullUrl }}" class="img-fluid rounded shadow-sm" style="max-height: 110px; max-width: 100%; object-fit: contain;" onerror="this.onerror=null; this.src='https://via.placeholder.com/120?text=Image';">
+                                        </a>
+                                    @else
+                                        <div class="text-center">
+                                            @if($ext == 'pdf')
+                                                <i class="fa fa-file-pdf text-danger fs-1 mb-2"></i>
+                                            @elseif(in_array($ext, ['doc', 'docx']))
+                                                <i class="fa fa-file-word text-primary fs-1 mb-2"></i>
+                                            @elseif(in_array($ext, ['xls', 'xlsx']))
+                                                <i class="fa fa-file-excel text-success fs-1 mb-2"></i>
+                                            @elseif(in_array($ext, ['zip', 'rar', '7z']))
+                                                <i class="fa fa-file-archive text-warning fs-1 mb-2"></i>
+                                            @else
+                                                <i class="fa fa-file-alt text-secondary fs-1 mb-2"></i>
+                                            @endif
+                                            <div class="fw-bold text-uppercase fs-8 text-muted">{{ $ext ?: 'FILE' }}</div>
+                                        </div>
+                                    @endif
+                                </div>
+
+                                <!-- File Details -->
+                                <div class="card-body p-3 d-flex flex-column justify-content-between">
+                                    <div class="mb-3">
+                                        <div class="fw-bold text-dark text-truncate fs-7" title="{{ $fileName }}">
+                                            {{ $fileName }}
+                                        </div>
+                                        <div class="text-muted fs-8">
+                                            Uploaded: {{ \Carbon\Carbon::parse($f->created_at ?? now())->format('d M Y, h:i A') }}
+                                        </div>
+                                    </div>
+
+                                    <!-- Actions -->
+                                    <div class="d-flex gap-2 mt-auto">
+                                        <a href="{{ $fullUrl }}" target="_blank" class="btn btn-sm btn-light-info flex-grow-1 d-flex align-items-center justify-content-center gap-1 py-1 fs-8 fw-bold">
+                                            <i class="fa fa-eye fs-8"></i> View
+                                        </a>
+                                        <a href="{{ $fullUrl }}" download="{{ $fileName }}" class="btn btn-sm btn-primary flex-grow-1 d-flex align-items-center justify-content-center gap-1 py-1 fs-8 fw-bold">
+                                            <i class="fa fa-download fs-8"></i> Download
+                                        </a>
+                                    </div>
+                                </div>
+
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="modal-footer bg-white px-4 py-2">
+                <button type="button" class="btn btn-light-secondary btn-sm fw-bold" data-bs-dismiss="modal">Close</button>
+            </div>
+
+        </div>
+    </div>
+</div>
+@endif
 
 <div class="modal fade" id="hideLeadModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">

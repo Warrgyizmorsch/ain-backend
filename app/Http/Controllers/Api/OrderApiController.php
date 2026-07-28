@@ -150,6 +150,30 @@ class OrderApiController extends Controller
             }
         }
 
+        // Lead create
+        $lead = Leads::create([
+            'order_id'      => $newOrderId,
+            'emp_id'        => $authUser->id,
+            'deadline'      => $deliveryDate->format('Y-m-d'),
+            'create_at'     => now(),
+            'message'       => $request->input('requirements'),
+            'email'         => $authUser->email,
+            'user_name'     => $authUser->name,
+            'countrycode'   => $countryCode,
+            'mobile'        => $mobile,
+            'frontendorder' => 1,
+            'is_app_lead'   => 1,
+            'is_converted'  => 0,
+            'converted_at'  => null,
+            'project_title' => $request->input('service'),
+            'pages'         => $request->input('wordCount'),
+            'price'         => $request->input('finalPrice'),
+            'service_type'  => str_replace('FirstClass', 'First Class Work', $request->input('workType')),
+            'page_url'      => $request->input('source_page') ?? 'Mobile App',
+            'subject'       => $request->input('subject'),
+            'writer_id'     => $request->input('writer_id'),
+        ]);
+
         if (!empty($filesToProcess)) {
             $destinationPath = base_path('images/orders');
             if (!file_exists($destinationPath)) {
@@ -169,31 +193,12 @@ class OrderApiController extends Controller
                 $newFile->order_id = $newOrderId;
                 $newFile->file_name = $fileName;
                 $newFile->file_type = $file->getClientMimeType();
+                if (\Illuminate\Support\Facades\Schema::hasColumn('files', 'lead_id')) {
+                    $newFile->lead_id = $lead->id;
+                }
                 $newFile->save();
             }
         }
-
-        // Lead create
-        $lead = Leads::create([
-            'order_id'      => $newOrderId,
-            'emp_id'        => $authUser->id,
-            'deadline'      => $deliveryDate->format('Y-m-d'),
-            'create_at'     => now(),
-            'message'       => $request->input('requirements'),
-            'email'         => $authUser->email,
-            'user_name'     => $authUser->name,
-            'countrycode'   => $countryCode,
-            'mobile'        => $mobile,
-            'frontendorder' => 1,
-            'is_app_lead'   => 1,
-            'project_title' => $request->input('service'),
-            'pages'         => $request->input('wordCount'),
-            'price'         => $request->input('finalPrice'),
-            'service_type'  => str_replace('FirstClass', 'First Class Work', $request->input('workType')),
-            'page_url'      => $request->input('source_page') ?? 'Mobile App',
-            'subject'       => $request->input('subject'),
-            'writer_id'     => $request->input('writer_id'),
-        ]);
 
         // Check if user requested wallet usage
         $useWallet = $request->boolean('use_wallet')
@@ -295,10 +300,12 @@ class OrderApiController extends Controller
     {
         $user = $request->user();
 
-        // Confirmed orders
+        // Confirmed orders (Only leads where is_converted == 1)
         $ordersRaw = DB::table('orders')
             ->leftJoin('expert', 'orders.writer_id', '=', 'expert.id')
-            ->where('uid', $user->id)
+            ->leftJoin('leads', 'orders.lead_id', '=', 'leads.id')
+            ->where('orders.uid', $user->id)
+            ->where('leads.is_converted', 1)
             ->orderByDesc('orders.id')
             ->limit(50)
             ->select(
@@ -316,6 +323,8 @@ class OrderApiController extends Controller
                 'orders.received_amount',
                 'orders.created_at',
                 'orders.writer_id',
+                'leads.is_app_lead',
+                'leads.page_url',
                 'expert.name as writer_name',
                 'expert.image as writer_image',
                 'expert.subject as writer_subject',
@@ -324,11 +333,24 @@ class OrderApiController extends Controller
             )
             ->get();
 
-        // Non-confirmed leads
+        // Get confirmed lead IDs and order IDs to prevent duplicate listing in non-confirmed leads
+        $confirmedLeadIds = $ordersRaw->pluck('lead_id')->filter()->unique()->toArray();
+        $confirmedOrderIds = $ordersRaw->pluck('order_id')->filter()->unique()->toArray();
+
+        // Non-confirmed leads (is_converted != 1 and not in confirmed orders)
         $leadsRaw = DB::table('leads')
             ->leftJoin('expert', 'leads.writer_id', '=', 'expert.id')
             ->where('emp_id', $user->id)
-            // ->where('is_app_lead', 1)
+            ->where(function ($q) {
+                $q->where('leads.is_converted', 0)
+                  ->orWhereNull('leads.is_converted');
+            })
+            ->when(!empty($confirmedLeadIds), function ($q) use ($confirmedLeadIds) {
+                $q->whereNotIn('leads.id', $confirmedLeadIds);
+            })
+            ->when(!empty($confirmedOrderIds), function ($q) use ($confirmedOrderIds) {
+                $q->whereNotIn('leads.order_id', $confirmedOrderIds);
+            })
             ->orderByDesc('leads.id')
             ->limit(50)
             ->select(
@@ -348,6 +370,7 @@ class OrderApiController extends Controller
                 'service_type',
                 'frontendorder',
                 'is_app_lead',
+                'page_url',
                 'is_converted',
                 'converted_at',
                 'create_at',
@@ -360,6 +383,18 @@ class OrderApiController extends Controller
                 'expert.slug as writer_slug'
             )
             ->get();
+
+        // Strict PHP collection rejection: Remove any lead that is converted or present in confirmed orders
+        $leadsRaw = $leadsRaw->reject(function ($lead) use ($confirmedLeadIds, $confirmedOrderIds) {
+            $leadIdStr      = !empty($lead->id) ? (string) $lead->id : '';
+            $leadOrderIdStr = !empty($lead->order_id) ? (string) $lead->order_id : '';
+
+            $isConverted       = isset($lead->is_converted) && (int) $lead->is_converted === 1;
+            $inConfirmedLeads = $leadIdStr !== '' && in_array($leadIdStr, array_map('strval', $confirmedLeadIds));
+            $inConfirmedOrders = $leadOrderIdStr !== '' && in_array($leadOrderIdStr, array_map('strval', $confirmedOrderIds));
+
+            return $isConverted || $inConfirmedLeads || $inConfirmedOrders;
+        })->values();
 
         // Collect all possible order identifiers (string order_id, order db id, lead id)
         $allIds = collect();
@@ -442,6 +477,7 @@ class OrderApiController extends Controller
         $orders = $ordersRaw->map(function ($order) use ($getFileUrls) {
             $amount = is_numeric($order->amount) ? (float) $order->amount : 0;
             $received = is_numeric($order->received_amount) ? (float) $order->received_amount : 0;
+            $isAppLead = isset($order->is_app_lead) ? (int) $order->is_app_lead : 1;
 
             return [
                 'type' => 'confirmed',
@@ -459,6 +495,9 @@ class OrderApiController extends Controller
                 'amount' => $order->amount,
                 'received_amount' => $order->received_amount,
                 'due_amount' => $amount - $received,
+                'is_app_lead' => $isAppLead,
+                'source' => $isAppLead === 1 ? 'App' : 'Website',
+                'page_url' => $order->page_url ?? null,
                 'created_at' => $order->created_at,
                 'writer_id' => $order->writer_id,
                 'writer' => $order->writer_id ? [
@@ -476,6 +515,8 @@ class OrderApiController extends Controller
 
         // Non-confirmed leads map
         $leads = $leadsRaw->map(function ($lead) use ($getFileUrls) {
+            $isAppLead = (int) ($lead->is_app_lead ?? 0);
+
             return [
                 'type' => 'non_confirmed',
                 'confirmed_status' => $lead->is_converted == 1 ? 'Confirmed' : 'Not Confirmed',
@@ -492,7 +533,9 @@ class OrderApiController extends Controller
                 'deadline' => $lead->deadline,
                 'delivery_time' => $lead->delivery_time,
                 'requirements' => $lead->message,
-                'is_app_lead' => (int) $lead->is_app_lead,
+                'is_app_lead' => $isAppLead,
+                'source' => $isAppLead === 1 ? 'App' : 'Website',
+                'page_url' => $lead->page_url ?? null,
                 'is_converted' => (int) $lead->is_converted,
                 'converted_at' => $lead->converted_at,
                 'created_at' => $lead->create_at,
@@ -823,6 +866,56 @@ class OrderApiController extends Controller
                 'total_wallet_balance' => $newBalance,
                 'currency'             => 'GBP',
                 'created_at'           => $transaction->created_at ? $transaction->created_at->format('d M Y, h:i A') : now()->format('d M Y, h:i A'),
+            ]
+        ], 200);
+    }
+
+    public function userSpending(Request $request)
+    {
+        $user = $request->user();
+
+        // 1. Total amount paid so far across all orders (received_amount sum)
+        $totalSpent = (float) Order::where('uid', $user->id)->sum('received_amount');
+
+        // 2. Total order price value (amount sum)
+        $totalOrdersAmount = (float) Order::where('uid', $user->id)->sum('amount');
+
+        // 3. Remaining total due amount
+        $totalDueAmount = max(0, $totalOrdersAmount - $totalSpent);
+
+        // 4. Confirmed orders count
+        $confirmedOrdersCount = Order::where('uid', $user->id)->count();
+
+        // 5. Total wallet spent (debit transactions sum)
+        $totalWalletSpent = (float) \App\Models\WalletTransaction::where('user_id', $user->id)
+            ->where('type', 'debit')
+            ->sum('amount');
+
+        // 6. Current available wallet balance
+        $credits = \App\Models\WalletTransaction::where('user_id', $user->id)
+            ->where('type', 'credit')
+            ->sum('amount');
+
+        $debits = \App\Models\WalletTransaction::where('user_id', $user->id)
+            ->where('type', 'debit')
+            ->sum('amount');
+
+        $calcBalance = (float) ($credits - $debits);
+        $userColBalance = !is_null($user->Wallet) ? (float) $user->Wallet : null;
+
+        $currentWalletBalance = max(0, $userColBalance ?? $calcBalance);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'User spending details fetched successfully.',
+            'data'    => [
+                'total_spent'            => $totalSpent,            // Total paid by user so far
+                'total_orders_amount'    => $totalOrdersAmount,    // Total value of all orders
+                'total_due_amount'       => $totalDueAmount,       // Total due amount remaining
+                'confirmed_orders_count' => $confirmedOrdersCount, // Total confirmed orders placed
+                'total_wallet_spent'     => $totalWalletSpent,     // Amount paid via wallet
+                'wallet_balance'         => $currentWalletBalance, // Available wallet balance
+                'currency'               => 'GBP'
             ]
         ], 200);
     }

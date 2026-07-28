@@ -566,8 +566,14 @@
         </td>
 
         <td class="text-center" style="width:50px">
-            @if(is_numeric($order->amount) && is_numeric($order->received_amount))
-            £{{ $order->amount - $order->received_amount }}
+            @php
+                $extraPriceAmt = $order->additionals ? (float)$order->additionals->sum('additional_price') : 0;
+                $basePriceAmt  = is_numeric($order->amount) ? (float)$order->amount : 0;
+                $recvPriceAmt  = is_numeric($order->received_amount) ? (float)$order->received_amount : 0;
+                $calcDueAmt    = max(0, ($basePriceAmt + $extraPriceAmt) - $recvPriceAmt);
+            @endphp
+            @if(is_numeric($order->amount) || $extraPriceAmt > 0)
+            £{{ $calcDueAmt }}
             @else
             <span class="badge badge-light-danger fs-7 fw-bold">N/A</span>
             @endif

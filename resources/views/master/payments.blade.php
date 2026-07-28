@@ -68,7 +68,15 @@
                                 </tbody >
                             
                                 @foreach($data['payments'] as $payment)
-                                <tr @if ($payment->account_status == 1) style="font-weight: bold;" @endif>
+                                @php
+                                    $isCheckedPayment = (
+                                        $payment->account_status == 1 ||
+                                        strtolower($payment->company_accounts ?? '') === 'wallet' ||
+                                        str_contains(strtolower($payment->reference ?? ''), 'wallet') ||
+                                        str_contains(strtolower($payment->payment_update_by ?? ''), 'wallet')
+                                    );
+                                @endphp
+                                <tr @if ($isCheckedPayment) style="font-weight: bold;" @endif>
 
                                     <td class='text-center'>{{$loop->index + 1 + ($data['payments']->perPage() * ($data['payments']->currentPage() - 1))}}</td>
                                         <td>{{$payment->payment_date  }}</td>
@@ -189,7 +197,7 @@
                                                     type="checkbox" 
                                                     id="checkbox{{ $payment->id }}" 
                                                     data-payment-id="{{ $payment->id }}" 
-                                                    {{ $payment->account_status == 1 ? 'checked' : '' }} 
+                                                    {{ $isCheckedPayment ? 'checked' : '' }} 
                                                 >
                                             </span>
 

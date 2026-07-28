@@ -185,14 +185,19 @@
                                         <td style="width:50px">
                                            {{$order->received_amount }} £
                                         </td>
-										<td style="width:50px">
-											@if(is_numeric($order->amount) && is_numeric($order->received_amount))
-												{{ $order->amount - $order->received_amount }} £
+ 										<td style="width:50px">
+											@php
+												$extraPriceAmt = $order->additionals ? (float)$order->additionals->sum('additional_price') : 0;
+												$basePriceAmt  = is_numeric($order->amount) ? (float)$order->amount : 0;
+												$recvPriceAmt  = is_numeric($order->received_amount) ? (float)$order->received_amount : 0;
+												$calcDueAmt    = max(0, ($basePriceAmt + $extraPriceAmt) - $recvPriceAmt);
+											@endphp
+											@if(is_numeric($order->amount) || $extraPriceAmt > 0)
+												{{ $calcDueAmt }} £
 											@else
-												<!-- Handle the case where one or both values are non-numeric -->
 												N/A
 											@endif
-										</td>
+ 										</td>
 
 										<td>
 											@if($order->writer_name != null)
