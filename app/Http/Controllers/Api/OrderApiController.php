@@ -473,21 +473,63 @@ class OrderApiController extends Controller
             })->filter()->values()->all();
         };
 
-        // Fetch payment details grouped by order_id
-        $allOrderDbIds = $ordersRaw->pluck('id')->toArray();
-        $paymentsGrouped = \App\Models\Payment::whereIn('order_id', $allOrderDbIds)
-            ->orderByDesc('id')
-            ->get()
-            ->groupBy('order_id');
+        // Fetch order records created for non-confirmed leads to resolve their DB primary keys
+        $leadIds = $leadsRaw->pluck('id')->filter()->toArray();
+        $leadOrderCodes = $leadsRaw->pluck('order_id')->filter()->toArray();
+
+        $leadOrders = (!empty($leadIds) || !empty($leadOrderCodes))
+            ? DB::table('orders')
+                ->where(function($q) use ($leadIds, $leadOrderCodes) {
+                    if (!empty($leadIds)) $q->whereIn('lead_id', $leadIds);
+                    if (!empty($leadOrderCodes)) $q->orWhereIn('order_id', $leadOrderCodes);
+                })->get()
+            : collect();
+
+        // Collect valid order DB IDs and Order Codes for payments query
+        $allOrderIdentifiers = collect();
+        foreach ($ordersRaw as $o) {
+            if (!empty($o->id)) $allOrderIdentifiers->push((string) $o->id);
+            if (!empty($o->order_id)) $allOrderIdentifiers->push((string) $o->order_id);
+        }
+        foreach ($leadOrders as $lo) {
+            if (!empty($lo->id)) $allOrderIdentifiers->push((string) $lo->id);
+            if (!empty($lo->order_id)) $allOrderIdentifiers->push((string) $lo->order_id);
+        }
+        foreach ($leadsRaw as $l) {
+            if (!empty($l->order_id)) $allOrderIdentifiers->push((string) $l->order_id);
+        }
+        $allOrderIdentifiers = $allOrderIdentifiers->unique()->filter()->values()->toArray();
+
+        $allPayments = !empty($allOrderIdentifiers) 
+            ? \App\Models\Payment::whereIn('order_id', $allOrderIdentifiers)->orderByDesc('id')->get()
+            : collect();
+
+        $getPaymentsForRecord = function ($orderCode, $dbId = null) use ($allPayments) {
+            return $allPayments->filter(function ($p) use ($orderCode, $dbId) {
+                $pOrderId   = (string) $p->order_id;
+                $tOrderCode = $orderCode ? (string) $orderCode : null;
+                $tDbId      = $dbId      ? (string) $dbId      : null;
+
+                return ($tDbId      && $pOrderId === $tDbId) ||
+                       ($tOrderCode && $pOrderId === $tOrderCode);
+            })->map(function($p) {
+                return [
+                    'payment_id'     => $p->id,
+                    'paid_amount'    => (float) $p->paid_amount,
+                    'payment_date'   => $p->payment_date ?? ($p->created_at ? $p->created_at->format('d M Y, h:i A') : 'N/A'),
+                    'payment_method' => $p->payment_update_by ?? ($p->company_accounts ?? 'Other'),
+                    'payee_name'     => $p->payee_name ?? 'N/A',
+                    'account_status' => (int) $p->account_status === 1 ? 'Verified' : 'Pending',
+                    'created_at'     => $p->created_at ? $p->created_at->format('Y-m-d H:i:s') : null,
+                ];
+            })->values()->all();
+        };
 
         // Confirmed orders map
-        $orders = $ordersRaw->map(function ($order) use ($getFileUrls, $paymentsGrouped) {
+        $orders = $ordersRaw->map(function ($order) use ($getFileUrls, $getPaymentsForRecord) {
             $amount = is_numeric($order->amount) ? (float) $order->amount : 0;
-
-            // Compute total paid from payment_details table
-            $paidFromDetails = isset($paymentsGrouped[$order->id]) 
-                ? (float) $paymentsGrouped[$order->id]->sum('paid_amount') 
-                : 0.0;
+            $orderPayments = $getPaymentsForRecord($order->order_id, $order->id);
+            $paidFromDetails = (float) collect($orderPayments)->sum('paid_amount');
 
             $receivedFromCol = is_numeric($order->received_amount) ? (float) $order->received_amount : 0.0;
             $received = max($paidFromDetails, $receivedFromCol);
@@ -498,21 +540,6 @@ class OrderApiController extends Controller
             }
 
             $isAppLead = isset($order->is_app_lead) ? (int) $order->is_app_lead : 1;
-
-            $orderPayments = isset($paymentsGrouped[$order->id]) 
-                ? $paymentsGrouped[$order->id]->map(function($p) {
-                    return [
-                        'payment_id'     => $p->id,
-                        'paid_amount'    => (float) $p->paid_amount,
-                        'payment_date'   => $p->payment_date ?? ($p->created_at ? $p->created_at->format('d M Y, h:i A') : 'N/A'),
-                        'payment_method' => $p->payment_update_by ?? ($p->company_accounts ?? 'Other'),
-                        'payee_name'     => $p->payee_name ?? 'N/A',
-                        'account_status' => (int) $p->account_status === 1 ? 'Verified' : 'Pending',
-                        'created_at'     => $p->created_at ? $p->created_at->format('Y-m-d H:i:s') : null,
-                    ];
-                })->values()->all() 
-                : [];
-
             $extraPrice = (float) DB::table('additional')->where('order_id', (string)$order->id)->orWhere('order_id', (string)$order->order_id)->sum('additional_price');
             $totalOrderPrice = $amount + $extraPrice;
             $dueAmt = max(0, $totalOrderPrice - $received);
@@ -554,8 +581,23 @@ class OrderApiController extends Controller
         });
 
         // Non-confirmed leads map
-        $leads = $leadsRaw->map(function ($lead) use ($getFileUrls) {
+        $leads = $leadsRaw->map(function ($lead) use ($getFileUrls, $getPaymentsForRecord, $ordersRaw, $leadOrders) {
             $isAppLead = (int) ($lead->is_app_lead ?? 0);
+
+            // Match corresponding order DB id from ordersRaw or leadOrders
+            $matchedOrder = $ordersRaw->first(function($o) use ($lead) {
+                return (!empty($lead->order_id) && $o->order_id === $lead->order_id) ||
+                       (!empty($o->lead_id) && (string)$o->lead_id === (string)$lead->id);
+            });
+            if (!$matchedOrder) {
+                $matchedOrder = $leadOrders->first(function($lo) use ($lead) {
+                    return (!empty($lead->order_id) && $lo->order_id === $lead->order_id) ||
+                           (!empty($lo->lead_id) && (string)$lo->lead_id === (string)$lead->id);
+                });
+            }
+            $orderDbId = $matchedOrder ? $matchedOrder->id : null;
+
+            $leadPayments = $getPaymentsForRecord($lead->order_id, $orderDbId);
 
             return [
                 'type' => 'non_confirmed',
@@ -573,6 +615,8 @@ class OrderApiController extends Controller
                 'deadline' => $lead->deadline,
                 'delivery_time' => $lead->delivery_time,
                 'requirements' => $lead->message,
+                'times_paid_count' => count($leadPayments),
+                'payment_history' => $leadPayments,
                 'is_app_lead' => $isAppLead,
                 'source' => $isAppLead === 1 ? 'App' : 'Website',
                 'page_url' => $lead->page_url ?? null,
