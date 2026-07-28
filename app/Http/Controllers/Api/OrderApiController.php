@@ -473,11 +473,49 @@ class OrderApiController extends Controller
             })->filter()->values()->all();
         };
 
+        // Fetch payment details grouped by order_id
+        $allOrderDbIds = $ordersRaw->pluck('id')->toArray();
+        $paymentsGrouped = \App\Models\Payment::whereIn('order_id', $allOrderDbIds)
+            ->orderByDesc('id')
+            ->get()
+            ->groupBy('order_id');
+
         // Confirmed orders map
-        $orders = $ordersRaw->map(function ($order) use ($getFileUrls) {
+        $orders = $ordersRaw->map(function ($order) use ($getFileUrls, $paymentsGrouped) {
             $amount = is_numeric($order->amount) ? (float) $order->amount : 0;
-            $received = is_numeric($order->received_amount) ? (float) $order->received_amount : 0;
+
+            // Compute total paid from payment_details table
+            $paidFromDetails = isset($paymentsGrouped[$order->id]) 
+                ? (float) $paymentsGrouped[$order->id]->sum('paid_amount') 
+                : 0.0;
+
+            $receivedFromCol = is_numeric($order->received_amount) ? (float) $order->received_amount : 0.0;
+            $received = max($paidFromDetails, $receivedFromCol);
+
+            // Auto-sync orders table if received_amount is lagging behind payment_details
+            if ($paidFromDetails > $receivedFromCol) {
+                DB::table('orders')->where('id', $order->id)->update(['received_amount' => $paidFromDetails]);
+            }
+
             $isAppLead = isset($order->is_app_lead) ? (int) $order->is_app_lead : 1;
+
+            $orderPayments = isset($paymentsGrouped[$order->id]) 
+                ? $paymentsGrouped[$order->id]->map(function($p) {
+                    return [
+                        'payment_id'     => $p->id,
+                        'paid_amount'    => (float) $p->paid_amount,
+                        'payment_date'   => $p->payment_date ?? ($p->created_at ? $p->created_at->format('d M Y, h:i A') : 'N/A'),
+                        'payment_method' => $p->payment_update_by ?? ($p->company_accounts ?? 'Other'),
+                        'payee_name'     => $p->payee_name ?? 'N/A',
+                        'account_status' => (int) $p->account_status === 1 ? 'Verified' : 'Pending',
+                        'created_at'     => $p->created_at ? $p->created_at->format('Y-m-d H:i:s') : null,
+                    ];
+                })->values()->all() 
+                : [];
+
+            $extraPrice = (float) DB::table('additional')->where('order_id', (string)$order->id)->orWhere('order_id', (string)$order->order_id)->sum('additional_price');
+            $totalOrderPrice = $amount + $extraPrice;
+            $dueAmt = max(0, $totalOrderPrice - $received);
 
             return [
                 'type' => 'confirmed',
@@ -492,9 +530,11 @@ class OrderApiController extends Controller
                 'subject' => $order->module_code,
                 'status' => $order->projectstatus,
                 'word_count' => $order->pages,
-                'amount' => $order->amount,
-                'received_amount' => $order->received_amount,
-                'due_amount' => $amount - $received,
+                'amount' => (string) round($totalOrderPrice, 2),
+                'received_amount' => (string) round($received, 2),
+                'due_amount' => round($dueAmt, 2),
+                'times_paid_count' => count($orderPayments),
+                'payment_history' => $orderPayments,
                 'is_app_lead' => $isAppLead,
                 'source' => $isAppLead === 1 ? 'App' : 'Website',
                 'page_url' => $order->page_url ?? null,
