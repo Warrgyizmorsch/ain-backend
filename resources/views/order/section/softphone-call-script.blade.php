@@ -542,8 +542,8 @@
 
     async function openRingfySoftphone(orderId, countryCode = '', mobile = '') {
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '{{ csrf_token() }}';
-        const cleanCountryCode = String(countryCode || document.getElementById('country_primary')?.value || '').trim();
-        const cleanMobile = String(mobile || document.getElementById('primary')?.value || '').trim();
+        const cleanCountryCode = String(countryCode || document.getElementById('country_primary')?.value || document.getElementById('ringfySoftphoneCountryCode')?.value || '').trim();
+        const cleanMobile = String(mobile || document.getElementById('primary')?.value || document.getElementById('ringfySoftphoneMobile')?.value || '').trim();
 
         if (!cleanCountryCode || !cleanMobile) {
             Swal.fire({

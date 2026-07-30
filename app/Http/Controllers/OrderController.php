@@ -1514,11 +1514,12 @@ class OrderController extends Controller
     public function softphoneCallUrl(Request $request)
     {
         $validated = $request->validate([
-            'country_code' => ['required', 'string', 'max:10'],
+            'country_code' => ['nullable', 'string', 'max:10'],
             'mobile' => ['required', 'string', 'max:30'],
         ]);
 
-        $targetNumber = $this->normalizeSoftphoneNumber($validated['country_code'], $validated['mobile']);
+        $countryCode = $validated['country_code'] ?? '';
+        $targetNumber = $this->normalizeSoftphoneNumber($countryCode, $validated['mobile']);
 
         if (! $targetNumber) {
             return response()->json([
@@ -1528,14 +1529,15 @@ class OrderController extends Controller
         }
 
         $userId = config('services.softphone.user_id', '10101');
-        $password = config('services.softphone.password', 'fa97ljf13ou24rio32');
+        $password = config('services.softphone.password', '4KsdiRm6c65o');
         $sipDomain = config('services.softphone.sip_domain', 'ringfy.next2call.com');
 
-        // Apply number modification as requested/documented:
-        // if number starts with 91, convert it to 0...
+        // Apply number formatting for UK / International SIP trunking:
         $formattedNumber = $targetNumber;
-        if (str_starts_with($formattedNumber, '91')) {
-            $formattedNumber = '0' . substr($formattedNumber, 2);
+        // If domestic 10-digit Indian number without country code, or if number starts with 00, keep full international format
+        if (str_starts_with($formattedNumber, '91') && strlen($formattedNumber) > 10) {
+            // For international UK SIP trunks, preserve international country code 91 or format as needed
+            $formattedNumber = $targetNumber;
         }
 
         // Construct the click-to-dial URL directly as per the documentation
@@ -1613,10 +1615,24 @@ class OrderController extends Controller
 
     private function normalizeSoftphoneNumber(string $countryCode, string $mobile): string
     {
-        $countryCode = preg_replace('/\D+/', '', $countryCode);
-        $mobile = preg_replace('/\D+/', '', $mobile);
+        $cleanCountryCode = preg_replace('/\D+/', '', $countryCode);
+        $cleanMobile = preg_replace('/\D+/', '', $mobile);
 
-        return ltrim($countryCode . $mobile, '0');
+        if (empty($cleanMobile)) {
+            return '';
+        }
+
+        // If mobile already starts with the country code (e.g. 447123456789 or 919876543210), do not duplicate country code
+        if (!empty($cleanCountryCode) && str_starts_with($cleanMobile, $cleanCountryCode)) {
+            return $cleanMobile;
+        }
+
+        // If no country code provided, check if mobile already has international country code or fallback to 44
+        if (empty($cleanCountryCode)) {
+            return ltrim($cleanMobile, '0');
+        }
+
+        return $cleanCountryCode . ltrim($cleanMobile, '0');
     }
 
     private function appendSoftphoneDialParams(string $url, string $targetNumber): string
