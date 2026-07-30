@@ -290,8 +290,9 @@ class MasterController extends Controller
 
         //receive ammount
         $totalPaidAmount = Payment::where('order_id', $request->order_id)
-            ->where('is_revoked', 0)
-            ->where('account_status', 1)
+            ->where(function ($q) {
+                $q->where('is_revoked', 0)->orWhereNull('is_revoked');
+            })
             ->sum('paid_amount');
 
         $order->received_amount = $totalPaidAmount;
@@ -313,8 +314,9 @@ class MasterController extends Controller
 
             // Calculate the total paid amount for the order
             $totalPaidAmount = Payment::where('order_id', $orderId)
-                ->where('is_revoked', 0)
-                ->where('account_status', 1)
+                ->where(function ($q) {
+                    $q->where('is_revoked', 0)->orWhereNull('is_revoked');
+                })
                 ->sum('paid_amount');
 
             // Find the order by ID
@@ -398,8 +400,9 @@ class MasterController extends Controller
         */
 
         $totalPaidAmount = Payment::where('order_id', $payment->order_id)
-            ->where('is_revoked', 0)
-            ->where('account_status', 1)
+            ->where(function ($q) {
+                $q->where('is_revoked', 0)->orWhereNull('is_revoked');
+            })
             ->sum('paid_amount');
 
         $order = Order::find($payment->order_id);
@@ -817,8 +820,9 @@ class MasterController extends Controller
             $order = Order::find($orderId);
             if ($order) {
                 $order->received_amount = Payment::where('order_id', $orderId)
-                    ->where('is_revoked', 0)
-                    ->where('account_status', 1)
+                    ->where(function ($q) {
+                        $q->where('is_revoked', 0)->orWhereNull('is_revoked');
+                    })
                     ->sum('paid_amount');
                 $order->save();
             }
@@ -1000,8 +1004,9 @@ class MasterController extends Controller
         Order::chunk(500, function ($orders) use (&$updatedCount) {
             foreach ($orders as $order) {
                 $totalPaidAmount = Payment::where('order_id', $order->id)
-                    ->where('is_revoked', 0)
-                    ->where('account_status', 1)
+                    ->where(function ($q) {
+                        $q->where('is_revoked', 0)->orWhereNull('is_revoked');
+                    })
                     ->sum('paid_amount');
 
                 if ((float) $order->received_amount !== (float) $totalPaidAmount) {

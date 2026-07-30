@@ -29,8 +29,9 @@ class Payment extends Model
         }
 
         $totalPaidAmount = static::where('order_id', $orderId)
-            ->where('is_revoked', 0)
-            ->where('account_status', 1)
+            ->where(function ($q) {
+                $q->where('is_revoked', 0)->orWhereNull('is_revoked');
+            })
             ->sum('paid_amount');
 
         Order::where('id', $orderId)->update([
