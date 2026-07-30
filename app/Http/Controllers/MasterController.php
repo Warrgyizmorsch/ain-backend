@@ -991,4 +991,27 @@ class MasterController extends Controller
         $coupon->delete();
         return redirect()->back()->with('success', 'Coupon deleted successfully');
     }
+
+    public function syncAllReceivedAmounts()
+    {
+        $updatedCount = 0;
+        $totalOrders = Order::count();
+
+        Order::chunk(500, function ($orders) use (&$updatedCount) {
+            foreach ($orders as $order) {
+                $totalPaidAmount = Payment::where('order_id', $order->id)
+                    ->where('is_revoked', 0)
+                    ->where('account_status', 1)
+                    ->sum('paid_amount');
+
+                if ((float) $order->received_amount !== (float) $totalPaidAmount) {
+                    $order->received_amount = $totalPaidAmount;
+                    $order->save();
+                    $updatedCount++;
+                }
+            }
+        });
+
+        return redirect()->back()->with('success', "All orders payment amounts synced successfully! Updated {$updatedCount} of {$totalOrders} orders.");
+    }
 }

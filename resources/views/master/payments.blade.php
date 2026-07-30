@@ -36,6 +36,9 @@
                     <div class="d-flex justify-content-end mb-3">
                         <input type="checkbox" id="select-all">
                         <button id="bulk-update-btn" class="btn btn-primary btn-sm ms-2">Update Selected Status</button>
+                        <a href="{{ route('payments.syncAll') }}" class="btn btn-success btn-sm ms-2" onclick="return confirm('Are you sure you want to recalculate and sync received amounts for all orders?');">
+                            <i class="fa fa-sync"></i> Sync All Order Payments
+                        </a>
                     </div>
               
                     <div class="table-responsive">

@@ -192,6 +192,7 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/Payments', [MasterController::class, 'update_payments'])->name('update_payments');
     Route::delete('/Payments/{id}', [MasterController::class, 'delete_payments'])->name('delete_payments');
     Route::post('/payments/revoke/{id}', [MasterController::class, 'revokePayment'])->name('payments.revoke');
+    Route::get('/sync-all-order-payments', [MasterController::class, 'syncAllReceivedAmounts'])->name('payments.syncAll');
 
 
     // Writer Managment

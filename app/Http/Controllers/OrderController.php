@@ -714,15 +714,16 @@ class OrderController extends Controller
             return Redirect::back()->withErrors($validator)->withInput();
         }
 
-        // Find the order
-        $order = Order::find($id);
+        // Find the order with additionals
+        $order = Order::with('additionals')->find($id);
 
         if (!$order) {
             return Redirect::back()->with('error', 'Order not found.');
         }
 
-        // Calculate the remaining amount to be paid
-        $remainingAmount = $order->amount - $order->received_amount;
+        // Calculate the remaining amount to be paid (including additionals)
+        $extraPrice = $order->additionals ? $order->additionals->sum('additional_price') : 0;
+        $remainingAmount = ($order->amount + $extraPrice) - $order->received_amount;
 
         // Check if the paid amount is valid
         $paidAmount = $request->input('amount');
