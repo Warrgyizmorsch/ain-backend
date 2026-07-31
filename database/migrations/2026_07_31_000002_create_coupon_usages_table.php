@@ -16,7 +16,7 @@ return new class extends Migration
                 $table->id();
                 $table->unsignedBigInteger('coupon_id');
                 $table->unsignedBigInteger('user_id');
-                $table->string('order_id')->nullable();
+                $table->string('order_id', 191)->nullable();
                 $table->decimal('discount_amount', 10, 2)->default(0.00);
                 $table->timestamps();
 
