@@ -370,7 +370,7 @@ class AdminMenuSeeder extends Seeder
   29 => 
   array (
     'id' => 36,
-    'parent_id' => 44,
+    'parent_id' => NULL,
     'menu_name' => 'Wallet',
     'icon_class' => 'fa fa-wallet',
     'show_menu' => 'Y',

@@ -12,7 +12,7 @@ class WalletMenuSeeder extends Seeder
         DB::table('menu')->updateOrInsert(
             ['id' => 36],
             [
-                'parent_id' => 44,
+                'parent_id' => null,
                 'menu_name' => 'Wallet',
                 'icon_class' => 'fa fa-wallet',
                 'show_menu' => 'Y',
