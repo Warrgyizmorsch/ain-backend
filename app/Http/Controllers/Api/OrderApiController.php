@@ -280,6 +280,55 @@ class OrderApiController extends Controller
             $payment->save();
         }
 
+        // Record Coupon Usage if coupon_code provided
+        if ($request->filled('coupon_code')) {
+            $couponCode = trim($request->input('coupon_code'));
+            $coupon = \App\Models\Coupon::where('coupon_code', $couponCode)->first();
+            if ($coupon) {
+                \App\Models\CouponUsage::create([
+                    'coupon_id' => $coupon->id,
+                    'user_id' => $authUser->id,
+                    'order_id' => $newOrderId,
+                    'discount_amount' => (float) $request->input('discount_amount', 0),
+                ]);
+                $coupon->increment('total_used_count');
+            }
+        }
+
+        // --- 10% Referral Bonus to Referrer on First Order ---
+        $previousOrdersCount = Order::where('uid', $authUser->id)
+            ->where('id', '!=', $order->id)
+            ->count();
+
+        $referralBonusAwarded = false;
+        $referralBonusAmount = 0.0;
+
+        if ($previousOrdersCount === 0 && !empty($authUser->refer_id)) {
+            $referrer = User::find($authUser->refer_id);
+            if ($referrer && $finalPrice > 0) {
+                $referralBonusAmount = round($finalPrice * 0.10, 2);
+
+                if ($referralBonusAmount > 0) {
+                    $referrerBalanceBefore = (float) ($referrer->Wallet ?? 0.00);
+                    $referrerBalanceAfter = $referrerBalanceBefore + $referralBonusAmount;
+
+                    $referrer->Wallet = $referrerBalanceAfter;
+                    $referrer->total_referral_earnings = (float) ($referrer->total_referral_earnings ?? 0.00) + $referralBonusAmount;
+                    $referrer->save();
+
+                    \App\Models\WalletTransaction::create([
+                        'user_id' => $referrer->id,
+                        'amount' => $referralBonusAmount,
+                        'type' => 'credit',
+                        'description' => '10% Referral bonus from ' . $authUser->name . ' (First Order #' . $newOrderId . ')',
+                        'balance_after' => $referrerBalanceAfter,
+                    ]);
+
+                    $referralBonusAwarded = true;
+                }
+            }
+        }
+
         return response()->json([
             'success'          => true,
             'message'          => 'Order placed successfully!',
@@ -293,6 +342,9 @@ class OrderApiController extends Controller
             'wallet_used'      => $usedWalletAmount > 0,
             'wallet_deducted'  => $usedWalletAmount,
             'wallet_balance'   => $newWalletBalance !== null ? $newWalletBalance : (float) ($authUser->Wallet ?? 0),
+            'first_order_referral_bonus_awarded' => $referralBonusAwarded,
+            'referral_bonus_amount' => $referralBonusAmount,
+            'payload'          => $request->all(),
         ], 201);
     }
 
@@ -1152,60 +1204,114 @@ class OrderApiController extends Controller
 
         $validator = Validator::make($data, [
             'coupon_code' => 'required|string',
+            'uid' => 'nullable|integer',
+            'user_id' => 'nullable|integer',
+            'order_amount' => 'nullable|numeric|min:0',
+            'amount' => 'nullable|numeric|min:0',
+            'finalPrice' => 'nullable|numeric|min:0',
         ]);
 
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
                 'message' => 'Validation error',
-                'errors' => $validator->errors()
+                'errors' => $validator->errors(),
+                'payload' => $data
             ], 422);
         }
 
         $couponCode = trim($data['coupon_code']);
+        $userId = $request->user() ? $request->user()->id : ($data['uid'] ?? $data['user_id'] ?? null);
+        $orderAmount = (float) ($data['order_amount'] ?? $data['amount'] ?? $data['finalPrice'] ?? 0.00);
 
-        $coupon = \App\Models\Coupon::where('coupon_code', $couponCode)
-            ->where('is_active', 1)
-            ->first();
+        $coupon = \App\Models\Coupon::where('coupon_code', $couponCode)->first();
 
         if (!$coupon) {
             return response()->json([
                 'success' => false,
-                'message' => 'Invalid or inactive coupon code.'
-            ], 404);
+                'message' => 'Invalid coupon code. Coupon does not exist.',
+                'payload' => $data
+            ], 422);
         }
+
+        // Validate coupon rules against user ID, expiration, usage limits, and minimum order amount
+        $validation = $coupon->isValidForUser($userId, $orderAmount);
+
+        if (!$validation['valid']) {
+            return response()->json([
+                'success' => false,
+                'message' => $validation['message'],
+                'payload' => $data
+            ], 422);
+        }
+
+        $calculatedDiscount = $validation['discount'];
+        $finalPayableAmount = max(0, $orderAmount - $calculatedDiscount);
 
         return response()->json([
             'success' => true,
             'message' => 'Coupon applied successfully!',
+            'discount_amount' => $calculatedDiscount,
+            'final_payable_amount' => round($finalPayableAmount, 2),
             'data' => [
+                'id' => $coupon->id,
                 'coupon_code' => $coupon->coupon_code,
                 'discount_type' => $coupon->discount_type,
                 'discount_value' => (float) $coupon->discount_value,
-            ]
+                'min_order_amount' => (float) $coupon->min_order_amount,
+                'max_discount_amount' => $coupon->max_discount_amount ? (float) $coupon->max_discount_amount : null,
+                'expires_at' => $coupon->expires_at ? $coupon->expires_at->format('Y-m-d H:i:s') : null,
+                'usage_limit_per_user' => (int) $coupon->usage_limit_per_user,
+                'description' => $coupon->description,
+            ],
+            'payload' => $data
         ], 200);
     }
 
-    public function couponList()
+    public function couponList(Request $request)
     {
+        $userId = $request->user() ? $request->user()->id : ($request->input('uid') ?? $request->input('user_id') ?? null);
+
         $coupons = \App\Models\Coupon::where('is_active', 1)
             ->orderByDesc('id')
-            ->select('id', 'coupon_code', 'discount_type', 'discount_value', 'created_at')
             ->get()
+            ->filter(function ($coupon) use ($userId) {
+                if ($coupon->expires_at && now()->greaterThan($coupon->expires_at)) {
+                    return false;
+                }
+                if (!is_null($coupon->total_usage_limit) && $coupon->total_used_count >= $coupon->total_usage_limit) {
+                    return false;
+                }
+                if ($userId) {
+                    $userCount = $coupon->usages()->where('user_id', $userId)->count();
+                    if ($userCount >= $coupon->usage_limit_per_user) {
+                        return false;
+                    }
+                }
+                return true;
+            })
             ->map(function ($coupon) {
                 return [
                     'id' => $coupon->id,
                     'coupon_code' => $coupon->coupon_code,
                     'discount_type' => $coupon->discount_type,
                     'discount_value' => (float) $coupon->discount_value,
+                    'min_order_amount' => (float) $coupon->min_order_amount,
+                    'max_discount_amount' => $coupon->max_discount_amount ? (float) $coupon->max_discount_amount : null,
+                    'expires_at' => $coupon->expires_at ? $coupon->expires_at->format('Y-m-d H:i:s') : null,
+                    'usage_limit_per_user' => (int) $coupon->usage_limit_per_user,
+                    'description' => $coupon->description,
                     'created_at' => $coupon->created_at ? $coupon->created_at->format('Y-m-d H:i:s') : null,
                 ];
-            });
+            })
+            ->values();
 
         return response()->json([
             'success' => true,
             'message' => 'Coupons fetched successfully',
-            'data' => $coupons
+            'count' => $coupons->count(),
+            'data' => $coupons,
+            'payload' => $request->all()
         ], 200);
     }
 

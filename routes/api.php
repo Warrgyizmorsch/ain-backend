@@ -118,6 +118,8 @@ Route::prefix('app')->group(function () {
     Route::post('/google-login', [AuthController::class, 'googleLogin']);
 });
 
+use App\Http\Controllers\Api\AdminCouponApiController;
+
 Route::middleware('auth:sanctum')->prefix('app')->group(function () {
     Route::post('/place-order', [OrderApiController::class, 'placeOrder']);
     Route::post('/edit-order', [OrderApiController::class, 'editOrder']);
@@ -132,11 +134,21 @@ Route::middleware('auth:sanctum')->prefix('app')->group(function () {
     Route::post('/add-wallet-amount', [OrderApiController::class, 'addWalletAmount']);
     Route::post('/wallet/add', [OrderApiController::class, 'addWalletAmount']);
     Route::get('/refer-list', [AuthController::class, 'referList']);
+    Route::get('/referral-info', [AuthController::class, 'referList']);
     Route::post('/submit-feedback', [OrderApiController::class, 'submitAppFeedback']);
     Route::get('/banks', [OrderApiController::class, 'getBanks']);
     Route::post('/add-payment', [OrderApiController::class, 'addPayment']);
     Route::get('/total-spent', [OrderApiController::class, 'userSpending']);
     Route::get('/payment-history', [OrderApiController::class, 'paymentHistory']);
+});
+
+// Admin Coupon Management APIs
+Route::prefix('admin')->group(function () {
+    Route::get('/coupons', [AdminCouponApiController::class, 'index']);
+    Route::post('/coupons', [AdminCouponApiController::class, 'store']);
+    Route::get('/coupons/{id}', [AdminCouponApiController::class, 'show']);
+    Route::put('/coupons/{id}', [AdminCouponApiController::class, 'update']);
+    Route::delete('/coupons/{id}', [AdminCouponApiController::class, 'destroy']);
 });
 
 

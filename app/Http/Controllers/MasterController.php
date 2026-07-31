@@ -956,16 +956,28 @@ class MasterController extends Controller
             'coupon_code' => 'required|string|unique:coupons,coupon_code',
             'discount_type' => 'required|in:percentage,fixed',
             'discount_value' => 'required|numeric|min:0',
+            'expires_at' => 'nullable|date',
+            'min_order_amount' => 'nullable|numeric|min:0',
+            'max_discount_amount' => 'nullable|numeric|min:0',
+            'usage_limit_per_user' => 'nullable|integer|min:1',
+            'total_usage_limit' => 'nullable|integer|min:1',
+            'description' => 'nullable|string',
         ]);
 
         $coupon = new \App\Models\Coupon();
-        $coupon->coupon_code = $req->input('coupon_code');
+        $coupon->coupon_code = strtoupper(trim($req->input('coupon_code')));
         $coupon->discount_type = $req->input('discount_type');
         $coupon->discount_value = $req->input('discount_value');
+        $coupon->expires_at = $req->filled('expires_at') ? \Illuminate\Support\Carbon::parse($req->input('expires_at')) : null;
+        $coupon->min_order_amount = $req->input('min_order_amount', 0.00);
+        $coupon->max_discount_amount = $req->input('max_discount_amount');
+        $coupon->usage_limit_per_user = $req->input('usage_limit_per_user', 1);
+        $coupon->total_usage_limit = $req->input('total_usage_limit');
+        $coupon->description = $req->input('description');
         $coupon->is_active = $req->input('is_active') ? 1 : 0;
         $coupon->save();
 
-        return redirect()->back()->with('success', "New Coupon Add Successfully");
+        return redirect()->back()->with('success', "New Coupon Added Successfully");
     }
 
     public function update_coupon(Request $req, $id)
@@ -974,12 +986,24 @@ class MasterController extends Controller
             'coupon_code' => 'required|string|unique:coupons,coupon_code,' . $id,
             'discount_type' => 'required|in:percentage,fixed',
             'discount_value' => 'required|numeric|min:0',
+            'expires_at' => 'nullable|date',
+            'min_order_amount' => 'nullable|numeric|min:0',
+            'max_discount_amount' => 'nullable|numeric|min:0',
+            'usage_limit_per_user' => 'nullable|integer|min:1',
+            'total_usage_limit' => 'nullable|integer|min:1',
+            'description' => 'nullable|string',
         ]);
 
         $coupon = \App\Models\Coupon::findOrFail($id);
-        $coupon->coupon_code = $req->input('coupon_code');
+        $coupon->coupon_code = strtoupper(trim($req->input('coupon_code')));
         $coupon->discount_type = $req->input('discount_type');
         $coupon->discount_value = $req->input('discount_value');
+        $coupon->expires_at = $req->filled('expires_at') ? \Illuminate\Support\Carbon::parse($req->input('expires_at')) : null;
+        $coupon->min_order_amount = $req->input('min_order_amount', 0.00);
+        $coupon->max_discount_amount = $req->input('max_discount_amount');
+        $coupon->usage_limit_per_user = $req->input('usage_limit_per_user', 1);
+        $coupon->total_usage_limit = $req->input('total_usage_limit');
+        $coupon->description = $req->input('description');
         $coupon->is_active = $req->input('is_active') ? 1 : 0;
         $coupon->save();
 

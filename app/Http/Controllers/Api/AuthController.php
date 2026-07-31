@@ -36,6 +36,8 @@ class AuthController extends Controller
             'email' => 'required|email|unique:users,email',
             'password' => 'required|min:6|same:confirm_password',
             'confirm_password' => 'required|min:6',
+            'referral_code' => 'nullable|string',
+            'refer_id' => 'nullable|integer|exists:users,id',
         ]);
 
         if ($validator->fails()) {
@@ -46,12 +48,26 @@ class AuthController extends Controller
             ], 422);
         }
 
+        // Find Referrer User if referral_code or refer_id provided
+        $referId = null;
+        if ($request->filled('refer_id')) {
+            $referId = $request->input('refer_id');
+        } elseif ($request->filled('referral_code')) {
+            $refCode = trim($request->input('referral_code'));
+            $referrer = User::where('referral_code', $refCode)->orWhere('id', $refCode)->first();
+            if ($referrer) {
+                $referId = $referrer->id;
+            }
+        }
+
         $user = User::create([
             'name' => $request->name,
             'mobile_no' => $request->phone_no,
             'email' => $request->email,
             'password' => Hash::make($request->password),
             'role_id' => 2,
+            'refer_id' => $referId,
+            'referral_code' => User::generateUniqueReferralCode(),
         ]);
 
         $token = $user->createToken('app_token')->plainTextToken;
@@ -338,20 +354,47 @@ class AuthController extends Controller
         ]);
     }
 
-    // REFER LIST API
+    // REFER LIST & REFERRAL INFO API
     public function referList(Request $request)
     {
         $user = $request->user();
 
+        // Ensure user has a referral code
+        if (empty($user->referral_code)) {
+            $user->referral_code = User::generateUniqueReferralCode();
+            $user->save();
+        }
+
         $referredUsers = \App\Models\User::where('refer_id', $user->id)
             ->select('id', 'name', 'email', 'mobile_no', 'countrycode', 'created_at')
             ->orderBy('id', 'desc')
-            ->get();
+            ->get()
+            ->map(function ($refUser) use ($user) {
+                // Find first order of referred user
+                $firstOrder = \App\Models\Order::where('uid', $refUser->id)->oldest('id')->first();
+                $bonusEarned = $firstOrder ? round((float)$firstOrder->amount * 0.10, 2) : 0.00;
+
+                return [
+                    'id' => $refUser->id,
+                    'name' => $refUser->name,
+                    'email' => $refUser->email,
+                    'mobile_no' => $refUser->mobile_no,
+                    'countrycode' => $refUser->countrycode,
+                    'joined_at' => $refUser->created_at ? $refUser->created_at->format('Y-m-d H:i:s') : null,
+                    'has_ordered' => $firstOrder ? true : false,
+                    'first_order_id' => $firstOrder ? $firstOrder->order_id : null,
+                    'first_order_amount' => $firstOrder ? (float)$firstOrder->amount : 0.00,
+                    'referral_bonus_earned' => $bonusEarned,
+                ];
+            });
 
         return response()->json([
             'success' => true,
-            'count' => $referredUsers->count(),
-            'data' => $referredUsers
+            'referral_code' => $user->referral_code,
+            'total_referrals' => $referredUsers->count(),
+            'total_referral_earnings' => (float) ($user->total_referral_earnings ?? 0.00),
+            'data' => $referredUsers,
+            'payload' => $request->all()
         ]);
     }
 
@@ -362,6 +405,8 @@ class AuthController extends Controller
             'email' => 'nullable|email',
             'name' => 'nullable|string|max:255',
             'mobile_no' => 'nullable|string|max:20',
+            'referral_code' => 'nullable|string',
+            'refer_id' => 'nullable|integer|exists:users,id',
         ]);
 
         try {
@@ -380,21 +425,38 @@ class AuthController extends Controller
                 ? preg_replace('/\D/', '', $request->mobile_no)
                 : null;
 
-            $user = User::firstOrCreate(
-                ['email' => $email],
-                [
+            // Check if user exists
+            $existingUser = User::where('email', $email)->first();
+
+            if (!$existingUser) {
+                $referId = null;
+                if ($request->filled('refer_id')) {
+                    $referId = $request->input('refer_id');
+                } elseif ($request->filled('referral_code')) {
+                    $refCode = trim($request->input('referral_code'));
+                    $referrer = User::where('referral_code', $refCode)->orWhere('id', $refCode)->first();
+                    if ($referrer) {
+                        $referId = $referrer->id;
+                    }
+                }
+
+                $user = User::create([
+                    'email' => $email,
                     'name' => $name ?: Str::before($email, '@'),
                     'password' => Hash::make('user@123'),
                     'role_id' => 2,
                     'mobile_no' => $mobile,
-                ]
-            );
-
-            $registered = $user->wasRecentlyCreated;
-
-            if (!$registered && $mobile && !$user->mobile_no) {
-                $user->mobile_no = $mobile;
-                $user->save();
+                    'refer_id' => $referId,
+                    'referral_code' => User::generateUniqueReferralCode(),
+                ]);
+                $registered = true;
+            } else {
+                $user = $existingUser;
+                $registered = false;
+                if ($mobile && !$user->mobile_no) {
+                    $user->mobile_no = $mobile;
+                    $user->save();
+                }
             }
 
             $token = $user->createToken('app_token')->plainTextToken;

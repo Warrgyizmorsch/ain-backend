@@ -98,6 +98,12 @@
                         <span class="menu-title">Bank Master</span>
                     </a>
                 </div>
+                <div class="menu-item">
+                    <a class="menu-link {{ $isActiveRoute('coupons') ? 'active' : '' }}" href="{{ route('coupons') }}">
+                        <span class="menu-icon"><i class="fa fa-ticket"></i></span>
+                        <span class="menu-title">Coupon Master</span>
+                    </a>
+                </div>
                 @endif
 
                 @foreach($premission as $permission)

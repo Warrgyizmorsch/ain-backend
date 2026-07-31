@@ -30,6 +30,9 @@ class User extends Authenticatable
         'mobile_no',
         'countrycode',
         'team_id',
+        'refer_id',
+        'referral_code',
+        'total_referral_earnings',
         'Wallet',
         'verifyed',
         'otp',
@@ -90,9 +93,23 @@ class User extends Authenticatable
         return $this->hasMany(FollowUpComment::class, 'uid'); 
     }
 
+    public function referrer()
+    {
+        return $this->belongsTo(User::class, 'refer_id', 'id');
+    }
+
     public function referredUsers()
     {
         return $this->hasMany(User::class, 'refer_id', 'id');
+    }
+
+    public static function generateUniqueReferralCode(): string
+    {
+        do {
+            $code = 'REF' . strtoupper(\Illuminate\Support\Str::random(6));
+        } while (self::where('referral_code', $code)->exists());
+
+        return $code;
     }
 
     /**
