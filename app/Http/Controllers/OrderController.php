@@ -4269,7 +4269,11 @@ class OrderController extends Controller
     public function feedbackList(Request $request)
     {
         $query = DB::table('feedbacks')
-            ->leftJoin('orders', 'feedbacks.order_id', '=', 'orders.order_id')
+            ->leftJoin('orders', function ($join) {
+                $join->whereRaw(
+                    'feedbacks.order_id COLLATE utf8mb4_unicode_ci = orders.order_id COLLATE utf8mb4_unicode_ci'
+                );
+            })
             ->select(
                 'feedbacks.*',
                 'orders.is_fail as order_is_fail',
