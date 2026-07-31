@@ -75,6 +75,9 @@ class OrderApiController extends Controller
             'topic'        => 'required|string',
             'requirements' => 'nullable|string',
             'finalPrice'   => 'nullable',
+            'coupon_code' => 'nullable|string|max:50',
+            'discount_amount' => 'nullable|numeric|min:0',
+            'order_amount' => 'nullable|numeric|min:0',
             'source_page'  => 'nullable',
             'writer_id'    => 'nullable|integer|exists:expert,id',
             'fileUpload.*' => 'nullable|file|max:10240',
@@ -130,6 +133,30 @@ class OrderApiController extends Controller
 
         $newOrderId = 'UKS' . str_pad($newOrderNumber, 3, '0', STR_PAD_LEFT);
 
+        $coupon = null;
+        $couponCode = trim((string) $request->input('coupon_code', ''));
+        $couponDiscount = (float) $request->input('discount_amount', 0);
+        $finalPrice = (float) $request->input('finalPrice', 0);
+        $originalPrice = (float) ($request->input('order_amount') ?? $request->input('original_amount', 0));
+
+        if ($couponCode !== '') {
+            $coupon = \App\Models\Coupon::whereRaw('UPPER(coupon_code) = ?', [strtoupper($couponCode)])->first();
+            if ($coupon) {
+                if ($originalPrice <= 0) {
+                    $originalPrice = $finalPrice + $couponDiscount;
+                }
+                $validation = $coupon->isValidForUser($authUser->id, $originalPrice);
+                if ($validation['valid']) {
+                    $couponDiscount = (float) $validation['discount'];
+                    $finalPrice = max(0, $originalPrice - $couponDiscount);
+                }
+            }
+        }
+
+        if ($originalPrice <= 0) {
+            $originalPrice = $finalPrice + $couponDiscount;
+        }
+
         // File upload (supports fileUpload, image, images, file, files - single or array)
         $uploadedFiles = [];
         $fileKeys = ['fileUpload', 'image', 'images', 'file', 'files'];
@@ -167,7 +194,12 @@ class OrderApiController extends Controller
             'converted_at'  => null,
             'project_title' => $request->input('service'),
             'pages'         => $request->input('wordCount'),
-            'price'         => $request->input('finalPrice'),
+            'price'         => $finalPrice,
+            'coupon_code' => $coupon?->coupon_code ?: ($couponCode ?: null),
+            'coupon_discount_type' => $coupon?->discount_type,
+            'coupon_discount_value' => $coupon?->discount_value,
+            'coupon_discount_amount' => $couponDiscount,
+            'coupon_original_amount' => $originalPrice,
             'service_type'  => str_replace('FirstClass', 'First Class Work', $request->input('workType')),
             'page_url'      => $request->input('source_page') ?? 'Mobile App',
             'subject'       => $request->input('subject'),
@@ -259,6 +291,11 @@ class OrderApiController extends Controller
             'title'           => $request->input('topic'),
             'amount'          => $finalPrice,
             'received_amount' => $usedWalletAmount,
+            'coupon_code' => $coupon?->coupon_code ?: ($couponCode ?: null),
+            'coupon_discount_type' => $coupon?->discount_type,
+            'coupon_discount_value' => $coupon?->discount_value,
+            'coupon_discount_amount' => $couponDiscount,
+            'coupon_original_amount' => $originalPrice,
             'module_code'     => $request->input('subject'),
             'writer_id'       => $request->input('writer_id'),
         ]);
@@ -283,13 +320,13 @@ class OrderApiController extends Controller
         // Record Coupon Usage if coupon_code provided
         if ($request->filled('coupon_code')) {
             $couponCode = trim($request->input('coupon_code'));
-            $coupon = \App\Models\Coupon::where('coupon_code', $couponCode)->first();
+            $coupon = $coupon ?: \App\Models\Coupon::where('coupon_code', $couponCode)->first();
             if ($coupon) {
                 \App\Models\CouponUsage::create([
                     'coupon_id' => $coupon->id,
                     'user_id' => $authUser->id,
                     'order_id' => $newOrderId,
-                    'discount_amount' => (float) $request->input('discount_amount', 0),
+                    'discount_amount' => $couponDiscount,
                 ]);
                 $coupon->increment('total_used_count');
             }
@@ -337,6 +374,9 @@ class OrderApiController extends Controller
             'is_app_lead'      => 1,
             'writer_id'        => $request->input('writer_id'),
             'total_amount'     => $finalPrice,
+            'coupon_code'      => $coupon?->coupon_code ?: ($couponCode ?: null),
+            'coupon_discount_amount' => $couponDiscount,
+            'original_amount'  => $originalPrice,
             'received_amount'  => $usedWalletAmount,
             'due_amount'       => $remainingDueAmount,
             'wallet_used'      => $usedWalletAmount > 0,
@@ -372,6 +412,11 @@ class OrderApiController extends Controller
                 'orders.projectstatus',
                 'orders.pages',
                 'orders.amount',
+                'orders.coupon_code',
+                'orders.coupon_discount_type',
+                'orders.coupon_discount_value',
+                'orders.coupon_discount_amount',
+                'orders.coupon_original_amount',
                 'orders.received_amount',
                 'orders.created_at',
                 'orders.writer_id',
@@ -416,6 +461,11 @@ class OrderApiController extends Controller
                 'project_title',
                 'pages',
                 'price',
+                'coupon_code',
+                'coupon_discount_type',
+                'coupon_discount_value',
+                'coupon_discount_amount',
+                'coupon_original_amount',
                 'deadline',
                 'delivery_time',
                 'message',

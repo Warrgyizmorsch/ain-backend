@@ -552,6 +552,11 @@
                 $extraPrice = $order->additionals->sum('additional_price');
             @endphp
 
+            @if(!empty($order->coupon_code))
+                <div class="text-success small fw-bold">Coupon: {{ $order->coupon_code }}</div>
+                <div class="text-danger small">-£{{ number_format((float)($order->coupon_discount_amount ?? 0), 2) }}</div>
+            @endif
+
             @if($order->amount)
                 £{{ $order->amount }}@if($extraPrice > 0)+{{ $extraPrice }}@endif
             @elseif($extraPrice > 0)

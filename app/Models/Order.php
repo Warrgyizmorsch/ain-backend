@@ -42,6 +42,8 @@ protected $table = 'orders';
         'message',
         'tech',
         'resit'
+        ,'coupon_code', 'coupon_discount_type', 'coupon_discount_value',
+        'coupon_discount_amount', 'coupon_original_amount'
     ];
     
      protected $casts = [

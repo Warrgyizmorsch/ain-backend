@@ -713,6 +713,11 @@ class LeadsController extends Controller
                 $order->delivery_date = now()->format('Y-m-d');
             }
             $order->amount = $request->input('price');
+            $order->coupon_code = $lead->coupon_code;
+            $order->coupon_discount_type = $lead->coupon_discount_type;
+            $order->coupon_discount_value = $lead->coupon_discount_value;
+            $order->coupon_discount_amount = $lead->coupon_discount_amount;
+            $order->coupon_original_amount = $lead->coupon_original_amount;
             $order->message = $request->input('message');
             $order->projectstatus = 'Other';
             $order->uid = $emp_id;
@@ -1314,6 +1319,11 @@ class LeadsController extends Controller
             $order->delivery_date = now()->format('Y-m-d');
         }
         $order->amount = $leadData->price;
+        $order->coupon_code = $leadData->coupon_code;
+        $order->coupon_discount_type = $leadData->coupon_discount_type;
+        $order->coupon_discount_value = $leadData->coupon_discount_value;
+        $order->coupon_discount_amount = $leadData->coupon_discount_amount;
+        $order->coupon_original_amount = $leadData->coupon_original_amount;
         $order->message = $leadData->messages;
         $order->resit = $leadData->resit;
         $order->projectstatus = 'Other';

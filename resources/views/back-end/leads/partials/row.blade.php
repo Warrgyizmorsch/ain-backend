@@ -373,6 +373,10 @@
         {!! $lead->pages ? e($lead->pages) : '<span class="badge badge-light-danger fs-7 fw-bold">No Pages</span>' !!}
     </td>
     <td class="text-center">
+        @if(!empty($lead->coupon_code))
+            <div class="text-success small fw-bold">Coupon: {{ $lead->coupon_code }}</div>
+            <div class="text-danger small">-£{{ number_format((float)($lead->coupon_discount_amount ?? 0), 2) }}</div>
+        @endif
         {!! $lead->price ? (is_numeric($lead->price) ? '£' . e($lead->price) : e($lead->price)) : '<span class="badge badge-light-danger fs-7 fw-bold">No Price</span>' !!}
     </td>
     <td class="text-center">

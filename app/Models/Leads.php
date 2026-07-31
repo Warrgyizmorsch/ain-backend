@@ -38,6 +38,11 @@ class Leads extends Model
         'writer_id',
         'is_converted',
         'converted_at',
+        'coupon_code',
+        'coupon_discount_type',
+        'coupon_discount_value',
+        'coupon_discount_amount',
+        'coupon_original_amount',
     ];
 
     public function call()
