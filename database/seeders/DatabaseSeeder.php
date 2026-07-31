@@ -15,6 +15,7 @@ class DatabaseSeeder extends Seeder
         $this->call([
             AdminMenuSeeder::class,
             UserRetentionReportPermissionSeeder::class,
+            WalletMenuSeeder::class,
         ]);
 
         // \App\Models\User::factory()->create([
