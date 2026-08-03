@@ -4955,7 +4955,7 @@ class OrderController extends Controller
 
     public function revokePayments(Request $request)
     {
-        if (!in_array((int) auth()->user()->role_id, [1, 9], true)) {
+        if (!in_array((int) auth()->user()->role_id, [1, 4, 9], true)) {
             abort(403, 'Unauthorized access.');
         }
 
@@ -5015,7 +5015,7 @@ class OrderController extends Controller
 
     public function revokePaymentsFilter(Request $request)
     {
-        if (!in_array((int) auth()->user()->role_id, [1, 9], true)) {
+        if (!in_array((int) auth()->user()->role_id, [1, 4, 9], true)) {
             abort(403, 'Unauthorized access.');
         }
 
