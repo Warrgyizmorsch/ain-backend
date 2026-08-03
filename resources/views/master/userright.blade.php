@@ -21,6 +21,8 @@
         padding: 0 2px;
         border-radius: 2px;
     }
+    .menu-card-wrapper { cursor: grab; }
+    .menu-card-wrapper.sortable-ghost { opacity: .45; }
 </style>
 
 <div class="content d-flex flex-column flex-column-fluid" id="kt_content">
@@ -128,10 +130,11 @@
                                             </div>
                                         @endforeach
                                     </div>
+                                @endif
 
-                                <!-- Level 2: Submenus of Top-Level Menu (if no children) -->
-                                @elseif ($menu->submenus->count() > 0)
-                                    <div class="submenu-list d-flex flex-column gap-3 p-3 bg-light bg-opacity-50">
+                                <!-- Level 2: Direct Submenus of Top-Level Menu (if any) -->
+                                @if ($menu->submenus->count() > 0)
+                                    <div class="submenu-list d-flex flex-column gap-3 p-3 bg-light bg-opacity-50 {{ $menu->children->count() > 0 ? 'mt-4' : '' }}">
                                         @foreach ($menu->submenus as $submenu)
                                             <div class="form-check form-check-custom form-check-solid submenu-item" data-menu-name="{{ strtolower($submenu->sub_menu_name) }}">
                                                 <input name="submenu_id[]" class="form-check-input submenu-checkbox" type="checkbox" value="{{ $submenu->id }}" data-menu-id="{{ $menu->id }}" id="submenu_{{ $submenu->id }}">
@@ -139,7 +142,9 @@
                                             </div>
                                         @endforeach
                                     </div>
-                                @else
+                                @endif
+
+                                @if ($menu->children->count() == 0 && $menu->submenus->count() == 0)
                                     <div class="text-center py-4">
                                         <span class="text-muted fs-7 italic">No Submenus or Child Items</span>
                                     </div>
@@ -223,8 +228,28 @@
 </div>
 
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
 <script>
 $(document).ready(function () {
+
+    const permissionsGrid = document.getElementById('permissions_grid');
+    new Sortable(permissionsGrid, {
+        animation: 150,
+        handle: '.card-header',
+        ghostClass: 'sortable-ghost'
+    });
+
+    function applyRoleMenuOrder(menuIds) {
+        const order = (menuIds || []).map(String);
+        const cards = Array.from(permissionsGrid.querySelectorAll('.menu-card-wrapper'));
+        cards.sort(function (first, second) {
+            const firstIndex = order.indexOf(first.querySelector('.menu-checkbox')?.value);
+            const secondIndex = order.indexOf(second.querySelector('.menu-checkbox')?.value);
+            return (firstIndex < 0 ? 100000 : firstIndex) - (secondIndex < 0 ? 100000 : secondIndex);
+        }).forEach(function (card) {
+            permissionsGrid.appendChild(card);
+        });
+    }
 
     // Fetch and Populate Permissions when Role is Selected
     $('#role_id').change(function () {
@@ -242,6 +267,7 @@ $(document).ready(function () {
             url: '{{ route("rolePermission") }}',
             data: { role_id: selectedRoleId },
             success: function (response) {
+                applyRoleMenuOrder(response.menuid || []);
                 // Populate Menu Checkboxes
                 $.each(response.menuid || [], function (index, id) {
                     $('.menu-checkbox[value="' + id + '"]').prop('checked', true);

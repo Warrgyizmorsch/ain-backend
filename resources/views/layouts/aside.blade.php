@@ -43,69 +43,6 @@
                     </div>
                 </div>
 
-                @if(auth()->check() && auth()->user()->role_id == 1)
-                @php
-                    $isChatbotActive = $isActiveRoute('chatbot');
-                @endphp
-                <div class="menu-item">
-                    <a class="menu-link {{ $isChatbotActive ? 'active' : '' }}" href="{{ route('chatbot.index') }}">
-                        <span class="menu-icon">
-                            <i class="fa fa-comments text-info fs-3"></i>
-                        </span>
-                        <span class="menu-title">AI Chatbot</span>
-                    </a>
-                </div>
-                @endif
-
-                @php
-                    $isWhatsappActive = $isActiveRoute('whatsapp/settings') || $isActiveRoute('whatsapp/chat');
-                @endphp
-                @if(auth()->check() && auth()->user()->role_id == 1)
-                <div data-kt-menu-trigger="click" class="menu-item menu-accordion {{ $isWhatsappActive ? 'here show' : '' }}">
-                    <span class="menu-link {{ $isWhatsappActive ? 'active' : '' }}">
-                        <span class="menu-icon">
-                            <li class="fa fa-whatsapp"></li>
-                        </span>
-                        <span class="menu-title">WhatsApp</span>
-                        <span class="menu-arrow"></span>
-                    </span>
-
-                    <div class="menu-sub menu-sub-accordion menu-active-bg">
-                        <div class="menu-item">
-                            <a class="menu-link {{ $isActiveRoute('whatsapp/settings') ? 'active' : '' }}" href="{{ route('whatsapp.settings') }}">
-                                <span class="menu-bullet">
-                                    <span class="bullet bullet-dot"></span>
-                                </span>
-                                <span class="menu-title">Settings</span>
-                            </a>
-                        </div>
-                        <div class="menu-item">
-                            <a class="menu-link {{ $isActiveRoute('whatsapp/chat') ? 'active' : '' }}" href="{{ route('whatsapp.chat') }}">
-                                <span class="menu-bullet">
-                                    <span class="bullet bullet-dot"></span>
-                                </span>
-                                <span class="menu-title">Chat</span>
-                            </a>
-                        </div>
-                    </div>
-                </div>
-                @endif
-                
-                @if(auth()->check() && auth()->user()->role_id == 1)
-                <div class="menu-item">
-                    <a class="menu-link {{ $isActiveRoute('Banks') ? 'active' : '' }}" href="{{ route('Banks') }}">
-                        <span class="menu-icon"><i class="fa fa-bank"></i></span>
-                        <span class="menu-title">Bank Master</span>
-                    </a>
-                </div>
-                <div class="menu-item">
-                    <a class="menu-link {{ $isActiveRoute('coupons') ? 'active' : '' }}" href="{{ route('coupons') }}">
-                        <span class="menu-icon"><i class="fa fa-ticket"></i></span>
-                        <span class="menu-title">Coupon Master</span>
-                    </a>
-                </div>
-                @endif
-
                 @foreach($premission as $permission)
                     @if(auth()->check() && auth()->user()->role_id == $permission->role_id)
                         @php
@@ -114,6 +51,13 @@
                         @endphp
                     @endif
                 @endforeach
+
+                @php
+                    $menuOrder = array_flip(array_map('strval', $menuIds));
+                    $menus = $menus->sortBy(function ($menu) use ($menuOrder) {
+                        return $menuOrder[(string) $menu->id] ?? (100000 + (int) $menu->sort_order);
+                    });
+                @endphp
 
                 @foreach ($menus as $menu)
                     @if ($menu->parent_id !== null && in_array($menu->parent_id, $menuIds))
@@ -130,10 +74,10 @@
                                         $visibleSubmenus = $childMenu->submenus->filter(function ($submenu) use ($submenuIds) {
                                             return $submenu->show == 'Y' && in_array($submenu->id, $submenuIds);
                                         });
-                                        if ($visibleSubmenus->isNotEmpty()) {
+                                        if ($visibleSubmenus->isNotEmpty() || !empty($childMenu->routes)) {
                                             $hasActiveChild = $visibleSubmenus->contains(function ($submenu) use ($isActiveRoute) {
                                                 return $isActiveRoute($submenu->routes);
-                                            });
+                                            }) || (!empty($childMenu->routes) && $isActiveRoute($childMenu->routes));
                                             if ($hasActiveChild) {
                                                 $isParentActive = true;
                                             }
@@ -159,31 +103,42 @@
 
                                     <div class="menu-sub menu-sub-accordion menu-active-bg" style="padding-left: 15px;">
                                         @foreach ($visibleGroups as $group)
-                                            <div data-kt-menu-trigger="click" class="menu-item menu-accordion {{ $group['active'] ? 'here show' : '' }}">
-                                                <span class="menu-link {{ $group['active'] ? 'active' : '' }}">
-                                                    <span class="menu-icon">
-                                                        <li class="{{ $group['menu']->icon_class }}"></li>
+                                            @if ($group['submenus']->isNotEmpty())
+                                                <div data-kt-menu-trigger="click" class="menu-item menu-accordion {{ $group['active'] ? 'here show' : '' }}">
+                                                    <span class="menu-link {{ $group['active'] ? 'active' : '' }}">
+                                                        <span class="menu-icon">
+                                                            <li class="{{ $group['menu']->icon_class }}"></li>
+                                                        </span>
+                                                        <span class="menu-title">{{ $group['menu']->menu_name }}</span>
+                                                        <span class="menu-arrow"></span>
                                                     </span>
-                                                    <span class="menu-title">{{ $group['menu']->menu_name }}</span>
-                                                    <span class="menu-arrow"></span>
-                                                </span>
-                                                <div class="menu-sub menu-sub-accordion menu-active-bg" style="padding-left: 15px;">
-                                                    @foreach ($group['submenus'] as $submenu)
-                                                        @php $isSubmenuActive = $isActiveRoute($submenu->routes); @endphp
-                                                        <div class="menu-item">
-                                                            <a class="menu-link {{ $isSubmenuActive ? 'active' : '' }}" href="{{ url($submenu->routes) }}">
-                                                                <span class="menu-bullet"><span class="bullet bullet-dot"></span></span>
-                                                                <span class="menu-title">{{ $submenu->sub_menu_name }}</span>
-                                                            </a>
-                                                        </div>
-                                                    @endforeach
+                                                    <div class="menu-sub menu-sub-accordion menu-active-bg" style="padding-left: 15px;">
+                                                        @foreach ($group['submenus'] as $submenu)
+                                                            @php $isSubmenuActive = $isActiveRoute($submenu->routes); @endphp
+                                                            <div class="menu-item">
+                                                                <a class="menu-link {{ $isSubmenuActive ? 'active' : '' }}" href="{{ url($submenu->routes) }}">
+                                                                    <span class="menu-bullet"><span class="bullet bullet-dot"></span></span>
+                                                                    <span class="menu-title">{{ $submenu->sub_menu_name }}</span>
+                                                                </a>
+                                                            </div>
+                                                        @endforeach
+                                                    </div>
                                                 </div>
-                                            </div>
+                                            @else
+                                                <div class="menu-item">
+                                                    <a class="menu-link {{ $group['active'] ? 'active' : '' }}" href="{{ url($group['menu']->routes) }}">
+                                                        <span class="menu-icon">
+                                                            <li class="{{ $group['menu']->icon_class }}"></li>
+                                                        </span>
+                                                        <span class="menu-title">{{ $group['menu']->menu_name }}</span>
+                                                    </a>
+                                                </div>
+                                            @endif
                                         @endforeach
                                     </div>
                                 </div>
                             @endif
-                        @elseif (count($menu->submenus) > 0)
+                        @elseif ($menu->submenus->where('show', 'Y')->count() > 0)
                             @php
                                 $visibleSubmenus = $menu->submenus->filter(function ($submenu) use ($submenuIds) {
                                     if ($submenu->show != 'Y' || !in_array($submenu->id, $submenuIds)) {
@@ -299,6 +254,12 @@
                                         @if(isset($globalMyRevokeCount) && $globalMyRevokeCount > 0)
                                             <span class="menu-badge">
                                                 <span class="badge badge-circle badge-danger fw-bold fs-8">{{ $globalMyRevokeCount }}</span>
+                                            </span>
+                                        @endif
+                                    @elseif(trim($menu['routes'], '/') == 'admin/login-otp-notifications')
+                                        @if(isset($globalLoginOtpCount) && $globalLoginOtpCount > 0)
+                                            <span class="menu-badge">
+                                                <span class="badge badge-circle badge-danger fw-bold fs-8">{{ $globalLoginOtpCount }}</span>
                                             </span>
                                         @endif
                                     @endif

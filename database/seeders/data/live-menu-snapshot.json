@@ -1,0 +1,1160 @@
+{
+    "roles": [
+        {
+            "id": 1,
+            "role": "Super Admin",
+            "flag": 0
+        },
+        {
+            "id": 2,
+            "role": "User",
+            "flag": 0
+        },
+        {
+            "id": 3,
+            "role": "Qc Executive",
+            "flag": 0
+        },
+        {
+            "id": 4,
+            "role": "Marketing Team",
+            "flag": 0
+        },
+        {
+            "id": 5,
+            "role": "Project Team",
+            "flag": 0
+        },
+        {
+            "id": 6,
+            "role": "WriterTL\r\n",
+            "flag": 0
+        },
+        {
+            "id": 7,
+            "role": "Sub Writer\r\n",
+            "flag": 0
+        },
+        {
+            "id": 8,
+            "role": "Writer Admin\r\n",
+            "flag": 0
+        },
+        {
+            "id": 9,
+            "role": "Sub Admin",
+            "flag": 0
+        },
+        {
+            "id": 10,
+            "role": "SEO",
+            "flag": 0
+        },
+        {
+            "id": 11,
+            "role": "Payment Role",
+            "flag": 0
+        },
+        {
+            "id": 12,
+            "role": "Hr",
+            "flag": 0
+        }
+    ],
+    "menus": [
+        {
+            "id": 1,
+            "parent_id": null,
+            "menu_name": "Dashbord",
+            "icon_class": "fa fa-dashboard",
+            "show_menu": "Y",
+            "routes": "dashboard",
+            "sort_order": 1
+        },
+        {
+            "id": 2,
+            "parent_id": null,
+            "menu_name": "Setting",
+            "icon_class": "fa fa-gear",
+            "show_menu": "Y",
+            "routes": "menus",
+            "sort_order": 12
+        },
+        {
+            "id": 3,
+            "parent_id": 44,
+            "menu_name": "Masters",
+            "icon_class": "fa fa-diamond",
+            "show_menu": "Y",
+            "routes": "master",
+            "sort_order": 0
+        },
+        {
+            "id": 4,
+            "parent_id": null,
+            "menu_name": "User Module",
+            "icon_class": "fa fa-user",
+            "show_menu": "Y",
+            "routes": "user",
+            "sort_order": 1
+        },
+        {
+            "id": 5,
+            "parent_id": null,
+            "menu_name": "My Orders",
+            "icon_class": "fa fa-list",
+            "show_menu": "Y",
+            "routes": "orders",
+            "sort_order": 3
+        },
+        {
+            "id": 11,
+            "parent_id": null,
+            "menu_name": "Leads",
+            "icon_class": "fa fa-list",
+            "show_menu": "Y",
+            "routes": "lead",
+            "sort_order": 4
+        },
+        {
+            "id": 12,
+            "parent_id": null,
+            "menu_name": "Cancel Leads",
+            "icon_class": "fa fa-close",
+            "show_menu": "Y",
+            "routes": "c-leads",
+            "sort_order": 5
+        },
+        {
+            "id": 13,
+            "parent_id": null,
+            "menu_name": "Ticket Number Sheet",
+            "icon_class": "fa fa-list",
+            "show_menu": "Y",
+            "routes": "feedback",
+            "sort_order": 5
+        },
+        {
+            "id": 14,
+            "parent_id": null,
+            "menu_name": "College",
+            "icon_class": "fa fa-home",
+            "show_menu": "Y",
+            "routes": "college",
+            "sort_order": 0
+        },
+        {
+            "id": 15,
+            "parent_id": 50,
+            "menu_name": "Blog",
+            "icon_class": "fa fa-newspaper-o",
+            "show_menu": "Y",
+            "routes": "blog_list",
+            "sort_order": 2
+        },
+        {
+            "id": 16,
+            "parent_id": null,
+            "menu_name": "Samples",
+            "icon_class": "fa fa-list",
+            "show_menu": "N",
+            "routes": "sample",
+            "sort_order": 0
+        },
+        {
+            "id": 17,
+            "parent_id": null,
+            "menu_name": "Qc Sheet",
+            "icon_class": "fa fa-list",
+            "show_menu": "Y",
+            "routes": "Qc-Sheets",
+            "sort_order": 0
+        },
+        {
+            "id": 18,
+            "parent_id": null,
+            "menu_name": "Success Tracking and return",
+            "icon_class": "fa fa-list",
+            "show_menu": "Y",
+            "routes": "follow-up",
+            "sort_order": 6
+        },
+        {
+            "id": 20,
+            "parent_id": 44,
+            "menu_name": "writer order checker",
+            "icon_class": "fa fa-list",
+            "show_menu": "Y",
+            "routes": "order-writer",
+            "sort_order": 0
+        },
+        {
+            "id": 21,
+            "parent_id": 44,
+            "menu_name": "Order With Status Date",
+            "icon_class": "fa fa-list",
+            "show_menu": "Y",
+            "routes": "status-details",
+            "sort_order": 0
+        },
+        {
+            "id": 22,
+            "parent_id": 44,
+            "menu_name": "Writer Available",
+            "icon_class": "fa fa-check",
+            "show_menu": "Y",
+            "routes": "writer-available",
+            "sort_order": 0
+        },
+        {
+            "id": 23,
+            "parent_id": null,
+            "menu_name": "Ticket Sheet",
+            "icon_class": "fa fa-list",
+            "show_menu": "Y",
+            "routes": "ticket-sheet",
+            "sort_order": 0
+        },
+        {
+            "id": 24,
+            "parent_id": null,
+            "menu_name": "WhatsApp",
+            "icon_class": "fa fa-whatsapp",
+            "show_menu": "Y",
+            "routes": "whatsapp/chat",
+            "sort_order": 2
+        },
+        {
+            "id": 25,
+            "parent_id": 44,
+            "menu_name": "Lets-Learn",
+            "icon_class": "fa fa-list-alt",
+            "show_menu": "Y",
+            "routes": "ll-leads",
+            "sort_order": 0
+        },
+        {
+            "id": 26,
+            "parent_id": 50,
+            "menu_name": "Sample",
+            "icon_class": "fa fa-list",
+            "show_menu": "Y",
+            "routes": "samples",
+            "sort_order": 1
+        },
+        {
+            "id": 27,
+            "parent_id": 50,
+            "menu_name": "Experts",
+            "icon_class": "fa fa-user",
+            "show_menu": "Y",
+            "routes": "new-expert",
+            "sort_order": 0
+        },
+        {
+            "id": 28,
+            "parent_id": 50,
+            "menu_name": "Faq",
+            "icon_class": "fa fa-list",
+            "show_menu": "Y",
+            "routes": "faqurl",
+            "sort_order": 0
+        },
+        {
+            "id": 29,
+            "parent_id": null,
+            "menu_name": "payment",
+            "icon_class": "fa fa-money",
+            "show_menu": "Y",
+            "routes": "Payments",
+            "sort_order": 7
+        },
+        {
+            "id": 30,
+            "parent_id": 50,
+            "menu_name": "Review",
+            "icon_class": "fa fa-list",
+            "show_menu": "Y",
+            "routes": "Review",
+            "sort_order": 0
+        },
+        {
+            "id": 31,
+            "parent_id": null,
+            "menu_name": "Whatsapp",
+            "icon_class": "chat",
+            "show_menu": "N",
+            "routes": "fa fa-whatsapp",
+            "sort_order": 0
+        },
+        {
+            "id": 32,
+            "parent_id": 44,
+            "menu_name": "Task Reports",
+            "icon_class": "fa fa-address-book",
+            "show_menu": "Y",
+            "routes": "task-reports",
+            "sort_order": 0
+        },
+        {
+            "id": 33,
+            "parent_id": 44,
+            "menu_name": "Rask Review",
+            "icon_class": "fa fa-address-book",
+            "show_menu": "Y",
+            "routes": "task-review",
+            "sort_order": 0
+        },
+        {
+            "id": 34,
+            "parent_id": 44,
+            "menu_name": "Admin Task Report",
+            "icon_class": "fa fa-address-book",
+            "show_menu": "Y",
+            "routes": "admin-task-report",
+            "sort_order": 0
+        },
+        {
+            "id": 35,
+            "parent_id": 44,
+            "menu_name": "Career Form",
+            "icon_class": "fa fa-user",
+            "show_menu": "Y",
+            "routes": "career",
+            "sort_order": 0
+        },
+        {
+            "id": 36,
+            "parent_id": 44,
+            "menu_name": "Wallet",
+            "icon_class": "fa fa-wallet",
+            "show_menu": "Y",
+            "routes": "admin/wallet/bulk-credit",
+            "sort_order": 0
+        },
+        {
+            "id": 37,
+            "parent_id": 44,
+            "menu_name": "order",
+            "icon_class": "fa fa-list",
+            "show_menu": "Y",
+            "routes": "order",
+            "sort_order": 0
+        },
+        {
+            "id": 38,
+            "parent_id": 44,
+            "menu_name": "Prime Assignment",
+            "icon_class": "fa fa-list",
+            "show_menu": "Y",
+            "routes": "prime",
+            "sort_order": 0
+        },
+        {
+            "id": 39,
+            "parent_id": 44,
+            "menu_name": "Smart Assignment",
+            "icon_class": "fa fa-list",
+            "show_menu": "Y",
+            "routes": "smart",
+            "sort_order": 0
+        },
+        {
+            "id": 40,
+            "parent_id": null,
+            "menu_name": "Reports",
+            "icon_class": "fa fa-list",
+            "show_menu": "Y",
+            "routes": "reports",
+            "sort_order": 9
+        },
+        {
+            "id": 41,
+            "parent_id": null,
+            "menu_name": "Feedbacks",
+            "icon_class": "fa fa-list",
+            "show_menu": "Y",
+            "routes": "feedback-list",
+            "sort_order": 9
+        },
+        {
+            "id": 42,
+            "parent_id": null,
+            "menu_name": "Delevery Followups",
+            "icon_class": "fa fa-list",
+            "show_menu": "Y",
+            "routes": "order-feedback",
+            "sort_order": 7
+        },
+        {
+            "id": 43,
+            "parent_id": null,
+            "menu_name": "Writer",
+            "icon_class": "fa fa-user",
+            "show_menu": "Y",
+            "routes": "writer",
+            "sort_order": 11
+        },
+        {
+            "id": 44,
+            "parent_id": null,
+            "menu_name": "Other",
+            "icon_class": "fa fa-bars",
+            "show_menu": "Y",
+            "routes": "other",
+            "sort_order": 100
+        },
+        {
+            "id": 45,
+            "parent_id": null,
+            "menu_name": "Revoked Payments",
+            "icon_class": "fa fa-list",
+            "show_menu": "Y",
+            "routes": "revoke-payments",
+            "sort_order": 8
+        },
+        {
+            "id": 46,
+            "parent_id": null,
+            "menu_name": "Prefix",
+            "icon_class": "fa fa-book",
+            "show_menu": "N",
+            "routes": "subjects",
+            "sort_order": 10
+        },
+        {
+            "id": 47,
+            "parent_id": null,
+            "menu_name": "Dynamic Pages",
+            "icon_class": "fa fa-file-text",
+            "show_menu": "N",
+            "routes": "service-pages",
+            "sort_order": 11
+        },
+        {
+            "id": 48,
+            "parent_id": null,
+            "menu_name": "Subject Pages",
+            "icon_class": "fa fa-graduation-cap",
+            "show_menu": "N",
+            "routes": "subject-pages",
+            "sort_order": 12
+        },
+        {
+            "id": 49,
+            "parent_id": 50,
+            "menu_name": "Pages",
+            "icon_class": "fa fa-file-text",
+            "show_menu": "Y",
+            "routes": "pages",
+            "sort_order": 3
+        },
+        {
+            "id": 50,
+            "parent_id": null,
+            "menu_name": "SEO",
+            "icon_class": "fa fa-globe",
+            "show_menu": "Y",
+            "routes": "seo",
+            "sort_order": 15
+        },
+        {
+            "id": 51,
+            "parent_id": null,
+            "menu_name": "AI Chatbot",
+            "icon_class": "fa fa-comments",
+            "show_menu": "Y",
+            "routes": "chatbot",
+            "sort_order": 1
+        },
+        {
+            "id": 52,
+            "parent_id": null,
+            "menu_name": "OTP Notifications",
+            "icon_class": "fa fa-key",
+            "show_menu": "Y",
+            "routes": "admin/login-otp-notifications",
+            "sort_order": 3
+        }
+    ],
+    "submenus": [
+        {
+            "id": 1,
+            "sub_menu_name": "Menu",
+            "menus_id": 2,
+            "routes": "menus",
+            "sort_order": 1,
+            "show": "Y"
+        },
+        {
+            "id": 2,
+            "sub_menu_name": "submenus",
+            "menus_id": 2,
+            "routes": "submenu",
+            "sort_order": 2,
+            "show": "Y"
+        },
+        {
+            "id": 3,
+            "sub_menu_name": "User Right",
+            "menus_id": 2,
+            "routes": "userright",
+            "sort_order": 3,
+            "show": "Y"
+        },
+        {
+            "id": 4,
+            "sub_menu_name": "User List",
+            "menus_id": 4,
+            "routes": "user",
+            "sort_order": 0,
+            "show": "Y"
+        },
+        {
+            "id": 5,
+            "sub_menu_name": "New User",
+            "menus_id": 4,
+            "routes": "usercreate",
+            "sort_order": 0,
+            "show": "Y"
+        },
+        {
+            "id": 6,
+            "sub_menu_name": "Type Of Service",
+            "menus_id": 3,
+            "routes": "typeOfSecvices",
+            "sort_order": 0,
+            "show": "Y"
+        },
+        {
+            "id": 7,
+            "sub_menu_name": "Formatting",
+            "menus_id": 3,
+            "routes": "formatting",
+            "sort_order": 0,
+            "show": "Y"
+        },
+        {
+            "id": 8,
+            "sub_menu_name": "Categories",
+            "menus_id": 3,
+            "routes": "Categories",
+            "sort_order": 0,
+            "show": "Y"
+        },
+        {
+            "id": 9,
+            "sub_menu_name": "Banks",
+            "menus_id": 3,
+            "routes": "Banks",
+            "sort_order": 0,
+            "show": "Y"
+        },
+        {
+            "id": 10,
+            "sub_menu_name": "Payments",
+            "menus_id": 3,
+            "routes": "Payments",
+            "sort_order": 0,
+            "show": "Y"
+        },
+        {
+            "id": 11,
+            "sub_menu_name": "failedJobs Orders",
+            "menus_id": 3,
+            "routes": "failedJobs",
+            "sort_order": 0,
+            "show": "Y"
+        },
+        {
+            "id": 13,
+            "sub_menu_name": "Type of  Paper",
+            "menus_id": 3,
+            "routes": "typeofpaper",
+            "sort_order": 0,
+            "show": "Y"
+        },
+        {
+            "id": 14,
+            "sub_menu_name": "writer Team Leader",
+            "menus_id": 3,
+            "routes": "writerTL",
+            "sort_order": 0,
+            "show": "Y"
+        },
+        {
+            "id": 15,
+            "sub_menu_name": "Writer Admin",
+            "menus_id": 3,
+            "routes": "writer",
+            "sort_order": 0,
+            "show": "Y"
+        },
+        {
+            "id": 16,
+            "sub_menu_name": "writer Team Leader",
+            "menus_id": 3,
+            "routes": "writerTL",
+            "sort_order": 0,
+            "show": "Y"
+        },
+        {
+            "id": 17,
+            "sub_menu_name": "Sub Writer",
+            "menus_id": 3,
+            "routes": "subwriter",
+            "sort_order": 0,
+            "show": "Y"
+        },
+        {
+            "id": 18,
+            "sub_menu_name": "College",
+            "menus_id": 3,
+            "routes": "college",
+            "sort_order": 0,
+            "show": "Y"
+        },
+        {
+            "id": 19,
+            "sub_menu_name": "New Blog",
+            "menus_id": 15,
+            "routes": "write_blog",
+            "sort_order": 1,
+            "show": "Y"
+        },
+        {
+            "id": 20,
+            "sub_menu_name": "Blog List",
+            "menus_id": 15,
+            "routes": "blog_list",
+            "sort_order": 2,
+            "show": "Y"
+        },
+        {
+            "id": 21,
+            "sub_menu_name": "New Sample",
+            "menus_id": 15,
+            "routes": "create_sample",
+            "sort_order": 0,
+            "show": "Y"
+        },
+        {
+            "id": 22,
+            "sub_menu_name": "Sample List",
+            "menus_id": 16,
+            "routes": "sample_list",
+            "sort_order": 0,
+            "show": "Y"
+        },
+        {
+            "id": 23,
+            "sub_menu_name": "Leads",
+            "menus_id": 25,
+            "routes": "ll-leads",
+            "sort_order": 0,
+            "show": "Y"
+        },
+        {
+            "id": 24,
+            "sub_menu_name": "Cancel Leads",
+            "menus_id": 25,
+            "routes": "ll-c-leads",
+            "sort_order": 0,
+            "show": "Y"
+        },
+        {
+            "id": 25,
+            "sub_menu_name": "Orders",
+            "menus_id": 25,
+            "routes": "ll-orders",
+            "sort_order": 0,
+            "show": "Y"
+        },
+        {
+            "id": 26,
+            "sub_menu_name": "Sample Category",
+            "menus_id": 26,
+            "routes": "free-sample",
+            "sort_order": 1,
+            "show": "Y"
+        },
+        {
+            "id": 27,
+            "sub_menu_name": "Sample Type",
+            "menus_id": 26,
+            "routes": "free-samples-type",
+            "sort_order": 2,
+            "show": "Y"
+        },
+        {
+            "id": 28,
+            "sub_menu_name": "Sample List",
+            "menus_id": 26,
+            "routes": "samples",
+            "sort_order": 3,
+            "show": "Y"
+        },
+        {
+            "id": 29,
+            "sub_menu_name": "New Sample",
+            "menus_id": 26,
+            "routes": "free-sample-write",
+            "sort_order": 4,
+            "show": "Y"
+        },
+        {
+            "id": 30,
+            "sub_menu_name": "New Expert",
+            "menus_id": 27,
+            "routes": "create-expert",
+            "sort_order": 0,
+            "show": "Y"
+        },
+        {
+            "id": 31,
+            "sub_menu_name": "Expert list",
+            "menus_id": 27,
+            "routes": "new-expert",
+            "sort_order": 0,
+            "show": "Y"
+        },
+        {
+            "id": 32,
+            "sub_menu_name": "Faq",
+            "menus_id": 28,
+            "routes": "faqurl",
+            "sort_order": 0,
+            "show": "Y"
+        },
+        {
+            "id": 33,
+            "sub_menu_name": "New Faq",
+            "menus_id": 28,
+            "routes": "newfaq",
+            "sort_order": 0,
+            "show": "Y"
+        },
+        {
+            "id": 34,
+            "sub_menu_name": "New Review",
+            "menus_id": 30,
+            "routes": "review-create",
+            "sort_order": 0,
+            "show": "Y"
+        },
+        {
+            "id": 35,
+            "sub_menu_name": "Review List",
+            "menus_id": 30,
+            "routes": "review-list",
+            "sort_order": 0,
+            "show": "Y"
+        },
+        {
+            "id": 36,
+            "sub_menu_name": "Whatsapp",
+            "menus_id": 31,
+            "routes": "chat",
+            "sort_order": 0,
+            "show": "Y"
+        },
+        {
+            "id": 37,
+            "sub_menu_name": "Campaigns",
+            "menus_id": 31,
+            "routes": "campaigns",
+            "sort_order": 0,
+            "show": "Y"
+        },
+        {
+            "id": 38,
+            "sub_menu_name": "Template",
+            "menus_id": 31,
+            "routes": "template-message",
+            "sort_order": 0,
+            "show": "Y"
+        },
+        {
+            "id": 39,
+            "sub_menu_name": "Chat",
+            "menus_id": 31,
+            "routes": "chat-setting",
+            "sort_order": 0,
+            "show": "Y"
+        },
+        {
+            "id": 40,
+            "sub_menu_name": "User Attribute",
+            "menus_id": 31,
+            "routes": "user-attributes",
+            "sort_order": 0,
+            "show": "Y"
+        },
+        {
+            "id": 41,
+            "sub_menu_name": "Canned Message",
+            "menus_id": 31,
+            "routes": "canned-messages",
+            "sort_order": 0,
+            "show": "Y"
+        },
+        {
+            "id": 42,
+            "sub_menu_name": "Agents",
+            "menus_id": 31,
+            "routes": "agents",
+            "sort_order": 0,
+            "show": "Y"
+        },
+        {
+            "id": 43,
+            "sub_menu_name": "Tags",
+            "menus_id": 31,
+            "routes": "tags",
+            "sort_order": 0,
+            "show": "Y"
+        },
+        {
+            "id": 44,
+            "sub_menu_name": "Login History",
+            "menus_id": 4,
+            "routes": "login-history",
+            "sort_order": 0,
+            "show": "Y"
+        },
+        {
+            "id": 45,
+            "sub_menu_name": "Leads",
+            "menus_id": 38,
+            "routes": "prime-leads",
+            "sort_order": 0,
+            "show": "Y"
+        },
+        {
+            "id": 46,
+            "sub_menu_name": "Leads",
+            "menus_id": 39,
+            "routes": "smart-leads",
+            "sort_order": 0,
+            "show": "Y"
+        },
+        {
+            "id": 47,
+            "sub_menu_name": "Cancel Leads",
+            "menus_id": 39,
+            "routes": "smart-cancelled",
+            "sort_order": 0,
+            "show": "Y"
+        },
+        {
+            "id": 48,
+            "sub_menu_name": "Orders",
+            "menus_id": 39,
+            "routes": "smart-orders",
+            "sort_order": 0,
+            "show": "Y"
+        },
+        {
+            "id": 49,
+            "sub_menu_name": "Cancel Leads",
+            "menus_id": 38,
+            "routes": "prime-cancelled",
+            "sort_order": 0,
+            "show": "Y"
+        },
+        {
+            "id": 50,
+            "sub_menu_name": "Orders",
+            "menus_id": 38,
+            "routes": "prime-orders",
+            "sort_order": 0,
+            "show": "Y"
+        },
+        {
+            "id": 51,
+            "sub_menu_name": "Group Master",
+            "menus_id": 3,
+            "routes": "group-master",
+            "sort_order": 0,
+            "show": "Y"
+        },
+        {
+            "id": 52,
+            "sub_menu_name": "Revenue Report",
+            "menus_id": 40,
+            "routes": "user/report-list",
+            "sort_order": 0,
+            "show": "Y"
+        },
+        {
+            "id": 53,
+            "sub_menu_name": "Ticket Report",
+            "menus_id": 40,
+            "routes": "admin/ticket-report",
+            "sort_order": 0,
+            "show": "Y"
+        },
+        {
+            "id": 54,
+            "sub_menu_name": "Delevery Followups",
+            "menus_id": 40,
+            "routes": "user-report",
+            "sort_order": 0,
+            "show": "Y"
+        },
+        {
+            "id": 55,
+            "sub_menu_name": "User Refer Report",
+            "menus_id": 40,
+            "routes": "refer-user-report",
+            "sort_order": 0,
+            "show": "Y"
+        },
+        {
+            "id": 56,
+            "sub_menu_name": "Module code",
+            "menus_id": 40,
+            "routes": "module-code-report",
+            "sort_order": 0,
+            "show": "Y"
+        },
+        {
+            "id": 57,
+            "sub_menu_name": "University Report",
+            "menus_id": 40,
+            "routes": "university-report",
+            "sort_order": 0,
+            "show": "Y"
+        },
+        {
+            "id": 58,
+            "sub_menu_name": "Feedback List",
+            "menus_id": 40,
+            "routes": "feedback-list",
+            "sort_order": 7,
+            "show": "Y"
+        },
+        {
+            "id": 59,
+            "sub_menu_name": "Qc Sheet",
+            "menus_id": 43,
+            "routes": "Qc-Sheets",
+            "sort_order": 1,
+            "show": "Y"
+        },
+        {
+            "id": 60,
+            "sub_menu_name": "Writer order checker",
+            "menus_id": 43,
+            "routes": "order-writer",
+            "sort_order": 3,
+            "show": "Y"
+        },
+        {
+            "id": 61,
+            "sub_menu_name": "Writer Available",
+            "menus_id": 43,
+            "routes": "writer-available",
+            "sort_order": 3,
+            "show": "Y"
+        },
+        {
+            "id": 62,
+            "sub_menu_name": "Follow Up Report",
+            "menus_id": 40,
+            "routes": "follow-up-report",
+            "sort_order": 5,
+            "show": "Y"
+        },
+        {
+            "id": 63,
+            "sub_menu_name": "Revoke Payment",
+            "menus_id": 40,
+            "routes": "my-revoke-payments",
+            "sort_order": 0,
+            "show": "Y"
+        },
+        {
+            "id": 64,
+            "sub_menu_name": "Revoke Payment",
+            "menus_id": 40,
+            "routes": "revoke-payments",
+            "sort_order": 0,
+            "show": "N"
+        },
+        {
+            "id": 65,
+            "sub_menu_name": "Source",
+            "menus_id": 3,
+            "routes": "sources",
+            "sort_order": 1,
+            "show": "Y"
+        },
+        {
+            "id": 66,
+            "sub_menu_name": "User Retention Report",
+            "menus_id": 40,
+            "routes": "user-retention-report",
+            "sort_order": 6,
+            "show": "Y"
+        },
+        {
+            "id": 67,
+            "sub_menu_name": "Leads",
+            "menus_id": 11,
+            "routes": "lead",
+            "sort_order": 1,
+            "show": "N"
+        },
+        {
+            "id": 68,
+            "sub_menu_name": "Cancel Leads",
+            "menus_id": 11,
+            "routes": "c-leads",
+            "sort_order": 2,
+            "show": "N"
+        },
+        {
+            "id": 69,
+            "sub_menu_name": "Prefix",
+            "menus_id": 49,
+            "routes": "subjects",
+            "sort_order": 1,
+            "show": "Y"
+        },
+        {
+            "id": 70,
+            "sub_menu_name": "Dynamic Pages",
+            "menus_id": 49,
+            "routes": "service-pages",
+            "sort_order": 2,
+            "show": "Y"
+        },
+        {
+            "id": 71,
+            "sub_menu_name": "Subject Pages",
+            "menus_id": 49,
+            "routes": "subject-pages",
+            "sort_order": 3,
+            "show": "Y"
+        },
+        {
+            "id": 72,
+            "sub_menu_name": "Coupons",
+            "menus_id": 3,
+            "routes": "coupons",
+            "sort_order": 10,
+            "show": "Y"
+        },
+        {
+            "id": 73,
+            "sub_menu_name": "Settings",
+            "menus_id": 24,
+            "routes": "whatsapp/settings",
+            "sort_order": 1,
+            "show": "Y"
+        },
+        {
+            "id": 74,
+            "sub_menu_name": "Chat",
+            "menus_id": 24,
+            "routes": "whatsapp/chat",
+            "sort_order": 2,
+            "show": "Y"
+        },
+        {
+            "id": 75,
+            "sub_menu_name": "Writer Success Report",
+            "menus_id": 40,
+            "routes": "writer-success-report",
+            "sort_order": 8,
+            "show": "Y"
+        },
+        {
+            "id": 76,
+            "sub_menu_name": "QC Success Report",
+            "menus_id": 40,
+            "routes": "qc-success-report",
+            "sort_order": 9,
+            "show": "Y"
+        },
+        {
+            "id": 77,
+            "sub_menu_name": "Writer Additional Word Count Report",
+            "menus_id": 40,
+            "routes": "writer-additional-word-count-report",
+            "sort_order": 10,
+            "show": "Y"
+        },
+        {
+            "id": 78,
+            "sub_menu_name": "TL Word Requests",
+            "menus_id": 40,
+            "routes": "tl-additional-word-requests",
+            "sort_order": 11,
+            "show": "Y"
+        }
+    ],
+    "permissions": [
+        {
+            "role_id": 1,
+            "menu_id": "[\"3\",\"14\",\"17\",\"20\",\"21\",\"22\",\"23\",\"25\",\"27\",\"28\",\"30\",\"32\",\"33\",\"34\",\"35\",\"36\",\"37\",\"38\",\"39\",\"1\",\"4\",\"26\",\"51\",\"15\",\"24\",\"5\",\"49\",\"52\",\"11\",\"12\",\"13\",\"18\",\"29\",\"42\",\"45\",\"41\",\"40\",\"43\",\"2\",\"50\",\"44\"]",
+            "submenu_id": "[\"4\",\"5\",\"6\",\"7\",\"13\",\"8\",\"9\",\"10\",\"11\",\"14\",\"15\",\"16\",\"17\",\"18\",\"22\",\"21\",\"23\",\"24\",\"25\",\"31\",\"30\",\"32\",\"33\",\"34\",\"35\",\"37\",\"38\",\"39\",\"40\",\"41\",\"42\",\"43\",\"36\",\"44\",\"45\",\"46\",\"49\",\"50\",\"47\",\"48\",\"51\",\"52\",\"53\",\"54\",\"55\",\"56\",\"57\",\"59\",\"60\",\"61\",\"62\",\"63\",\"65\",\"58\",\"66\",\"1\",\"2\",\"3\",\"19\",\"20\",\"26\",\"27\",\"28\",\"29\",\"64\",\"67\",\"68\",\"69\",\"70\",\"71\",\"72\",\"73\",\"74\",75,76,77,78]"
+        },
+        {
+            "role_id": 2,
+            "menu_id": "[\"1\",\"5\"]",
+            "submenu_id": "[\"1\",\"2\",\"3\"]"
+        },
+        {
+            "role_id": 3,
+            "menu_id": "[\"1\",\"17\",40]",
+            "submenu_id": "[]"
+        },
+        {
+            "role_id": 4,
+            "menu_id": "[\"1\",\"5\",\"11\",\"12\",\"13\",\"18\",\"41\",\"45\",\"14\",\"42\",\"17\",\"23\"]",
+            "submenu_id": "[]"
+        },
+        {
+            "role_id": 5,
+            "menu_id": "[\"1\",\"5\"]",
+            "submenu_id": "null"
+        },
+        {
+            "role_id": 6,
+            "menu_id": "[\"32\",\"33\",\"37\",\"1\",40]",
+            "submenu_id": "[78]"
+        },
+        {
+            "role_id": 7,
+            "menu_id": "[\"1\",\"32\",\"37\"]",
+            "submenu_id": "null"
+        },
+        {
+            "role_id": 8,
+            "menu_id": "[\"3\",\"17\",\"22\",\"23\",\"34\",\"37\",\"1\",40]",
+            "submenu_id": "[\"14\",\"17\",75,77,76]"
+        },
+        {
+            "role_id": 9,
+            "menu_id": "[\"1\",\"5\",\"11\",\"12\",\"13\",\"18\",\"41\",\"45\",\"14\",\"42\",\"17\",\"23\"]",
+            "submenu_id": "[]"
+        },
+        {
+            "role_id": 10,
+            "menu_id": "[\"26\",\"1\",\"11\",\"46\",\"47\",\"48\",\"15\",\"16\",\"27\",\"28\",\"30\",\"38\",\"39\",\"50\",\"49\",\"44\"]",
+            "submenu_id": "[\"26\",\"27\",\"28\",\"29\",\"19\",\"20\",\"21\",\"22\",\"30\",\"31\",\"32\",\"33\",\"34\",\"35\",\"45\",\"49\",\"50\",\"46\",\"47\",\"48\",\"70\",\"71\",\"72\",\"73\",\"74\",\"67\",\"68\",\"69\"]"
+        },
+        {
+            "role_id": 11,
+            "menu_id": "[\"1\",\"29\"]",
+            "submenu_id": "null"
+        },
+        {
+            "role_id": 12,
+            "menu_id": "[\"1\",\"35\"]",
+            "submenu_id": "null"
+        }
+    ]
+}

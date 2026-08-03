@@ -126,9 +126,17 @@ public function userright()
 {
     $roles = Role::all();
 
-    $menus = menu::with(['submenus' => function ($q) {
-        $q->where('show', 'Y')->orderBy('sort_order', 'asc');
-    }])
+    $menus = menu::with([
+        'submenus' => function ($q) {
+            $q->where('show', 'Y')->orderBy('sort_order', 'asc');
+        },
+        'children' => function ($q) {
+            $q->where('show_menu', 'Y')->orderBy('sort_order', 'asc');
+        },
+        'children.submenus' => function ($q) {
+            $q->where('show', 'Y')->orderBy('sort_order', 'asc');
+        }
+    ])
     ->where('show_menu', 'Y')
     ->orderBy('sort_order', 'asc')
     ->get();
@@ -166,11 +174,23 @@ public function permission(Request $req)
         $menuIds = array_unique(array_merge($menuIds, $parentMenuIds));
     }
 
+    // selected child menu ke top-level parent menu auto add honge (e.g. SEO id 50 for Pages id 49)
+    if (!empty($menuIds)) {
+        $topParentMenuIds = menu::whereIn('id', $menuIds)
+            ->whereNotNull('parent_id')
+            ->pluck('parent_id')
+            ->toArray();
+
+        $menuIds = array_unique(array_merge($menuIds, $topParentMenuIds));
+    }
+
+    $menuIds = array_values(array_unique(array_map('strval', $menuIds)));
+
     Permission::updateOrCreate(
         ['role_id' => $role],
         [
-            'menu_id' => json_encode(array_values($menuIds)),
-            'submenu_id' => json_encode(array_values($submenuIds)),
+            'menu_id' => json_encode($menuIds),
+            'submenu_id' => json_encode(array_values(array_map('strval', $submenuIds))),
         ]
     );
 
