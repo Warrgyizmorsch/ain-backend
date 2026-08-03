@@ -4955,11 +4955,7 @@ class OrderController extends Controller
 
     public function revokePayments(Request $request)
     {
-        $allowedSubAdminId = 13715;
-        if (
-            auth()->user()->role_id != 1 &&
-            !(auth()->user()->role_id == 9 && auth()->id() == $allowedSubAdminId)
-        ) {
+        if (!in_array((int) auth()->user()->role_id, [1, 9], true)) {
             abort(403, 'Unauthorized access.');
         }
 
@@ -5019,11 +5015,7 @@ class OrderController extends Controller
 
     public function revokePaymentsFilter(Request $request)
     {
-        $allowedSubAdminId = 13715;
-        if (
-            auth()->user()->role_id != 1 &&
-            !(auth()->user()->role_id == 9 && auth()->id() == $allowedSubAdminId)
-        ) {
+        if (!in_array((int) auth()->user()->role_id, [1, 9], true)) {
             abort(403, 'Unauthorized access.');
         }
 
