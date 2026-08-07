@@ -1,11 +1,28 @@
 <div id="chatBox" class="chat-box p-3 bg-white rounded shadow-sm">
-    @foreach($lead->call as $chat)
+    @php
+        $callItems = isset($calls) && $calls->count() > 0 ? $calls : ($lead->call ?? []);
+    @endphp
+
+    @foreach($callItems as $chat)
         @php
             $isCurrentUser = $chat->created_by == Auth::user()->id;
+            $isOtherLead = $chat->lead_id != $lead->id;
+            $orderCode = !empty($chat->lead?->order_id) ? $chat->lead->order_id : ('#' . $chat->lead_id);
         @endphp
 
         <div class="d-flex mb-2 {{ $isCurrentUser ? 'justify-content-end' : 'justify-content-start' }}">
             <div class="message-bubble {{ $isCurrentUser ? 'sent' : 'received' }}">
+                <div class="mb-1">
+                    @if($isOtherLead)
+                        <span class="badge bg-warning text-dark fw-bold fs-9" style="font-size: 10px;" title="Taken on another order of this customer">
+                            Taken on Order {{ $orderCode }}
+                        </span>
+                    @else
+                        <span class="badge bg-primary text-white fw-bold fs-9" style="font-size: 10px;">
+                            Order {{ $orderCode }}
+                        </span>
+                    @endif
+                </div>
                 <div class="message-text">
                     {{ $chat->description }}
                 </div>
@@ -13,7 +30,7 @@
                     @if($isCurrentUser)
                         You • {{ $chat->created_at->format('d-m-Y h:i A') }}
                     @else
-                    {{ $chat->user->name }} • {{ $chat->created_at->format('d-m-Y h:i A') }}
+                        {{ $chat->user->name ?? 'User' }} • {{ $chat->created_at->format('d-m-Y h:i A') }}
                     @endif
                 </div>
             </div>

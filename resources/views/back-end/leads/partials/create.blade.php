@@ -689,6 +689,14 @@
                                         style="display:none; z-index:9999; max-height:220px; overflow-y:auto;">
                                     </div>
                                 </div>
+                                <div class="col-md-3">
+                                    <label class="fs-7 fw-bold">Count</label>
+                                    <input type="number"
+                                        id="lead_count_input"
+                                        class="form-control form-control-sm form-control-solid"
+                                        value="1"
+                                        min="1">
+                                </div>
                             </div>
                         </div>
 
@@ -700,7 +708,7 @@
                             </button>
                         </div>
 
-                        <div id="leadContainer">
+                        <div id="leadContainer" style="max-height: 450px; overflow-y: auto; overflow-x: hidden; padding-right: 6px;">
 
                             <div class="lead-box card p-4 mb-4  position-relative border border-dark">
 
@@ -939,9 +947,9 @@
                 }
             }
 
-            addBtn.addEventListener("click", function() {
-
+            function cloneLeadBox() {
                 let firstBox = document.querySelector(".lead-box");
+                if (!firstBox) return;
                 let clone = firstBox.cloneNode(true);
 
                 clone.querySelectorAll('.draftDiv').forEach(div => {
@@ -977,8 +985,48 @@
 
                 // RE-INIT SELECT2 ONLY FOR NEW CLONE
                 initSelect2();
+            }
 
+            function updateCountInput() {
+                let count = document.querySelectorAll(".lead-box").length;
+                let countInput = document.getElementById("lead_count_input");
+                if (countInput) {
+                    countInput.value = count;
+                }
+            }
+
+            const leadCountInput = document.getElementById("lead_count_input");
+            if (leadCountInput) {
+                leadCountInput.addEventListener("input", function() {
+                    let targetCount = parseInt(this.value) || 1;
+                    if (targetCount < 1) {
+                        targetCount = 1;
+                        this.value = 1;
+                    }
+
+                    let currentBoxes = container.querySelectorAll(".lead-box");
+                    let currentCount = currentBoxes.length;
+
+                    if (targetCount > currentCount) {
+                        for (let i = 0; i < targetCount - currentCount; i++) {
+                            cloneLeadBox();
+                        }
+                    } else if (targetCount < currentCount) {
+                        for (let i = 0; i < currentCount - targetCount; i++) {
+                            let boxes = container.querySelectorAll(".lead-box");
+                            if (boxes.length > 1) {
+                                boxes[boxes.length - 1].remove();
+                            }
+                        }
+                    }
+                    toggleRemoveButtons();
+                });
+            }
+
+            addBtn.addEventListener("click", function() {
+                cloneLeadBox();
                 toggleRemoveButtons();
+                updateCountInput();
             });
 
             // ======================
@@ -994,6 +1042,7 @@
                     }
 
                     toggleRemoveButtons();
+                    updateCountInput();
                 }
             });
 

@@ -39,24 +39,37 @@ class SearchController extends Controller
 
     public function searchUser(Request $request)
     {
-        $query = trim((string) ($request->input('user') ?? $request->input('query', '')));
+        $query = trim((string) ($request->input('user') ?? $request->input('query', $request->input('term', ''))));
 
         if (mb_strlen($query) < 2) {
             return response()->json([]);
         }
 
-        $results = User::select('id', 'name', 'email', 'mobile_no', 'mobile_no2')
+        $cleanDigits = preg_replace('/\D/', '', $query);
+        $withoutLeadingZero = !empty($cleanDigits) ? ltrim($cleanDigits, '0') : '';
+
+        $results = User::select('id', 'name', 'email', 'mobile_no', 'mobile_no2', 'countrycode')
             ->where('flag', 0)
-            ->where(function ($userQuery) use ($query) {
+            ->where(function ($userQuery) use ($query, $cleanDigits, $withoutLeadingZero) {
                 $userQuery->where('name', 'like', "%{$query}%")
                     ->orWhere('email', 'like', "%{$query}%")
                     ->orWhere('mobile_no', 'like', "%{$query}%")
                     ->orWhere('mobile_no2', 'like', "%{$query}%");
+
+                if (!empty($cleanDigits) && strlen($cleanDigits) >= 5) {
+                    $userQuery->orWhere('mobile_no', 'like', "%{$cleanDigits}%")
+                        ->orWhere('mobile_no2', 'like', "%{$cleanDigits}%");
+
+                    if (!empty($withoutLeadingZero)) {
+                        $userQuery->orWhere('mobile_no', 'like', "%{$withoutLeadingZero}%")
+                            ->orWhere('mobile_no2', 'like', "%{$withoutLeadingZero}%");
+                    }
+                }
             })
             ->orderByDesc('id')
             ->limit(20)
             ->get();
-    
+
         return response()->json($results);
     }
     

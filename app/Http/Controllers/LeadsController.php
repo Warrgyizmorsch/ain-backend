@@ -630,11 +630,8 @@ class LeadsController extends Controller
             // ✅ SAME SEMESTER
             $leads->semester = $request->semester;
             $leads->lead_source = $request->lead_source ?? null;
-            if (Auth::check()) {
-                $leads->created_by = Auth::id();
-            } else {
-                $leads->created_by = null;
-            }
+            $creatorId = Auth::id() ?: (auth()->user()?->id ?: 1);
+            $leads->created_by = $creatorId;
 
             $leads->save();
 
@@ -642,9 +639,11 @@ class LeadsController extends Controller
             // INSERT ORDER
             // =========================
             $order = new Order;
-            $order->uid = 0;
+            $order->uid = $userId ?: 0;
             $order->order_id = $newOrderId;
             $order->lead_id = $leads->id;
+            $order->created_by = $creatorId;
+            $order->l_converted_by = Auth::user()->name ?? 'System';
 
             $order->title   = $request->project_title[$i];
             $order->pages   = $request->pages[$i];

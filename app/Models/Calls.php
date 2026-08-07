@@ -15,4 +15,8 @@ class Calls extends Model
         return $this->belongsTo(User::class, 'created_by');
     }
 
+    public function lead()
+    {
+        return $this->belongsTo(Leads::class, 'lead_id');
+    }
 }
