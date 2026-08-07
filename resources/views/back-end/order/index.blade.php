@@ -61,7 +61,7 @@
                                 </th>
                                 <th class="text-center"
                                     style="position: sticky; left: 0; background: #F5F8FA; z-index: 6;">Action</th>
-                                        <th class="min-w-150px text-center" style="background: #F5F8FA;">Comment</th>
+                                        
                                 <th class="min-w-100px text-center" style="background: #F5F8FA;">Order ID</th>
                                 <th class="min-w-120px text-center" style="background: #F5F8FA;">Referral</th>
                                 <th class="min-w-150px text-center" style="background: #F5F8FA;">User</th>
@@ -79,6 +79,7 @@
                                 @if(auth()->user()->role_id == 1)
                                 <th class="min-w-200px text-center" style="background: #F5F8FA;">Other</th>
                                 @endif
+                                <th class="min-w-150px text-center" style="background: #F5F8FA;">Comment</th>
                             </tr>
                         </thead>
                         <!-- TABLE BODY -->

@@ -230,6 +230,13 @@
                                             @endif
 										</td>
 										<td>
+											@php
+												$createdByName = $order->lead?->creator?->name 
+													?? $order->frontendLead?->creator?->name 
+													?? ($order->created_by ? (\App\Models\User::find($order->created_by)?->name) : null)
+													?? 'N/A';
+											@endphp
+											Created By ({{ $createdByName }})<br>
 											@if($order->l_converted_by != null)
 												Convert By ({{ $order->l_converted_by }})												
 											@else

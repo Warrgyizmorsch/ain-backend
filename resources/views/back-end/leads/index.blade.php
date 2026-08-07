@@ -105,10 +105,22 @@
                     <h3 class="card-title fw-bolder fs-3 mb-1">Active Leads</h3>
                     <span class="text-muted mt-1 fw-bold fs-7">Live data with real-time update</span>
                 </div>
-                <div class="card-toolbar">
+                <div class="card-toolbar d-flex align-items-center gap-2">
                     <button class="btn btn-sm btn-light-primary" data-bs-toggle="modal" data-bs-target="#kt_modal_create_appaa_newLeads">
                         <span class="svg-icon svg-icon-2">+</span> Add New Lead
                     </button>
+
+                    <button class="btn btn-sm btn-light-info" data-bs-toggle="modal" data-bs-target="#kt_modal_create_next_lead">
+                        <span class="svg-icon svg-icon-2">+</span> Next Lead
+                    </button>
+
+                    <button class="btn btn-sm btn-info position-relative" onclick="openNextLeadsModal()">
+                        <i class="fa fa-calendar-alt me-1 text-white"></i> Current Month Lead
+                        <span id="next_lead_current_month_badge" class="badge badge-circle badge-danger ms-1" style="font-size: 11px;">
+                            {{ $nextLeadCount ?? 0 }}
+                        </span>
+                    </button>
+
                     @if( auth()->user()->role_id == 1)
                     <button class="btn btn-sm btn-danger" style="margin-left: 10px; display: none;" id="export-btn">
                         Export
@@ -137,7 +149,7 @@
                         <thead>
                             <tr class="fw-bolder text-muted bg-light">
                                 <th class="min-w-50px text-center" style="padding-right: 0px; background: #F5F8FA;">Sr.</th>
-                                <th class="text-center">Action</th>
+                                <th class="min-w-165px text-center" style="background: #F5F8FA;">Action</th>
                                 <th class="min-w-220px text-center" style="background: #F5F8FA;">Recent Chat</th>
                                 <th class="min-w-100px text-center" style="background: #F5F8FA;">Order ID</th>
                                 <th class="min-w-100px text-center" style="background: #F5F8FA;">Name</th>
@@ -163,12 +175,211 @@
         </div>
     </div>
     @include('back-end.leads.partials.create')
+    @include('back-end.leads.partials.create-next-lead')
+    @include('back-end.leads.partials.next-leads-list-modal', ['nextLeads' => collect(), 'creators' => $employees ?? collect()])
 </div>
 @include('back-end.leads.partials.preloader')
 @include('back-end.leads.partials.models', ['lead' => $lead])
 
 @push('scripts')
     @include('back-end.leads.ajax')
+    <script>
+        // Next Lead Auto-fill & Multiple User Autocomplete List
+        let nextLeadMobileTimer = null;
+        const $nextLeadMobileResult = $('#next_lead_mobile_user_result');
+        const $nextLeadMobileLoader = $('#next_lead_lookup_loader');
+
+        function fillNextLeadUser(user) {
+            if (!user) return;
+            $('#next_lead_user_name').val(user.name || '');
+            if (user.email) $('#next_lead_email').val(user.email);
+            if (user.countrycode) $('#next_lead_countrycode').val(user.countrycode);
+            if (user.mobile_no) $('#next_lead_mobile').val(user.mobile_no);
+            $nextLeadMobileResult.hide().html('');
+            $('#next_lead_user_status').html('<span class="text-success fw-bold"><i class="fa fa-check-circle me-1"></i> Customer selected: ' + (user.name || '') + '</span>');
+        }
+
+        function renderNextLeadMobileDropdown(users) {
+            if (!Array.isArray(users) || users.length === 0) {
+                $nextLeadMobileResult.hide().html('');
+                $('#next_lead_user_status').html('<span class="text-muted"><i class="fa fa-info-circle me-1"></i> New Customer (Enter details manually)</span>');
+                return;
+            }
+
+            let html = '';
+            users.forEach(function (user) {
+                let jsonUser = $('<div>').text(JSON.stringify(user)).html();
+                html += `
+                    <div class="next-lead-user-item px-3 py-2 border-bottom text-start"
+                        style="cursor:pointer; background-color: #fff;"
+                        onmouseover="this.style.backgroundColor='#f1f5f9'"
+                        onmouseout="this.style.backgroundColor='#fff'"
+                        data-user='${jsonUser}'>
+                        <strong class="text-gray-800 fs-7">${$('<div>').text(user.name || 'No Name').html()}</strong><br>
+                        <small class="text-muted fs-8">${$('<div>').text((user.countrycode || '') + ' ' + (user.mobile_no || '') + ' | ' + (user.email || '')).html()}</small>
+                    </div>
+                `;
+            });
+
+            $nextLeadMobileResult.html(html).show();
+            $('#next_lead_user_status').html('<span class="text-primary fw-bold"><i class="fa fa-list me-1"></i> ' + users.length + ' customer(s) found. Click one to select:</span>');
+        }
+
+        $('#next_lead_mobile').on('keyup input', function () {
+            let mobile = $(this).val().trim();
+            clearTimeout(nextLeadMobileTimer);
+
+            if (mobile.length < 5) {
+                $nextLeadMobileLoader.hide();
+                $nextLeadMobileResult.hide().html('');
+                $('#next_lead_user_status').html('');
+                return;
+            }
+
+            $nextLeadMobileLoader.show();
+
+            nextLeadMobileTimer = setTimeout(function () {
+                $.ajax({
+                    url: `{{ url('/search-user') }}`,
+                    method: 'GET',
+                    data: { user: mobile, query: mobile, term: mobile },
+                    success: function (response) {
+                        $nextLeadMobileLoader.hide();
+                        renderNextLeadMobileDropdown(response);
+                    },
+                    error: function () {
+                        $nextLeadMobileLoader.hide();
+                        $nextLeadMobileResult.hide().html('');
+                    }
+                });
+            }, 300);
+        });
+
+        $(document).on('click', '.next-lead-user-item', function () {
+            let user = $(this).data('user');
+            if (typeof user === 'string') {
+                try { user = JSON.parse(user); } catch (e) {}
+            }
+            fillNextLeadUser(user);
+        });
+
+        $(document).on('click', function (e) {
+            if (!$(e.target).closest('#next_lead_mobile, #next_lead_mobile_user_result').length) {
+                $nextLeadMobileResult.hide();
+            }
+        });
+
+        // Submit Next Lead Form
+        $('#createNextLeadForm').on('submit', function(e) {
+            e.preventDefault();
+            let form = $(this);
+            let submitBtn = $('#btnSubmitNextLead');
+            submitBtn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> Saving...');
+
+            $.ajax({
+                url: form.attr('action'),
+                method: 'POST',
+                data: form.serialize(),
+                success: function(res) {
+                    submitBtn.prop('disabled', false).html('Save Next Lead');
+                    if (res.success) {
+                        Swal.fire('Success!', res.message, 'success');
+                        $('#kt_modal_create_next_lead').modal('hide');
+                        form[0].reset();
+                        $('#next_lead_user_status').html('');
+                        if (typeof res.count !== 'undefined') {
+                            $('#next_lead_current_month_badge').text(res.count);
+                        }
+                    } else {
+                        Swal.fire('Error!', res.message || 'Failed to save Next Lead.', 'error');
+                    }
+                },
+                error: function(err) {
+                    submitBtn.prop('disabled', false).html('Save Next Lead');
+                    Swal.fire('Error!', 'Server error while saving Next Lead.', 'error');
+                }
+            });
+        });
+
+        // Open Next Leads List Modal
+        function openNextLeadsModal() {
+            filterNextLeadsList();
+            $('#kt_modal_next_leads_list').modal('show');
+        }
+
+        // Filter Next Leads List
+        function filterNextLeadsList() {
+            let month = $('#filter_next_lead_month').val() || 'all';
+            let search = $('#filter_next_lead_user_search').val() || '';
+
+            $('#next-leads-table-body').html('<tr><td colspan="8" class="text-center py-5"><i class="fa fa-spinner fa-spin text-primary fs-3"></i> Loading...</td></tr>');
+
+            $.ajax({
+                url: `{{ route('nextlead.list') }}`,
+                method: 'GET',
+                data: {
+                    target_month: month,
+                    search: search,
+                    render_table_only: 1
+                },
+                success: function(html) {
+                    $('#next-leads-table-body').html(html);
+                },
+                error: function() {
+                    $('#next-leads-table-body').html('<tr><td colspan="8" class="text-center text-danger py-4">Failed to load Next Leads data.</td></tr>');
+                }
+            });
+        }
+
+        // Reset Next Lead Filters
+        function resetNextLeadFilters() {
+            $('#filter_next_lead_month').val('{{ date("Y-m") }}');
+            $('#filter_next_lead_user_search').val('');
+            filterNextLeadsList();
+        }
+
+        // Convert Next Lead to Active Lead
+        function convertNextLead(id, btn) {
+            Swal.fire({
+                title: 'Convert to Active Lead?',
+                text: 'This will generate an Order Code and move this Next Lead into Active Leads!',
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: 'Yes, Convert!',
+                cancelButtonText: 'Cancel'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    let btnObj = $(btn);
+                    btnObj.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> Converting...');
+
+                    $.ajax({
+                        url: `{{ url('/lead/next-lead/convert') }}/${id}`,
+                        method: 'POST',
+                        headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
+                        success: function(res) {
+                            if (res.success) {
+                                Swal.fire({
+                                    title: 'Converted!',
+                                    text: res.message,
+                                    icon: 'success',
+                                    confirmButtonText: 'OK'
+                                }).then(() => {
+                                    location.reload();
+                                });
+                            } else {
+                                btnObj.prop('disabled', false).html('<i class="fa fa-arrow-right fs-9 me-1 text-white"></i> Convert to Active Lead');
+                                Swal.fire('Error!', res.message || 'Conversion failed.', 'error');
+                            }
+                        },
+                        error: function() {
+                            btnObj.prop('disabled', false).html('<i class="fa fa-arrow-right fs-9 me-1 text-white"></i> Convert to Active Lead');
+                            Swal.fire('Error!', 'Server error during conversion.', 'error');
+                        }
+                    });
+                }
+            });
+        }
+    </script>
 @endpush
 
 

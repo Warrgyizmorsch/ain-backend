@@ -24,7 +24,7 @@
 
 
         <td class="text-center" style="position: sticky; left: 0; background: white; z-index: 2;">
-            <div style="display:grid; grid-template-columns:repeat(4, max-content); justify-content:center; align-items:center; gap:8px;">
+            <div style="display:grid; grid-template-columns:repeat(4, max-content); justify-content:center; align-items:center; gap:6px;">
 
                 @if($order->user)
                     <button type="button" class="btn btn-sm btn-light-success fw-bold" title="Manage User Groups" data-user-group-button="{{ $order->user->id }}" data-groups='@json($order->user->groups->pluck("id"))' onclick="openUserGroupModal({{ $order->user->id }}, @js($order->user->name), JSON.parse(this.dataset.groups))">G</button>
@@ -35,12 +35,7 @@
                     <i style="color: white;" class="fa fa-edit"></i>
                 </a>
 
-                <!-- Chat / Comment Button -->
-                <button onclick="loadCommentDrawer({{ $order->id }})" class="btn btn-icon btn-secondary btn-sm" title="Open Chat">
-                    {{-- <i class="fa fa-comment-alt"></i> --}}
-                    <span>T</span>
-                </button>
-
+                <!-- Call Customer Button -->
                 <button type="button"
                     class="btn btn-icon btn-success btn-sm"
                     title="Call customer"
@@ -48,34 +43,26 @@
                     <i class="fa fa-phone"></i>
                 </button>
 
-
-                <!-- Button to Open Unified Payment Page -->
                 <!-- Button to Open Unified Payment Page -->
                 <a href="{{ route('orders.payment.form', ['orderId' => $order->id]) }}"
                     target="_blank"
                     class="btn btn-icon btn-success btn-sm position-relative"
                     title="Add/Edit Payment">
-
                     <i class="fa fa-money"></i>
-
-                    {{-- Check if any payment is missing payee_name or company_accounts --}}
                     @if($order->payment->contains(function($p) {
-                    return empty($p->payee_name) || empty($p->company_accounts);
+                        return empty($p->payee_name) || empty($p->company_accounts);
                     }))
                     <i class="fa fa-question-circle text-danger bg-white"
                         title="Incomplete payment info"
                         style="position: absolute; top: -3px; right: -3px; font-size: 11px; border-radius: 50%;"></i>
                     @endif
-
                 </a>
-
 
                 <!-- Mark as Failed Button -->
                 <a href="javascript:void(0);" onclick="showConfirmation({{ $order->id }}, {{ $order->is_fail }})" class="btn btn-icon btn-danger btn-sm" title="Mark as Failed">
                     <i class="fa fa-times-circle"></i>
                 </a>
 
-                {{-- @if(auth()->user()->role_id == 1) --}}
                 @if(in_array(auth()->user()->role_id, [1, 4, 9]))
                     <button type="button" class="btn btn-icon btn-sm btn-light-danger" title="Looking For Refund" onclick="markLookingForRefund({{ $order->id }})">
                         <span class="fw-bold fs-6">R</span>
@@ -93,50 +80,14 @@
                     </span>
                 </a>
                 @endif
+
+                <!-- Chat / Comment Button (MOVED TO LAST POSITION) -->
+                <button onclick="loadCommentDrawer({{ $order->id }})" class="btn btn-icon btn-secondary btn-sm" title="Open Chat / Comments">
+                    <span>T</span>
+                </button>
             </div>
-
         </td>
-        <td class="text-center">
-            @php
-            // 1. Latest comment preloaded feedback relation se nikalna
-            $latestComment = $order->feedback->first();
-
-            // 2. User ki ID se Name preloaded relation se
-            $commentUserName = $latestComment?->user?->name ?? 'Admin';
-            @endphp
-
-            @if($latestComment && !empty($latestComment->comment))
-            <div style="background-color: #f5f8fa; border-radius: 8px; padding: 12px; margin-top: 5px; border: 1px solid #e4e6ef; text-align: left; min-width: 220px;">
-
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                    <span class="fw-bolder fs-6" style="color: #5e6278;">
-                        {{ $commentUserName }}
-                    </span>
-                    <span class="text-muted fs-8 fw-bold">
-                        @if(isset($latestComment->created_at))
-                        {{ \Carbon\Carbon::parse($latestComment->created_at)->diffForHumans() }}
-                        @endif
-                    </span>
-                </div>
-
-                <div class="text-dark fs-7 mb-3" style="word-wrap: break-word; line-height: 1.4;">
-                    {{ $latestComment->comment }}
-                </div>
-
-                <div class="d-flex align-items-center fw-bolder fs-7" style="color: #3e5cb9;">
-                    <i class="fa fa-calendar-alt me-2" style="color: #8da4ef; font-size: 1.1rem;"></i>
-                    @if(isset($latestComment->created_at))
-                    {{ \Carbon\Carbon::parse($latestComment->created_at)->format('d M Y, h:i A') }}
-                    @else
-                    Date N/A
-                    @endif
-                </div>
-
-            </div>
-            @else
-            <span class="badge badge-light-secondary text-muted fs-8">No Comments Found</span>
-            @endif
-        </td>
+        
         {{-- <td class="text-center">
         <span>{{ $order->order_id }}</span><br>
         @if($order->team?->team_name)
@@ -644,6 +595,19 @@
         <td style="min-width:220px;">
             <div class="border rounded p-3 bg-light">
 
+                @php
+                    $createdByName = $order->lead?->creator?->name 
+                        ?? $order->frontendLead?->creator?->name 
+                        ?? ($order->created_by ? (is_numeric($order->created_by) ? (\App\Models\User::find($order->created_by)?->name) : $order->created_by) : null)
+                        ?? ($order->lead?->created_by ? (is_numeric($order->lead->created_by) ? (\App\Models\User::find($order->lead->created_by)?->name) : $order->lead->created_by) : null)
+                        ?? (auth()->user()?->name ?? 'Admin User');
+                @endphp
+
+                <div class="mb-2">
+                    <span class="fw-bold text-primary">Created By:</span>
+                    <span>{{ $createdByName }}</span>
+                </div>
+
                 <div class="mb-2">
                     <span class="fw-bold text-success">Convert By:</span>
                     <span>{{ $order->l_converted_by ?: 'N/A' }}</span>
@@ -665,6 +629,48 @@
             </div>
         </td>
         @endif
+
+        <td class="text-center">
+            @php
+            // 1. Latest comment preloaded feedback relation se nikalna
+            $latestComment = $order->feedback->first();
+
+            // 2. User ki ID se Name preloaded relation se
+            $commentUserName = $latestComment?->user?->name ?? 'Admin';
+            @endphp
+
+            @if($latestComment && !empty($latestComment->comment))
+            <div style="background-color: #f5f8fa; border-radius: 8px; padding: 12px; margin-top: 5px; border: 1px solid #e4e6ef; text-align: left; min-width: 220px;">
+
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="fw-bolder fs-6" style="color: #5e6278;">
+                        {{ $commentUserName }}
+                    </span>
+                    <span class="text-muted fs-8 fw-bold">
+                        @if(isset($latestComment->created_at))
+                        {{ \Carbon\Carbon::parse($latestComment->created_at)->diffForHumans() }}
+                        @endif
+                    </span>
+                </div>
+
+                <div class="text-dark fs-7 mb-3" style="word-wrap: break-word; line-height: 1.4;">
+                    {{ $latestComment->comment }}
+                </div>
+
+                <div class="d-flex align-items-center fw-bolder fs-7" style="color: #3e5cb9;">
+                    <i class="fa fa-calendar-alt me-2" style="color: #8da4ef; font-size: 1.1rem;"></i>
+                    @if(isset($latestComment->created_at))
+                    {{ \Carbon\Carbon::parse($latestComment->created_at)->format('d M Y, h:i A') }}
+                    @else
+                    Date N/A
+                    @endif
+                </div>
+
+            </div>
+            @else
+            <span class="badge badge-light-secondary text-muted fs-8">No Comments Found</span>
+            @endif
+        </td>
     </tr>
 
     <!-- Change Team Modal -->

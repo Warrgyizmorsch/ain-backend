@@ -408,6 +408,11 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/chat/send', [LeadsController::class, 'callStore'])->name('chat.send');
         Route::put('/checklead/{id}', [LeadsController::class, 'checked'])->name('lead.checklead');
         Route::get('/leads-tracking-data', [LeadsController::class, 'getLeadTrackingData'])->name('leads.tracking.data');
+
+        // Next Lead Routes
+        Route::post('/next-lead/store', [\App\Http\Controllers\NextLeadController::class, 'store'])->name('nextlead.store');
+        Route::get('/next-lead/list', [\App\Http\Controllers\NextLeadController::class, 'list'])->name('nextlead.list');
+        Route::post('/next-lead/convert/{id}', [\App\Http\Controllers\NextLeadController::class, 'convert'])->name('nextlead.convert');
     });
 
     // Order management

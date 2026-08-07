@@ -15,83 +15,136 @@
 <tr id="lead-{{ $lead->id }}">
     <td class="text-center" style="padding-right: 0px;">{{ $index + 1 }}</td>
 
-    <td class="text-center">
-        <div style="display:grid; grid-template-columns:repeat(4, max-content); justify-content:center; align-items:center; gap:8px;">
-            @if($lead->flag == '1')
-            <div class="form-check form-check-sm form-check-custom form-check-solid">
-                <input onchange="checkedLead(this, {{ $lead->id }})" class="form-check-input widget-13-check" type="checkbox"
-                    checked value="1">
-            </div>
-            @else
-            <div class="form-check form-check-sm form-check-custom form-check-solid">
-                <input onchange="checkedLead(this, {{ $lead->id }})" class="form-check-input widget-13-check" type="checkbox"
-                    value="1">
-            </div>
-            @endif
-            @if($lead->user)
-                <button type="button" class="btn btn-sm btn-light-success fw-bold" title="Manage User Groups" data-user-group-button="{{ $lead->user->id }}" data-groups='@json($lead->user->groups->pluck("id"))' onclick="openUserGroupModal({{ $lead->user->id }}, @js($lead->user->name), JSON.parse(this.dataset.groups))">G</button>
-            @endif
-            <div class="form-check form-switch">
-                <input class="form-check-input" type="checkbox" id="{{ $lead->id }}" role="switch" checked
-                    onchange="handleChange(this, {{ $lead->id }})">
-            </div>
-            <a href="{{ url('/lead/edit/' . $lead->id) }}" target="_blank" class="btn btn-sm btn-icon"
-                style="background-color: #1e1e2d;">
-                <li style="color: white;" class="fa fa-edit"></li>
-            </a>
-            <button type="button" class="btn btn-sm btn-primary btn-icon" onclick="convert(this, {{ $lead->id }})"
-                id="convert-btn-{{ $lead->id }}">
-                <i class="fa fa-sync"></i>
-            </button>
+    <td class="text-center align-middle" style="min-width: 165px; padding: 6px;">
+        <div class="d-flex flex-column align-items-center justify-content-center gap-1">
+            <!-- 4x2 Grid for Buttons & Switches -->
+            <div style="display: grid; grid-template-columns: repeat(4, 32px); gap: 6px; align-items: center; justify-items: center;">
+                
+                <!-- Row 1, Col 1: Flag Checkbox -->
+                <div class="form-check form-check-sm form-check-custom form-check-solid m-0 p-0 d-flex align-items-center justify-content-center">
+                    <input onchange="checkedLead(this, {{ $lead->id }})" class="form-check-input widget-13-check m-0 action-checkbox" type="checkbox"
+                        {{ $lead->flag == '1' ? 'checked' : '' }} value="1" title="Lead Flag">
+                </div>
 
-            <!-- @if (auth()->user()->role_id == 1)
-                <button type="button" id="loadTemplatesBtn{{ $lead->user->id ?? '' }}" class="btn btn-sm btn-success btn-icon"
-                    onclick="loadTemplates({{ $lead->user->id ?? '' }})">
-                    <i class="fa fa-whatsapp"></i>
+                <!-- Row 1, Col 2: Group Master Button -->
+                @if($lead->user)
+                    <button type="button" class="btn btn-sm btn-icon btn-light-success fw-bold p-0 d-inline-flex align-items-center justify-content-center shadow-xs" 
+                        style="width: 28px; height: 28px; border: 1px solid #b5e5c4;" title="Manage User Groups" 
+                        data-user-group-button="{{ $lead->user->id }}" 
+                        data-groups='@json($lead->user->groups->pluck("id"))' 
+                        onclick="openUserGroupModal({{ $lead->user->id }}, @js($lead->user->name), JSON.parse(this.dataset.groups))">G</button>
+                @else
+                    <div></div>
+                @endif
+
+                <!-- Row 1, Col 3: Lead Active Switch -->
+                <div class="form-check form-switch m-0 p-0 d-flex align-items-center justify-content-center" title="Lead Status Switch">
+                    <input class="form-check-input m-0" type="checkbox" id="{{ $lead->id }}" role="switch" checked
+                        onchange="handleChange(this, {{ $lead->id }})">
+                </div>
+
+                <!-- Row 1, Col 4: Edit Button -->
+                <a href="{{ url('/lead/edit/' . $lead->id) }}" target="_blank" 
+                    class="btn btn-sm btn-icon p-0 d-inline-flex align-items-center justify-content-center shadow-xs"
+                    style="background-color: #1e1e2d; width: 28px; height: 28px; border-radius: 6px;" title="Edit Lead">
+                    <i style="color: white;" class="fa fa-edit"></i>
+                </a>
+
+                <!-- Row 2, Col 1: Convert / Sync Button -->
+                <button type="button" class="btn btn-sm btn-primary btn-icon p-0 d-inline-flex align-items-center justify-content-center shadow-xs" 
+                    style="width: 28px; height: 28px; border-radius: 6px;" onclick="convert(this, {{ $lead->id }})"
+                    id="convert-btn-{{ $lead->id }}" title="Convert Lead">
+                    <i class="fa fa-sync fs-8"></i>
                 </button>
 
-            @endif
-             -->
-            <button type="button" id="loadChat{{ $lead->id }}" class="btn btn-sm btn-warning btn-icon"
-                onclick="loadchat({{ $lead->id }})">
-                <li class="fa fa-phone"></li>
-            </button>
-            <!-- Fullscreen Chat Modal -->
-            <!-- Select per lead/order -->
-            <!-- Assign Type Toggle -->
-            <div class="form-check form-switch" style="margin-left:6px;">
-                <input
-                    class="form-check-input assign-toggle"
-                    type="checkbox"
-                    id="type{{ $lead->id }}"
-                    {{ ($lead->assign_type ?? 0) == 1 ? 'checked' : '' }}
-                    onchange="handleTypeToggle(this, {{ $lead->id }})">
+                <!-- Row 2, Col 2: Phone / Chat Button -->
+                <button type="button" id="loadChat{{ $lead->id }}" class="btn btn-sm btn-warning btn-icon p-0 d-inline-flex align-items-center justify-content-center shadow-xs"
+                    style="width: 28px; height: 28px; border-radius: 6px;" onclick="loadchat({{ $lead->id }})" title="Lead Chat & Calls">
+                    <i class="fa fa-phone fs-8 text-white"></i>
+                </button>
+
+                <!-- Row 2, Col 3: Assign Type Switch -->
+                <div class="form-check form-switch m-0 p-0 d-flex align-items-center justify-content-center" title="Assign Type (AIN / Let's Learn)">
+                    <input
+                        class="form-check-input assign-toggle m-0"
+                        type="checkbox"
+                        id="type{{ $lead->id }}"
+                        {{ ($lead->assign_type ?? 0) == 1 ? 'checked' : '' }}
+                        onchange="handleTypeToggle(this, {{ $lead->id }})">
+                </div>
+
+                <!-- Row 2, Col 4: Duplicate Lead Button -->
+                <button type="button" class="btn btn-sm btn-danger btn-icon fw-bold p-0 d-inline-flex align-items-center justify-content-center shadow-xs" 
+                    style="width: 28px; height: 28px; border-radius: 6px;" data-bs-toggle="modal" data-bs-target="#hideLeadModal" 
+                    onclick="openDuplicateLeadModal({{ $lead->id }})" title="Mark Duplicate Lead">
+                    D
+                </button>
             </div>
-            <button type="button" class="btn btn-sm btn-danger btn-icon" data-bs-toggle="modal" data-bs-target="#hideLeadModal" onclick="openDuplicateLeadModal({{ $lead->id }})" title="Mark Duplicate Lead">
-                D
-            </button>
-            <style>
-                .assign-toggle {
-                    transform: scale(1.1);
-                    cursor: pointer;
-                }
 
-                /* OFF = AIN (Yellow) */
-                .assign-toggle:not(:checked) {
-                    background-color: #FFC107 !important;
-                    border-color: #e0a800 !important;
-                }
+            <!-- Row 3: Select Lead Reason Dropdown -->
+            <div class="w-100 d-flex justify-content-center mt-1.5">
+                <select
+                    id="leadReason{{ $lead->id }}"
+                    name="lead_reason[{{ $lead->id }}]"
+                    class="form-select form-select-sm text-center py-1 px-2 fs-8 fw-bold action-reason-dropdown"
+                    style="width: 100%; max-width: 148px; height: 30px;"
+                    onchange="handleLeadReason({{ $lead->id }})">
+                    <option value="">Select Reason</option>
+                    <option value="Price" {{ ($lead->l_status ?? '') == 'Price' ? 'selected' : '' }}>Price</option>
+                    <option value="Deadline" {{ ($lead->l_status ?? '') == 'Deadline' ? 'selected' : '' }}>Deadline</option>
+                    <option value="Serious Concern" {{ ($lead->l_status ?? '') == 'Serious Concern' ? 'selected' : '' }}>Serious Concern</option>
+                    <option value="Marks" {{ ($lead->l_status ?? '') == 'Marks' ? 'selected' : '' }}>Marks</option>
+                    <option value="Unknown" {{ ($lead->l_status ?? '') == 'Unknown' ? 'selected' : '' }}>Unknown</option>
+                    <option value="Quality" {{ ($lead->l_status ?? '') == 'Quality' ? 'selected' : '' }}>Quality</option>
+                    <option value="Customer Service" {{ ($lead->l_status ?? '') == 'Customer Service' ? 'selected' : '' }}>Customer Service</option>
+                </select>
+            </div>
+        </div>
 
-                /* ON = Let's Learn (Green) */
-                .assign-toggle:checked {
-                    background-color: #28a745 !important;
-                    border-color: #1e7e34 !important;
-                }
-            </style>
-            <script>
-                function handleTypeToggle(el, leadId) {
+        <style>
+            .action-checkbox {
+                width: 18px !important;
+                height: 18px !important;
+                border: 2px solid #64748b !important;
+                border-radius: 4px !important;
+                cursor: pointer;
+                transition: all 0.2s ease-in-out;
+            }
+            .action-checkbox:checked {
+                background-color: #009ef7 !important;
+                border-color: #009ef7 !important;
+            }
+            .action-reason-dropdown {
+                border: 1.5px solid #cbd5e1 !important;
+                border-radius: 6px !important;
+                background-color: #f8fafc !important;
+                color: #1e293b !important;
+                box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+                cursor: pointer;
+                transition: all 0.2s ease-in-out;
+            }
+            .action-reason-dropdown:hover, .action-reason-dropdown:focus {
+                border-color: #009ef7 !important;
+                background-color: #ffffff !important;
+                box-shadow: 0 0 0 3px rgba(0, 158, 247, 0.15) !important;
+            }
+            .assign-toggle {
+                transform: scale(1.05);
+                cursor: pointer;
+            }
+            .assign-toggle:not(:checked) {
+                background-color: #FFC107 !important;
+                border-color: #e0a800 !important;
+            }
+            .assign-toggle:checked {
+                background-color: #28a745 !important;
+                border-color: #1e7e34 !important;
+            }
+        </style>
+        <script>
+            if (typeof handleTypeToggle === 'undefined') {
+                window.handleTypeToggle = function(el, leadId) {
                     let assign_type = el.checked ? 1 : 0;
-
                     Swal.fire({
                         title: 'Are you sure?',
                         text: 'Do you want to change assign type?',
@@ -100,107 +153,63 @@
                         confirmButtonText: 'Yes',
                         cancelButtonText: 'No'
                     }).then((result) => {
-
                         if (result.isConfirmed) {
-
-                            //  SAME tumhara original code
                             fetch("{{ url('/lead/assign-type') }}", {
-                                    method: "POST",
-                                    headers: {
-                                        "Content-Type": "application/json",
-                                        "X-CSRF-TOKEN": "{{ csrf_token() }}"
-                                    },
-                                    body: JSON.stringify({
-                                        lead_id: leadId,
-                                        assign_type: assign_type
-                                    })
+                                method: "POST",
+                                headers: {
+                                    "Content-Type": "application/json",
+                                    "X-CSRF-TOKEN": "{{ csrf_token() }}"
+                                },
+                                body: JSON.stringify({
+                                    lead_id: leadId,
+                                    assign_type: assign_type
                                 })
-                                .then(res => res.json())
-                                .then(data => {
-                                    if (!data.status) {
-                                        alert("Failed to update");
-                                    }
-                                })
-                                .catch(() => alert("Server error"));
-
+                            })
+                            .then(res => res.json())
+                            .then(data => {
+                                if (!data.status) {
+                                    alert("Failed to update");
+                                }
+                            })
+                            .catch(() => alert("Server error"));
                         } else {
-                            //  cancel pe toggle wapas
                             el.checked = !el.checked;
                         }
                     });
-                }
-            </script>
-            <select
-                id="leadReason{{ $lead->id }}"
-                name="lead_reason[{{ $lead->id }}]"
-                class="mini-select"
-                onchange="handleLeadReason({{ $lead->id }})">
-                <option value="">Select</option>
-                <!-- <option value="Hot" {{ ($lead->l_status ?? '') == 'Hot' ? 'selected' : '' }}>Hot</option> -->
-                <option value="Price" {{ ($lead->l_status ?? '') == 'Price' ? 'selected' : '' }}>Price</option>
-                <option value="Deadline" {{ ($lead->l_status ?? '') == 'Deadline' ? 'selected' : '' }}>Deadline</option>
-                <!-- <option value="Feedback" {{ ($lead->l_status ?? '') == 'Feedback' ? 'selected' : '' }}>Feedback</option> -->
-                <option value="Serious Concern" {{ ($lead->l_status ?? '') == 'Serious Concern' ? 'selected' : '' }}>Serious Concern</option>
-                <option value="Marks" {{ ($lead->l_status ?? '') == 'Marks' ? 'selected' : '' }}>Marks</option>
-                <option value="Unknown" {{ ($lead->l_status ?? '') == 'Unknown' ? 'selected' : '' }}>Unknown</option>
-                <option value="Quality" {{ ($lead->l_status ?? '') == 'Quality' ? 'selected' : '' }}>Quality</option>
-                <option value="Customer Service" {{ ($lead->l_status ?? '') == 'Customer Service' ? 'selected' : '' }}>Customer Service</option>
-            </select>
-            <style>
-                .mini-select {
-                    width: 130px !important;
-                    height: 32px;
-                    padding: 0 6px;
-                    font-size: 12px;
-                    border: 1px solid #d1d5db;
-                    border-radius: 6px;
-                }
+                };
+            }
 
-                .star-rating {
-                    cursor: pointer;
-                }
-
-                .star {
-                    color: #ccc;
-                    font-size: 16px;
-                }
-
-                .star.active {
-                    color: gold;
-                }
-            </style>
-            <script>
-                function handleLeadReason(leadId) {
+            if (typeof handleLeadReason === 'undefined') {
+                window.handleLeadReason = function(leadId) {
                     let value = document.getElementById('leadReason' + leadId).value;
-
                     fetch("{{ url('/lead-reason-update') }}", {
-                            method: "POST",
-                            headers: {
-                                "Content-Type": "application/json",
-                                "X-CSRF-TOKEN": "{{ csrf_token() }}"
-                            },
-                            body: JSON.stringify({
-                                lead_id: leadId,
-                                l_status: value 
-                            })
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            "X-CSRF-TOKEN": "{{ csrf_token() }}"
+                        },
+                        body: JSON.stringify({
+                            lead_id: leadId,
+                            l_status: value 
                         })
-                        .then(res => res.json())
-                        .then(data => {
-                            console.log("Server Response:", data);
-                            if (!data.status) {
-                                alert("Update failed");
-                            }
-                        })
-                        .catch(() => alert("Server error"));
-                }
-            </script>
-        </div>
-
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        if (!data.status) {
+                            alert("Update failed");
+                        }
+                    })
+                    .catch(() => alert("Server error"));
+                };
+            }
+        </script>
     </td>
     <td class="text-center" id="lead-recent-chat-{{ $lead->id }}">
         @php
-            $latestCall = $lead->latestCall ?? null;
+            $latestCall = $lead->latest_customer_call ?? $lead->latestCall ?? null;
             $commentUser = $latestCall?->user;
+            $isFromOtherLead = $latestCall && ($latestCall->lead_id != $lead->id);
+            $callOrderCode = !empty($latestCall?->lead?->order_id) ? $latestCall->lead->order_id : ('#' . $latestCall?->lead_id);
         @endphp
 
         @if($latestCall)
@@ -208,6 +217,11 @@
                 <div class="d-flex justify-content-between align-items-center mb-2">
                     <span class="fw-bold text-gray-800">
                         {{ $commentUser->name ?? 'User' }}
+                        @if($isFromOtherLead)
+                            <span class="badge badge-light-warning text-dark fs-9 ms-1 fw-bold" title="Taken on another order of this customer">Order {{ $callOrderCode }}</span>
+                        @else
+                            <span class="badge badge-light-primary fs-9 ms-1 fw-bold">Order {{ $callOrderCode }}</span>
+                        @endif
                     </span>
 
                     <span class="text-muted fs-8">
@@ -234,6 +248,10 @@
         @else
         {{ $lead->order_id }}
         @endif
+        <br>
+        <span class="badge badge-light-info fs-8 mt-1 fw-semibold" title="Lead Creator">
+            Created By: {{ $lead->creator->name ?? (is_numeric($lead->created_by) ? (\App\Models\User::find($lead->created_by)?->name) : $lead->created_by) ?: (auth()->user()?->name ?? 'Admin User') }}
+        </span>
         <br>
         @if ($lead['resit'] == 'on')
         <span class="badge badge-light-danger fs-7 fw-bold">Resit Work</span>
@@ -381,7 +399,7 @@
     </td>
     <td class="text-center">
         @php
-            $orderRecord = \App\Models\Order::where(function($q) use ($lead) {
+            $orderRecord = $lead->attached_order_record ?? \App\Models\Order::where(function($q) use ($lead) {
                 $q->where('lead_id', $lead->id);
                 if (!empty($lead->order_id)) {
                     $q->orWhere('order_id', (string)$lead->order_id);

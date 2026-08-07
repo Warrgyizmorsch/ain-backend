@@ -69,4 +69,9 @@ class Leads extends Model
     {
         return $this->belongsTo(Source::class, 'lead_source', 'id');
     }
+
+    public function creator()
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
 }
