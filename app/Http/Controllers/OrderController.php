@@ -3521,6 +3521,7 @@ class OrderController extends Controller
             ->select($this->orderListColumns())
             ->selectRaw('(CAST(amount AS SIGNED) - CAST(received_amount AS SIGNED)) as due_balance')
             ->orderByDesc('orders.order_date')
+            ->orderByDesc('orders.id')
             ->take(20)
             ->get();
 
@@ -3867,7 +3868,7 @@ class OrderController extends Controller
                 });
         }
 
-        $query->orderByRaw('COALESCE((SELECT converted_at FROM leads WHERE leads.id = orders.lead_id LIMIT 1), orders.created_at) DESC');
+        $query->orderByDesc('orders.order_date')->orderByDesc('orders.id');
         $total = $query->count();
         $orders = $query->skip($offset)->take($limit)->get();
         $this->attachWriterFeedbackMeta($orders);

@@ -28,15 +28,22 @@ class Payment extends Model
             return;
         }
 
-        $totalPaidAmount = static::where('order_id', $orderId)
-            ->where(function ($q) {
-                $q->where('is_revoked', 0)->orWhereNull('is_revoked');
-            })
-            ->sum('paid_amount');
+        $order = Order::where('id', $orderId)->orWhere('order_id', $orderId)->first();
+        if (!$order) {
+            return;
+        }
 
-        Order::where('id', $orderId)->update([
-            'received_amount' => $totalPaidAmount,
-        ]);
+        $totalPaidAmount = static::where(function ($q) use ($order) {
+            $q->where('order_id', (string) $order->id)
+              ->orWhere('order_id', (string) $order->order_id);
+        })
+        ->where(function ($q) {
+            $q->where('is_revoked', 0)->orWhereNull('is_revoked');
+        })
+        ->sum('paid_amount');
+
+        $order->received_amount = $totalPaidAmount;
+        $order->save();
     }
 
     public function order()

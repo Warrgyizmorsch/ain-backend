@@ -10,8 +10,10 @@ use Illuminate\Support\Facades\DB;
 class Order extends Model
 {
     use HasFactory;
-protected $table = 'orders';
-        protected $fillable = [
+
+    protected $table = 'orders';
+
+    protected $fillable = [
         'uid',
         'wid',
         'swid',
@@ -20,6 +22,7 @@ protected $table = 'orders';
         'title',
         'description',
         'amount',
+        'received_amount',
         'currency',
         'created_at',
         'updated_at',
@@ -41,16 +44,38 @@ protected $table = 'orders';
         'typeofpaper',
         'message',
         'tech',
-        'resit'
-        ,'coupon_code', 'coupon_discount_type', 'coupon_discount_value',
-        'coupon_discount_amount', 'coupon_original_amount'
+        'resit',
+        'coupon_code',
+        'coupon_discount_type',
+        'coupon_discount_value',
+        'coupon_discount_amount',
+        'coupon_original_amount'
     ];
-    
-     protected $casts = [
+
+    protected $casts = [
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
 
+    public function getReceivedAmountAttribute($value)
+    {
+        $numericValue = is_numeric($value) ? (float) $value : 0.0;
+        if ($numericValue > 0) {
+            return $numericValue;
+        }
+
+        if ($this->relationLoaded('payment') && $this->payment && $this->payment->count() > 0) {
+            $paidSum = (float) $this->payment->filter(function ($p) {
+                return empty($p->is_revoked) || $p->is_revoked == 0;
+            })->sum('paid_amount');
+
+            if ($paidSum > 0) {
+                return $paidSum;
+            }
+        }
+
+        return $numericValue;
+    }
 
     public function user()
     {
@@ -67,17 +92,14 @@ protected $table = 'orders';
         return $this->hasMany(Payment::class);
     }
 
-
     public function feedback()
     {
         return $this->hasMany(Feedback::class, 'order_id', 'id');
-
     }
-
 
     public function ordercall()
     {
-        return $this->hasmany(Ordercall::class, 'order_id', 'id')->with('user');
+        return $this->hasMany(Ordercall::class, 'order_id', 'id')->with('user');
     }
 
     public function writer()
@@ -94,12 +116,13 @@ protected $table = 'orders';
     {
         return $this->hasMany(multipleswiter::class, 'order_id', 'id')->with('user');
     }
-    
-       public function order()
+
+    public function order()
     {
         return $this->belongsTo(multipleswiter::class, 'order_id');
     }
-     public function followUpComments()
+
+    public function followUpComments()
     {
         return $this->hasMany(FollowUpComment::class, 'order_id');
     }
