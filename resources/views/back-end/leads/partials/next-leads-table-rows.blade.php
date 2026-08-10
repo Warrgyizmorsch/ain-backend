@@ -10,7 +10,14 @@
             <span class="text-muted fs-8">{{ $item->email }}</span>
         </td>
         <td class="text-center">
-            <span class="badge badge-light-dark fs-8 fw-semibold">{{ $item->countrycode }} {{ $item->mobile }}</span>
+            <div class="d-inline-flex align-items-center gap-1">
+                <span class="badge badge-light-dark fs-8 fw-semibold">{{ $item->countrycode }} {{ $item->mobile }}</span>
+                <button type="button" class="btn btn-icon btn-xs btn-light-success p-1 ms-1"
+                    title="Call customer via Webphone"
+                    onclick="openRingfySoftphone(null, @js($item->countrycode), @js($item->mobile))">
+                    <i class="fa fa-phone fs-9 text-success"></i>
+                </button>
+            </div>
         </td>
         <td class="text-center">
             <span class="badge badge-light-primary fs-7 fw-bold">{{ $formattedMonth }}</span>

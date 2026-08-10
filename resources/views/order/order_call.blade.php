@@ -157,13 +157,14 @@
                                         </a>
                                         @include('order.section.comment-order')
 
-                                        <a href="#" data-bs-toggle="modal" data-bs-target="#kt_modal_create_appaa"
-                                            id="kt_toolbar_primary_button"
-                                            class="btn btn-icon btn-bg-success btn-active-color-light btn-sm me-1 m-1">
+                                        <button type="button"
+                                            class="btn btn-icon btn-success btn-sm me-1 m-1"
+                                            title="Call Customer via Softphone"
+                                            onclick="openRingfySoftphone(@js($order->id), @js(optional($order->user)->countrycode), @js(optional($order->user)->mobile_no))">
                                             <span class="svg-icon svg-icon-3">
-                                                <li style="color:white" class="fa fa-phone fa-lg"></li>
+                                                <i style="color:white" class="fa fa-phone fa-lg"></i>
                                             </span>
-                                        </a>
+                                        </button>
                                     </div>
 
                                 </div>
