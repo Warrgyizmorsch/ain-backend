@@ -273,23 +273,8 @@
 
 											<script>
 												function showConfirmationclick(orderId) {
-													var primarycountrycode = $("#country_primary").val(); // Assuming country_primary is an input field
-													var primarynumber = $("#primary").val(); // Assuming primary is an input field
-													@if ($order->user)
-														@if ($order->user->countrycode && $order->user->mobile_no)
-															var apiUrl = "/click2call?callerNumber={{ Auth::user()->sip }}&receiverNumber={{ $order->user->countrycode }}{{ $order->user->mobile_no }}&user=anil&key=jbti89692vc60b2o9nu%^7";
-														@endif
-													@endif
-
-													$.get(apiUrl, function(data, status) {
-														// Use SweetAlert to display data and status
-														Swal.fire({
-															icon: 'success',
-															title: 'Call Transfer Check SoftPhone',
-															html: 'Data: ' + data + '<br>Status: ' + status,
-														});
-													});
-												};
+													openRingfySoftphone(@js($order->id), @js(optional($order->user)->countrycode), @js(optional($order->user)->mobile_no));
+												}
 											</script>
 												<a href="#" id="clickToDownload{{$order->order_id}}" class="btn btn-icon btn-bg-danger btn-active-color-dark btn-sm me-1 download-btn{{$order->id}}" onclick="downloadFiles(this)">
 											<span class="svg-icon svg-icon-3">

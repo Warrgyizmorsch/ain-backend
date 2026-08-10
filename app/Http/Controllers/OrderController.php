@@ -1627,9 +1627,22 @@ class OrderController extends Controller
             return $cleanMobile;
         }
 
-        // If no country code provided, check if mobile already has international country code or fallback to 44
+        // Domestic Indian format for Next2Call softphone
+        if ($cleanCountryCode === '91') {
+            return '0' . ltrim($cleanMobile, '0');
+        }
+
+        // UK (+44) format for Next2Call softphone
+        if ($cleanCountryCode === '44') {
+            return '44' . ltrim($cleanMobile, '0');
+        }
+
+        // If no country code provided
         if (empty($cleanCountryCode)) {
-            return ltrim($cleanMobile, '0');
+            if (str_starts_with($cleanMobile, '91') && strlen($cleanMobile) == 12) {
+                return '0' . substr($cleanMobile, 2);
+            }
+            return $cleanMobile;
         }
 
         return $cleanCountryCode . ltrim($cleanMobile, '0');
