@@ -249,6 +249,9 @@
             <span class="ringfy-softphone-grip">drag</span>
         </div>
         <div class="ringfy-softphone-actions">
+            <button type="button" class="ringfy-softphone-icon-btn" id="ringfySoftphoneExternal" title="Open in New Tab">
+                <i class="fa fa-external-link"></i>
+            </button>
             <button type="button" class="ringfy-softphone-icon-btn" id="ringfySoftphoneMinimize" title="Minimize">
                 <i class="fa fa-minus"></i>
             </button>
@@ -287,8 +290,8 @@
             <span class="ringfy-softphone-key">0</span>
             <span class="ringfy-softphone-key">#</span>
         </div>
-        <p class="ringfy-softphone-note">
-            Ringfy iframe allow hote hi call isi phone panel me open hoga.
+        <p class="ringfy-softphone-note text-center">
+            Ringfy webphone panel. If server is slow, open in new tab below.
         </p>
         <div class="ringfy-softphone-frame-wrap">
             <iframe
@@ -299,9 +302,9 @@
                 allowfullscreen>
             </iframe>
         </div>
-        <div class="ringfy-softphone-buttons">
-            <button type="button" id="ringfySoftphonePopup" class="btn btn-light-primary">
-                <i class="fa fa-phone me-1"></i> Open in Phone
+        <div class="ringfy-softphone-buttons text-center mt-2">
+            <button type="button" id="ringfySoftphoneOpenTab" class="btn btn-sm btn-light-primary w-100">
+                <i class="fa fa-external-link me-1"></i> Open Dialer in New Tab
             </button>
         </div>
     </div>
@@ -399,6 +402,25 @@
                 top: rect.top,
             }));
         }
+
+        const externalBtn = document.getElementById('ringfySoftphoneExternal');
+        const openTabBtn = document.getElementById('ringfySoftphoneOpenTab');
+
+        function openSoftphoneInNewTab() {
+            const url = widget?.dataset.softphoneUrl;
+            if (url) {
+                window.open(url, '_blank');
+            } else {
+                Swal.fire({
+                    icon: 'info',
+                    title: 'No Active Call',
+                    text: 'Please initiate a call or enter a number first.',
+                });
+            }
+        }
+
+        externalBtn?.addEventListener('click', openSoftphoneInNewTab);
+        openTabBtn?.addEventListener('click', openSoftphoneInNewTab);
 
         popupButton?.addEventListener('click', function () {
             const url = widget?.dataset.softphoneUrl;
