@@ -627,8 +627,56 @@ class OrderApiController extends Controller
             })->values()->all();
         };
 
+        $calculateProgress = function ($startDate, $deliveryDate, $status) {
+            $statusLower = strtolower(trim((string) $status));
+
+            // Delivered/completed orders are always 100%
+            if (in_array($statusLower, ['delivered', 'completed', 'feedback delivered'])) {
+                return 100;
+            }
+
+            if (empty($startDate) || empty($deliveryDate)) {
+                return 0;
+            }
+
+            try {
+                $start = \Carbon\Carbon::parse($startDate);
+                $end   = \Carbon\Carbon::parse($deliveryDate);
+                $now   = \Carbon\Carbon::now();
+
+                // If delivery date is on or before start date
+                if ($end->lte($start)) {
+                    return $now->gte($start) ? 90 : 0;
+                }
+
+                // If current time is past or equal to delivery date, but not delivered -> max 90%
+                if ($now->gte($end)) {
+                    return 90;
+                }
+
+                // If current time is before order start date
+                if ($now->lte($start)) {
+                    return 0;
+                }
+
+                $totalSeconds   = $start->diffInSeconds($end);
+                $elapsedSeconds = $start->diffInSeconds($now);
+
+                if ($totalSeconds <= 0) {
+                    return 90;
+                }
+
+                $percentage = ($elapsedSeconds / $totalSeconds) * 100;
+
+                // Non-delivered orders cap at 90%
+                return (int) min(90, max(0, round($percentage)));
+            } catch (\Exception $e) {
+                return 0;
+            }
+        };
+
         // Confirmed orders map
-        $orders = $ordersRaw->map(function ($order) use ($getFileUrls, $getPaymentsForRecord) {
+        $orders = $ordersRaw->map(function ($order) use ($getFileUrls, $getPaymentsForRecord, $calculateProgress) {
             $amount = is_numeric($order->amount) ? (float) $order->amount : 0;
             $orderPayments = $getPaymentsForRecord($order->order_id, $order->id);
             $paidFromDetails = (float) collect($orderPayments)->sum('paid_amount');
@@ -646,6 +694,8 @@ class OrderApiController extends Controller
             $totalOrderPrice = $amount + $extraPrice;
             $dueAmt = max(0, $totalOrderPrice - $received);
 
+            $progress = $calculateProgress($order->order_date ?? $order->created_at, $order->delivery_date, $order->projectstatus);
+
             return [
                 'type' => 'confirmed',
                 'confirmed_status' => 'Confirmed',
@@ -658,6 +708,8 @@ class OrderApiController extends Controller
                 'module_code' => $order->module_code,
                 'subject' => $order->module_code,
                 'status' => $order->projectstatus,
+                'progress' => $progress,
+                'progress_percentage' => $progress,
                 'word_count' => $order->pages,
                 'amount' => (string) round($totalOrderPrice, 2),
                 'received_amount' => (string) round($received, 2),
@@ -683,7 +735,7 @@ class OrderApiController extends Controller
         });
 
         // Non-confirmed leads map
-        $leads = $leadsRaw->map(function ($lead) use ($getFileUrls, $getPaymentsForRecord, $ordersRaw, $leadOrders) {
+        $leads = $leadsRaw->map(function ($lead) use ($getFileUrls, $getPaymentsForRecord, $ordersRaw, $leadOrders, $calculateProgress) {
             $isAppLead = (int) ($lead->is_app_lead ?? 0);
 
             // Match corresponding order DB id from ordersRaw or leadOrders
@@ -700,6 +752,7 @@ class OrderApiController extends Controller
             $orderDbId = $matchedOrder ? $matchedOrder->id : null;
 
             $leadPayments = $getPaymentsForRecord($lead->order_id, $orderDbId);
+            $leadProgress = $calculateProgress($lead->create_at ?? $lead->converted_at, $lead->deadline ?? $lead->delivery_time, $lead->is_converted == 1 ? 'Confirmed' : 'Not Confirmed');
 
             return [
                 'type' => 'non_confirmed',
@@ -716,6 +769,8 @@ class OrderApiController extends Controller
                 'price' => $lead->price,
                 'deadline' => $lead->deadline,
                 'delivery_time' => $lead->delivery_time,
+                'progress' => $leadProgress,
+                'progress_percentage' => $leadProgress,
                 'requirements' => $lead->message,
                 'times_paid_count' => count($leadPayments),
                 'payment_history' => $leadPayments,
