@@ -752,7 +752,7 @@ class OrderApiController extends Controller
             $orderDbId = $matchedOrder ? $matchedOrder->id : null;
 
             $leadPayments = $getPaymentsForRecord($lead->order_id, $orderDbId);
-            $leadProgress = $calculateProgress($lead->create_at ?? $lead->converted_at, $lead->deadline ?? $lead->delivery_time, $lead->is_converted == 1 ? 'Confirmed' : 'Not Confirmed');
+            $leadProgress = 0;
 
             return [
                 'type' => 'non_confirmed',
@@ -769,8 +769,8 @@ class OrderApiController extends Controller
                 'price' => $lead->price,
                 'deadline' => $lead->deadline,
                 'delivery_time' => $lead->delivery_time,
-                'progress' => $leadProgress,
-                'progress_percentage' => $leadProgress,
+                'progress' => 0,
+                'progress_percentage' => 0,
                 'requirements' => $lead->message,
                 'times_paid_count' => count($leadPayments),
                 'payment_history' => $leadPayments,
