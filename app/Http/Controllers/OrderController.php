@@ -778,12 +778,14 @@ class OrderController extends Controller
                 $order->delivery_date = $req->input('delivery_date');
             }
             $order->amount = $req->input('amount');
-            if ($req->filled('r_amount')) {
-                if (!is_numeric($req->input('r_amount')) || (float) $req->input('r_amount') > (float) $req->input('amount')) {
-                    return redirect()->back()->with('warning', 'Received amount must be numeric and cannot exceed order amount.');
-                }
-                $order->received_amount = $req->input('r_amount');
-            }
+            $totalPaid = Payment::where(function ($q) use ($order) {
+                $q->where('order_id', (string) $order->id)
+                  ->orWhere('order_id', (string) $order->order_id);
+            })->where(function ($q) {
+                $q->where('is_revoked', 0)->orWhereNull('is_revoked');
+            })->sum('paid_amount');
+
+            $order->received_amount = $totalPaid;
             $order->delivery_time = $req->input('delivery_time');
             // Check if the input is a numeric value
             if ($req->filled('word') && !is_numeric($req->input('word'))) {
@@ -901,12 +903,14 @@ class OrderController extends Controller
                 $order->delivery_date = $req->input('delivery_date');
             }
             $order->amount = $req->input('amount');
-            if ($req->filled('r_amount')) {
-                if (!is_numeric($req->input('r_amount')) || (float) $req->input('r_amount') > (float) $req->input('amount')) {
-                    return redirect()->back()->with('warning', 'Received amount must be numeric and cannot exceed order amount.');
-                }
-                $order->received_amount = $req->input('r_amount');
-            }
+            $totalPaid = Payment::where(function ($q) use ($order) {
+                $q->where('order_id', (string) $order->id)
+                  ->orWhere('order_id', (string) $order->order_id);
+            })->where(function ($q) {
+                $q->where('is_revoked', 0)->orWhereNull('is_revoked');
+            })->sum('paid_amount');
+
+            $order->received_amount = $totalPaid;
             $order->delivery_time = $req->input('delivery_time');
             // Check if the input is a numeric value
             if ($req->filled('word') && !is_numeric($req->input('word'))) {
@@ -1861,10 +1865,10 @@ class OrderController extends Controller
         if ($amountToSubtract > $currentReceived) {
             return redirect()->back()->with('error', 'Cannot subtract more than received amount.');
         }
-        $newOrder->received_amount = $newOrder->received_amount - $req->input('amount');
-        $newOrder->SAVE();
-
         Payment::destroy($id);
+        if ($newOrder) {
+            Payment::updateOrderReceivedAmount($newOrder->id);
+        }
 
         return redirect()->back()->with('Success', 'Action Submitted');
     }

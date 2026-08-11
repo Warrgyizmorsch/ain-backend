@@ -59,22 +59,13 @@ class Order extends Model
 
     public function getReceivedAmountAttribute($value)
     {
-        $numericValue = is_numeric($value) ? (float) $value : 0.0;
-        if ($numericValue > 0) {
-            return $numericValue;
-        }
-
         if ($this->relationLoaded('payment') && $this->payment && $this->payment->count() > 0) {
-            $paidSum = (float) $this->payment->filter(function ($p) {
+            return (float) $this->payment->filter(function ($p) {
                 return empty($p->is_revoked) || $p->is_revoked == 0;
             })->sum('paid_amount');
-
-            if ($paidSum > 0) {
-                return $paidSum;
-            }
         }
 
-        return $numericValue;
+        return is_numeric($value) ? (float) $value : 0.0;
     }
 
     public function user()
