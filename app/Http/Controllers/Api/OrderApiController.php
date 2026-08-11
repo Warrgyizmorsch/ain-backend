@@ -795,14 +795,22 @@ class OrderApiController extends Controller
             ];
         });
 
+        $overallProgress = $orders->count() > 0 ? (int) round($orders->avg('progress')) : 0;
+
         return response()->json([
             'success' => true,
+            'overall_progress' => $overallProgress,
+            'overall_progress_percentage' => $overallProgress,
             'data' => [
+                'overall_progress' => $overallProgress,
+                'overall_progress_percentage' => $overallProgress,
                 'confirmed_orders' => $orders,
                 'non_confirmed_leads' => $leads,
                 'summary' => [
                     'confirmed_count' => $orders->count(),
                     'non_confirmed_count' => $leads->count(),
+                    'overall_progress' => $overallProgress,
+                    'overall_progress_percentage' => $overallProgress,
                 ]
             ]
         ]);
