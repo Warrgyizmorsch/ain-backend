@@ -311,7 +311,7 @@ class OrderController extends Controller
 
     private function handleRoleOne(Request $request)
     {
-        $ordersQuery = Order::with('user', 'payment', 'feedback', 'team')->where('uid', '!=', 0);
+        $ordersQuery = Order::with('user', 'payment', 'feedback', 'team')->whereNotNull('uid')->where('uid', '!=', 0)->where('uid', '!=', '0');
         $data = [
             'Team' => Writer::all(),
             'Status' => Status::all(),
@@ -1078,7 +1078,7 @@ class OrderController extends Controller
             'projectStatusCounts' => collect()
         ];
 
-        $orders = Order::query()->select($this->orderListColumns());
+        $orders = Order::query()->whereNotNull('uid')->where('uid', '!=', 0)->where('uid', '!=', '0')->select($this->orderListColumns());
 
         if ($semester != '') {
             $orders->where('semester',  $semester);
@@ -2839,7 +2839,7 @@ class OrderController extends Controller
 
     public function orderWD(Request $request)
     {
-        $ordersQuery = Order::with('user', 'payment', 'feedback')->where('uid', '!=', 0);
+        $ordersQuery = Order::with('user', 'payment', 'feedback')->whereNotNull('uid')->where('uid', '!=', 0)->where('uid', '!=', '0');
         $tlId = $request->input('tlId');
         if ($tlId != '') {
             // Fetch orders for the selected TL
@@ -3623,8 +3623,9 @@ class OrderController extends Controller
                 $startOfMonth = Carbon::parse($request->month . '-01')->startOfMonth();
                 $endOfMonth = Carbon::parse($request->month . '-01')->endOfMonth();
 
-                // Get all UIDs with orders in the selected month
-                $uidsInMonth = Order::whereBetween('order_date', [$startOfMonth, $endOfMonth])
+                // Get all UIDs with orders in the selected month (excluding leads without UID)
+                $uidsInMonth = Order::whereNotNull('uid')->where('uid', '!=', 0)->where('uid', '!=', '0')
+                    ->whereBetween('order_date', [$startOfMonth, $endOfMonth])
                     ->pluck('uid')
                     ->unique();
 
@@ -3713,7 +3714,7 @@ class OrderController extends Controller
 
         $query = Order::with($this->orderListRelations())
             ->select($this->orderListColumns());
-        $query->where('uid', '!=', 0);
+        $query->whereNotNull('uid')->where('uid', '!=', 0)->where('uid', '!=', '0');
 
         // Search
         if ($request->filled('search')) {
