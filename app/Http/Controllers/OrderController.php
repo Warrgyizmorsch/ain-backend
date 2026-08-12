@@ -1850,7 +1850,10 @@ class OrderController extends Controller
 
     public function orderPayment($id)
     {
-        $order = Order::with('user')->find($id);
+        $order = Order::with(['user', 'payment'])->where('id', $id)->orWhere('order_id', $id)->first();
+        if (!$order) {
+            return redirect()->back()->with('error', 'Order not found.');
+        }
         return view('order.order_payment', compact('order'));
     }
 
