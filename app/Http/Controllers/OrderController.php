@@ -311,7 +311,11 @@ class OrderController extends Controller
 
     private function handleRoleOne(Request $request)
     {
-        $ordersQuery = Order::with('user', 'payment', 'feedback', 'team')->whereNotNull('uid')->where('uid', '!=', 0)->where('uid', '!=', '0');
+        $ordersQuery = Order::with('user', 'payment', 'feedback', 'team')
+            ->whereNotNull('uid')->where('uid', '!=', 0)->where('uid', '!=', '0')
+            ->where(function ($q) {
+                $q->whereDoesntHave('lead')->orWhereHas('lead', fn ($lq) => $lq->where('is_converted', 1));
+            });
         $data = [
             'Team' => Writer::all(),
             'Status' => Status::all(),
@@ -1078,7 +1082,12 @@ class OrderController extends Controller
             'projectStatusCounts' => collect()
         ];
 
-        $orders = Order::query()->whereNotNull('uid')->where('uid', '!=', 0)->where('uid', '!=', '0')->select($this->orderListColumns());
+        $orders = Order::query()
+            ->whereNotNull('uid')->where('uid', '!=', 0)->where('uid', '!=', '0')
+            ->where(function ($q) {
+                $q->whereDoesntHave('lead')->orWhereHas('lead', fn ($lq) => $lq->where('is_converted', 1));
+            })
+            ->select($this->orderListColumns());
 
         if ($semester != '') {
             $orders->where('semester',  $semester);
@@ -3714,7 +3723,10 @@ class OrderController extends Controller
 
         $query = Order::with($this->orderListRelations())
             ->select($this->orderListColumns());
-        $query->whereNotNull('uid')->where('uid', '!=', 0)->where('uid', '!=', '0');
+        $query->whereNotNull('uid')->where('uid', '!=', 0)->where('uid', '!=', '0')
+            ->where(function ($q) {
+                $q->whereDoesntHave('lead')->orWhereHas('lead', fn ($lq) => $lq->where('is_converted', 1));
+            });
 
         // Search
         if ($request->filled('search')) {
