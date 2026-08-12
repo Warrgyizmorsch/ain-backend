@@ -48,6 +48,7 @@ class Payment extends Model
 
     public function order()
     {
-        return $this->belongsTo(Order::class, 'order_id')->with('user');
+        return $this->belongsTo(Order::class, 'order_id', 'id')
+            ->orWhere('order_id', $this->order_id);
     }
 }

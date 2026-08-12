@@ -38,7 +38,10 @@ class RecalculateOrderReceivedAmounts extends Command
 
         Order::chunk($chunkSize, function ($orders) use (&$updatedCount, $bar) {
             foreach ($orders as $order) {
-                $totalPaidAmount = Payment::where('order_id', $order->id)
+                $totalPaidAmount = Payment::where(function ($q) use ($order) {
+                        $q->where('order_id', (string) $order->id)
+                          ->orWhere('order_id', (string) $order->order_id);
+                    })
                     ->where(function ($q) {
                         $q->where('is_revoked', 0)->orWhereNull('is_revoked');
                     })
