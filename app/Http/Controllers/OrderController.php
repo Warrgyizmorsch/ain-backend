@@ -102,7 +102,7 @@ class OrderController extends Controller
                         },
                     ]);
             },
-            'payment:id,order_id,payee_name,company_accounts',
+            'payment:id,order_id,paid_amount,is_revoked,payee_name,company_accounts',
             'team:id,team_name',
             'lead:id,frontendorder,l_status',
             'frontendLead:id,order_id,frontendorder,l_status',
@@ -1192,7 +1192,7 @@ class OrderController extends Controller
                 'user' => function ($q) {
                     $q->select('id', 'name', 'mobile_no', 'is_fail');
                 },
-                'payment:id,order_id,payee_name,company_accounts',
+                'payment:id,order_id,paid_amount,is_revoked,payee_name,company_accounts',
                 'team:id,team_name',
             ])
             ->orderBy('id', 'desc')
