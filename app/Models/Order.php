@@ -75,14 +75,12 @@ class Order extends Model
 
     public function payment()
     {
-        return $this->hasMany(Payment::class, 'order_id', 'id')
-            ->orWhere('order_id', $this->order_id);
+        return $this->hasMany(Payment::class, 'order_id', 'id');
     }
 
     public function payments()
     {
-        return $this->hasMany(Payment::class, 'order_id', 'id')
-            ->orWhere('order_id', $this->order_id);
+        return $this->hasMany(Payment::class, 'order_id', 'id');
     }
 
     public function feedback()
