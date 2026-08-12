@@ -89,15 +89,14 @@
                                         </td>
                                         <td>
                                             @if (auth()->user()->role_id == 1)
-                                                @php $orderUser = optional($payment->order)->user; @endphp
-                                                @if($orderUser && $orderUser->name)
-                                                    {{ $orderUser->name }} <br>
+                                                @if(optional($payment->order->user)->name)
+                                                    {{ $payment->order->user->name }} <br>
                                                     <span>
-                                                        @if($orderUser->mobile_no)
-                                                            {{ $orderUser->mobile_no }} <br>
+                                                        @if(optional($payment->order->user)->mobile_no)
+                                                            {{ $payment->order->user->mobile_no }} <br>
                                                         @endif
-                                                        @if($orderUser->email)
-                                                            ({{ $orderUser->email }})
+                                                        @if(optional($payment->order->user)->email)
+                                                            ({{ $payment->order->user->email }})
                                                         @endif
                                                     </span>
                                                 @else

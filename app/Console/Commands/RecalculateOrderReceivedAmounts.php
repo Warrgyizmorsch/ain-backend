@@ -29,37 +29,19 @@ class RecalculateOrderReceivedAmounts extends Command
     {
         $this->info('Starting recalculation of received_amount for all orders...');
 
-        $chunkSize = (int) $this->option('chunk');
+        $affected = \Illuminate\Support\Facades\DB::update("
+            UPDATE orders o
+            LEFT JOIN (
+                SELECT order_id, SUM(paid_amount) as total_paid
+                FROM payment_details
+                WHERE is_revoked = 0 OR is_revoked IS NULL
+                GROUP BY order_id
+            ) p ON p.order_id = o.id
+            SET o.received_amount = COALESCE(p.total_paid, 0)
+        ");
+
         $totalOrders = Order::count();
-        $updatedCount = 0;
-
-        $bar = $this->output->createProgressBar($totalOrders);
-        $bar->start();
-
-        Order::chunk($chunkSize, function ($orders) use (&$updatedCount, $bar) {
-            foreach ($orders as $order) {
-                $totalPaidAmount = Payment::where(function ($q) use ($order) {
-                        $q->where('order_id', (string) $order->id)
-                          ->orWhere('order_id', (string) $order->order_id);
-                    })
-                    ->where(function ($q) {
-                        $q->where('is_revoked', 0)->orWhereNull('is_revoked');
-                    })
-                    ->sum('paid_amount');
-
-                if ((float) $order->received_amount !== (float) $totalPaidAmount) {
-                    $order->received_amount = $totalPaidAmount;
-                    $order->save();
-                    $updatedCount++;
-                }
-
-                $bar->advance();
-            }
-        });
-
-        $bar->finish();
-        $this->newLine();
-        $this->info("Completed! Processed {$totalOrders} orders. Updated received_amount for {$updatedCount} orders.");
+        $this->info("Completed! Recalculated received_amount for {$totalOrders} orders ({$affected} rows updated).");
 
         return Command::SUCCESS;
     }

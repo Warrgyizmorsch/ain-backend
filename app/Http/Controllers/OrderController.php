@@ -1230,7 +1230,7 @@ class OrderController extends Controller
                            
                                 </td>  
                             
-                                ' . (!is_null($order->user) && auth()->user()->role_id != '5' ?
+                                ' . ($order->user !=  ''  && auth()->user()->role_id !=  '5' ?
 
                 '<td>
                                 ' . $order->user->name . '
@@ -1239,7 +1239,7 @@ class OrderController extends Controller
 
                 : '') . '
 
-                                ' . (is_null($order->user) && auth()->user()->role_id != '5' ?
+                                ' . ($order->user ==  ''  &&  auth()->user()->role_id !=  '5'  ?
 
                 '<td>
                                 Deleted User
@@ -1362,7 +1362,7 @@ class OrderController extends Controller
             }
 
             $output .= '<td class="text-end">
-    <a target="_blank" href="/edit/' . $order->id . '" class="btn btn-icon btn-bg-light btn-active-color-primary btn-sm me-1">
+    <a target="_blank" href="edit.' . $order->id . '" class="btn btn-icon btn-bg-light btn-active-color-primary btn-sm me-1">
         <span class="svg-icon svg-icon-3">
             <i class="fa fa-eye"></i>
         </span>
@@ -1370,7 +1370,7 @@ class OrderController extends Controller
 
             if (auth()->user()->role_id != '5') {
                 $output .= '
-    <a href="/orderpayments/' . $order->id . '" target="_blank" class="btn btn-icon btn-bg-light btn-active-color-primary btn-sm me-1 position-relative" style="display: inline-flex; align-items: center; justify-content: center;">
+    <a href="orderpayments.' . $order->id . '" target="_blank" class="btn btn-icon btn-bg-light btn-active-color-primary btn-sm me-1 position-relative" style="display: inline-flex; align-items: center; justify-content: center;">
         <span class="svg-icon svg-icon-3" style="position: relative; display: inline-block;">
             <li class="fa fa-money"></li>';
 
@@ -1850,10 +1850,7 @@ class OrderController extends Controller
 
     public function orderPayment($id)
     {
-        $order = Order::with(['user', 'payment'])->where('id', $id)->orWhere('order_id', $id)->first();
-        if (!$order) {
-            return redirect()->back()->with('error', 'Order not found.');
-        }
+        $order = Order::with('user')->find($id);
         return view('order.order_payment', compact('order'));
     }
 

@@ -104,7 +104,7 @@
                                                         min-width: 120px;
                                                     ">
                                                         <div class="fw-bold">
-                                                            {{ optional($payment->order)->order_id }}
+                                                            {{ $payment->order->order_id }}
                                                         </div>
 
                                                         <small style="color: {{ $payment->revoke_resolved ? '#50cd89' : '#f1416c' }}">
@@ -114,7 +114,7 @@
 
                                                 @else
 
-                                                    {{ optional($payment->order)->order_id }}
+                                                    {{ $payment->order->order_id }}
 
                                                 @endif
 
@@ -124,15 +124,14 @@
                                         </td>
                                         <td>
                                             @if (auth()->user()->role_id == 1)
-                                                @php $orderUser = optional($payment->order)->user; @endphp
-                                                @if($orderUser && $orderUser->name)
-                                                    {{ $orderUser->name }} <br>
+                                                @if(optional($payment->order->user)->name)
+                                                    {{ $payment->order->user->name }} <br>
                                                     <span>
-                                                        @if($orderUser->mobile_no)
-                                                            {{ $orderUser->mobile_no }} <br>
+                                                        @if(optional($payment->order->user)->mobile_no)
+                                                            {{ $payment->order->user->mobile_no }} <br>
                                                         @endif
-                                                        @if($orderUser->email)
-                                                            ({{ $orderUser->email }})
+                                                        @if(optional($payment->order->user)->email)
+                                                            ({{ $payment->order->user->email }})
                                                         @endif
                                                     </span>
                                                 @else
