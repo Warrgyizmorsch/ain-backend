@@ -314,7 +314,11 @@ class OrderController extends Controller
         $ordersQuery = Order::with('user', 'payment', 'feedback', 'team')
             ->whereNotNull('uid')->where('uid', '!=', 0)->where('uid', '!=', '0')
             ->where(function ($q) {
-                $q->whereDoesntHave('lead')->orWhereHas('lead', fn ($lq) => $lq->where('is_converted', 1));
+                $q->where(function ($noLead) {
+                    $noLead->whereDoesntHave('lead')->whereDoesntHave('frontendLead');
+                })
+                ->orWhereHas('lead', fn ($lq) => $lq->where('is_converted', 1))
+                ->orWhereHas('frontendLead', fn ($flq) => $flq->where('is_converted', 1));
             });
         $data = [
             'Team' => Writer::all(),
@@ -1085,7 +1089,11 @@ class OrderController extends Controller
         $orders = Order::query()
             ->whereNotNull('uid')->where('uid', '!=', 0)->where('uid', '!=', '0')
             ->where(function ($q) {
-                $q->whereDoesntHave('lead')->orWhereHas('lead', fn ($lq) => $lq->where('is_converted', 1));
+                $q->where(function ($noLead) {
+                    $noLead->whereDoesntHave('lead')->whereDoesntHave('frontendLead');
+                })
+                ->orWhereHas('lead', fn ($lq) => $lq->where('is_converted', 1))
+                ->orWhereHas('frontendLead', fn ($flq) => $flq->where('is_converted', 1));
             })
             ->select($this->orderListColumns());
 
@@ -3529,6 +3537,13 @@ class OrderController extends Controller
         // Show orders with the latest order date first.
         $orders = Order::with($this->orderListRelations())
             ->where('uid', '!=', 0)
+            ->where(function ($q) {
+                $q->where(function ($noLead) {
+                    $noLead->whereDoesntHave('lead')->whereDoesntHave('frontendLead');
+                })
+                ->orWhereHas('lead', fn ($lq) => $lq->where('is_converted', 1))
+                ->orWhereHas('frontendLead', fn ($flq) => $flq->where('is_converted', 1));
+            })
             ->when($request->filled('uid'), fn ($query) => $query->where('uid', $request->uid))
             ->when($request->filled('group_id'), fn ($query) => $query->whereHas('user.groups', fn ($groupQuery) => $groupQuery->where('group_masters.id', $request->group_id)))
             ->select($this->orderListColumns())
@@ -3725,7 +3740,11 @@ class OrderController extends Controller
             ->select($this->orderListColumns());
         $query->whereNotNull('uid')->where('uid', '!=', 0)->where('uid', '!=', '0')
             ->where(function ($q) {
-                $q->whereDoesntHave('lead')->orWhereHas('lead', fn ($lq) => $lq->where('is_converted', 1));
+                $q->where(function ($noLead) {
+                    $noLead->whereDoesntHave('lead')->whereDoesntHave('frontendLead');
+                })
+                ->orWhereHas('lead', fn ($lq) => $lq->where('is_converted', 1))
+                ->orWhereHas('frontendLead', fn ($flq) => $flq->where('is_converted', 1));
             });
 
         // Search

@@ -249,8 +249,14 @@
         {{ $lead->order_id }}
         @endif
         <br>
+        @php
+            $creatorUser = $lead->creator ?? (is_numeric($lead->created_by) ? \App\Models\User::find($lead->created_by) : null);
+            $creatorDisplay = $creatorUser 
+                ? $creatorUser->name . ' (ID: ' . $creatorUser->id . ')'
+                : ($lead->created_by ?: (auth()->user()?->name ? auth()->user()->name . ' (ID: ' . auth()->user()->id . ')' : 'Admin User'));
+        @endphp
         <span class="badge badge-light-info fs-8 mt-1 fw-semibold" title="Lead Creator">
-            Created By: {{ $lead->creator->name ?? (is_numeric($lead->created_by) ? (\App\Models\User::find($lead->created_by)?->name) : $lead->created_by) ?: (auth()->user()?->name ?? 'Admin User') }}
+            Created By: {{ $creatorDisplay }}
         </span>
         <br>
         @if ($lead['resit'] == 'on')

@@ -231,10 +231,13 @@
 										</td>
 										<td>
 											@php
-												$createdByName = $order->lead?->creator?->name 
-													?? $order->frontendLead?->creator?->name 
-													?? ($order->created_by ? (\App\Models\User::find($order->created_by)?->name) : null)
-													?? 'N/A';
+												$cUser = $order->lead?->creator 
+													?? $order->frontendLead?->creator 
+													?? (is_numeric($order->created_by) ? \App\Models\User::find($order->created_by) : null);
+
+												$createdByName = $cUser 
+													? $cUser->name . ' (ID: ' . $cUser->id . ')'
+													: ($order->created_by ?: 'N/A');
 											@endphp
 											Created By ({{ $createdByName }})<br>
 											@if($order->l_converted_by != null)

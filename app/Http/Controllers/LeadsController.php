@@ -643,7 +643,7 @@ class LeadsController extends Controller
             $order->order_id = $newOrderId;
             $order->lead_id = $leads->id;
             $order->created_by = $creatorId;
-            $order->l_converted_by = Auth::user()->name ?? 'System';
+            $order->l_converted_by = null;
 
             $order->title   = $request->project_title[$i];
             $order->pages   = $request->pages[$i];
