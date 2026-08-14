@@ -745,207 +745,12 @@ resetFilters();
                 offset: offset
             },
             success: function(response) {
-                const noResults = (response.total === 0 || !response.html || !response.html.trim());
+                const noResults = response.message || response.total === 0 || !response.html.trim();
 
                 if (noResults) {
                     $('#lead-rows').html(`
                         <tr>
                             <td colspan="15" class="text-left text-danger" style="padding-left: 10px;">
-                                ${response.message || 'No orders found for the selected filters.'}
-                            </td>
-                        </tr>
-                    `);
-                    hasMore = false;
-                    disableScrollHandler();
-                } else {
-                    if (append) {
-                        $('#lead-rows').append(response.html);
-                    } else {
-                        $('#lead-rows').html(response.html);
-                    }
-                    offset += response.count;
-                    hasMore = response.has_more;
-                    enableScrollHandler();
-                }
-
-                if (response.totals) {
-                    runningTotals.total_amount += Number(response.totals.total_amount ?? 0);
-                    runningTotals.total_paid += Number(response.totals.total_paid ?? 0);
-                    runningTotals.total_due += Number(response.totals.total_due ?? 0);
-
-                    $('#total-amount').text('£' + runningTotals.total_amount);
-                    $('#total-paid').text('£' + runningTotals.total_paid);
-                    $('#total-due').text('£' + runningTotals.total_due);
-                }
-
-
-                // $('#filter-total').text(`Filtered Orders (${response.total ?? 0} total)`);
-                $('#filter-total').text(`{{ $filterTitle ?? 'Filtered Orders' }} (${response.total ?? 0} total)`);
-
-                $('#spinner-row').hide();
-                $('#preloader2').hide();
-                $('#export-order-btn').show();
-                loading = false;
-            },
-subwriterSelect.append(`<option value="${value.id}">${value.name}</option>`);
-});
-subwriterSelect.val(selectedSubWriter);
-},
-error: function (err) {
-console.error('Error fetching SubWriters:', err);
-}
-});
-}
-}
-
-// Show/Hide more filters
-$('#showMoreFilters').on('click', function () {
-$('.additional-filters').toggle();
-const isVisible = $('.additional-filters').is(':visible');
-$(this).text(isVisible ? 'Hide More Filters' : 'Show More Filters');
-});
-
-// TL change triggers subwriter update
-$(document).on('change', '#writerTL', populateSubwriters);
-
-// Reset filters and show original data
-$('#resetFiltersBtn').on('click', function () {
-resetFilters();
-});
-
-// Optionally: load default base data via AJAX on first load (commented out)
-// fetchData(false);
-});
-</script>
-
-<script>
-    let filterStorageKey = "{{ $filterStorageKey ?? 'order_filters' }}";
-    let offset = 0;
-    const limit = 50;
-    let loading = false;
-    let hasMore = true;
-    let filters = {};
-
-    let runningTotals = {
-        total_amount: 0,
-        total_paid: 0,
-        total_due: 0
-    };
-
-    $(document).on('click', '#overdueBtn', function() {
-
-        // sirf overdue value set karo
-        $('#deadline_status').val('overdue').trigger('change');
-
-        // SAME function jo search button use karta hai
-        applyFilters();
-    });
-
-        $(document).on('click', '#todayDeadlineBtn', function(e) {
-        e.preventDefault();
-
-        $('#today_deadline_filter').val('1');
-        $('#yesterday_deadline_filter').val('');
-        $('#today_writer_deadline_filter').val('');
-
-        $('#filter_team_id').val('');
-        $('#deadline_status').val('').trigger('change');
-
-        applyFilters();
-    });
-
-    $(document).on('click', '#yesterdayDeadlineBtn', function(e) {
-        e.preventDefault();
-
-        $('#yesterday_deadline_filter').val('1');
-        $('#today_deadline_filter').val('');
-        $('#today_writer_deadline_filter').val('');
-        $('#filter_team_id').val('');
-        $('#deadline_status').val('').trigger('change');
-
-        applyFilters();
-    });
-
-    $(document).on('click', '#todayWriterDeadlineBtn', function(e) {
-        e.preventDefault();
-
-        $('#today_writer_deadline_filter').val('1');
-        $('#today_deadline_filter').val('');
-        $('#yesterday_deadline_filter').val('');
-
-        $('#filter_team_id').val('');
-        $('#deadline_status').val('').trigger('change');
-
-        applyFilters();
-    });
-
-    $(document).on('click', '#writerQueryBtn', function(e) {
-        e.preventDefault();
-
-        $('#status').val('writer query').trigger('change');
-
-        $('#today_deadline_filter').val('');
-        $('#yesterday_deadline_filter').val('');
-        $('#today_writer_deadline_filter').val('');
-        $('#filter_team_id').val('');
-        $('#deadline_status').val('').trigger('change');
-
-        applyFilters();
-    });
-
-   $(document).on('click', '#holdWorkBtn', function(e) {
-        e.preventDefault();
-
-        $('#status').val('Hold Work').trigger('change');
-
-        $('#today_deadline_filter').val('');
-        $('#yesterday_deadline_filter').val('');
-        $('#today_writer_deadline_filter').val('');
-        $('#filter_team_id').val('');
-        $('#deadline_status').val('').trigger('change');
-
-        applyFilters();
-    });
-
-    $(document).on('click', '#teamAlphaBtn', function() {
-        $('#filter_team_id').val('1'); // Alpha ki ID 1 hai
-        applyFilters();
-    });
-
-    // --- NAYA LOGIC: Team Giga Click ---
-    $(document).on('click', '#teamGigaBtn', function() {
-        $('#filter_team_id').val('2'); // Giga ki ID 2 hai
-        applyFilters();
-    });
-
-    function fetchData(append = false) {
-        if (loading || !hasMore) return;
-
-        loading = true;
-
-        if (append) {
-            $('#spinner-row').show();
-        } else {
-            // $('#preloader2').show();
-            $('#spinner-row').show();
-        }
-
-        $.ajax({
-            // url: "{{ route('orders.filter') }}",
-            url: "{{ $filterRoute ?? route('orders.filter') }}",
-            type: "GET",
-            data: {
-                ...filters,
-                limit: limit,
-                offset: offset
-            },
-            success: function(response) {
-                const noResults = (response.total === 0 || !response.html || !response.html.trim());
-
-                if (noResults) {
-                    $('#lead-rows').html(`
-                        <tr>
-                            <td colspan="16" class="text-left text-danger" style="padding-left: 10px;">
                                 ${response.message || 'No orders found for the selected filters.'}
                             </td>
                         </tr>
@@ -1005,8 +810,11 @@ resetFilters();
         // NAYA UPDATE YAHAN HAI: deadline_status add kar diya gaya hai
         filters = {
             search: $('#search').val(),
-            user: $('#searchInput').val(),
             uid: $('#selectedValue').val(), group_id: $('#group_id').val(),
+            status: $('#status').val(),
+            writer: $('#writer').val(),
+            dateStatus: $('#date_status').val(),
+            fromDate: $('#from_date').val(),
             toDate: $('#to_date').val(),
             WriterTL: $('#writerTL').val(),
             SubWriter: $('#SubWriter').val(),

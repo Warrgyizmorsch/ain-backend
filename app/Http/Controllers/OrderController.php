@@ -349,7 +349,9 @@ class OrderController extends Controller
     private function handleRoleOne(Request $request)
     {
         $ordersQuery = Order::with('user', 'payment', 'feedback', 'team')
-            ->whereNotNull('uid')->where('uid', '!=', 0)->where('uid', '!=', '0');
+            ->whereNotNull('uid')->where('uid', '!=', 0)->where('uid', '!=', '0')
+            ->whereDoesntHave('lead', fn ($lq) => $lq->where('is_converted', 0))
+            ->whereDoesntHave('frontendLead', fn ($flq) => $flq->where('is_converted', 0));
         $data = [
             'Team' => Writer::all(),
             'Status' => Status::all(),
@@ -3567,6 +3569,8 @@ class OrderController extends Controller
         // Show orders with the latest order date first.
         $orders = Order::with($this->orderListRelations())
             ->where('uid', '!=', 0)
+            ->whereDoesntHave('lead', fn ($lq) => $lq->where('is_converted', 0))
+            ->whereDoesntHave('frontendLead', fn ($flq) => $flq->where('is_converted', 0))
             ->when($request->filled('uid'), fn ($query) => $query->where('uid', $request->uid))
             ->when($request->filled('group_id'), fn ($query) => $query->whereHas('user.groups', fn ($groupQuery) => $groupQuery->where('group_masters.id', $request->group_id)))
             ->select($this->orderListColumns())
@@ -3671,7 +3675,7 @@ class OrderController extends Controller
         $filters = $request->all();
 
         // Check if all filters are empty, return a message if so
-        if (empty($filters['search']) && empty($filters['user']) && empty($filters['uid']) && empty($filters['group_id']) && empty($filters['status']) && empty($filters['writer']) && empty($filters['dateStatus']) && empty($filters['fromDate']) && empty($filters['toDate']) && empty($filters['from_date']) && empty($filters['to_date']) && empty($filters['WriterTL']) && empty($filters['SubWriter']) && empty($filters['college']) && empty($filters['extra']) && empty($filters['module_code']) &&  empty($filters['paper_type']) && empty($filters['semester']) && empty($filters['month']) && empty($filters['payment']) && empty($filters['deadline_status']) && empty($filters['offer']) && empty($filters['duec']) && empty($filters['marks_filter']) && empty($filters['team_id']) && empty($filters['today_deadline_filter']) && empty($filters['yesterday_deadline_filter']) && empty($filters['today_writer_deadline_filter'])) {
+        if (empty($filters['search']) && empty($filters['uid']) && empty($filters['group_id']) && empty($filters['status']) && empty($filters['writer']) && empty($filters['dateStatus']) && empty($filters['fromDate']) && empty($filters['toDate']) && empty($filters['from_date']) && empty($filters['to_date']) && empty($filters['WriterTL']) && empty($filters['SubWriter']) && empty($filters['college']) && empty($filters['extra']) && empty($filters['module_code']) &&  empty($filters['paper_type']) && empty($filters['semester']) && empty($filters['month']) && empty($filters['payment']) && empty($filters['deadline_status']) && empty($filters['offer']) && empty($filters['duec']) && empty($filters['marks_filter']) && empty($filters['team_id']) && empty($filters['today_deadline_filter']) && empty($filters['yesterday_deadline_filter']) && empty($filters['today_writer_deadline_filter'])) {
             return response()->json(['message' => 'No filters applied'], 200);
         }
 
@@ -3776,7 +3780,9 @@ class OrderController extends Controller
 
         $query = Order::with($this->orderListRelations())
             ->select($this->orderListColumns());
-        $query->whereNotNull('uid')->where('uid', '!=', 0)->where('uid', '!=', '0');
+        $query->whereNotNull('uid')->where('uid', '!=', 0)->where('uid', '!=', '0')
+            ->whereDoesntHave('lead', fn ($lq) => $lq->where('is_converted', 0))
+            ->whereDoesntHave('frontendLead', fn ($flq) => $flq->where('is_converted', 0));
 
         // Search
         if ($request->filled('search')) {
@@ -3790,16 +3796,7 @@ class OrderController extends Controller
         }
 
         // Basic filters
-        if ($request->filled('uid')) {
-            $query->where('uid', $request->uid);
-        } elseif ($request->filled('user')) {
-            $userTerm = trim($request->user);
-            $query->whereHas('user', function ($uq) use ($userTerm) {
-                $uq->where('name', 'like', '%' . $userTerm . '%')
-                    ->orWhere('email', 'like', '%' . $userTerm . '%')
-                    ->orWhere('mobile_no', 'like', '%' . $userTerm . '%');
-            });
-        }
+        $query->when($request->filled('uid'), fn($q) => $q->where('uid', $request->uid));
         $query->when($request->filled('group_id'), fn($q) => $q->whereHas('user.groups', fn($g) => $g->where('group_masters.id', $request->group_id)));
         $query->when($request->filled('semester'), fn($q) => $q->where('semester', $request->semester));
         $query->when($request->filled('status'), fn($q) => $q->where('projectstatus', $request->status));
