@@ -3565,21 +3565,54 @@ class OrderController extends Controller
 
         $query->whereNotNull('uid')->where('uid', '!=', 0)->where('uid', '!=', '0');
 
-        $unconvertedLeadIds = Cache::remember('unconverted_lead_ids', 60, function () {
-            return DB::table('leads')->where('is_converted', 0)->pluck('id');
+
+        // ─── Lead Filtering (Performance-Optimized, matching original logic) ─────────
+        // Original logic:
+        //   Include if: (no lead AND no frontendLead) OR (lead.is_converted=1) OR (frontendLead.is_converted=1)
+        //
+        // We replicate this using cached lead ID sets instead of correlated subqueries.
+
+        $convertedLeadIds = Cache::remember('converted_lead_ids', 60, function () {
+            return DB::table('leads')->where('is_converted', 1)->pluck('id');
         });
 
-        $unconvertedOrderIds = Cache::remember('unconverted_order_ids', 60, function () {
-            return DB::table('leads')->where('is_converted', 0)->whereNotNull('order_id')->pluck('order_id');
+        $convertedFrontendOrderIds = Cache::remember('converted_frontend_order_ids', 60, function () {
+            return DB::table('leads')
+                ->where('is_converted', 1)
+                ->whereNotNull('order_id')
+                ->pluck('order_id');
         });
 
-        if ($unconvertedLeadIds->isNotEmpty()) {
-            $query->whereNotIn('orders.lead_id', $unconvertedLeadIds);
-        }
+        $unconvertedFrontendOrderIds = Cache::remember('unconverted_frontend_order_ids', 60, function () {
+            return DB::table('leads')
+                ->where('is_converted', 0)
+                ->whereNotNull('order_id')
+                ->pluck('order_id');
+        });
 
-        if ($unconvertedOrderIds->isNotEmpty()) {
-            $query->whereNotIn('orders.order_id', $unconvertedOrderIds);
-        }
+        $query->where(function ($q) use ($convertedLeadIds, $convertedFrontendOrderIds, $unconvertedFrontendOrderIds) {
+
+            // ✅ Condition 1: order has a converted lead (via lead_id) → INCLUDE
+            if ($convertedLeadIds->isNotEmpty()) {
+                $q->whereIn('orders.lead_id', $convertedLeadIds);
+            }
+
+            // ✅ Condition 2: order has a converted frontendLead (via order_id) → INCLUDE
+            if ($convertedFrontendOrderIds->isNotEmpty()) {
+                $q->orWhereIn('orders.order_id', $convertedFrontendOrderIds);
+            }
+
+            // ✅ Condition 3: order has NO lead at all → INCLUDE
+            //    (lead_id is null, AND order_id doesn't match any unconverted frontendLead)
+            $q->orWhere(function ($noLead) use ($unconvertedFrontendOrderIds) {
+                $noLead->whereNull('lead_id');
+                if ($unconvertedFrontendOrderIds->isNotEmpty()) {
+                    $noLead->whereNotIn('orders.order_id', $unconvertedFrontendOrderIds);
+                }
+            });
+        });
+        // ──────────────────────────────────────────────────────────────────────────────
+
 
         if ($request->filled('search')) {
             $search = trim($request->search);
@@ -3776,7 +3809,26 @@ class OrderController extends Controller
 
         $now = now();
         $overdueCount = Cache::remember('order_overdue_count', 60, function () use ($now) {
-            return Order::whereNotIn('projectstatus', ['Delivered', 'Completed'])
+            $convertedLeadIds = Cache::get('converted_lead_ids') ?? DB::table('leads')->where('is_converted', 1)->pluck('id');
+            $convertedFrontendOrderIds = Cache::get('converted_frontend_order_ids') ?? DB::table('leads')->where('is_converted', 1)->whereNotNull('order_id')->pluck('order_id');
+            $unconvertedFrontendOrderIds = Cache::get('unconverted_frontend_order_ids') ?? DB::table('leads')->where('is_converted', 0)->whereNotNull('order_id')->pluck('order_id');
+
+            return Order::whereNotNull('uid')->where('uid', '!=', 0)->where('uid', '!=', '0')
+                ->where(function ($q) use ($convertedLeadIds, $convertedFrontendOrderIds, $unconvertedFrontendOrderIds) {
+                    if ($convertedLeadIds->isNotEmpty()) {
+                        $q->whereIn('lead_id', $convertedLeadIds);
+                    }
+                    if ($convertedFrontendOrderIds->isNotEmpty()) {
+                        $q->orWhereIn('order_id', $convertedFrontendOrderIds);
+                    }
+                    $q->orWhere(function ($noLead) use ($unconvertedFrontendOrderIds) {
+                        $noLead->whereNull('lead_id');
+                        if ($unconvertedFrontendOrderIds->isNotEmpty()) {
+                            $noLead->whereNotIn('order_id', $unconvertedFrontendOrderIds);
+                        }
+                    });
+                })
+                ->whereNotIn('projectstatus', ['Delivered', 'Completed', 'Cancelled', 'Feedback', 'Feedback Delivered'])
                 ->whereNotNull('delivery_date')
                 ->where(function ($q) use ($now) {
                     $q->where('delivery_date', '<', $now->toDateString())
