@@ -631,6 +631,8 @@ resetFilters();
     let hasMore = true;
     let filters = {};
 
+    let currentTotalCount = 0;
+
     let runningTotals = {
         total_amount: 0,
         total_paid: 0,
@@ -746,14 +748,19 @@ resetFilters();
             $('#spinner-row').show();
         }
 
+        let reqData = {
+            ...filters,
+            limit: limit,
+            offset: offset
+        };
+        if (append && currentTotalCount > 0) {
+            reqData.total = currentTotalCount;
+        }
+
         $.ajax({
             url: "{{ $filterRoute ?? route('orders.filter') }}",
             type: "GET",
-            data: {
-                ...filters,
-                limit: limit,
-                offset: offset
-            },
+            data: reqData,
             success: function(response) {
                 const isBatchEmpty = (!response.html || !response.html.trim() || response.count === 0);
 
@@ -790,9 +797,12 @@ resetFilters();
                     $('#total-due').text('£' + runningTotals.total_due);
                 }
 
+                if (response.total !== undefined) {
+                    currentTotalCount = response.total;
+                }
 
                 // $('#filter-total').text(`Filtered Orders (${response.total ?? 0} total)`);
-                $('#filter-total').text(`{{ $filterTitle ?? 'Filtered Orders' }} (${response.total ?? 0} total)`);
+                $('#filter-total').text(`{{ $filterTitle ?? 'Filtered Orders' }} (${response.total ?? currentTotalCount} total)`);
 
                 $('#spinner-row').hide();
                 $('#preloader2').hide();

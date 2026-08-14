@@ -3563,14 +3563,23 @@ class OrderController extends Controller
         $query = Order::with($this->orderListRelations())
             ->select($this->orderListColumns());
 
-        $query->whereNotNull('uid')->where('uid', '!=', 0)->where('uid', '!=', '0')
-            ->where(function ($q) {
-                $q->where(function ($noLead) {
-                    $noLead->whereDoesntHave('lead')->whereDoesntHave('frontendLead');
-                })
-                ->orWhereHas('lead', fn ($lq) => $lq->where('is_converted', 1))
-                ->orWhereHas('frontendLead', fn ($flq) => $flq->where('is_converted', 1));
-            });
+        $query->whereNotNull('uid')->where('uid', '!=', 0)->where('uid', '!=', '0');
+
+        $unconvertedLeadIds = Cache::remember('unconverted_lead_ids', 60, function () {
+            return DB::table('leads')->where('is_converted', 0)->pluck('id');
+        });
+
+        $unconvertedOrderIds = Cache::remember('unconverted_order_ids', 60, function () {
+            return DB::table('leads')->where('is_converted', 0)->whereNotNull('order_id')->pluck('order_id');
+        });
+
+        if ($unconvertedLeadIds->isNotEmpty()) {
+            $query->whereNotIn('orders.lead_id', $unconvertedLeadIds);
+        }
+
+        if ($unconvertedOrderIds->isNotEmpty()) {
+            $query->whereNotIn('orders.order_id', $unconvertedOrderIds);
+        }
 
         if ($request->filled('search')) {
             $search = trim($request->search);
@@ -3942,8 +3951,8 @@ class OrderController extends Controller
         $limit = (int) $request->get('limit', 20);
         $offset = (int) $request->get('offset', 0);
 
-        $query = $this->buildOrderFilterQuery($request);
-        $query->orderByDesc('orders.order_date')->orderByDesc('orders.id');
+        $baseQuery = $this->buildOrderFilterQuery($request);
+        $query = (clone $baseQuery)->orderByDesc('orders.order_date')->orderByDesc('orders.id');
 
         $orders = $query->skip($offset)->take($limit + 1)->get();
         $hasMore = $orders->count() > $limit;
@@ -3989,7 +3998,11 @@ class OrderController extends Controller
             ])->render();
         }
 
-        $totalCount = $hasMore ? $query->count() : ($offset + $orders->count());
+        if ($offset === 0) {
+            $totalCount = $hasMore ? (clone $baseQuery)->count() : $orders->count();
+        } else {
+            $totalCount = (int) $request->get('total', $offset + $orders->count());
+        }
 
         return response()->json([
             'html' => $html,
