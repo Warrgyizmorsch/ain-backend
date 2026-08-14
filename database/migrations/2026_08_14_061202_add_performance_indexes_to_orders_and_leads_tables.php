@@ -33,6 +33,9 @@ return new class extends Migration
             if (!in_array('idx_orders_deliv', $existingOrderIndexes)) {
                 $table->index('delivery_date', 'idx_orders_deliv');
             }
+            if (!in_array('idx_orders_order_id', $existingOrderIndexes)) {
+                $table->index('order_id', 'idx_orders_order_id');
+            }
         });
 
         Schema::table('leads', function (Blueprint $table) use ($existingLeadIndexes) {

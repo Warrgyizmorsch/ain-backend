@@ -3786,9 +3786,12 @@ class OrderController extends Controller
 
         // Search
         if ($request->filled('search')) {
-            $query->where(function ($q) use ($request) {
-                $q->where('order_id', 'like', '%' . $request->search . '%')
-                    ->orWhere('title', 'like', '%' . $request->search . '%');
+            $search = trim($request->search);
+            $query->where(function ($q) use ($search) {
+                $q->where('order_id', $search)
+                    ->orWhere('order_id', 'like', $search . '%')
+                    ->orWhere('order_id', 'like', '%' . $search . '%')
+                    ->orWhere('title', 'like', '%' . $search . '%');
             });
         }
 
