@@ -626,7 +626,7 @@ resetFilters();
 <script>
     let filterStorageKey = "{{ $filterStorageKey ?? 'order_filters' }}";
     let offset = 0;
-    const limit = 50;
+    const limit = 20;
     let loading = false;
     let hasMore = true;
     let filters = {};
@@ -637,89 +637,101 @@ resetFilters();
         total_due: 0
     };
 
-    $(document).on('click', '#overdueBtn', function() {
-
-        // sirf overdue value set karo
+    $(document).on('click', '#overdueBtn', function(e) {
+        e.preventDefault();
+        $('#today_deadline_filter').val('');
+        $('#yesterday_deadline_filter').val('');
+        $('#today_writer_deadline_filter').val('');
+        $('#status').val('').trigger('change');
+        $('#from_date').val('');
+        $('#to_date').val('');
         $('#deadline_status').val('overdue').trigger('change');
-
-        // SAME function jo search button use karta hai
         applyFilters();
     });
 
-        $(document).on('click', '#todayDeadlineBtn', function(e) {
+    $(document).on('click', '#todayDeadlineBtn', function(e) {
         e.preventDefault();
-
-        $('#today_deadline_filter').val('1');
+        $('#deadline_status').val('').trigger('change');
         $('#yesterday_deadline_filter').val('');
         $('#today_writer_deadline_filter').val('');
-
-        $('#filter_team_id').val('');
-        $('#deadline_status').val('').trigger('change');
-
+        $('#status').val('').trigger('change');
+        $('#from_date').val('');
+        $('#to_date').val('');
+        $('#today_deadline_filter').val('1');
         applyFilters();
     });
 
     $(document).on('click', '#yesterdayDeadlineBtn', function(e) {
         e.preventDefault();
-
-        $('#yesterday_deadline_filter').val('1');
+        $('#deadline_status').val('').trigger('change');
         $('#today_deadline_filter').val('');
         $('#today_writer_deadline_filter').val('');
-        $('#filter_team_id').val('');
-        $('#deadline_status').val('').trigger('change');
-
+        $('#status').val('').trigger('change');
+        $('#from_date').val('');
+        $('#to_date').val('');
+        $('#yesterday_deadline_filter').val('1');
         applyFilters();
     });
 
     $(document).on('click', '#todayWriterDeadlineBtn', function(e) {
         e.preventDefault();
-
-        $('#today_writer_deadline_filter').val('1');
+        $('#deadline_status').val('').trigger('change');
         $('#today_deadline_filter').val('');
         $('#yesterday_deadline_filter').val('');
-
-        $('#filter_team_id').val('');
-        $('#deadline_status').val('').trigger('change');
-
+        $('#status').val('').trigger('change');
+        $('#from_date').val('');
+        $('#to_date').val('');
+        $('#today_writer_deadline_filter').val('1');
         applyFilters();
     });
 
     $(document).on('click', '#writerQueryBtn', function(e) {
         e.preventDefault();
-
+        $('#deadline_status').val('').trigger('change');
+        $('#today_deadline_filter').val('');
+        $('#yesterday_deadline_filter').val('');
+        $('#today_writer_deadline_filter').val('');
+        $('#from_date').val('');
+        $('#to_date').val('');
         $('#status').val('writer query').trigger('change');
-
-        $('#today_deadline_filter').val('');
-        $('#yesterday_deadline_filter').val('');
-        $('#today_writer_deadline_filter').val('');
-        $('#filter_team_id').val('');
-        $('#deadline_status').val('').trigger('change');
-
         applyFilters();
     });
 
-   $(document).on('click', '#holdWorkBtn', function(e) {
+    $(document).on('click', '#holdWorkBtn', function(e) {
         e.preventDefault();
-
-        $('#status').val('Hold Work').trigger('change');
-
+        $('#deadline_status').val('').trigger('change');
         $('#today_deadline_filter').val('');
         $('#yesterday_deadline_filter').val('');
         $('#today_writer_deadline_filter').val('');
-        $('#filter_team_id').val('');
+        $('#from_date').val('');
+        $('#to_date').val('');
+        $('#status').val('Hold Work').trigger('change');
+        applyFilters();
+    });
+
+    $(document).on('click', '#teamAlphaBtn', function(e) {
+        e.preventDefault();
         $('#deadline_status').val('').trigger('change');
-
+        $('#today_deadline_filter').val('');
+        $('#yesterday_deadline_filter').val('');
+        $('#today_writer_deadline_filter').val('');
+        $('#status').val('').trigger('change');
+        $('#from_date').val('');
+        $('#to_date').val('');
+        $('#filter_team_id').val('1');
         applyFilters();
     });
 
-    $(document).on('click', '#teamAlphaBtn', function() {
-        $('#filter_team_id').val('1'); // Alpha ki ID 1 hai
-        applyFilters();
-    });
-
-    // --- NAYA LOGIC: Team Giga Click ---
-    $(document).on('click', '#teamGigaBtn', function() {
-        $('#filter_team_id').val('2'); // Giga ki ID 2 hai
+    $(document).on('click', '#teamGigaBtn', function(e) {
+        e.preventDefault();
+        $('#deadline_status').val('').trigger('change');
+        $('#today_deadline_filter').val('');
+        $('#yesterday_deadline_filter').val('');
+        $('#today_writer_deadline_filter').val('');
+        $('#status').val('').trigger('change');
+        $('#from_date').val('');
+        $('#to_date').val('');
+        $('#filter_team_id').val('2');
         applyFilters();
     });
 
@@ -731,12 +743,10 @@ resetFilters();
         if (append) {
             $('#spinner-row').show();
         } else {
-            // $('#preloader2').show();
             $('#spinner-row').show();
         }
 
         $.ajax({
-            // url: "{{ route('orders.filter') }}",
             url: "{{ $filterRoute ?? route('orders.filter') }}",
             type: "GET",
             data: {
@@ -745,18 +755,20 @@ resetFilters();
                 offset: offset
             },
             success: function(response) {
-                const noResults = response.message || response.total === 0 || !response.html.trim();
+                const isBatchEmpty = (!response.html || !response.html.trim() || response.count === 0);
 
-                if (noResults) {
-                    $('#lead-rows').html(`
-                        <tr>
-                            <td colspan="15" class="text-left text-danger" style="padding-left: 10px;">
-                                ${response.message || 'No orders found for the selected filters.'}
-                            </td>
-                        </tr>
-                    `);
+                if (isBatchEmpty) {
                     hasMore = false;
                     disableScrollHandler();
+                    if (!append) {
+                        $('#lead-rows').html(`
+                            <tr>
+                                <td colspan="15" class="text-left text-danger" style="padding-left: 10px;">
+                                    ${response.message || 'No orders found for the selected filters.'}
+                                </td>
+                            </tr>
+                        `);
+                    }
                 } else {
                     if (append) {
                         $('#lead-rows').append(response.html);
@@ -810,7 +822,9 @@ resetFilters();
         // NAYA UPDATE YAHAN HAI: deadline_status add kar diya gaya hai
         filters = {
             search: $('#search').val(),
-            uid: $('#selectedValue').val(), group_id: $('#group_id').val(),
+            uid: $('#selectedValue').val(),
+            user: $('#searchInput').val(),
+            group_id: $('#group_id').val(),
             status: $('#status').val(),
             writer: $('#writer').val(),
             dateStatus: $('#date_status').val(),
@@ -956,42 +970,51 @@ resetFilters();
         // let savedFilters = localStorage.getItem('order_filters');
         let savedFilters = localStorage.getItem(filterStorageKey);
         if (savedFilters) {
-            filters = JSON.parse(savedFilters);
+            try {
+                filters = JSON.parse(savedFilters);
+                const hasActiveFilters = Object.values(filters).some(val => val && String(val).trim() !== "");
 
-            $('#search').val(filters.search);
-            $('#selectedValue').val(filters.uid);
-            $('#group_id').val(filters.group_id || '').trigger('change');
-            $('#status').val(filters.status).trigger('change');
-            $('#writer').val(filters.writer).trigger('change');
-            $('#date_status').val(filters.dateStatus).trigger('change');
-            $('#from_date').val(filters.fromDate);
-            $('#to_date').val(filters.toDate);
-            $('#writerTL').val(filters.WriterTL).trigger('change');
-            $('#SubWriter').val(filters.SubWriter).trigger('change');
-            $('#college').val(filters.college).trigger('change');
-            $('#extra').val(filters.extra).trigger('change');
-            $('#module_code').val(filters.module_code);
-            $('#paper_type').val(filters.paper_type).trigger('change');
-            $('#semester').val(filters.semester).trigger('change');
-            $('#payment').val(filters.payment).trigger('change');
-            $('#month').val(filters.month);
-            $('#deadline_status').val(filters.deadline_status).trigger('change');
-            $('#filter_team_id').val(filters.team_id);
-            $('#offer').val(filters.offer).trigger('change');
-            $('#duec').val(filters.duec).trigger('change');
-            $('#marks_filter').val(filters.marks_filter || '').trigger('change');
-            $('#today_deadline_filter').val(filters.today_deadline_filter);
-            $('#yesterday_deadline_filter').val(filters.yesterday_deadline_filter || '');
-            $('#today_writer_deadline_filter').val(filters.today_writer_deadline_filter);
+                if (hasActiveFilters) {
+                    $('#search').val(filters.search);
+                    $('#selectedValue').val(filters.uid);
+                    $('#group_id').val(filters.group_id || '').trigger('change');
+                    $('#status').val(filters.status).trigger('change');
+                    $('#writer').val(filters.writer).trigger('change');
+                    $('#date_status').val(filters.dateStatus).trigger('change');
+                    $('#from_date').val(filters.fromDate);
+                    $('#to_date').val(filters.toDate);
+                    $('#writerTL').val(filters.WriterTL).trigger('change');
+                    $('#SubWriter').val(filters.SubWriter).trigger('change');
+                    $('#college').val(filters.college).trigger('change');
+                    $('#extra').val(filters.extra).trigger('change');
+                    $('#module_code').val(filters.module_code);
+                    $('#paper_type').val(filters.paper_type).trigger('change');
+                    $('#semester').val(filters.semester).trigger('change');
+                    $('#payment').val(filters.payment).trigger('change');
+                    $('#month').val(filters.month);
+                    $('#deadline_status').val(filters.deadline_status).trigger('change');
+                    $('#filter_team_id').val(filters.team_id);
+                    $('#offer').val(filters.offer).trigger('change');
+                    $('#duec').val(filters.duec).trigger('change');
+                    $('#marks_filter').val(filters.marks_filter || '').trigger('change');
+                    $('#today_deadline_filter').val(filters.today_deadline_filter);
+                    $('#yesterday_deadline_filter').val(filters.yesterday_deadline_filter || '');
+                    $('#today_writer_deadline_filter').val(filters.today_writer_deadline_filter);
 
-            offset = 0;
-            hasMore = true;
+                    offset = 0;
+                    hasMore = true;
 
-            $('#initial-order-rows').hide();
-            $('#lead-rows').show().empty();
-            $('#resetFiltersBtn').show();
+                    $('#initial-order-rows').hide();
+                    $('#lead-rows').show().empty();
+                    $('#resetFiltersBtn').show();
 
-            fetchData(false);
+                    fetchData(false);
+                } else {
+                    localStorage.removeItem(filterStorageKey);
+                }
+            } catch (e) {
+                localStorage.removeItem(filterStorageKey);
+            }
         }
 
         // Optionally: load default base data via AJAX on first load (commented out)

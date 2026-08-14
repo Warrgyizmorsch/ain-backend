@@ -1,4 +1,5 @@
     @php
+    $roleId = optional(auth()->user())->role_id ?? 0;
     $orderIdStyle = "";
     $isFrontendOrder = optional($order->lead)->frontendorder == '1'
         || optional($order->frontendLead)->frontendorder == '1';
@@ -17,9 +18,6 @@
     <tr id="lead-{{ $order->id }}">
         <td class="text-center" style="padding-right: 0px;">
             {{ $index + 1 }}
-
-            <!-- Rendering All Modals and Drawer of Action Buttons here  -->
-            @include('back-end.order.partials.fail')
         </td>
 
 
@@ -63,7 +61,7 @@
                     <i class="fa fa-times-circle"></i>
                 </a>
 
-                @if(in_array(auth()->user()->role_id, [1, 4, 9]))
+                @if(in_array($roleId, [1, 4, 9]))
                     <button type="button" class="btn btn-icon btn-sm btn-light-danger" title="Looking For Refund" onclick="markLookingForRefund({{ $order->id }})">
                         <span class="fw-bold fs-6">R</span>
                     </button>
@@ -73,7 +71,7 @@
                     </button>
                 @endif
 
-                @if(auth()->user()->role_id == 9)
+                @if($roleId == 9)
                 <a onclick="CallToWriter('{{ $order->id }}')" class="btn btn-icon btn-bg-warning btn-active-color-dark btn-color-white btn-sm me-1 download-btn">
                     <span class="svg-icon svg-icon-3">
                         <i class="fa fa-phone fa-lg"></i>
@@ -125,7 +123,7 @@
             @endif --}}
             @if($order->team?->team_name)
 
-            @if(auth()->user()->role_id == 1)
+            @if($roleId == 1)
                 <span 
                     class="badge badge-light-primary fs-7 fw-bold mb-1 cursor-pointer"
                     data-bs-toggle="modal"
@@ -591,7 +589,7 @@
             @endif
         </td>
 
-       @if(auth()->user()->role_id == 1)
+       @if($roleId == 1)
         <td style="min-width:220px;">
             <div class="border rounded p-3 bg-light">
 

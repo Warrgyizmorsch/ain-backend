@@ -94,7 +94,7 @@ class OrderController extends Controller
         return [
             'user' => function ($q) {
                 $q->select('id', 'name', 'email', 'countrycode', 'mobile_no', 'is_fail', 'feedback_issue', 'client_review')
-                    ->with('groups:id,name')
+                    ->with('groups')
                     ->withCount('orders as orders_count');
             },
             'payment:id,order_id,paid_amount,is_revoked,payee_name,company_accounts',
@@ -350,8 +350,13 @@ class OrderController extends Controller
     {
         $ordersQuery = Order::with('user', 'payment', 'feedback', 'team')
             ->whereNotNull('uid')->where('uid', '!=', 0)->where('uid', '!=', '0')
-            ->whereDoesntHave('lead', fn ($lq) => $lq->where('is_converted', 0))
-            ->whereDoesntHave('frontendLead', fn ($flq) => $flq->where('is_converted', 0));
+            ->where(function ($q) {
+                $q->where(function ($noLead) {
+                    $noLead->whereDoesntHave('lead')->whereDoesntHave('frontendLead');
+                })
+                ->orWhereHas('lead', fn ($lq) => $lq->where('is_converted', 1))
+                ->orWhereHas('frontendLead', fn ($flq) => $flq->where('is_converted', 1));
+            });
         $data = [
             'Team' => Writer::all(),
             'Status' => Status::all(),
@@ -3553,6 +3558,174 @@ class OrderController extends Controller
         return redirect()->back()->with('success', 'Payment details updated successfully');
     }
 
+    private function buildOrderFilterQuery(Request $request)
+    {
+        $query = Order::with($this->orderListRelations())
+            ->select($this->orderListColumns());
+
+        $query->whereNotNull('uid')->where('uid', '!=', 0)->where('uid', '!=', '0')
+            ->where(function ($q) {
+                $q->where(function ($noLead) {
+                    $noLead->whereDoesntHave('lead')->whereDoesntHave('frontendLead');
+                })
+                ->orWhereHas('lead', fn ($lq) => $lq->where('is_converted', 1))
+                ->orWhereHas('frontendLead', fn ($flq) => $flq->where('is_converted', 1));
+            });
+
+        if ($request->filled('search')) {
+            $search = trim($request->search);
+            $hasOrderCodeMatch = Order::where('order_id', $search)
+                ->orWhere('order_id', 'like', $search . '%')
+                ->exists();
+
+            if ($hasOrderCodeMatch) {
+                $query->where(function ($q) use ($search) {
+                    $q->where('order_id', $search)
+                        ->orWhere('order_id', 'like', $search . '%');
+                });
+            } else {
+                $query->where(function ($q) use ($search) {
+                    $q->where('order_id', 'like', '%' . $search . '%')
+                        ->orWhere('title', 'like', '%' . $search . '%');
+                });
+            }
+        }
+
+        if ($request->filled('uid')) {
+            $query->where('uid', $request->uid);
+        } elseif ($request->filled('user')) {
+            $userTerm = trim($request->user);
+            $userIds = User::where('name', 'like', '%' . $userTerm . '%')
+                ->orWhere('email', 'like', '%' . $userTerm . '%')
+                ->orWhere('mobile_no', 'like', '%' . $userTerm . '%')
+                ->pluck('id')->toArray();
+
+            $query->whereIn('uid', $userIds);
+        }
+
+        $query->when($request->filled('group_id'), fn($q) => $q->whereHas('user.groups', fn($g) => $g->where('group_masters.id', $request->group_id)));
+        $query->when($request->filled('semester'), fn($q) => $q->where('semester', $request->semester));
+        $query->when($request->filled('status'), fn($q) => $q->where('projectstatus', $request->status));
+        $query->when($request->filled('module_code'), fn($q) => $q->where('module_code', 'like', '%' . $request->module_code . '%'));
+        $query->when($request->filled('paper_type'), fn($q) => $q->where('typeofpaper', $request->paper_type));
+        $query->when($request->filled('college'), fn($q) => $q->where('college_name', $request->college));
+
+        if ($request->filled('offer')) {
+            $query->where('offer', 'like', '%' . $request->offer . '%');
+        }
+
+        if ($request->filled('duec')) {
+            if ($request->duec == 'due') {
+                $query->whereRaw('(amount - received_amount) > 0');
+            }
+            if ($request->duec == 'no due') {
+                $query->whereRaw('(amount - received_amount) <= 0');
+            }
+        }
+
+        if ($request->filled('marks_filter')) {
+            $query->where('marks', $request->marks_filter);
+        }
+
+        if ($request->filled('writer')) {
+            if ($request->writer === 'team 13') {
+                $query->where('admin_id', 8392);
+            } elseif ($request->writer === 'Not Assign') {
+                $query->where(function ($q) {
+                    $q->whereNull('writer_name')->orWhere('writer_name', '');
+                });
+            } else {
+                $query->where('writer_name', 'like', $request->writer);
+            }
+        }
+
+        $query->when($request->filled('WriterTL'), fn($q) => $q->where('wid', $request->WriterTL));
+
+        if ($request->filled('SubWriter')) {
+            $orderIds = multipleswiter::where('user_id', $request->SubWriter)->pluck('order_id')->toArray();
+            $query->whereIn('id', $orderIds);
+        }
+
+        $deadlineStatus = $request->input('deadline_status');
+        if ($deadlineStatus == 'overdue') {
+            $query->whereDate('delivery_date', '<', now())
+                ->whereNotIn('projectstatus', ['Completed', 'Delivered', 'Cancelled', 'Feedback', 'Feedback Delivered']);
+        } elseif ($deadlineStatus == 'missed') {
+            $query->whereIn('projectstatus', ['Completed', 'Delivered', 'Cancelled', 'Feedback', 'Feedback Delivered'])
+                ->whereColumn('updated_at', '>', 'delivery_date');
+        }
+
+        if ($request->filled('team_id') && $request->team_id != '') {
+            $query->where('team_id', $request->team_id);
+        }
+
+        if ($request->filled('today_deadline_filter')) {
+            $query->where(function ($q) {
+                $q->whereDate('delivery_date', Carbon::today())
+                    ->orWhereDate('f_delivery_date', Carbon::today());
+            });
+        }
+
+        if ($request->filled('yesterday_deadline_filter')) {
+            $query->where(function ($q) {
+                $q->whereDate('delivery_date', Carbon::yesterday())
+                    ->orWhereDate('f_delivery_date', Carbon::yesterday());
+            });
+        }
+
+        if ($request->filled('today_writer_deadline_filter')) {
+            $query->whereDate('writer_deadline', Carbon::today());
+        }
+
+        switch ($request->extra) {
+            case 'tech':
+                $query->where('tech', 1);
+                break;
+            case 'resit':
+                $query->where('resit', 'on');
+                break;
+            case 'failedjob':
+                $query->where('is_fail', 1);
+                break;
+            case '1':
+                $query->where('services', 'First Class Work');
+                break;
+        }
+
+        $from = $request->input('fromDate');
+        $to = $request->input('toDate');
+        $dateField = $request->input('dateStatus');
+
+        if ($from && $to && $dateField) {
+            if ($dateField === 'draft_date') {
+                $query->whereBetween($dateField, [$from, $to])->where('draftrequired', 'y');
+            } else {
+                $query->whereBetween($dateField, [$from, $to]);
+            }
+        } elseif ($from && $to) {
+            $query->whereBetween('order_date', [$from, $to]);
+        } elseif ($from) {
+            $query->where('order_date', $from);
+        } elseif ($dateField) {
+            $query->where('order_date', Carbon::today());
+        }
+
+        if ($request->input('payment') === 'empty') {
+            $currentYearStart = Carbon::now()->startOfYear();
+            $currentYearEnd   = Carbon::now()->endOfYear();
+
+            $query->whereBetween('order_date', [$currentYearStart, $currentYearEnd])
+                ->whereHas('payment', function ($p) {
+                    $p->where(function ($pp) {
+                        $pp->whereNull('payee_name')
+                            ->orWhere('payee_name', '');
+                    });
+                });
+        }
+
+        return $query;
+    }
+
     public function indexOrder(Request $request)
     {
         $data = [
@@ -3565,15 +3738,8 @@ class OrderController extends Controller
             'projectStatusCounts' => collect(),
         ];
 
-
-        // Show orders with the latest order date first.
-        $orders = Order::with($this->orderListRelations())
-            ->where('uid', '!=', 0)
-            ->whereDoesntHave('lead', fn ($lq) => $lq->where('is_converted', 0))
-            ->whereDoesntHave('frontendLead', fn ($flq) => $flq->where('is_converted', 0))
-            ->when($request->filled('uid'), fn ($query) => $query->where('uid', $request->uid))
-            ->when($request->filled('group_id'), fn ($query) => $query->whereHas('user.groups', fn ($groupQuery) => $groupQuery->where('group_masters.id', $request->group_id)))
-            ->select($this->orderListColumns())
+        // Show orders with the latest order date first using unified query builder.
+        $orders = $this->buildOrderFilterQuery($request)
             ->selectRaw('(CAST(amount AS SIGNED) - CAST(received_amount AS SIGNED)) as due_balance')
             ->orderByDesc('orders.order_date')
             ->orderByDesc('orders.id')
@@ -3773,180 +3939,18 @@ class OrderController extends Controller
             }
         }
 
-        // Default filter logic continues here if month+uid not both present
+        $limit = (int) $request->get('limit', 20);
+        $offset = (int) $request->get('offset', 0);
 
-        $limit = $request->get('limit', 50);
-        $offset = $request->get('offset', 0);
-
-        $query = Order::with($this->orderListRelations())
-            ->select($this->orderListColumns());
-        $query->whereNotNull('uid')->where('uid', '!=', 0)->where('uid', '!=', '0')
-            ->whereDoesntHave('lead', fn ($lq) => $lq->where('is_converted', 0))
-            ->whereDoesntHave('frontendLead', fn ($flq) => $flq->where('is_converted', 0));
-
-        // Search
-        if ($request->filled('search')) {
-            $search = trim($request->search);
-            $query->where(function ($q) use ($search) {
-                $q->where('order_id', $search)
-                    ->orWhere('order_id', 'like', $search . '%')
-                    ->orWhere('order_id', 'like', '%' . $search . '%')
-                    ->orWhere('title', 'like', '%' . $search . '%');
-            });
-        }
-
-        // Basic filters
-        $query->when($request->filled('uid'), fn($q) => $q->where('uid', $request->uid));
-        $query->when($request->filled('group_id'), fn($q) => $q->whereHas('user.groups', fn($g) => $g->where('group_masters.id', $request->group_id)));
-        $query->when($request->filled('semester'), fn($q) => $q->where('semester', $request->semester));
-        $query->when($request->filled('status'), fn($q) => $q->where('projectstatus', $request->status));
-        $query->when($request->filled('module_code'), fn($q) => $q->where('module_code', 'like', '%' . $request->module_code . '%'));
-        $query->when($request->filled('paper_type'), fn($q) => $q->where('typeofpaper', $request->paper_type));
-        $query->when($request->filled('college'), fn($q) => $q->where('college_name', $request->college));
-
-        if ($request->filled('offer')) {
-            $query->where('offer', 'like', '%' . $request->offer . '%');
-        }
-
-        if ($request->filled('duec')) {
-            if ($request->duec == 'due') {
-                // Pending (due > 0)
-                $query->whereRaw('(amount - received_amount) > 0');
-            }
-            if ($request->duec == 'no due') {
-                // No due (<= 0)
-                $query->whereRaw('(amount - received_amount) <= 0');
-            }
-        }
-
-        if ($request->filled('marks_filter')) {
-            $query->where('marks', $request->marks_filter);
-        }
-
-        // Writer logic
-        if ($request->filled('writer')) {
-            if ($request->writer === 'team 13') {
-                $query->where('admin_id', 8392);
-            } elseif ($request->writer === 'Not Assign') {
-                $query->where(function ($q) {
-                    $q->whereNull('writer_name')->orWhere('writer_name', '');
-                });
-            } else {
-                $query->where('writer_name', 'like', $request->writer);
-            }
-        }
-
-        // Writer TL
-        $query->when($request->filled('WriterTL'), fn($q) => $q->where('wid', $request->WriterTL));
-
-        // SubWriter logic (external model)
-        if ($request->filled('SubWriter')) {
-            $orderIds = multipleswiter::where('user_id', $request->SubWriter)->pluck('order_id')->toArray();
-            $query->whereIn('id', $orderIds);
-        }
-
-        // if ($request->extra == 'overdue') {
-        //     $query->whereDate('delivery_date', '<', Carbon::today())
-        //         ->whereNotIn('projectstatus', ['Delivered', 'Completed']);
-        // }
-
-        $deadlineStatus = $request->input('deadline_status');
-        if ($deadlineStatus == 'overdue') {
-            // Overdue: Aaj ki date nikal gayi aur order complete nahi hua
-            $query->whereDate('delivery_date', '<', now())
-                ->whereNotIn('projectstatus', ['Completed', 'Delivered', 'Cancelled', 'Feedback', 'Feedback Delivered']);
-        } elseif ($deadlineStatus == 'missed') {
-            // Missed: Order complete ho gaya h, lekin deadline nikalne ke baad (updated_at > delivery_date)
-            $query->whereIn('projectstatus', ['Completed', 'Delivered', 'Cancelled', 'Feedback', 'Feedback Delivered'])
-                ->whereColumn('updated_at', '>', 'delivery_date');
-        }
-
-        if ($request->filled('team_id') && $request->team_id != '') {
-            $query->where('team_id', $request->team_id);
-        }
-
-        // if ($request->filled('today_deadline_filter')) {
-        //     $query->whereDate('delivery_date', Carbon::today());
-        // }
-
-        if ($request->filled('today_deadline_filter')) {
-            $query->where(function ($q) {
-                $q->whereDate('delivery_date', Carbon::today())
-                    ->orWhereDate('f_delivery_date', Carbon::today());
-            });
-        }
-
-        if ($request->filled('yesterday_deadline_filter')) {
-            $query->where(function ($q) {
-                $q->whereDate('delivery_date', Carbon::yesterday())
-                    ->orWhereDate('f_delivery_date', Carbon::yesterday());
-            });
-        }
-
-        if ($request->filled('today_writer_deadline_filter')) {
-            $query->whereDate('writer_deadline', Carbon::today());
-        }
-
-
-        // Extra conditions
-        switch ($request->extra) {
-            case 'tech':
-                $query->where('tech', 1);
-                break;
-            case 'resit':
-                $query->where('resit', 'on');
-                break;
-            case 'failedjob':
-                $query->where('is_fail', 1);
-                break;
-            case '1':
-                $query->where('services', 'First Class Work');
-                break;
-        }
-
-        // Date filtering
-        $from = $request->input('fromDate');
-        $to = $request->input('toDate');
-        $dateField = $request->input('dateStatus');
-
-        if ($from && $to && $dateField) {
-            if ($dateField === 'draft_date') {
-                $query->whereBetween($dateField, [$from, $to])->where('draftrequired', 'y');
-            } else {
-                $query->whereBetween($dateField, [$from, $to]);
-            }
-        } elseif ($from && $to) {
-            $query->whereBetween('order_date', [$from, $to]);
-        } elseif ($from) {
-            $query->where('order_date', $from);
-        } elseif ($dateField) {
-            $query->where('order_date', Carbon::today());
-        }
-
-        $applyMissingPayee = function ($q) {
-            $q->whereHas('payment', function ($p) {
-                $p->whereNull('payee_name')
-                    ->orWhere('payee_name', '');
-            });
-        };
-
-        if ($request->input('payment') === 'empty') {
-
-            $currentYearStart = Carbon::now()->startOfYear();
-            $currentYearEnd   = Carbon::now()->endOfYear();
-
-            $query->whereBetween('order_date', [$currentYearStart, $currentYearEnd])
-                ->whereHas('payment', function ($p) {
-                    $p->where(function ($pp) {
-                        $pp->whereNull('payee_name')
-                            ->orWhere('payee_name', '');
-                    });
-                });
-        }
-
+        $query = $this->buildOrderFilterQuery($request);
         $query->orderByDesc('orders.order_date')->orderByDesc('orders.id');
-        $total = $query->count();
-        $orders = $query->skip($offset)->take($limit)->get();
+
+        $orders = $query->skip($offset)->take($limit + 1)->get();
+        $hasMore = $orders->count() > $limit;
+        if ($hasMore) {
+            $orders->pop();
+        }
+
         $this->attachWriterFeedbackMeta($orders);
         $this->attachCreatorsMeta($orders);
 
@@ -3965,27 +3969,16 @@ class OrderController extends Controller
             }),
         ];
 
-        // dd($orders);
-        // 👇 Fetch project status counts for the given orders
-        $projectStatusCounts = ProjectStatusCount::whereIn('order_id', $orders->pluck('id'))
-            ->get();
+        $projectStatusCounts = ProjectStatusCount::whereIn('order_id', $orders->pluck('id'))->get();
+
+        $allStatus = Cache::remember('all_statuses', 600, fn () => Status::all());
+        $teams = Cache::remember('all_teams', 600, fn () => Team::select('id', 'team_name')->get());
 
         $data = [
             'projectStatusCounts' => $projectStatusCounts,
-            'Status' => Status::all(),
+            'Status' => $allStatus,
         ];
 
-        // 👇 Ensure you pass both $orders and $data to rows view
-        // $html = '';
-
-        // foreach ($orders as $index => $order) {
-        //     $html .= view('back-end.order.partials.row', [
-        //         'order' => $order,
-        //         'index' => $offset + $index,
-        //         'data' => $data,
-        //     ])->render();
-        // }
-        $teams = Team::select('id', 'team_name')->get();
         $html = '';
         foreach ($orders as $index => $order) {
             $html .= view('back-end.order.partials.row', [
@@ -3996,12 +3989,14 @@ class OrderController extends Controller
             ])->render();
         }
 
+        $totalCount = $hasMore ? $query->count() : ($offset + $orders->count());
+
         return response()->json([
             'html' => $html,
-            'total' => $total,
             'totals' => $totals,
             'count' => $orders->count(),
-            'has_more' => ($offset + $limit < $total),
+            'total' => $totalCount,
+            'has_more' => $hasMore,
         ]);
     }
 

@@ -47,7 +47,7 @@
     }
 </style>
 <div style="margin-top: -20px;" id="kt_content">
-
+    @include('back-end.order.partials.fail')
     @include('back-end.order.partials.filter',['overdueCount' => $overdueCount])
     <!-- Leads Table -->
     <div class="card card-xl-stretch mb-5">
