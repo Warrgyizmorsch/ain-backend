@@ -95,12 +95,7 @@ class OrderController extends Controller
             'user' => function ($q) {
                 $q->select('id', 'name', 'email', 'countrycode', 'mobile_no', 'is_fail', 'feedback_issue', 'client_review')
                     ->with('groups:id,name')
-                    ->withCount([
-                        'orders as orders_count',
-                        'orders as failed_orders_count' => function ($orderQuery) {
-                            $orderQuery->where('is_fail', 1);
-                        },
-                    ]);
+                    ->withCount('orders as orders_count');
             },
             'payment:id,order_id,paid_amount,is_revoked,payee_name,company_accounts',
             'team:id,team_name',
@@ -3726,7 +3721,7 @@ class OrderController extends Controller
                 })->orderByDesc('id')->get();
 
                 $this->attachWriterFeedbackMeta($latestOrders);
-
+                $this->attachCreatorsMeta($latestOrders);
 
                 // Generate HTML
                 if ($latestOrders->isNotEmpty()) {
@@ -3736,8 +3731,12 @@ class OrderController extends Controller
                     $allStatus = Status::select('id', 'status')->get();
                     $teams = Team::select('id', 'team_name')->get();
 
+                    $projectStatusCountsMap = ProjectStatusCount::whereIn('order_Id', $latestOrders->pluck('id'))
+                        ->get()
+                        ->groupBy('order_Id');
+
                     foreach ($latestOrders as $order) {
-                        $projectStatusCounts = ProjectStatusCount::where('order_Id', $order->id)->get();
+                        $projectStatusCounts = $projectStatusCountsMap->get($order->id, collect());
 
                         $html .= view('back-end.order.partials.row', [
                             'order' => $order,
@@ -3809,11 +3808,11 @@ class OrderController extends Controller
         if ($request->filled('duec')) {
             if ($request->duec == 'due') {
                 // Pending (due > 0)
-                $query->whereRaw('(CAST(amount AS SIGNED) - CAST(received_amount AS SIGNED)) > 0');
+                $query->whereRaw('(amount - received_amount) > 0');
             }
             if ($request->duec == 'no due') {
                 // No due (<= 0)
-                $query->whereRaw('(CAST(amount AS SIGNED) - CAST(received_amount AS SIGNED)) <= 0');
+                $query->whereRaw('(amount - received_amount) <= 0');
             }
         }
 

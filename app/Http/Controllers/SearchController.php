@@ -25,11 +25,18 @@ class SearchController extends Controller
     {
         $query = $request->input('user');
     
+        if (!$query || strlen(trim($query)) < 2) {
+            return response()->json([]);
+        }
+
         // Fetch data from the database based on the query, limiting to 10 results
-        $results = User::where('name', 'like', "%$query%")
-                        ->orWhere('email', 'like', "%$query%")
-                        ->orWhere('mobile_no', 'like', "%$query%")
-                        ->orWhere('mobile_no2', 'like', "%$query%")
+        $results = User::select('id', 'name', 'email', 'mobile_no', 'countrycode')
+                        ->where(function($q) use ($query) {
+                            $q->where('name', 'like', "%$query%")
+                                ->orWhere('email', 'like', "%$query%")
+                                ->orWhere('mobile_no', 'like', "%$query%")
+                                ->orWhere('mobile_no2', 'like', "%$query%");
+                        })
                         ->take(10)
                         ->get();
     
