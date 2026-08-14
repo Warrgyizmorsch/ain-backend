@@ -3835,13 +3835,9 @@ class OrderController extends Controller
                 ->count();
         });
 
-        $alphaCount = Cache::remember('order_alpha_count', 120, function () {
-            return \App\Models\Order::where('team_id', 1)->count();
-        });
-
-        $gigaCount = Cache::remember('order_giga_count', 120, function () {
-            return \App\Models\Order::where('team_id', 2)->count();
-        });
+        $teamFilterQuery = $this->buildOrderFilterQuery($request);
+        $alphaCount = (clone $teamFilterQuery)->where('orders.team_id', 1)->count();
+        $gigaCount  = (clone $teamFilterQuery)->where('orders.team_id', 2)->count();
 
         $teams = Team::select('id', 'team_name')->get();
         return view('back-end.order.index', compact('orders', 'totals', 'overdueCount', 'data', 'alphaCount', 'gigaCount', 'teams'));
@@ -4050,11 +4046,16 @@ class OrderController extends Controller
             $totalCount = (int) $request->get('total', $offset + $orders->count());
         }
 
+        $alphaCount = (clone $baseQuery)->where('orders.team_id', 1)->count();
+        $gigaCount  = (clone $baseQuery)->where('orders.team_id', 2)->count();
+
         return response()->json([
             'html' => $html,
             'totals' => $totals,
             'count' => $orders->count(),
             'total' => $totalCount,
+            'alpha_count' => $alphaCount,
+            'giga_count' => $gigaCount,
             'has_more' => $hasMore,
         ]);
     }
@@ -5165,13 +5166,9 @@ class OrderController extends Controller
                 ->count();
         });
 
-        $alphaCount = Cache::remember('order_alpha_count', 120, function () {
-            return Order::where('team_id', 1)->count();
-        });
-
-        $gigaCount = Cache::remember('order_giga_count', 120, function () {
-            return Order::where('team_id', 2)->count();
-        });
+        $teamFilterQuery = $this->buildOrderFilterQuery($request);
+        $alphaCount = (clone $teamFilterQuery)->where('orders.team_id', 1)->count();
+        $gigaCount  = (clone $teamFilterQuery)->where('orders.team_id', 2)->count();
 
         $teams = Team::select('id', 'team_name')->get();
 
