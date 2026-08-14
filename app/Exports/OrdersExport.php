@@ -164,17 +164,11 @@ class OrdersExport implements FromQuery, WithChunkReading, WithMapping, WithHead
         }
 
         if (!empty($filters['today_deadline_filter'])) {
-            $query->where(function ($q) {
-                $q->whereDate('delivery_date', Carbon::today())
-                    ->orWhereDate('f_delivery_date', Carbon::today());
-            });
+            $query->whereDate('delivery_date', Carbon::today());
         }
 
         if (!empty($filters['yesterday_deadline_filter'])) {
-            $query->where(function ($q) {
-                $q->whereDate('delivery_date', Carbon::yesterday())
-                    ->orWhereDate('f_delivery_date', Carbon::yesterday());
-            });
+            $query->whereDate('delivery_date', Carbon::yesterday());
         }
 
         if (!empty($filters['today_writer_deadline_filter'])) {

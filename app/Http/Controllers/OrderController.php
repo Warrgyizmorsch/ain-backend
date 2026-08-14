@@ -3702,17 +3702,11 @@ class OrderController extends Controller
         }
 
         if ($request->filled('today_deadline_filter')) {
-            $query->where(function ($q) {
-                $q->whereDate('delivery_date', Carbon::today())
-                    ->orWhereDate('f_delivery_date', Carbon::today());
-            });
+            $query->whereDate('delivery_date', Carbon::today());
         }
 
         if ($request->filled('yesterday_deadline_filter')) {
-            $query->where(function ($q) {
-                $q->whereDate('delivery_date', Carbon::yesterday())
-                    ->orWhereDate('f_delivery_date', Carbon::yesterday());
-            });
+            $query->whereDate('delivery_date', Carbon::yesterday());
         }
 
         if ($request->filled('today_writer_deadline_filter')) {
