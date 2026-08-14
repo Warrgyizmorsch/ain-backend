@@ -104,8 +104,10 @@ class OrderController extends Controller
             },
             'payment:id,order_id,paid_amount,is_revoked,payee_name,company_accounts',
             'team:id,team_name',
-            'lead:id,frontendorder,l_status',
-            'frontendLead:id,order_id,frontendorder,l_status',
+            'lead:id,created_by,frontendorder,l_status',
+            'lead.creator:id,name',
+            'frontendLead:id,order_id,created_by,frontendorder,l_status',
+            'frontendLead.creator:id,name',
             'feedback' => function ($q) {
                 $q->select('id', 'order_id', 'comment', 'action_comment', 'status', 'created_by', 'created_at')
                     ->with('user:id,name')
@@ -148,35 +150,75 @@ class OrderController extends Controller
             return;
         }
 
-        // A failed order highlights itself and only the next five orders from
-        // the same user. A later failed order starts a fresh five-order window.
+        // Only fetch history for users who have at least one failed order (is_fail == 1)
+        $usersWithFails = Order::whereIn('uid', $userIds)
+            ->where('is_fail', 1)
+            ->pluck('uid')
+            ->unique();
+
         $highlightedOrderIds = collect();
-        $orderHistory = Order::whereIn('uid', $userIds)
-            ->select('id', 'uid', 'is_fail')
-            ->orderBy('uid')
-            ->orderBy('id')
-            ->get()
-            ->groupBy('uid');
 
-        foreach ($orderHistory as $userOrders) {
-            $remainingHighlights = 0;
+        if ($usersWithFails->isNotEmpty()) {
+            $orderHistory = Order::whereIn('uid', $usersWithFails)
+                ->select('id', 'uid', 'is_fail')
+                ->orderBy('uid')
+                ->orderBy('id')
+                ->get()
+                ->groupBy('uid');
 
-            foreach ($userOrders as $historyOrder) {
-                if ((int) $historyOrder->is_fail === 1) {
-                    $highlightedOrderIds->put($historyOrder->id, true);
-                    $remainingHighlights = 5;
-                    continue;
-                }
+            foreach ($orderHistory as $userOrders) {
+                $remainingHighlights = 0;
 
-                if ($remainingHighlights > 0) {
-                    $highlightedOrderIds->put($historyOrder->id, true);
-                    $remainingHighlights--;
+                foreach ($userOrders as $historyOrder) {
+                    if ((int) $historyOrder->is_fail === 1) {
+                        $highlightedOrderIds->put($historyOrder->id, true);
+                        $remainingHighlights = 5;
+                        continue;
+                    }
+
+                    if ($remainingHighlights > 0) {
+                        $highlightedOrderIds->put($historyOrder->id, true);
+                        $remainingHighlights--;
+                    }
                 }
             }
         }
 
         foreach ($orders as $order) {
             $order->setAttribute('failed_followup_highlight', $highlightedOrderIds->has($order->id));
+        }
+    }
+
+    private function attachCreatorsMeta($orders): void
+    {
+        $userIds = collect();
+        foreach ($orders as $order) {
+            if (is_numeric($order->created_by)) {
+                $userIds->push((int) $order->created_by);
+            }
+            if ($order->lead && is_numeric($order->lead->created_by)) {
+                $userIds->push((int) $order->lead->created_by);
+            }
+        }
+        $userIds = $userIds->unique()->filter()->values();
+        if ($userIds->isEmpty()) {
+            return;
+        }
+        $usersMap = User::whereIn('id', $userIds)->pluck('name', 'id');
+        foreach ($orders as $order) {
+            $createdUser = null;
+            if ($order->lead && $order->lead->relationLoaded('creator') && $order->lead->creator) {
+                $createdUser = $order->lead->creator->name . ' (ID: ' . $order->lead->creator->id . ')';
+            } elseif ($order->frontendLead && $order->frontendLead->relationLoaded('creator') && $order->frontendLead->creator) {
+                $createdUser = $order->frontendLead->creator->name . ' (ID: ' . $order->frontendLead->creator->id . ')';
+            } elseif (is_numeric($order->created_by) && isset($usersMap[$order->created_by])) {
+                $createdUser = $usersMap[$order->created_by] . ' (ID: ' . $order->created_by . ')';
+            } elseif ($order->lead && is_numeric($order->lead->created_by) && isset($usersMap[$order->lead->created_by])) {
+                $createdUser = $usersMap[$order->lead->created_by] . ' (ID: ' . $order->lead->created_by . ')';
+            }
+            if ($createdUser) {
+                $order->setAttribute('preloaded_creator_name', $createdUser);
+            }
         }
     }
 
@@ -313,13 +355,8 @@ class OrderController extends Controller
     {
         $ordersQuery = Order::with('user', 'payment', 'feedback', 'team')
             ->whereNotNull('uid')->where('uid', '!=', 0)->where('uid', '!=', '0')
-            ->where(function ($q) {
-                $q->where(function ($noLead) {
-                    $noLead->whereDoesntHave('lead')->whereDoesntHave('frontendLead');
-                })
-                ->orWhereHas('lead', fn ($lq) => $lq->where('is_converted', 1))
-                ->orWhereHas('frontendLead', fn ($flq) => $flq->where('is_converted', 1));
-            });
+            ->whereDoesntHave('lead', fn ($lq) => $lq->where('is_converted', 0))
+            ->whereDoesntHave('frontendLead', fn ($flq) => $flq->where('is_converted', 0));
         $data = [
             'Team' => Writer::all(),
             'Status' => Status::all(),
@@ -3537,13 +3574,8 @@ class OrderController extends Controller
         // Show orders with the latest order date first.
         $orders = Order::with($this->orderListRelations())
             ->where('uid', '!=', 0)
-            ->where(function ($q) {
-                $q->where(function ($noLead) {
-                    $noLead->whereDoesntHave('lead')->whereDoesntHave('frontendLead');
-                })
-                ->orWhereHas('lead', fn ($lq) => $lq->where('is_converted', 1))
-                ->orWhereHas('frontendLead', fn ($flq) => $flq->where('is_converted', 1));
-            })
+            ->whereDoesntHave('lead', fn ($lq) => $lq->where('is_converted', 0))
+            ->whereDoesntHave('frontendLead', fn ($flq) => $flq->where('is_converted', 0))
             ->when($request->filled('uid'), fn ($query) => $query->where('uid', $request->uid))
             ->when($request->filled('group_id'), fn ($query) => $query->whereHas('user.groups', fn ($groupQuery) => $groupQuery->where('group_masters.id', $request->group_id)))
             ->select($this->orderListColumns())
@@ -3554,6 +3586,7 @@ class OrderController extends Controller
             ->get();
 
         $this->attachWriterFeedbackMeta($orders);
+        $this->attachCreatorsMeta($orders);
         $data['projectStatusCounts'] = ProjectStatusCount::whereIn('order_Id', $orders->pluck('id'))->get();
 
         $totals = [
@@ -3571,19 +3604,29 @@ class OrderController extends Controller
             }),
         ];
 
-        // dd($orders->first()->lead);
-        // dd($orders[1]->feedback);
+        $now = now();
+        $overdueCount = Cache::remember('order_overdue_count', 60, function () use ($now) {
+            return Order::whereNotIn('projectstatus', ['Delivered', 'Completed'])
+                ->whereNotNull('delivery_date')
+                ->where(function ($q) use ($now) {
+                    $q->where('delivery_date', '<', $now->toDateString())
+                        ->orWhere(function ($q2) use ($now) {
+                            $q2->where('delivery_date', '=', $now->toDateString())
+                                ->whereNotNull('delivery_time')
+                                ->where('delivery_time', '<', $now->toTimeString());
+                        });
+                })
+                ->count();
+        });
 
-        $overdueCount = Order::whereNotIn('projectstatus', ['Delivered', 'Completed'])
-            ->whereNotNull('delivery_date')
-            // ->whereMonth('delivery_date', now()->month)
-            // ->whereYear('delivery_date', now()->year)
-            ->where(function ($q) {
-                $q->whereRaw("STR_TO_DATE(CONCAT(delivery_date, ' ', IFNULL(delivery_time,'00:00')), '%Y-%m-%d %H:%i') < NOW()");
-            })
-            ->count();
-        $alphaCount = \App\Models\Order::where('team_id', 1)->count();
-        $gigaCount = \App\Models\Order::where('team_id', 2)->count();
+        $alphaCount = Cache::remember('order_alpha_count', 120, function () {
+            return \App\Models\Order::where('team_id', 1)->count();
+        });
+
+        $gigaCount = Cache::remember('order_giga_count', 120, function () {
+            return \App\Models\Order::where('team_id', 2)->count();
+        });
+
         $teams = Team::select('id', 'team_name')->get();
         return view('back-end.order.index', compact('orders', 'totals', 'overdueCount', 'data', 'alphaCount', 'gigaCount', 'teams'));
     }
@@ -3739,13 +3782,8 @@ class OrderController extends Controller
         $query = Order::with($this->orderListRelations())
             ->select($this->orderListColumns());
         $query->whereNotNull('uid')->where('uid', '!=', 0)->where('uid', '!=', '0')
-            ->where(function ($q) {
-                $q->where(function ($noLead) {
-                    $noLead->whereDoesntHave('lead')->whereDoesntHave('frontendLead');
-                })
-                ->orWhereHas('lead', fn ($lq) => $lq->where('is_converted', 1))
-                ->orWhereHas('frontendLead', fn ($flq) => $flq->where('is_converted', 1));
-            });
+            ->whereDoesntHave('lead', fn ($lq) => $lq->where('is_converted', 0))
+            ->whereDoesntHave('frontendLead', fn ($flq) => $flq->where('is_converted', 0));
 
         // Search
         if ($request->filled('search')) {
@@ -3908,6 +3946,7 @@ class OrderController extends Controller
         $total = $query->count();
         $orders = $query->skip($offset)->take($limit)->get();
         $this->attachWriterFeedbackMeta($orders);
+        $this->attachCreatorsMeta($orders);
 
         $totals = [
             'total_amount' => $orders->sum(function ($o) {
@@ -4635,18 +4674,28 @@ class OrderController extends Controller
             ->paginate(10)
             ->appends($request->query());
 
-        foreach ($moduleCodes as $module) {
-            $ordersQuery = Order::where('module_code', $module->module_code);
+        $codesList = $moduleCodes->pluck('module_code')->filter()->unique();
+
+        if ($codesList->isNotEmpty()) {
+            $allOrdersQuery = Order::whereIn('module_code', $codesList);
 
             if ($fromDate && $toDate) {
-                $ordersQuery->whereBetween('order_date', [$fromDate, $toDate]);
+                $allOrdersQuery->whereBetween('order_date', [$fromDate, $toDate]);
             } elseif ($fromDate) {
-                $ordersQuery->whereDate('order_date', '>=', $fromDate);
+                $allOrdersQuery->whereDate('order_date', '>=', $fromDate);
             } elseif ($toDate) {
-                $ordersQuery->whereDate('order_date', '<=', $toDate);
+                $allOrdersQuery->whereDate('order_date', '<=', $toDate);
             }
 
-            $module->orders = $ordersQuery->orderByDesc('id')->get();
+            $groupedOrders = $allOrdersQuery->orderByDesc('id')->get()->groupBy('module_code');
+
+            foreach ($moduleCodes as $module) {
+                $module->orders = $groupedOrders->get($module->module_code, collect());
+            }
+        } else {
+            foreach ($moduleCodes as $module) {
+                $module->orders = collect();
+            }
         }
 
         return view('back-end.order.module-code-report', compact('moduleCodes', 'sort', 'fromDate', 'toDate', 'moduleCode'));
@@ -4875,9 +4924,12 @@ class OrderController extends Controller
             ->orderByDesc('followup_count')
             ->get();
 
+        $userIds = $followupUsers->pluck('created_by')->filter()->unique();
+        $usersMap = \App\Models\User::whereIn('id', $userIds)->get()->keyBy('id');
+
         foreach ($followupUsers as $user) {
 
-            $user->userData = \App\Models\User::find($user->created_by);
+            $user->userData = $usersMap[$user->created_by] ?? null;
 
             $user->followups = (clone $followupQuery)
                 ->where('created_by', $user->created_by)
@@ -4908,7 +4960,7 @@ class OrderController extends Controller
 
    public function refundOrders(Request $request)
     {
-        $query = Order::with(['user'])
+        $query = Order::with(['user', 'payment', 'team', 'additionals'])
             ->where('looking_for_refund', 1);
 
         if ($request->filled('order_id')) {
@@ -4939,7 +4991,7 @@ class OrderController extends Controller
 
         $orders = $query->latest('id')->get();
 
-        $statuses = Status::all();
+        $statuses = Status::select('id', 'status')->get();
 
         return view('back-end.order.refund-orders', compact('orders', 'statuses'));
     }
@@ -5010,18 +5062,18 @@ class OrderController extends Controller
         }
 
         $data = [
-            'Team' => Writer::all(),
-            'Status' => Status::all(),
-            'formatting' => Formatting::all(),
-            'service' => Services::all(),
-            'Writting' => Writting::all(),
-            'paper' => Paper::all(),
-            'user' => User::all(),
-            'college' => College::all(),
-            'admin' => User::where('role_id', 8)->where('flag', 0)->get(),
-            'writerTL' => User::where('role_id', 6)->where('flag', 0)->get(),
-            'SubWriter' => User::where('role_id', 7)->where('flag', 0)->get(),
-            'projectStatusCounts' => ProjectStatusCount::all()
+            'Team' => Writer::select('id', 'writer_name')->get(),
+            'Status' => Status::select('id', 'status')->get(),
+            'formatting' => Formatting::select('id', 'formatting')->get(),
+            'service' => Services::select('id', 'service_name')->get(),
+            'Writting' => Writting::select('id', 'writting_style')->get(),
+            'paper' => Paper::select('id', 'paper_type')->get(),
+            'user' => collect(),
+            'college' => College::select('id', 'college_name')->get(),
+            'admin' => User::where('role_id', 8)->where('flag', 0)->select('id', 'name')->get(),
+            'writerTL' => User::where('role_id', 6)->where('flag', 0)->select('id', 'name')->get(),
+            'SubWriter' => User::where('role_id', 7)->where('flag', 0)->select('id', 'name', 'tl_id')->get(),
+            'projectStatusCounts' => collect()
         ];
 
         $data['payments'] = Payment::with([
@@ -5042,17 +5094,30 @@ class OrderController extends Controller
             ->orderByDesc('revoked_at')
             ->paginate(20);
 
-        $overdueCount = Order::whereNotIn('projectstatus', ['Delivered', 'Completed'])
-            ->whereNotNull('delivery_date')
-            ->where(function ($q) {
-                $q->whereRaw("STR_TO_DATE(CONCAT(delivery_date, ' ', IFNULL(delivery_time,'00:00')), '%Y-%m-%d %H:%i') < NOW()");
-            })
-            ->count();
+        $now = now();
+        $overdueCount = Cache::remember('order_overdue_count', 60, function () use ($now) {
+            return Order::whereNotIn('projectstatus', ['Delivered', 'Completed'])
+                ->whereNotNull('delivery_date')
+                ->where(function ($q) use ($now) {
+                    $q->where('delivery_date', '<', $now->toDateString())
+                        ->orWhere(function ($q2) use ($now) {
+                            $q2->where('delivery_date', '=', $now->toDateString())
+                                ->whereNotNull('delivery_time')
+                                ->where('delivery_time', '<', $now->toTimeString());
+                        });
+                })
+                ->count();
+        });
 
-        $alphaCount = Order::where('team_id', 1)->count();
-        $gigaCount = Order::where('team_id', 2)->count();
+        $alphaCount = Cache::remember('order_alpha_count', 120, function () {
+            return Order::where('team_id', 1)->count();
+        });
 
-        $teams = Team::all();
+        $gigaCount = Cache::remember('order_giga_count', 120, function () {
+            return Order::where('team_id', 2)->count();
+        });
+
+        $teams = Team::select('id', 'team_name')->get();
 
         return view('back-end.reports.revoke-payments', compact(
             'data',

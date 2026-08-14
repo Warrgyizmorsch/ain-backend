@@ -596,14 +596,10 @@
             <div class="border rounded p-3 bg-light">
 
                 @php
-                    $cUser = $order->lead?->creator 
-                        ?? $order->frontendLead?->creator 
-                        ?? (is_numeric($order->created_by) ? \App\Models\User::find($order->created_by) : null)
-                        ?? ($order->lead?->created_by && is_numeric($order->lead->created_by) ? \App\Models\User::find($order->lead->created_by) : null);
-
-                    $createdByName = $cUser 
-                        ? $cUser->name . ' (ID: ' . $cUser->id . ')'
-                        : ($order->created_by ?? ($order->lead?->created_by ?? (auth()->user()?->name ? auth()->user()->name . ' (ID: ' . auth()->user()->id . ')' : 'Admin User')));
+                    $createdByName = $order->preloaded_creator_name
+                        ?? ($order->lead?->creator ? $order->lead->creator->name . ' (ID: ' . $order->lead->creator->id . ')' : null)
+                        ?? ($order->frontendLead?->creator ? $order->frontendLead->creator->name . ' (ID: ' . $order->frontendLead->creator->id . ')' : null)
+                        ?? ($order->created_by ?? ($order->lead?->created_by ?? (auth()->user()?->name ? auth()->user()->name . ' (ID: ' . auth()->user()->id . ')' : 'Admin User')));
                 @endphp
 
                 <div class="mb-2">
