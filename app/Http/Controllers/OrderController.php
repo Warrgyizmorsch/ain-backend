@@ -1603,7 +1603,14 @@ class OrderController extends Controller
         }
 
         $userId = config('services.softphone.user_id', '10101');
-        $password = config('services.softphone.password', 'T2d8d1r5P6x0T8O8iUq');
+        if (auth()->check()) {
+            if (!empty(auth()->user()->sip)) {
+                $userId = auth()->user()->sip;
+            } elseif (!empty(auth()->user()->call_id)) {
+                $userId = auth()->user()->call_id;
+            }
+        }
+        $password = config('services.softphone.password', 'fa97ljf13ou24rio32');
         $sipDomain = config('services.softphone.sip_domain', 'ringfy.next2call.com');
 
         // Apply number formatting for UK / International SIP trunking:
