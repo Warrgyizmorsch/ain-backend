@@ -469,7 +469,7 @@
             }
         });
 
-        // Listen for hangup events from dialer to close the softphone widget automatically
+        // Listen for hangup / close events from dialer to handle softphone widget state
         window.addEventListener("message", (event) => {
             if (event.origin !== "https://ringfy.next2call.com") return;
             
@@ -477,13 +477,14 @@
 
             const isHangup = event.data === "CALL_HANGUP" ||
                              event.data?.type === "CALL_HANGUP" ||
+                             event.data?.type === "CLOSE_PHONE_POPUP" ||
                              event.data?.event === "hangup" ||
                              event.data?.type === "hangup" ||
                              event.data?.type === "CALL_DISCONNECTED" ||
                              event.data === "CALL_DISCONNECTED";
 
             if (isHangup) {
-                console.log("Call disconnected, closing softphone widget...");
+                console.log("Call disconnected / closed, updating softphone widget...");
                 widget.classList.remove('is-open');
                 widget.classList.remove('has-frame');
                 widget.dataset.softphoneUrl = '';

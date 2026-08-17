@@ -1680,30 +1680,34 @@ class OrderController extends Controller
             return '';
         }
 
-        // If mobile already starts with the country code (e.g. 447123456789 or 919876543210), do not duplicate country code
-        if (!empty($cleanCountryCode) && str_starts_with($cleanMobile, $cleanCountryCode)) {
-            return $cleanMobile;
+        // Check if Indian number (country code 91 or starts with 91/0 with 10-12 digits)
+        $isIndia = ($cleanCountryCode === '91')
+            || (str_starts_with($cleanMobile, '91') && strlen($cleanMobile) >= 12)
+            || (empty($cleanCountryCode) && (strlen($cleanMobile) == 10 || (strlen($cleanMobile) == 11 && str_starts_with($cleanMobile, '0'))));
+
+        if ($isIndia) {
+            // Per Next2Call API Docs & Sample: Indian numbers must start with '0' + 10-digit mobile (e.g. 08800826129)
+            $last10 = substr($cleanMobile, -10);
+            return '0' . $last10;
         }
 
-        // Domestic Indian format for Next2Call softphone
-        if ($cleanCountryCode === '91') {
-            return '0' . ltrim($cleanMobile, '0');
-        }
+        // Check if UK number (country code 44 or starts with 44)
+        $isUK = ($cleanCountryCode === '44')
+            || (str_starts_with($cleanMobile, '44') && strlen($cleanMobile) >= 11);
 
-        // UK (+44) format for Next2Call softphone
-        if ($cleanCountryCode === '44') {
+        if ($isUK) {
+            if (str_starts_with($cleanMobile, '44')) {
+                return $cleanMobile;
+            }
             return '44' . ltrim($cleanMobile, '0');
         }
 
-        // If no country code provided
-        if (empty($cleanCountryCode)) {
-            if (str_starts_with($cleanMobile, '91') && strlen($cleanMobile) == 12) {
-                return '0' . substr($cleanMobile, 2);
-            }
-            return $cleanMobile;
+        // Generic fallback for other country codes
+        if (!empty($cleanCountryCode) && !str_starts_with($cleanMobile, $cleanCountryCode)) {
+            return $cleanCountryCode . ltrim($cleanMobile, '0');
         }
 
-        return $cleanCountryCode . ltrim($cleanMobile, '0');
+        return $cleanMobile;
     }
 
     private function appendSoftphoneDialParams(string $url, string $targetNumber): string
