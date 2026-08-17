@@ -1631,8 +1631,8 @@ class OrderController extends Controller
 
         \Illuminate\Support\Facades\Log::info('[Softphone] Generated Click-to-Dial URL', [
             'country_code' => $countryCode,
-            'mobile' => $validated['mobile'],
-            'target_number' => $formattedNumber,
+            'mobile' => $validated['mobile'] ?? '',
+            'target_number' => $targetNumber,
             'url' => $callUrl,
         ]);
 
@@ -1640,7 +1640,7 @@ class OrderController extends Controller
             'success' => true,
             'url' => $callUrl,
             'softphone_url' => $callUrl,
-            'target_number' => $formattedNumber,
+            'target_number' => $targetNumber,
         ], 200, [], JSON_UNESCAPED_SLASHES);
     }
 
