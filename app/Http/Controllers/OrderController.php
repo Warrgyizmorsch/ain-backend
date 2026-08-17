@@ -1621,12 +1621,18 @@ class OrderController extends Controller
             $formattedNumber = $targetNumber;
         }
 
-        // Construct the click-to-dial URL directly as per the documentation
+        // Construct the click-to-dial URL with all parameter aliases to guarantee auto-login
         $query = http_build_query([
             'profileName' => $userId,
             'SipDomain' => $sipDomain,
             'SipUsername' => $userId,
             'SipPassword' => $password,
+            'username' => $userId,
+            'password' => $password,
+            'user' => $userId,
+            'pass' => $password,
+            'domain' => $sipDomain,
+            'ext' => $userId,
             'd' => $formattedNumber
         ]);
 
