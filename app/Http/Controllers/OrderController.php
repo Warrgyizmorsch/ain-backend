@@ -1603,40 +1603,31 @@ class OrderController extends Controller
         }
 
         $userId = config('services.softphone.user_id', '10101');
-        if (auth()->check()) {
-            if (!empty(auth()->user()->sip)) {
-                $userId = auth()->user()->sip;
-            } elseif (!empty(auth()->user()->call_id)) {
-                $userId = auth()->user()->call_id;
-            }
-        }
-        $password = 'T2d8d1r5P6x0T8O8iUq';
+        $password = config('services.softphone.password', 'T2d8d1r5P6x0T8O8iUq');
         $sipDomain = config('services.softphone.sip_domain', 'ringfy.next2call.com');
 
-        // Apply number formatting for UK / International SIP trunking:
-        $formattedNumber = $targetNumber;
-        // If domestic 10-digit Indian number without country code, or if number starts with 00, keep full international format
-        if (str_starts_with($formattedNumber, '91') && strlen($formattedNumber) > 10) {
-            // For international UK SIP trunks, preserve international country code 91 or format as needed
-            $formattedNumber = $targetNumber;
+        if (auth()->check()) {
+            $user = auth()->user();
+            if (!empty($user->sip)) {
+                $userId = $user->sip;
+            } elseif (!empty($user->call_id)) {
+                $userId = $user->call_id;
+            }
+            if (!empty($user->sip_password)) {
+                $password = $user->sip_password;
+            }
         }
 
-        // Construct the click-to-dial URL with all parameter aliases to guarantee auto-login
+        // Construct clean click-to-dial URL according to official Next2Call DOCX & HTML sample
         $query = http_build_query([
             'profileName' => $userId,
-            'SipDomain' => $sipDomain,
+            'SipDomain'   => $sipDomain,
             'SipUsername' => $userId,
             'SipPassword' => $password,
-            'username' => $userId,
-            'password' => $password,
-            'user' => $userId,
-            'pass' => $password,
-            'domain' => $sipDomain,
-            'ext' => $userId,
-            'd' => $formattedNumber
+            'd'           => $targetNumber,
         ]);
 
-        $callUrl = "https://ringfy.next2call.com/softphone/Phone/click-to-dial.html?" . $query;
+        $callUrl = "https://{$sipDomain}/softphone/Phone/click-to-dial.html?" . $query;
 
         \Illuminate\Support\Facades\Log::info('[Softphone] Generated Click-to-Dial URL', [
             'country_code' => $countryCode,
@@ -1722,8 +1713,10 @@ class OrderController extends Controller
             || (empty($cleanCountryCode) && (strlen($cleanMobile) == 10 || (strlen($cleanMobile) == 11 && str_starts_with($cleanMobile, '0'))));
 
         if ($isIndia) {
-            // Per Next2Call DOCX Documentation example: d=9876543210 (Clean 10-digit number)
-            return substr($cleanMobile, -10);
+            // Per Next2Call HTML JS sample: contactNumber.startsWith("91") -> "0" + number.substring(2)
+            // Format 10-digit Indian numbers with leading zero for Next2Call SIP Trunk (e.g., 08800826129)
+            $tenDigits = substr($cleanMobile, -10);
+            return '0' . $tenDigits;
         }
 
         // Check if UK number (country code 44 or starts with 44)
