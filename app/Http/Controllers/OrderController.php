@@ -3634,7 +3634,7 @@ class OrderController extends Controller
         }
 
         if ($request->filled('uid')) {
-            $query->where('uid', $request->uid);
+            $query->where('orders.uid', $request->uid);
         } elseif ($request->filled('user')) {
             $userTerm = trim($request->user);
             $userIds = User::where('name', 'like', '%' . $userTerm . '%')
@@ -3642,7 +3642,7 @@ class OrderController extends Controller
                 ->orWhere('mobile_no', 'like', '%' . $userTerm . '%')
                 ->pluck('id')->toArray();
 
-            $query->whereIn('uid', $userIds);
+            $query->whereIn('orders.uid', $userIds);
         }
 
         $query->when($request->filled('group_id'), fn($q) => $q->whereHas('user.groups', fn($g) => $g->where('group_masters.id', $request->group_id)));

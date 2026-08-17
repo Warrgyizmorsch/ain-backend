@@ -107,30 +107,38 @@ class OrdersExport implements FromQuery, WithChunkReading, WithMapping, WithHead
         // Search
         if (!empty($filters['search'])) {
             $query->where(function ($q) use ($filters) {
-                $q->where('order_id', 'like', '%' . $filters['search'] . '%')
-                ->orWhere('title', 'like', '%' . $filters['search'] . '%');
+                $q->where('orders.order_id', 'like', '%' . $filters['search'] . '%')
+                ->orWhere('orders.title', 'like', '%' . $filters['search'] . '%');
             });
         }
 
         // Basic filters
         if (!empty($filters['uid'])) {
-            $query->where('uid', $filters['uid']);
+            $query->where('orders.uid', $filters['uid']);
+        } elseif (!empty($filters['user'])) {
+            $userTerm = trim($filters['user']);
+            $userIds = \App\Models\User::where('name', 'like', '%' . $userTerm . '%')
+                ->orWhere('email', 'like', '%' . $userTerm . '%')
+                ->orWhere('mobile_no', 'like', '%' . $userTerm . '%')
+                ->pluck('id')->toArray();
+
+            $query->whereIn('orders.uid', $userIds);
         }
 
         if (!empty($filters['semester'])) {
-            $query->where('semester', $filters['semester']);
+            $query->where('orders.semester', $filters['semester']);
         }
 
         if (!empty($filters['status'])) {
-            $query->where('projectstatus', $filters['status']);
+            $query->where('orders.projectstatus', $filters['status']);
         }
 
         if (!empty($filters['module_code'])) {
-            $query->where('module_code', 'like', '%' . $filters['module_code'] . '%');
+            $query->where('orders.module_code', 'like', '%' . $filters['module_code'] . '%');
         }
 
         if (!empty($filters['paper_type'])) {
-            $query->where('typeofpaper', $filters['paper_type']);
+            $query->where('orders.typeofpaper', $filters['paper_type']);
         }
 
         if (!empty($filters['college'])) {

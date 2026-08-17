@@ -34,29 +34,12 @@
                 </div>
 
                 <script src="{{ asset('js/jquery.js') }}"></script>
-                <script>
-                    document.addEventListener('DOMContentLoaded', function() {
-                        const searchInput = document.getElementById('searchInput');
 
-                        searchInput.addEventListener('input', function(event) {
-                            const inputValue = event.target.value;
-                            const sanitizedValue = inputValue.replace(/\s/g, ''); // Remove spaces
-
-                            // Update input value without spaces
-                            if (inputValue !== sanitizedValue) {
-                                searchInput.value = sanitizedValue;
-                            }
-                        });
-                    });
-                </script>
-
-                <div class="col-md-3 fv-row">
-                    <input type="text" list="searchDatalist" id="searchInput" name="user"
+                <div class="col-md-3 fv-row position-relative">
+                    <input type="text" id="searchInput" name="user"
                         class="form-control form-control-solid" placeholder="User-Name,Number,Email" autocomplete="off">
-                    <!-- Datalist for displaying search results -->
-                    <datalist id="searchDatalist"></datalist>
-                    <!-- Container to display search results -->
-                    <div id="searchResultss"></div>
+                    <!-- Container to display custom search results dropdown -->
+                    <div id="searchResultss" class="dropdown-menu w-100 shadow-lg p-0 mt-1" style="display:none; max-height: 250px; overflow-y: auto; z-index: 1050; position: absolute;"></div>
                     <!-- Hidden field to store the selected value -->
                     <input type="hidden" id="selectedValue" name="uid">
                 </div>
@@ -64,53 +47,73 @@
 
                 <script>
                     $(document).ready(function() {
-                        $('#searchInput').on('input', function() {
-                            var searchValue = $(this).val();
+                        let searchTimeout = null;
 
-                            if (searchValue.length >= 3) {
-                                $.ajax({
-                                    url: "{{ route('search-order') }}",
-                                    type: "GET",
-                                    data: {
-                                        user: searchValue
-                                    },
-                                    success: function(response) {
-                                        var results = '';
-                                        if (response.length > 0) {
-                                            // Populate the datalist with search results
-                                            $('#searchDatalist').empty();
-                                            $.each(response, function(key, value) {
-                                                // Append each option with email, name, and mobile number
-                                                $('#searchDatalist').append('<option value="' + value.email + '">' + value.name + ' (' + value.mobile_no + ')</option>');
-                                            });
-                                            if (response.length === 1) {
-                                                // If there is only one result, automatically fill in the search input
-                                                $('#searchInput').val(response[0].email);
-                                                // Store the selected value in the hidden field
-                                                $('#selectedValue').val(response[0].id);
+                        $('#searchInput').on('input focus', function() {
+                            var searchValue = $(this).val().trim();
+
+                            clearTimeout(searchTimeout);
+
+                            if (searchValue.length >= 2) {
+                                $('#searchResultss').html(
+                                    '<div class="p-3 text-center text-muted fs-7 d-flex align-items-center justify-content-center gap-2">' +
+                                        '<div class="spinner-border spinner-border-sm text-primary" role="status"></div>' +
+                                        '<span>Searching users...</span>' +
+                                    '</div>'
+                                ).show();
+
+                                searchTimeout = setTimeout(function() {
+                                    $.ajax({
+                                        url: "{{ route('search-order') }}",
+                                        type: "GET",
+                                        data: {
+                                            user: searchValue
+                                        },
+                                        success: function(response) {
+                                            var resultsHtml = '';
+                                            if (response && response.length > 0) {
+                                                $.each(response, function(key, value) {
+                                                    var mobileStr = value.mobile_no ? ' | 📞 ' + value.mobile_no : '';
+                                                    resultsHtml += '<a href="javascript:void(0)" class="dropdown-item user-select-item p-3 border-bottom text-wrap" ' +
+                                                        'data-id="' + value.id + '" data-email="' + value.email + '" data-name="' + value.name + '">' +
+                                                        '<div class="fw-bolder text-dark fs-6">' + value.name + '</div>' +
+                                                        '<div class="text-muted fs-7">' + value.email + mobileStr + '</div>' +
+                                                        '</a>';
+                                                });
+                                            } else {
+                                                resultsHtml = '<div class="p-3 text-muted fs-7 text-center">No results found</div>';
                                             }
-                                        } else {
-                                            results = '<div>No results found</div>';
+                                            $('#searchResultss').html(resultsHtml).show();
+                                        },
+                                        error: function() {
+                                            $('#searchResultss').html('<div class="p-3 text-danger fs-7 text-center">Error loading results</div>').show();
                                         }
-                                        $('#searchResultss').html(results);
-                                    }
-                                });
+                                    });
+                                }, 250);
                             } else {
-                                $('#searchResultss').empty();
+                                $('#searchResultss').hide().empty();
+                                if (searchValue.length === 0) {
+                                    $('#selectedValue').val('');
+                                }
                             }
                         });
 
-                        // Handle click on search result
-                        $('#searchInput').on('input', function() {
-                            var selectedEmail = $(this).val();
-                            var selectedOption = $('#searchDatalist option[value="' + selectedEmail + '"]');
-                            if (selectedOption.length > 0) {
-                                // If the selected value exists in the datalist, get its associated ID
-                                var selectedId = selectedOption.data('id');
-                                $('#selectedValue').val(selectedId);
-                            } else {
-                                // If the selected value doesn't exist in the datalist, clear the hidden field
-                                $('#selectedValue').val('');
+                        // Handle click on custom dropdown item
+                        $(document).on('click', '.user-select-item', function(e) {
+                            e.preventDefault();
+                            var selectedId = $(this).attr('data-id');
+                            var selectedEmail = $(this).attr('data-email');
+                            var selectedName = $(this).attr('data-name');
+
+                            $('#searchInput').val(selectedName + ' (' + selectedEmail + ')');
+                            $('#selectedValue').val(selectedId);
+                            $('#searchResultss').hide().empty();
+                        });
+
+                        // Close dropdown on clicking outside
+                        $(document).on('click', function(e) {
+                            if (!$(e.target).closest('#searchInput, #searchResultss').length) {
+                                $('#searchResultss').hide();
                             }
                         });
                     });
@@ -381,6 +384,12 @@
 </div>
 
 <style>
+    .quick-filter-active {
+        border: 2px solid #50CD89 !important;
+        box-shadow: 0 0 10px rgba(80, 205, 137, 0.7) !important;
+        outline: none !important;
+    }
+
     .order-export-progress {
         width: 310px;
         padding: 8px 10px;
@@ -639,101 +648,162 @@ resetFilters();
         total_due: 0
     };
 
+    function highlightActiveQuickFilters() {
+        $('#overdueBtn, #todayDeadlineBtn, #yesterdayDeadlineBtn, #todayWriterDeadlineBtn, #writerQueryBtn, #holdWorkBtn, #teamAlphaBtn, #teamGigaBtn').removeClass('quick-filter-active');
+
+        if ($('#deadline_status').val() === 'overdue') {
+            $('#overdueBtn').addClass('quick-filter-active');
+        }
+        if ($('#today_deadline_filter').val() === '1') {
+            $('#todayDeadlineBtn').addClass('quick-filter-active');
+        }
+        if ($('#yesterday_deadline_filter').val() === '1') {
+            $('#yesterdayDeadlineBtn').addClass('quick-filter-active');
+        }
+        if ($('#today_writer_deadline_filter').val() === '1') {
+            $('#todayWriterDeadlineBtn').addClass('quick-filter-active');
+        }
+        if ($('#status').val() === 'writer query') {
+            $('#writerQueryBtn').addClass('quick-filter-active');
+        }
+        if ($('#status').val() === 'Hold Work') {
+            $('#holdWorkBtn').addClass('quick-filter-active');
+        }
+        if ($('#filter_team_id').val() === '1') {
+            $('#teamAlphaBtn').addClass('quick-filter-active');
+        }
+        if ($('#filter_team_id').val() === '2') {
+            $('#teamGigaBtn').addClass('quick-filter-active');
+        }
+    }
+
     $(document).on('click', '#overdueBtn', function(e) {
         e.preventDefault();
-        $('#today_deadline_filter').val('');
-        $('#yesterday_deadline_filter').val('');
-        $('#today_writer_deadline_filter').val('');
-        $('#status').val('').trigger('change');
-        $('#from_date').val('');
-        $('#to_date').val('');
-        $('#deadline_status').val('overdue').trigger('change');
+        if ($('#deadline_status').val() === 'overdue') {
+            $('#deadline_status').val('').trigger('change');
+        } else {
+            $('#today_deadline_filter').val('');
+            $('#yesterday_deadline_filter').val('');
+            $('#today_writer_deadline_filter').val('');
+            $('#status').val('').trigger('change');
+            $('#from_date').val('');
+            $('#to_date').val('');
+            $('#deadline_status').val('overdue').trigger('change');
+        }
         applyFilters();
     });
 
     $(document).on('click', '#todayDeadlineBtn', function(e) {
         e.preventDefault();
-        $('#deadline_status').val('').trigger('change');
-        $('#yesterday_deadline_filter').val('');
-        $('#today_writer_deadline_filter').val('');
-        $('#status').val('').trigger('change');
-        $('#from_date').val('');
-        $('#to_date').val('');
-        $('#today_deadline_filter').val('1');
+        if ($('#today_deadline_filter').val() === '1') {
+            $('#today_deadline_filter').val('');
+        } else {
+            $('#deadline_status').val('').trigger('change');
+            $('#yesterday_deadline_filter').val('');
+            $('#today_writer_deadline_filter').val('');
+            $('#status').val('').trigger('change');
+            $('#from_date').val('');
+            $('#to_date').val('');
+            $('#today_deadline_filter').val('1');
+        }
         applyFilters();
     });
 
     $(document).on('click', '#yesterdayDeadlineBtn', function(e) {
         e.preventDefault();
-        $('#deadline_status').val('').trigger('change');
-        $('#today_deadline_filter').val('');
-        $('#today_writer_deadline_filter').val('');
-        $('#status').val('').trigger('change');
-        $('#from_date').val('');
-        $('#to_date').val('');
-        $('#yesterday_deadline_filter').val('1');
+        if ($('#yesterday_deadline_filter').val() === '1') {
+            $('#yesterday_deadline_filter').val('');
+        } else {
+            $('#deadline_status').val('').trigger('change');
+            $('#today_deadline_filter').val('');
+            $('#today_writer_deadline_filter').val('');
+            $('#status').val('').trigger('change');
+            $('#from_date').val('');
+            $('#to_date').val('');
+            $('#yesterday_deadline_filter').val('1');
+        }
         applyFilters();
     });
 
     $(document).on('click', '#todayWriterDeadlineBtn', function(e) {
         e.preventDefault();
-        $('#deadline_status').val('').trigger('change');
-        $('#today_deadline_filter').val('');
-        $('#yesterday_deadline_filter').val('');
-        $('#status').val('').trigger('change');
-        $('#from_date').val('');
-        $('#to_date').val('');
-        $('#today_writer_deadline_filter').val('1');
+        if ($('#today_writer_deadline_filter').val() === '1') {
+            $('#today_writer_deadline_filter').val('');
+        } else {
+            $('#deadline_status').val('').trigger('change');
+            $('#today_deadline_filter').val('');
+            $('#yesterday_deadline_filter').val('');
+            $('#status').val('').trigger('change');
+            $('#from_date').val('');
+            $('#to_date').val('');
+            $('#today_writer_deadline_filter').val('1');
+        }
         applyFilters();
     });
 
     $(document).on('click', '#writerQueryBtn', function(e) {
         e.preventDefault();
-        $('#deadline_status').val('').trigger('change');
-        $('#today_deadline_filter').val('');
-        $('#yesterday_deadline_filter').val('');
-        $('#today_writer_deadline_filter').val('');
-        $('#from_date').val('');
-        $('#to_date').val('');
-        $('#status').val('writer query').trigger('change');
+        if ($('#status').val() === 'writer query') {
+            $('#status').val('').trigger('change');
+        } else {
+            $('#deadline_status').val('').trigger('change');
+            $('#today_deadline_filter').val('');
+            $('#yesterday_deadline_filter').val('');
+            $('#today_writer_deadline_filter').val('');
+            $('#from_date').val('');
+            $('#to_date').val('');
+            $('#status').val('writer query').trigger('change');
+        }
         applyFilters();
     });
 
     $(document).on('click', '#holdWorkBtn', function(e) {
         e.preventDefault();
-        $('#deadline_status').val('').trigger('change');
-        $('#today_deadline_filter').val('');
-        $('#yesterday_deadline_filter').val('');
-        $('#today_writer_deadline_filter').val('');
-        $('#from_date').val('');
-        $('#to_date').val('');
-        $('#status').val('Hold Work').trigger('change');
+        if ($('#status').val() === 'Hold Work') {
+            $('#status').val('').trigger('change');
+        } else {
+            $('#deadline_status').val('').trigger('change');
+            $('#today_deadline_filter').val('');
+            $('#yesterday_deadline_filter').val('');
+            $('#today_writer_deadline_filter').val('');
+            $('#from_date').val('');
+            $('#to_date').val('');
+            $('#status').val('Hold Work').trigger('change');
+        }
         applyFilters();
     });
 
     $(document).on('click', '#teamAlphaBtn', function(e) {
         e.preventDefault();
-        $('#deadline_status').val('').trigger('change');
-        $('#today_deadline_filter').val('');
-        $('#yesterday_deadline_filter').val('');
-        $('#today_writer_deadline_filter').val('');
-        $('#status').val('').trigger('change');
-        $('#from_date').val('');
-        $('#to_date').val('');
-        $('#filter_team_id').val('1');
+        if ($('#filter_team_id').val() === '1') {
+            $('#filter_team_id').val('');
+        } else {
+            $('#deadline_status').val('').trigger('change');
+            $('#today_deadline_filter').val('');
+            $('#yesterday_deadline_filter').val('');
+            $('#today_writer_deadline_filter').val('');
+            $('#status').val('').trigger('change');
+            $('#from_date').val('');
+            $('#to_date').val('');
+            $('#filter_team_id').val('1');
+        }
         applyFilters();
     });
 
     $(document).on('click', '#teamGigaBtn', function(e) {
         e.preventDefault();
-        $('#deadline_status').val('').trigger('change');
-        $('#today_deadline_filter').val('');
-        $('#yesterday_deadline_filter').val('');
-        $('#today_writer_deadline_filter').val('');
-        $('#status').val('').trigger('change');
-        $('#from_date').val('');
-        $('#to_date').val('');
-        $('#filter_team_id').val('2');
+        if ($('#filter_team_id').val() === '2') {
+            $('#filter_team_id').val('');
+        } else {
+            $('#deadline_status').val('').trigger('change');
+            $('#today_deadline_filter').val('');
+            $('#yesterday_deadline_filter').val('');
+            $('#today_writer_deadline_filter').val('');
+            $('#status').val('').trigger('change');
+            $('#from_date').val('');
+            $('#to_date').val('');
+            $('#filter_team_id').val('2');
+        }
         applyFilters();
     });
 
@@ -883,6 +953,8 @@ resetFilters();
         $('#lead-rows').show().empty();
         $('#resetFiltersBtn').show();
 
+        highlightActiveQuickFilters();
+
         fetchData(false);
     }
 
@@ -891,6 +963,7 @@ resetFilters();
         localStorage.removeItem(filterStorageKey);
         // Clear filter values
         $('input[type=search], input[type=date], input[type=month], input[type=text], input[type=hidden]').val('');
+        $('#searchResultss').hide().empty();
         $('select').val('').trigger('change');
         $('#filter_team_id').val('');
 
@@ -899,6 +972,8 @@ resetFilters();
         hasMore = true;
         filters = {};
         disableScrollHandler();
+
+        highlightActiveQuickFilters();
 
          runningTotals = {
         total_amount: 0,
@@ -985,31 +1060,42 @@ resetFilters();
                 const hasActiveFilters = Object.values(filters).some(val => val && String(val).trim() !== "");
 
                 if (hasActiveFilters) {
-                    $('#search').val(filters.search);
-                    $('#selectedValue').val(filters.uid);
+                    $('#search').val(filters.search || '');
+                    $('#selectedValue').val(filters.uid || '');
+                    $('#searchInput').val(filters.user || '');
                     $('#group_id').val(filters.group_id || '').trigger('change');
-                    $('#status').val(filters.status).trigger('change');
-                    $('#writer').val(filters.writer).trigger('change');
-                    $('#date_status').val(filters.dateStatus).trigger('change');
-                    $('#from_date').val(filters.fromDate);
-                    $('#to_date').val(filters.toDate);
-                    $('#writerTL').val(filters.WriterTL).trigger('change');
-                    $('#SubWriter').val(filters.SubWriter).trigger('change');
-                    $('#college').val(filters.college).trigger('change');
-                    $('#extra').val(filters.extra).trigger('change');
-                    $('#module_code').val(filters.module_code);
-                    $('#paper_type').val(filters.paper_type).trigger('change');
-                    $('#semester').val(filters.semester).trigger('change');
-                    $('#payment').val(filters.payment).trigger('change');
-                    $('#month').val(filters.month);
-                    $('#deadline_status').val(filters.deadline_status).trigger('change');
-                    $('#filter_team_id').val(filters.team_id);
-                    $('#offer').val(filters.offer).trigger('change');
-                    $('#duec').val(filters.duec).trigger('change');
+                    $('#status').val(filters.status || '').trigger('change');
+                    $('#writer').val(filters.writer || '').trigger('change');
+                    $('#date_status').val(filters.dateStatus || '').trigger('change');
+                    $('#from_date').val(filters.fromDate || '');
+                    $('#to_date').val(filters.toDate || '');
+                    $('#writerTL').val(filters.WriterTL || '').trigger('change');
+                    $('#SubWriter').val(filters.SubWriter || '').trigger('change');
+                    $('#college').val(filters.college || '').trigger('change');
+                    $('#extra').val(filters.extra || '').trigger('change');
+                    $('#module_code').val(filters.module_code || '');
+                    $('#paper_type').val(filters.paper_type || '').trigger('change');
+                    $('#semester').val(filters.semester || '').trigger('change');
+                    $('#payment').val(filters.payment || '').trigger('change');
+                    $('#month').val(filters.month || '');
+                    $('#deadline_status').val(filters.deadline_status || '').trigger('change');
+                    $('#filter_team_id').val(filters.team_id || '');
+                    $('#offer').val(filters.offer || '').trigger('change');
+                    $('#duec').val(filters.duec || '').trigger('change');
                     $('#marks_filter').val(filters.marks_filter || '').trigger('change');
-                    $('#today_deadline_filter').val(filters.today_deadline_filter);
+                    $('#today_deadline_filter').val(filters.today_deadline_filter || '');
                     $('#yesterday_deadline_filter').val(filters.yesterday_deadline_filter || '');
-                    $('#today_writer_deadline_filter').val(filters.today_writer_deadline_filter);
+                    $('#today_writer_deadline_filter').val(filters.today_writer_deadline_filter || '');
+
+                    // Auto-open filter section so user can see restored active filters
+                    $('#filterBody').show();
+                    $('#toggleFilterBtn').text('Hide Filters').removeClass('btn-primary').addClass('btn-danger');
+
+                    const hasMoreFilterData = !!(filters.fromDate || filters.toDate || filters.dateStatus || filters.module_code || filters.paper_type || filters.semester || filters.payment || filters.month);
+                    if (hasMoreFilterData) {
+                        $('.additional-filters').show();
+                        $('#showMoreFilters').text('Hide More Filters');
+                    }
 
                     offset = 0;
                     hasMore = true;
@@ -1017,6 +1103,8 @@ resetFilters();
                     $('#initial-order-rows').hide();
                     $('#lead-rows').show().empty();
                     $('#resetFiltersBtn').show();
+
+                    highlightActiveQuickFilters();
 
                     fetchData(false);
                 } else {
@@ -1167,17 +1255,18 @@ resetFilters();
     $(document).ready(function () {
 
     $('#toggleFilterBtn').on('click', function () {
+        const isCurrentlyVisible = $('#filterBody').is(':visible');
 
         $('#filterBody').slideToggle(300);
 
-        if ($('#filterBody').is(':visible')) {
-            $(this).text('Hide Filters')
-                   .removeClass('btn-primary')
-                   .addClass('btn-danger');
-        } else {
+        if (isCurrentlyVisible) {
             $(this).text('Show Filters')
                    .removeClass('btn-danger')
                    .addClass('btn-primary');
+        } else {
+            $(this).text('Hide Filters')
+                   .removeClass('btn-primary')
+                   .addClass('btn-danger');
         }
     });
 
