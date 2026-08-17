@@ -538,17 +538,6 @@
             softphoneFrame.src = url;
         }
 
-        // Open Standalone Popup Dialer window for direct WebRTC calling (bypasses iframe WebRTC restrictions)
-        try {
-            const width = 420;
-            const height = 650;
-            const left = Math.max(10, (window.screen.width - width) - 60);
-            const top = Math.max(10, (window.screen.height - height) / 2);
-            window.open(url, 'RingfySoftphoneDialerWindow', `width=${width},height=${height},top=${top},left=${left},scrollbars=yes,resizable=yes,status=no,location=no`);
-        } catch (e) {
-            console.warn("[Next2Call Softphone] Standalone popup blocked by browser, falling back to embedded widget.");
-        }
-
         widget.classList.add('is-open');
         widget.classList.add('has-frame');
         widget.classList.remove('is-minimized');
