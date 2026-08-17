@@ -571,7 +571,7 @@
         const cleanCountryCode = String(countryCode || document.getElementById('country_primary')?.value || document.getElementById('ringfySoftphoneCountryCode')?.value || '').trim();
         const cleanMobile = String(mobile || document.getElementById('primary')?.value || document.getElementById('ringfySoftphoneMobile')?.value || '').trim();
 
-        console.log("%c[Next2Call Softphone] Initiating Call Request...", "color: #ffc700; font-weight: bold;", {
+        console.log("%c[Next2Call Softphone] Direct Call Request...", "color: #ffc700; font-weight: bold;", {
             orderId: orderId,
             countryCode: cleanCountryCode,
             mobile: cleanMobile
@@ -585,6 +585,9 @@
             });
             return;
         }
+
+        // Pre-open new tab to guarantee popup blockers do not block window.open after async fetch
+        const callTab = window.open('about:blank', '_blank');
 
         try {
             const response = await fetch('{{ route('softphone.call-url') }}', {
@@ -604,23 +607,31 @@
 
             const data = await response.json();
 
-            console.log("%c[Next2Call Softphone] API Response:", "color: #50cd89; font-weight: bold;", data);
+            console.log("%c[Next2Call Softphone] Direct Call Response:", "color: #50cd89; font-weight: bold;", data);
 
             if (!response.ok || !data.success) {
+                if (callTab && !callTab.closed) callTab.close();
                 throw new Error(data.message || 'Softphone call failed.');
             }
 
-            showRingfySoftphone(data.url, data.target_number);
+            // Direct open in new tab
+            if (callTab && !callTab.closed) {
+                callTab.location.href = data.url;
+            } else {
+                window.open(data.url, '_blank');
+            }
+
             navigator.clipboard?.writeText(data.target_number).catch(() => {});
 
             Swal.fire({
                 icon: 'success',
-                title: 'Softphone ready',
-                html: 'Customer number: <strong>' + data.target_number + '</strong><br>Number copied for dialing.',
+                title: 'Initiating Direct Call...',
+                html: 'Opening Next2Call dialer for <strong>' + data.target_number + '</strong>',
                 timer: 1800,
                 showConfirmButton: false,
             });
         } catch (error) {
+            if (callTab && !callTab.closed) callTab.close();
             console.error("[Next2Call Softphone] Error:", error);
             Swal.fire({
                 icon: 'error',
