@@ -1572,12 +1572,28 @@ class OrderController extends Controller
     public function softphoneCallUrl(Request $request)
     {
         $validated = $request->validate([
+            'order_id' => ['nullable', 'integer'],
             'country_code' => ['nullable', 'string', 'max:10'],
-            'mobile' => ['required', 'string', 'max:30'],
+            'mobile' => ['nullable', 'string', 'max:30'],
         ]);
 
         $countryCode = $validated['country_code'] ?? '';
-        $targetNumber = $this->normalizeSoftphoneNumber($countryCode, $validated['mobile']);
+        $mobile = $validated['mobile'] ?? '';
+
+        // Fetch countrycode & mobile_no directly from users DB table if order_id is provided
+        if (!empty($validated['order_id'])) {
+            $order = Order::with('user')->find($validated['order_id']);
+            if ($order && $order->user) {
+                if (!empty($order->user->countrycode)) {
+                    $countryCode = $order->user->countrycode;
+                }
+                if (!empty($order->user->mobile_no)) {
+                    $mobile = $order->user->mobile_no;
+                }
+            }
+        }
+
+        $targetNumber = $this->normalizeSoftphoneNumber((string)$countryCode, (string)$mobile);
 
         if (! $targetNumber) {
             return response()->json([
@@ -1621,7 +1637,7 @@ class OrderController extends Controller
             'url' => $callUrl,
             'softphone_url' => $callUrl,
             'target_number' => $formattedNumber,
-        ]);
+        ], 200, [], JSON_UNESCAPED_SLASHES);
     }
 
     private function fetchSoftphoneToken(string $baseUrl, string $userId, string $password): string
@@ -1693,9 +1709,8 @@ class OrderController extends Controller
             || (empty($cleanCountryCode) && (strlen($cleanMobile) == 10 || (strlen($cleanMobile) == 11 && str_starts_with($cleanMobile, '0'))));
 
         if ($isIndia) {
-            // Per Next2Call API Docs & Sample: Indian numbers must start with '0' + 10-digit mobile (e.g. 08800826129)
-            $last10 = substr($cleanMobile, -10);
-            return '0' . $last10;
+            // Per Next2Call DOCX Documentation example: d=9876543210 (Clean 10-digit number)
+            return substr($cleanMobile, -10);
         }
 
         // Check if UK number (country code 44 or starts with 44)
