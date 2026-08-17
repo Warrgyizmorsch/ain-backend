@@ -522,6 +522,9 @@
         const countryCodeInput = document.getElementById('ringfySoftphoneCountryCode');
         const mobileInput = document.getElementById('ringfySoftphoneMobile');
 
+        console.log("%c[Next2Call Softphone] Setting Iframe SRC:", "color: #50cd89; font-weight: bold;", url);
+        console.log("%c[Next2Call Softphone] Target Number:", "color: #009ef7; font-weight: bold;", targetNumber);
+
         widget.dataset.softphoneUrl = url;
         numberElement.textContent = targetNumber || '';
         if (countryCodeInput?.value) {
@@ -568,6 +571,12 @@
         const cleanCountryCode = String(countryCode || document.getElementById('country_primary')?.value || document.getElementById('ringfySoftphoneCountryCode')?.value || '').trim();
         const cleanMobile = String(mobile || document.getElementById('primary')?.value || document.getElementById('ringfySoftphoneMobile')?.value || '').trim();
 
+        console.log("%c[Next2Call Softphone] Initiating Call Request...", "color: #ffc700; font-weight: bold;", {
+            orderId: orderId,
+            countryCode: cleanCountryCode,
+            mobile: cleanMobile
+        });
+
         if (!cleanCountryCode || !cleanMobile) {
             Swal.fire({
                 icon: 'warning',
@@ -594,6 +603,8 @@
 
             const data = await response.json();
 
+            console.log("%c[Next2Call Softphone] API Response:", "color: #50cd89; font-weight: bold;", data);
+
             if (!response.ok || !data.success) {
                 throw new Error(data.message || 'Softphone call failed.');
             }
@@ -609,6 +620,7 @@
                 showConfirmButton: false,
             });
         } catch (error) {
+            console.error("[Next2Call Softphone] Error:", error);
             Swal.fire({
                 icon: 'error',
                 title: 'Call failed',

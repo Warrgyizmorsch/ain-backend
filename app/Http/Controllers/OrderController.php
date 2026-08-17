@@ -1609,6 +1609,13 @@ class OrderController extends Controller
 
         $callUrl = "https://ringfy.next2call.com/softphone/Phone/click-to-dial.html?" . $query;
 
+        \Illuminate\Support\Facades\Log::info('[Softphone] Generated Click-to-Dial URL', [
+            'country_code' => $countryCode,
+            'mobile' => $validated['mobile'],
+            'target_number' => $formattedNumber,
+            'url' => $callUrl,
+        ]);
+
         return response()->json([
             'success' => true,
             'url' => $callUrl,
