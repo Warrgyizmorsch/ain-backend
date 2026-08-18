@@ -586,15 +586,6 @@
             return;
         }
 
-        const width = 380;
-        const height = 580;
-        const left = Math.max(0, (window.screen.width - width - 40));
-        const top = Math.max(0, Math.floor((window.screen.height - height) / 2));
-        const windowFeatures = `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes,status=no,toolbar=no,menubar=no,location=no`;
-
-        // Pre-open softphone window to bypass popup blockers
-        let callWin = window.open('about:blank', 'Next2CallSoftphoneWindow', windowFeatures);
-
         try {
             const response = await fetch('{{ route('softphone.call-url') }}', {
                 method: 'POST',
@@ -616,29 +607,14 @@
             console.log("%c[Next2Call Softphone] Direct Call Response:", "color: #50cd89; font-weight: bold;", data);
 
             if (!response.ok || !data.success) {
-                if (callWin && !callWin.closed) callWin.close();
                 throw new Error(data.message || 'Softphone call failed.');
             }
 
-            // Open Next2Call URL inside the dedicated softphone window
-            if (callWin && !callWin.closed) {
-                callWin.location.href = data.url;
-                callWin.focus();
-            } else {
-                callWin = window.open(data.url, 'Next2CallSoftphoneWindow', windowFeatures);
-            }
+            // Open Next2Call URL directly inside in-page softphone iframe widget (NO new tab/window)
+            showRingfySoftphone(data.url, data.target_number);
 
             navigator.clipboard?.writeText(data.target_number).catch(() => {});
-
-            Swal.fire({
-                icon: 'success',
-                title: 'Softphone Dialer Active',
-                html: 'Calling <strong>' + data.target_number + '</strong> via Softphone Window',
-                timer: 1800,
-                showConfirmButton: false,
-            });
         } catch (error) {
-            if (callWin && !callWin.closed) callWin.close();
             console.error("[Next2Call Softphone] Error:", error);
             Swal.fire({
                 icon: 'error',
