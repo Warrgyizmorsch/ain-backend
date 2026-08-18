@@ -586,8 +586,14 @@
             return;
         }
 
-        // Pre-open new tab to guarantee popup blockers do not block window.open after async fetch
-        const callTab = window.open('about:blank', '_blank');
+        const width = 380;
+        const height = 580;
+        const left = Math.max(0, (window.screen.width - width - 40));
+        const top = Math.max(0, Math.floor((window.screen.height - height) / 2));
+        const windowFeatures = `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes,status=no,toolbar=no,menubar=no,location=no`;
+
+        // Pre-open softphone window to bypass popup blockers
+        let callWin = window.open('about:blank', 'Next2CallSoftphoneWindow', windowFeatures);
 
         try {
             const response = await fetch('{{ route('softphone.call-url') }}', {
@@ -610,28 +616,29 @@
             console.log("%c[Next2Call Softphone] Direct Call Response:", "color: #50cd89; font-weight: bold;", data);
 
             if (!response.ok || !data.success) {
-                if (callTab && !callTab.closed) callTab.close();
+                if (callWin && !callWin.closed) callWin.close();
                 throw new Error(data.message || 'Softphone call failed.');
             }
 
-            // Direct open in new tab
-            if (callTab && !callTab.closed) {
-                callTab.location.href = data.url;
+            // Open Next2Call URL inside the dedicated softphone window
+            if (callWin && !callWin.closed) {
+                callWin.location.href = data.url;
+                callWin.focus();
             } else {
-                window.open(data.url, '_blank');
+                callWin = window.open(data.url, 'Next2CallSoftphoneWindow', windowFeatures);
             }
 
             navigator.clipboard?.writeText(data.target_number).catch(() => {});
 
             Swal.fire({
                 icon: 'success',
-                title: 'Initiating Direct Call...',
-                html: 'Opening Next2Call dialer for <strong>' + data.target_number + '</strong>',
+                title: 'Softphone Dialer Active',
+                html: 'Calling <strong>' + data.target_number + '</strong> via Softphone Window',
                 timer: 1800,
                 showConfirmButton: false,
             });
         } catch (error) {
-            if (callTab && !callTab.closed) callTab.close();
+            if (callWin && !callWin.closed) callWin.close();
             console.error("[Next2Call Softphone] Error:", error);
             Swal.fire({
                 icon: 'error',

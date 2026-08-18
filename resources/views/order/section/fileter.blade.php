@@ -55,7 +55,7 @@
                                             $('#searchDatalist').empty();
                                             $.each(response, function (key, value) {
                                                 // Append each option with email, name, and mobile number
-                                                $('#searchDatalist').append('<option value="' + value.email + '">' + value.name + ' (' + value.mobile_no + ')</option>');
+                                                $('#searchDatalist').append('<option data-id="' + value.id + '" value="' + value.email + '">' + value.name + ' (' + value.mobile_no + ')</option>');
                                             });
                                             if(response.length === 1) {
                                                 // If there is only one result, automatically fill in the search input
@@ -75,12 +75,14 @@
                         });
 
                         // Handle click on search result
-                        $('#searchInput').on('input', function() {
+                        $('#searchInput').on('input change', function() {
                             var selectedEmail = $(this).val();
-                            var selectedOption = $('#searchDatalist option[value="' + selectedEmail + '"]');
+                            var selectedOption = $('#searchDatalist option').filter(function () {
+                                return $(this).val() === selectedEmail;
+                            });
                             if (selectedOption.length > 0) {
                                 // If the selected value exists in the datalist, get its associated ID
-                                var selectedId = selectedOption.data('id');
+                                var selectedId = selectedOption.attr('data-id') || selectedOption.data('id');
                                 $('#selectedValue').val(selectedId);
                             } else {
                                 // If the selected value doesn't exist in the datalist, clear the hidden field
@@ -249,6 +251,7 @@
 <script>
     function applyFilters() {
         var $search = $('#search').val();
+        var $user = $('#searchInput').val();
         var $uid = $('#selectedValue').val();
         var $status = $('#status').val();
         var $writer = $('#writer').val();
@@ -266,6 +269,7 @@
         // Store filter values in localStorage
         localStorage.setItem('filters', JSON.stringify({
             search: $search,
+            user: $user,
             uid: $uid,
             status: $status,
             writer: $writer,
@@ -282,7 +286,7 @@
         }));
 
         // Check if any filter is set
-        var filtersExist = $search || $uid || $status || $writer || $dateStatus || $fromDate || $toDate || $WriterTL || $SubWriter || $college || $extra || $secondaryMobile || $paper_type || $semester;
+        var filtersExist = $search || $user || $uid || $status || $writer || $dateStatus || $fromDate || $toDate || $WriterTL || $SubWriter || $college || $extra || $secondaryMobile || $paper_type || $semester;
 
         if (filtersExist) {
             $('.allData').hide();
@@ -304,6 +308,7 @@
             data: {
                 '_token': CSRF_TOKEN,
                 'search': $search,
+                'user': $user,
                 'uid': $uid,
                 'status': $status,
                 'writer': $writer,

@@ -54,7 +54,7 @@
                                             $('#searchDatalist').empty();
                                             $.each(response, function (key, value) {
                                                 // Append each option with email, name, and mobile number
-                                                $('#searchDatalist').append('<option value="' + value.email + '">' + value.name + ' (' + value.mobile_no + ')</option>');
+                                                $('#searchDatalist').append('<option data-id="' + value.id + '" value="' + value.email + '">' + value.name + ' (' + value.mobile_no + ')</option>');
                                             });
                                             if(response.length === 1) {
                                                 // If there is only one result, automatically fill in the search input
@@ -74,9 +74,17 @@
                         });
 
                         // Handle click on search result
-                        $('#searchDatalist').on('input', function() {
+                        $('#searchInput').on('input change', function() {
                             var selectedEmail = $(this).val();
-                            $('#selectedValue').val(selectedEmail);
+                            var selectedOption = $('#searchDatalist option').filter(function () {
+                                return $(this).val() === selectedEmail;
+                            });
+                            if (selectedOption.length > 0) {
+                                var selectedId = selectedOption.attr('data-id') || selectedOption.data('id');
+                                $('#selectedValue').val(selectedId);
+                            } else {
+                                $('#selectedValue').val('');
+                            }
                         });
                     });
                 </script>

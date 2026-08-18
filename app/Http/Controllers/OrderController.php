@@ -379,7 +379,18 @@ class OrderController extends Controller
                 $totalWordCount += $order->pages;
             }
         }
-        if ($request->input('search') || $request->input('status') || $request->input('writer') || $request->input('writerTL') || $request->input('uid') || $request->input('date_status') || $request->input('from_date') || $request->input('to_date') || $request->input('SubWriter') || $request->input('college') || $request->input('extra') || $request->input('secondary_mobile') || $request->input('paper_type')) {
+        if ($request->input('search') || $request->input('status') || $request->input('writer') || $request->input('writerTL') || $request->input('uid') || $request->input('user') || $request->input('date_status') || $request->input('from_date') || $request->input('to_date') || $request->input('SubWriter') || $request->input('college') || $request->input('extra') || $request->input('secondary_mobile') || $request->input('paper_type')) {
+            if ($request->input('uid')) {
+                $ordersQuery->where('uid', $request->input('uid'));
+            } elseif ($request->input('user')) {
+                $userTerm = trim($request->input('user'));
+                $userIds = User::where('name', 'like', '%' . $userTerm . '%')
+                    ->orWhere('email', 'like', '%' . $userTerm . '%')
+                    ->orWhere('mobile_no', 'like', '%' . $userTerm . '%')
+                    ->orWhere('mobile_no2', 'like', '%' . $userTerm . '%')
+                    ->pluck('id')->toArray();
+                $ordersQuery->whereIn('uid', $userIds);
+            }
             $data['orders'] = $ordersQuery->orderByDesc('id')->get();
         } else {
             $perPage = 10;
@@ -1099,12 +1110,13 @@ class OrderController extends Controller
         $filters = $request->all();
 
         // Check if all filters are empty, return a message if so
-        if (empty($filters['search']) && empty($filters['uid']) && empty($filters['status']) && empty($filters['writer']) && empty($filters['date_status']) && empty($filters['from_date']) && empty($filters['to_date']) && empty($filters['from_date']) && empty($filters['to_date']) && empty($filters['WriterTL']) && empty($filters['SubWriter']) && empty($filters['college']) && empty($filters['extra']) && empty($filters['secondary_mobile']) && empty($filters['selectedDataTextBox']) && empty($filters['paper_type']) && empty($filters['semester'])) {
+        if (empty($filters['search']) && empty($filters['uid']) && empty($filters['user']) && empty($filters['status']) && empty($filters['writer']) && empty($filters['date_status']) && empty($filters['from_date']) && empty($filters['to_date']) && empty($filters['from_date']) && empty($filters['to_date']) && empty($filters['WriterTL']) && empty($filters['SubWriter']) && empty($filters['college']) && empty($filters['extra']) && empty($filters['secondary_mobile']) && empty($filters['selectedDataTextBox']) && empty($filters['paper_type']) && empty($filters['semester'])) {
             return response()->json(['message' => 'No filters applied'], 200);
         }
 
         $searchTerm = $request->input('search');
         $uid = $request->input('uid');
+        $userParam = $request->input('user');
         $status = $request->input('status');
         $writer = $request->input('writer');
         $dateStatus = $request->input('date_status');
@@ -1150,9 +1162,16 @@ class OrderController extends Controller
 
 
         if ($uid != '') {
-
-
             $orders->where('uid', $uid);
+        } elseif ($userParam != '') {
+            $userTerm = trim($userParam);
+            $userIds = User::where('name', 'like', '%' . $userTerm . '%')
+                ->orWhere('email', 'like', '%' . $userTerm . '%')
+                ->orWhere('mobile_no', 'like', '%' . $userTerm . '%')
+                ->orWhere('mobile_no2', 'like', '%' . $userTerm . '%')
+                ->pluck('id')->toArray();
+
+            $orders->whereIn('uid', $userIds);
         }
 
 
@@ -1233,7 +1252,7 @@ class OrderController extends Controller
             $orders->where('typeofpaper',  $paper_type);
         }
 
-        $orders = $orders->with([
+        $ordersQueryBuilder = $orders->with([
                 'user' => function ($q) {
                     $q->select('id', 'name', 'mobile_no', 'is_fail');
                 },
@@ -1241,9 +1260,15 @@ class OrderController extends Controller
                 'team:id,team_name',
             ])
             ->orderBy('id', 'desc')
-            ->where('uid', '!=', '0')
-            ->limit((int) $request->get('limit', 100))
-            ->get();
+            ->where('uid', '!=', '0');
+
+        if (empty($uid) && empty($userParam)) {
+            $ordersQueryBuilder->limit((int) $request->get('limit', 100));
+        } elseif ($request->has('limit')) {
+            $ordersQueryBuilder->limit((int) $request->get('limit'));
+        }
+
+        $orders = $ordersQueryBuilder->get();
 
         $data['projectStatusCounts'] = ProjectStatusCount::whereIn('order_Id', $orders->pluck('id'))->get();
 
