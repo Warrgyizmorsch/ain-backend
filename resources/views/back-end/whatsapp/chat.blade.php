@@ -161,10 +161,25 @@
             </div>
             @endforeach
         </div>
+        {{-- Contact List Bottom Infinite Scroll Loader --}}
+        <div id="wabContactListLoader" class="text-center py-2 d-none" style="width:100%">
+            <div class="spinner-border spinner-border-sm text-success" role="status" style="width:1rem;height:1rem">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <span class="ms-1 fs-9 text-muted fw-bold">Loading more...</span>
+        </div>
     </aside>
 
     {{-- ── CONVERSATION PANEL ── --}}
-    <section class="wab-conversation">
+    <section class="wab-conversation" style="position:relative">
+
+        {{-- Instant Chat Preloader / Skeleton --}}
+        <div id="wabChatPreloader" class="wab-chat-preloader d-none">
+            <div class="spinner-border text-success" role="status" style="width:2.2rem;height:2.2rem">
+                <span class="visually-hidden">Loading messages...</span>
+            </div>
+            <div class="mt-2 text-dark fw-bold fs-7" id="wabChatPreloaderText">Loading conversation...</div>
+        </div>
 
         @unless($selectedPhone)
             <div class="wab-blank-chat">
@@ -209,6 +224,30 @@
             </div>
             <div class="wab-conv-actions">
                 @if($selectedPhone)
+                    {{-- Check Leads Button --}}
+                    <button type="button" class="wab-label-btn" style="background:#e3f2fd;color:#1565c0;border:1px solid #bbdefb" data-bs-toggle="modal" data-bs-target="#waCheckLeadsModal" title="Check all Leads for this customer">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                        Check Leads
+                    </button>
+
+                    {{-- Check Orders Button --}}
+                    <button type="button" class="wab-label-btn" style="background:#f3e5f5;color:#6a1b9a;border:1px solid #e1bee7" data-bs-toggle="modal" data-bs-target="#waCheckOrdersModal" title="Check all Orders for this customer">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg>
+                        Check Orders
+                    </button>
+
+                    @if(isset($existingLead) && $existingLead)
+                        <a href="{{ route('leadedit', $existingLead->id) }}" target="_blank" class="wab-label-btn" style="background:#e8f5e9;color:#2e7d32;border:1px solid #c8e6c9" title="View CRM Lead #{{ $existingLead->order_id ?? $existingLead->id }}">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7.5" r="4"></circle><polyline points="17 11 19 13 23 9"></polyline></svg>
+                            Lead #{{ $existingLead->order_id ?? $existingLead->id }}
+                        </a>
+                    @else
+                        <button type="button" class="wab-label-btn" style="background:#00a884;color:#fff;border:none" data-bs-toggle="modal" data-bs-target="#waCreateLeadModal" title="Create Lead with this WhatsApp Customer">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>
+                            Create Lead
+                        </button>
+                    @endif
+
                     <button class="wab-label-btn" data-bs-toggle="modal" data-bs-target="#waAssignLabelsModal" title="Label chat">
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
                         Label chat
@@ -232,7 +271,15 @@
         </div>
 
         {{-- Messages Body --}}
-        <div class="wab-messages-body {{ !$selectedPhone ? 'd-none' : '' }}" id="wabMessagesBody" data-selected-phone="{{ $selectedPhone }}" data-last-message-id="{{ optional($messages->last())->id ?? 0 }}">
+        <div class="wab-messages-body {{ !$selectedPhone ? 'd-none' : '' }}" id="wabMessagesBody" data-selected-phone="{{ $selectedPhone }}" data-last-message-id="{{ optional($messages->last())->id ?? 0 }}" data-first-message-id="{{ optional($messages->first())->id ?? 0 }}" data-has-more-older="{{ ($hasMoreOlderMessages ?? false) ? '1' : '0' }}">
+
+            {{-- Older Messages Spinner (Scroll Up) --}}
+            <div id="wabOlderMessagesLoader" class="text-center py-2 {{ ($hasMoreOlderMessages ?? false) ? '' : 'd-none' }}" style="width:100%">
+                <div class="spinner-border spinner-border-sm text-secondary" role="status" style="width:1.1rem;height:1.1rem">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <span class="ms-2 fs-9 text-muted fw-bold">Loading older messages...</span>
+            </div>
 
             @if($selectedPanel && isset($panelDefinitions[$selectedPanel]))
                 <div class="wab-panel-card">
@@ -748,6 +795,664 @@
         </div>
     </div>
 </div>
+
+{{-- ══════════════════════════════════════════════════
+     CREATE LEAD MODAL FROM WHATSAPP CONTACT
+══════════════════════════════════════════════════ --}}
+<div class="modal fade" id="waCreateLeadModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered mw-850px">
+        <div class="modal-content wab-modal-content">
+            <form method="POST" action="{{ route('whatsapp.chat.create-lead') }}">
+                @csrf
+                <input type="hidden" name="return_phone" value="{{ $selectedPhone }}">
+                
+                <div class="modal-header wab-modal-header" style="background:linear-gradient(135deg,#00a884,#008069)">
+                    <div class="wab-modal-icon" style="background:rgba(255,255,255,0.2)">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7.5" r="4"></circle><line x1="20" y1="8" x2="20" y2="14"></line><line x1="23" y1="11" x2="17" y2="11"></line></svg>
+                    </div>
+                    <div>
+                        <h5 class="modal-title wab-modal-title text-white">Create New Lead from WhatsApp</h5>
+                        <div class="text-white opacity-75 fs-8">Create CRM Lead &amp; Order directly for contact {{ $selectedPhone }}</div>
+                    </div>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                
+                <div class="modal-body wab-modal-body p-4">
+                    <div class="row g-3">
+                        {{-- Customer Info --}}
+                        <div class="col-md-6">
+                            <label class="wab-form-label">Customer Name</label>
+                            <input type="text" name="user_name" class="wab-form-input" value="{{ $selectedContact['name'] ?? '' }}" placeholder="Customer Name">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="wab-form-label">Email Address</label>
+                            <input type="email" name="email" class="wab-form-input" value="{{ $existingUser->email ?? '' }}" placeholder="customer@example.com (optional)">
+                        </div>
+
+                        {{-- Phone Numbers --}}
+                        @php
+                            $extractedCode = '+91';
+                            $extractedMobile = $selectedPhone;
+                            if ($selectedPhone) {
+                                $cleanP = preg_replace('/\D+/', '', $selectedPhone);
+                                if (str_starts_with($cleanP, '91') && strlen($cleanP) >= 12) {
+                                    $extractedCode = '+91';
+                                    $extractedMobile = substr($cleanP, 2);
+                                } elseif (str_starts_with($cleanP, '44') && strlen($cleanP) >= 11) {
+                                    $extractedCode = '+44';
+                                    $extractedMobile = substr($cleanP, 2);
+                                } elseif (str_starts_with($cleanP, '1') && strlen($cleanP) >= 11) {
+                                    $extractedCode = '+1';
+                                    $extractedMobile = substr($cleanP, 1);
+                                } elseif (str_starts_with($cleanP, '971') && strlen($cleanP) >= 11) {
+                                    $extractedCode = '+971';
+                                    $extractedMobile = substr($cleanP, 3);
+                                }
+                            }
+                        @endphp
+                        <div class="col-md-4">
+                            <label class="wab-form-label">Country Code *</label>
+                            <select name="countrycode" class="wab-form-select" required>
+                                <option value="+91" {{ $extractedCode === '+91' ? 'selected' : '' }}>🇮🇳 +91 (India)</option>
+                                <option value="+44" {{ $extractedCode === '+44' ? 'selected' : '' }}>🇬🇧 +44 (UK)</option>
+                                <option value="+1" {{ $extractedCode === '+1' ? 'selected' : '' }}>🇺🇸 +1 (US)</option>
+                                <option value="+61" {{ $extractedCode === '+61' ? 'selected' : '' }}>🇦🇺 +61 (Australia)</option>
+                                <option value="+971" {{ $extractedCode === '+971' ? 'selected' : '' }}>🇦🇪 +971 (UAE)</option>
+                                <option value="+60" {{ $extractedCode === '+60' ? 'selected' : '' }}>🇲🇾 +60 (Malaysia)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="wab-form-label">Mobile Number *</label>
+                            <input type="text" name="mobile" class="wab-form-input font-monospace" value="{{ $extractedMobile }}" required placeholder="e.g. 9876543210">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="wab-form-label">Lead Source *</label>
+                            <select name="lead_source" class="wab-form-select" required>
+                                <option value="WhatsApp" selected>WhatsApp</option>
+                                @foreach($sourcesList ?? [] as $src)
+                                    <option value="{{ $src->source_name ?? $src->name }}">{{ $src->source_name ?? $src->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+
+                        {{-- Project & Order Details --}}
+                        <div class="col-md-8">
+                            <label class="wab-form-label">Project / Assignment Title</label>
+                            <input type="text" name="project_title" class="wab-form-input" placeholder="e.g. MBA Marketing Assignment" value="WhatsApp Chat Inquiry">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="wab-form-label">Module Code</label>
+                            <input type="text" name="module_code" class="wab-form-input" placeholder="e.g. MKT-501">
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="wab-form-label">Service Type</label>
+                            <select name="service_type" class="wab-form-select">
+                                <option value="">-- Select Service --</option>
+                                @foreach($servicesList ?? [] as $serv)
+                                    <option value="{{ $serv->service_name }}">{{ $serv->service_name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="wab-form-label">Type of Paper</label>
+                            <select name="paper" class="wab-form-select">
+                                <option value="">-- Select Paper --</option>
+                                @foreach($papersList ?? [] as $pap)
+                                    <option value="{{ $pap->paper_type }}">{{ $pap->paper_type }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="wab-form-label">Lead Status</label>
+                            <select name="i_status" class="wab-form-select">
+                                <option value="Waiting" selected>Waiting</option>
+                                <option value="Quote">Quote</option>
+                                <option value="Confirmation">Confirmation</option>
+                            </select>
+                        </div>
+
+                        <div class="col-md-3">
+                            <label class="wab-form-label">Words / Pages</label>
+                            <input type="number" name="pages" class="wab-form-input" placeholder="e.g. 2000" min="0" value="1000">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="wab-form-label">Price / Amount (£)</label>
+                            <input type="number" name="amount" class="wab-form-input" placeholder="0.00" step="0.01" min="0" value="0">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="wab-form-label">Delivery Date</label>
+                            <input type="date" name="delivery_date" class="wab-form-input" value="{{ now()->addDays(3)->toDateString() }}" min="{{ now()->toDateString() }}">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="wab-form-label">Delivery Time</label>
+                            <input type="time" name="delivery_time" class="wab-form-input" value="18:00">
+                        </div>
+
+                        <div class="col-md-6 d-flex align-items-center gap-4 mt-3">
+                            <label class="d-flex align-items-center gap-2 cursor-pointer">
+                                <input type="checkbox" name="tech" value="on" class="form-check-input">
+                                <span class="fs-8 fw-bold">Technical</span>
+                            </label>
+                            <label class="d-flex align-items-center gap-2 cursor-pointer">
+                                <input type="checkbox" name="resit" value="on" class="form-check-input">
+                                <span class="fs-8 fw-bold">Resit</span>
+                            </label>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="wab-form-label">Requirements / Message</label>
+                            <textarea name="message" rows="2" class="wab-form-input" placeholder="Customer instructions or chat notes...">Inquiry received via WhatsApp Chat.</textarea>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="modal-footer wab-modal-footer">
+                    <button type="button" class="wab-btn wab-btn--ghost" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="wab-btn wab-btn--primary" style="background:#00a884">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="me-1"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                        Create Lead &amp; Order
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<style>
+.wab-crm-border-table {
+    border: 1px solid #cbd5e1 !important;
+    border-collapse: collapse !important;
+    width: 100%;
+}
+.wab-crm-border-table th, .wab-crm-border-table td {
+    border: 1px solid #cbd5e1 !important;
+    padding: 8px 10px !important;
+    vertical-align: middle !important;
+}
+.wab-crm-border-table thead th {
+    background-color: #f1f5f9 !important;
+    color: #1e293b !important;
+    font-weight: 700 !important;
+    border-bottom: 2px solid #94a3b8 !important;
+}
+.wab-crm-border-table tbody tr:hover {
+    background-color: #f8fafc !important;
+}
+.wab-chat-preloader {
+    position: absolute;
+    inset: 0;
+    background: rgba(240, 242, 245, 0.88);
+    backdrop-filter: blur(3px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    transition: opacity 0.2s ease;
+}
+</style>
+
+{{-- ══════════════════════════════════════════════════
+     CHECK LEADS MODAL (AJAX Preloader & On-Demand Load)
+══════════════════════════════════════════════════ --}}
+<div class="modal fade" id="waCheckLeadsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered mw-1000px modal-dialog-scrollable">
+        <div class="modal-content wab-modal-content">
+            <div class="modal-header wab-modal-header" style="background:linear-gradient(135deg,#1565c0,#0d47a1)">
+                <div class="wab-modal-icon" style="background:rgba(255,255,255,0.2)">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                </div>
+                <div class="d-flex flex-column">
+                    <h5 class="modal-title wab-modal-title text-white mb-0">Customer Leads History</h5>
+                    <div class="text-white opacity-75 fs-8">Customer: <strong>{{ $selectedContact['name'] ?? 'User' }}</strong> ({{ $selectedPhone }})</div>
+                </div>
+                <div class="ms-auto d-flex align-items-center gap-2">
+                    <button type="button" class="btn btn-sm btn-success py-1 px-3 fs-8 fw-bold" data-bs-dismiss="modal" data-bs-toggle="modal" data-bs-target="#waCreateLeadModal">
+                        <i class="fa fa-plus me-1"></i>+ New Lead
+                    </button>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+            </div>
+            <div class="modal-body p-0" id="waLeadsScrollBody" style="max-height:460px;overflow-y:auto">
+                {{-- Spinner / Preloader --}}
+                <div id="waLeadsPreloader" class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status" style="width:2.5rem;height:2.5rem">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <div class="mt-3 text-dark fw-bold fs-7">Loading Leads Data...</div>
+                    <div class="text-muted fs-8">Fetching customer leads from CRM...</div>
+                </div>
+
+                {{-- Empty State --}}
+                <div id="waLeadsEmpty" class="text-center py-5 d-none">
+                    <div class="text-muted fs-4 mb-2"><i class="fa fa-folder-open text-gray-400 fs-1"></i></div>
+                    <div class="fw-bolder text-dark fs-6">No Leads Found for this Customer</div>
+                    <div class="text-muted fs-8 mt-1">Is WhatsApp number ke sath abhi tak koi CRM Lead record nahi mila.</div>
+                    <button type="button" class="btn btn-sm btn-primary mt-3" data-bs-dismiss="modal" data-bs-toggle="modal" data-bs-target="#waCreateLeadModal">
+                        <i class="fa fa-plus-circle me-1"></i>Create First Lead
+                    </button>
+                </div>
+
+                {{-- Table Wrap --}}
+                <div id="waLeadsTableWrap" class="table-responsive d-none">
+                    <table class="table table-bordered table-hover table-striped align-middle mb-0 fs-8 wab-crm-border-table" id="waLeadsTable" style="border:1px solid #cbd5e1 !important">
+                        <thead class="bg-light fw-bolder text-uppercase text-gray-800 fs-9 position-sticky top-0" style="z-index:2;background:#f1f5f9 !important">
+                            <tr>
+                                <th style="border:1px solid #cbd5e1 !important;width:40px;text-align:center">#</th>
+                                <th style="border:1px solid #cbd5e1 !important">Lead ID</th>
+                                <th style="border:1px solid #cbd5e1 !important">Title &amp; Service</th>
+                                <th style="border:1px solid #cbd5e1 !important;text-align:center">Words</th>
+                                <th style="border:1px solid #cbd5e1 !important;min-width:130px">Total &amp; Due Amount</th>
+                                <th style="border:1px solid #cbd5e1 !important;text-align:center">Status</th>
+                                <th style="border:1px solid #cbd5e1 !important">Deadline</th>
+                                <th style="border:1px solid #cbd5e1 !important;text-align:end">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="waLeadsTbody"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer wab-modal-footer d-flex justify-content-between align-items-center">
+                <div class="fs-8 text-muted">
+                    Showing <strong id="waLeadsCountDisplay">0</strong> of <strong id="waLeadsTotalDisplay">0</strong> Leads
+                </div>
+                <div class="d-flex gap-2 align-items-center">
+                    <button type="button" class="btn btn-xs btn-light-primary py-1 px-3 fs-8 d-none" id="waLoadMoreLeadsBtn">
+                        <i class="fa fa-arrow-down me-1"></i>Load Next 10
+                    </button>
+                    <button type="button" class="wab-btn wab-btn--ghost py-1" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{-- ══════════════════════════════════════════════════
+     CHECK ORDERS MODAL (AJAX Preloader & On-Demand Load)
+══════════════════════════════════════════════════ --}}
+<div class="modal fade" id="waCheckOrdersModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered mw-1000px modal-dialog-scrollable">
+        <div class="modal-content wab-modal-content">
+            <div class="modal-header wab-modal-header" style="background:linear-gradient(135deg,#6a1b9a,#4a148c)">
+                <div class="wab-modal-icon" style="background:rgba(255,255,255,0.2)">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg>
+                </div>
+                <div class="d-flex flex-column">
+                    <h5 class="modal-title wab-modal-title text-white mb-0">Customer Orders History</h5>
+                    <div class="text-white opacity-75 fs-8">Customer: <strong>{{ $selectedContact['name'] ?? 'User' }}</strong> ({{ $selectedPhone }})</div>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0" id="waOrdersScrollBody" style="max-height:460px;overflow-y:auto">
+                {{-- Spinner / Preloader --}}
+                <div id="waOrdersPreloader" class="text-center py-5">
+                    <div class="spinner-border" role="status" style="width:2.5rem;height:2.5rem;color:#6a1b9a">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <div class="mt-3 text-dark fw-bold fs-7">Loading Orders Data...</div>
+                    <div class="text-muted fs-8">Fetching customer orders &amp; payments from CRM...</div>
+                </div>
+
+                {{-- Empty State --}}
+                <div id="waOrdersEmpty" class="text-center py-5 d-none">
+                    <div class="text-muted fs-4 mb-2"><i class="fa fa-box-open text-gray-400 fs-1"></i></div>
+                    <div class="fw-bolder text-dark fs-6">No Orders Found for this Customer</div>
+                    <div class="text-muted fs-8 mt-1">Is customer ke liye abhi tak koi order record create nahi hua hai.</div>
+                </div>
+
+                {{-- Table Wrap --}}
+                <div id="waOrdersTableWrap" class="table-responsive d-none">
+                    <table class="table table-bordered table-hover table-striped align-middle mb-0 fs-8 wab-crm-border-table" id="waOrdersTable" style="border:1px solid #cbd5e1 !important">
+                        <thead class="bg-light fw-bolder text-uppercase text-gray-800 fs-9 position-sticky top-0" style="z-index:2;background:#f1f5f9 !important">
+                            <tr>
+                                <th style="border:1px solid #cbd5e1 !important;width:40px;text-align:center">#</th>
+                                <th style="border:1px solid #cbd5e1 !important">Order ID</th>
+                                <th style="border:1px solid #cbd5e1 !important">Title &amp; Service</th>
+                                <th style="border:1px solid #cbd5e1 !important;text-align:center">Words</th>
+                                <th style="border:1px solid #cbd5e1 !important;min-width:145px">Total, Paid &amp; Due Amount</th>
+                                <th style="border:1px solid #cbd5e1 !important;text-align:center">Project Status</th>
+                                <th style="border:1px solid #cbd5e1 !important">Delivery Date</th>
+                                <th style="border:1px solid #cbd5e1 !important;text-align:end">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="waOrdersTbody"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer wab-modal-footer d-flex justify-content-between align-items-center">
+                <div class="fs-8 text-muted">
+                    Showing <strong id="waOrdersCountDisplay">0</strong> of <strong id="waOrdersTotalDisplay">0</strong> Orders
+                </div>
+                <div class="d-flex gap-2 align-items-center">
+                    <button type="button" class="btn btn-xs btn-light-primary py-1 px-3 fs-8 d-none" id="waLoadMoreOrdersBtn">
+                        <i class="fa fa-arrow-down me-1"></i>Load Next 10
+                    </button>
+                    <button type="button" class="wab-btn wab-btn--ghost py-1" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const selectedCustomerPhone = @json($selectedPhone ?? '');
+
+    // ──────────────────────────────────────────────
+    // 1. AJAX On-Demand Leads Loader
+    // ──────────────────────────────────────────────
+    let leadsLoadedPhone = null;
+    let leadsCurrentPage = 1;
+    let leadsTotal = 0;
+    let leadsLoadedCount = 0;
+    let leadsHasMore = false;
+    let leadsIsLoading = false;
+
+    const leadsModal = document.getElementById('waCheckLeadsModal');
+    const leadsPreloader = document.getElementById('waLeadsPreloader');
+    const leadsEmpty = document.getElementById('waLeadsEmpty');
+    const leadsTableWrap = document.getElementById('waLeadsTableWrap');
+    const leadsTbody = document.getElementById('waLeadsTbody');
+    const leadsCountDisplay = document.getElementById('waLeadsCountDisplay');
+    const leadsTotalDisplay = document.getElementById('waLeadsTotalDisplay');
+    const loadMoreLeadsBtn = document.getElementById('waLoadMoreLeadsBtn');
+    const leadsScrollBody = document.getElementById('waLeadsScrollBody');
+
+    function fetchLeads(page = 1) {
+        if (!selectedCustomerPhone || leadsIsLoading) return;
+        leadsIsLoading = true;
+
+        if (page === 1) {
+            leadsPreloader.classList.remove('d-none');
+            leadsEmpty.classList.add('d-none');
+            leadsTableWrap.classList.add('d-none');
+            leadsTbody.innerHTML = '';
+            leadsLoadedCount = 0;
+        } else if (loadMoreLeadsBtn) {
+            loadMoreLeadsBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Loading...';
+            loadMoreLeadsBtn.disabled = true;
+        }
+
+        fetch(`{{ route('whatsapp.chat.customer-leads') }}?phone=${encodeURIComponent(selectedCustomerPhone)}&page=${page}&limit=10`)
+            .then(res => res.json())
+            .then(data => {
+                leadsIsLoading = false;
+                leadsPreloader.classList.add('d-none');
+                if (loadMoreLeadsBtn) {
+                    loadMoreLeadsBtn.innerHTML = '<i class="fa fa-arrow-down me-1"></i>Load Next 10';
+                    loadMoreLeadsBtn.disabled = false;
+                }
+
+                if (!data.success || !data.leads || data.leads.length === 0) {
+                    if (page === 1) {
+                        leadsEmpty.classList.remove('d-none');
+                        leadsTableWrap.classList.add('d-none');
+                        leadsCountDisplay.textContent = '0';
+                        leadsTotalDisplay.textContent = '0';
+                    }
+                    leadsHasMore = false;
+                    if (loadMoreLeadsBtn) loadMoreLeadsBtn.classList.add('d-none');
+                    return;
+                }
+
+                leadsTotal = data.total;
+                leadsHasMore = data.has_more;
+                leadsCurrentPage = data.page;
+
+                let rowsHtml = '';
+                data.leads.forEach((lead) => {
+                    leadsLoadedCount++;
+                    rowsHtml += `
+                        <tr class="wa-lead-row">
+                            <td class="text-muted text-center" style="border:1px solid #cbd5e1 !important">${leadsLoadedCount}</td>
+                            <td style="border:1px solid #cbd5e1 !important">
+                                <a href="${lead.edit_url}" target="_blank" class="fw-bolder text-primary text-hover-dark">
+                                    #${lead.order_id}
+                                </a>
+                            </td>
+                            <td style="border:1px solid #cbd5e1 !important">
+                                <div class="fw-bold text-dark text-truncate" style="max-width:220px" title="${lead.project_title}">
+                                    ${lead.project_title}
+                                </div>
+                                <div class="text-muted fs-9">${lead.service_type}</div>
+                            </td>
+                            <td class="text-center" style="border:1px solid #cbd5e1 !important">${lead.pages}</td>
+                            <td style="border:1px solid #cbd5e1 !important">
+                                <div class="d-flex flex-column gap-1">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <span class="text-muted fs-9">Total:</span>
+                                        <strong class="text-dark fs-9">£${lead.price_formatted}</strong>
+                                    </div>
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <span class="text-muted fs-9">Status:</span>
+                                        <span class="badge badge-light-warning fw-bold fs-9 py-0 px-1">${lead.status}</span>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="text-center" style="border:1px solid #cbd5e1 !important">
+                                <span class="badge ${lead.status_class} py-1 px-2">${lead.status}</span>
+                            </td>
+                            <td style="border:1px solid #cbd5e1 !important">
+                                ${lead.deadline}
+                                ${lead.delivery_time ? `<div class="text-muted fs-9">${lead.delivery_time}</div>` : ''}
+                            </td>
+                            <td class="text-end" style="border:1px solid #cbd5e1 !important">
+                                <a href="${lead.edit_url}" target="_blank" class="btn btn-xs btn-light-primary py-1 px-2">
+                                    <i class="fa fa-external-link me-1"></i>View
+                                </a>
+                            </td>
+                        </tr>
+                    `;
+                });
+
+                leadsTbody.insertAdjacentHTML('beforeend', rowsHtml);
+                leadsTableWrap.classList.remove('d-none');
+                leadsEmpty.classList.add('d-none');
+
+                leadsCountDisplay.textContent = leadsLoadedCount;
+                leadsTotalDisplay.textContent = leadsTotal;
+
+                if (leadsHasMore && loadMoreLeadsBtn) {
+                    loadMoreLeadsBtn.classList.remove('d-none');
+                } else if (loadMoreLeadsBtn) {
+                    loadMoreLeadsBtn.classList.add('d-none');
+                }
+            })
+            .catch(err => {
+                leadsIsLoading = false;
+                leadsPreloader.classList.add('d-none');
+                console.error('Error fetching customer leads:', err);
+            });
+    }
+
+    if (leadsModal) {
+        leadsModal.addEventListener('show.bs.modal', function() {
+            if (leadsLoadedPhone !== selectedCustomerPhone) {
+                leadsLoadedPhone = selectedCustomerPhone;
+                fetchLeads(1);
+            }
+        });
+    }
+
+    if (loadMoreLeadsBtn) {
+        loadMoreLeadsBtn.addEventListener('click', function() {
+            if (leadsHasMore && !leadsIsLoading) {
+                fetchLeads(leadsCurrentPage + 1);
+            }
+        });
+    }
+
+    if (leadsScrollBody) {
+        leadsScrollBody.addEventListener('scroll', function() {
+            if (this.scrollTop + this.clientHeight >= this.scrollHeight - 30) {
+                if (leadsHasMore && !leadsIsLoading) {
+                    fetchLeads(leadsCurrentPage + 1);
+                }
+            }
+        });
+    }
+
+    // ──────────────────────────────────────────────
+    // 2. AJAX On-Demand Orders Loader
+    // ──────────────────────────────────────────────
+    let ordersLoadedPhone = null;
+    let ordersCurrentPage = 1;
+    let ordersTotal = 0;
+    let ordersLoadedCount = 0;
+    let ordersHasMore = false;
+    let ordersIsLoading = false;
+
+    const ordersModal = document.getElementById('waCheckOrdersModal');
+    const ordersPreloader = document.getElementById('waOrdersPreloader');
+    const ordersEmpty = document.getElementById('waOrdersEmpty');
+    const ordersTableWrap = document.getElementById('waOrdersTableWrap');
+    const ordersTbody = document.getElementById('waOrdersTbody');
+    const ordersCountDisplay = document.getElementById('waOrdersCountDisplay');
+    const ordersTotalDisplay = document.getElementById('waOrdersTotalDisplay');
+    const loadMoreOrdersBtn = document.getElementById('waLoadMoreOrdersBtn');
+    const ordersScrollBody = document.getElementById('waOrdersScrollBody');
+
+    function fetchOrders(page = 1) {
+        if (!selectedCustomerPhone || ordersIsLoading) return;
+        ordersIsLoading = true;
+
+        if (page === 1) {
+            ordersPreloader.classList.remove('d-none');
+            ordersEmpty.classList.add('d-none');
+            ordersTableWrap.classList.add('d-none');
+            ordersTbody.innerHTML = '';
+            ordersLoadedCount = 0;
+        } else if (loadMoreOrdersBtn) {
+            loadMoreOrdersBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Loading...';
+            loadMoreOrdersBtn.disabled = true;
+        }
+
+        fetch(`{{ route('whatsapp.chat.customer-orders') }}?phone=${encodeURIComponent(selectedCustomerPhone)}&page=${page}&limit=10`)
+            .then(res => res.json())
+            .then(data => {
+                ordersIsLoading = false;
+                ordersPreloader.classList.add('d-none');
+                if (loadMoreOrdersBtn) {
+                    loadMoreOrdersBtn.innerHTML = '<i class="fa fa-arrow-down me-1"></i>Load Next 10';
+                    loadMoreOrdersBtn.disabled = false;
+                }
+
+                if (!data.success || !data.orders || data.orders.length === 0) {
+                    if (page === 1) {
+                        ordersEmpty.classList.remove('d-none');
+                        ordersTableWrap.classList.add('d-none');
+                        ordersCountDisplay.textContent = '0';
+                        ordersTotalDisplay.textContent = '0';
+                    }
+                    ordersHasMore = false;
+                    if (loadMoreOrdersBtn) loadMoreOrdersBtn.classList.add('d-none');
+                    return;
+                }
+
+                ordersTotal = data.total;
+                ordersHasMore = data.has_more;
+                ordersCurrentPage = data.page;
+
+                let rowsHtml = '';
+                data.orders.forEach((ord) => {
+                    ordersLoadedCount++;
+                    const dueBadge = ord.due_amount > 0
+                        ? `<span class="badge badge-light-danger fw-bold fs-9 py-0 px-1">£${ord.due_amount_formatted}</span>`
+                        : `<span class="badge badge-light-success fw-bold fs-9 py-0 px-1">£0.00 (Paid)</span>`;
+                    const paidRow = ord.received_amount > 0
+                        ? `<div class="d-flex justify-content-between align-items-center"><span class="text-muted fs-9">Paid:</span><span class="text-success fw-bold fs-9">£${ord.received_amount_formatted}</span></div>`
+                        : '';
+
+                    rowsHtml += `
+                        <tr class="wa-order-row">
+                            <td class="text-muted text-center" style="border:1px solid #cbd5e1 !important">${ordersLoadedCount}</td>
+                            <td style="border:1px solid #cbd5e1 !important">
+                                <a href="${ord.edit_url}" target="_blank" class="fw-bolder text-primary text-hover-dark">
+                                    #${ord.order_id}
+                                </a>
+                            </td>
+                            <td style="border:1px solid #cbd5e1 !important">
+                                <div class="fw-bold text-dark text-truncate" style="max-width:220px" title="${ord.title}">
+                                    ${ord.title}
+                                </div>
+                                <div class="text-muted fs-9">${ord.service_type}</div>
+                            </td>
+                            <td class="text-center" style="border:1px solid #cbd5e1 !important">${ord.pages}</td>
+                            <td style="border:1px solid #cbd5e1 !important">
+                                <div class="d-flex flex-column gap-1">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <span class="text-muted fs-9">Total:</span>
+                                        <strong class="text-dark fs-9">£${ord.total_amount_formatted}</strong>
+                                    </div>
+                                    ${paidRow}
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <span class="text-muted fs-9">Due:</span>
+                                        ${dueBadge}
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="text-center" style="border:1px solid #cbd5e1 !important">
+                                <span class="badge ${ord.status_class} py-1 px-2">${ord.status}</span>
+                            </td>
+                            <td style="border:1px solid #cbd5e1 !important">${ord.delivery_date}</td>
+                            <td class="text-end" style="border:1px solid #cbd5e1 !important">
+                                <a href="${ord.edit_url}" target="_blank" class="btn btn-xs btn-light-primary py-1 px-2">
+                                    <i class="fa fa-external-link me-1"></i>View
+                                </a>
+                            </td>
+                        </tr>
+                    `;
+                });
+
+                ordersTbody.insertAdjacentHTML('beforeend', rowsHtml);
+                ordersTableWrap.classList.remove('d-none');
+                ordersEmpty.classList.add('d-none');
+
+                ordersCountDisplay.textContent = ordersLoadedCount;
+                ordersTotalDisplay.textContent = ordersTotal;
+
+                if (ordersHasMore && loadMoreOrdersBtn) {
+                    loadMoreOrdersBtn.classList.remove('d-none');
+                } else if (loadMoreOrdersBtn) {
+                    loadMoreOrdersBtn.classList.add('d-none');
+                }
+            })
+            .catch(err => {
+                ordersIsLoading = false;
+                ordersPreloader.classList.add('d-none');
+                console.error('Error fetching customer orders:', err);
+            });
+    }
+
+    if (ordersModal) {
+        ordersModal.addEventListener('show.bs.modal', function() {
+            if (ordersLoadedPhone !== selectedCustomerPhone) {
+                ordersLoadedPhone = selectedCustomerPhone;
+                fetchOrders(1);
+            }
+        });
+    }
+
+    if (loadMoreOrdersBtn) {
+        loadMoreOrdersBtn.addEventListener('click', function() {
+            if (ordersHasMore && !ordersIsLoading) {
+                fetchOrders(ordersCurrentPage + 1);
+            }
+        });
+    }
+
+    if (ordersScrollBody) {
+        ordersScrollBody.addEventListener('scroll', function() {
+            if (this.scrollTop + this.clientHeight >= this.scrollHeight - 30) {
+                if (ordersHasMore && !ordersIsLoading) {
+                    fetchOrders(ordersCurrentPage + 1);
+                }
+            }
+        });
+    }
+});
+</script>
 
 {{-- ══════════════════════════════════════════════════
      LABEL CHAT MODAL (WhatsApp-style tap-to-toggle)
@@ -3097,13 +3802,18 @@
     const chatMenu      = document.getElementById('wabChatMenu');
     const markUnreadBtn = document.getElementById('wabMarkUnreadBtn');
     const csrfToken     = document.querySelector('meta[name="csrf-token"]')?.content || '';
-    const selectedPhone = body?.dataset.selectedPhone || '';
-    const selectedPhoneChannel = selectedPhone.replace(/\D+/g, '');
+    let selectedPhone   = body?.dataset.selectedPhone || '';
+    let selectedPhoneChannel = selectedPhone.replace(/\D+/g, '');
     const messagesUrl   = @json(route('whatsapp.chat.messages'));
+    const contactListUrl = @json(route('whatsapp.chat.contacts'));
     const markReadUrl   = @json(route('whatsapp.chat.mark-read'));
     const markUnreadUrl = @json(route('whatsapp.chat.mark-unread'));
     const mediaUploadUrl = @json(route('whatsapp.chat.send-media'));
     let lastMessageId   = Number(body?.dataset.lastMessageId || 0);
+    let firstMessageId  = Number(body?.dataset.firstMessageId || 0);
+    let hasMoreOlder    = body?.dataset.hasMoreOlder === '1';
+    let isLoadingOlder  = false;
+    const olderLoader   = document.getElementById('wabOlderMessagesLoader');
     let isPolling       = false;
     let selectedUploadFiles = [];
     let selectedUploadUrls = [];
@@ -3118,7 +3828,16 @@
     let recordedAudio = null;
     let recordedAudioDuration = 0;
     let recordedAudioExtension = 'webm';
-    const defaultTypingLabel = typingLabel?.textContent || selectedPhone || 'ready';
+    let defaultTypingLabel = typingLabel?.textContent || selectedPhone || 'ready';
+
+    /* ── Sidebar pagination & search state ── */
+    let contactPage = 1;
+    let contactsHasMore = @json((bool)($contactsHasMore ?? true));
+    let isLoadingContacts = false;
+    let contactSearchQuery = '';
+    let searchDebounceTimer = null;
+    const chatPreloader = document.getElementById('wabChatPreloader');
+    const contactListLoader = document.getElementById('wabContactListLoader');
 
     /* ── Toggle sidebar collapse (desktop) ── */
     toggleBtn?.addEventListener('click', () => {
@@ -3165,16 +3884,357 @@
         }
     });
 
+    /* ── In-Memory Cache (SWR - 0ms instant contact switching) ── */
+    const chatCache = new Map();
+
+    // Cache initial messages if present on page load
+    if (selectedPhone && body && body.querySelectorAll('.wab-msg-row:not(.wab-empty-message)').length > 0) {
+        chatCache.set(selectedPhone, {
+            lastMessageId: lastMessageId,
+            firstMessageId: firstMessageId,
+            hasMoreOlder: hasMoreOlder,
+            bodyHtml: body.innerHTML,
+        });
+    }
+
+    /* ── Dynamic Instant Chat Switch (SPA mode - sub-50ms / 0ms with SWR) ── */
+    async function switchChat(phone, name, color) {
+        if (!phone) return;
+        if (selectedPhone === phone && body && body.querySelectorAll('.wab-msg-row:not(.wab-empty-message)').length > 0) {
+            return;
+        }
+
+        selectedPhone = phone;
+        selectedPhoneChannel = phone.replace(/\D+/g, '');
+        defaultTypingLabel = phone;
+
+        // Update active class in sidebar
+        document.querySelectorAll('.wab-contact-item').forEach(i => {
+            const isActive = i.dataset.phone === phone;
+            i.classList.toggle('is-active', isActive);
+            if (isActive) {
+                i.querySelector('.wab-badge')?.remove();
+            }
+        });
+
+        // Hide sidebar on mobile
+        if (window.innerWidth <= 768) sidebar.classList.add('mobile-hidden');
+
+        // Update browser URL without reloading
+        const newUrl = contactUrl(phone);
+        history.pushState({ phone, name, color }, '', newUrl);
+
+        // Show conversation containers
+        document.querySelector('.wab-blank-chat')?.classList.add('d-none');
+        document.querySelector('.wab-conv-header')?.classList.remove('d-none');
+        document.querySelector('.wab-conv-footer')?.classList.remove('d-none');
+        if (body) {
+            body.classList.remove('d-none');
+            body.dataset.selectedPhone = phone;
+        }
+
+        // Enable message form
+        if (input) {
+            input.disabled = false;
+            input.placeholder = 'Type a message…';
+            input.focus();
+        }
+        if (sendBtn) sendBtn.disabled = false;
+        if (micBtn) micBtn.disabled = false;
+
+        const hiddenPhoneInput = document.querySelector('.wab-conv-footer input[name="phone"]');
+        if (hiddenPhoneInput) hiddenPhoneInput.value = phone;
+
+        // Update header basics immediately
+        updateHeaderBasic(name, phone, color);
+
+        // If contact is in SWR cache, render INSTANTLY (0ms)
+        const cached = chatCache.get(phone);
+        if (cached && cached.bodyHtml) {
+            body.innerHTML = cached.bodyHtml;
+            lastMessageId = cached.lastMessageId || 0;
+            firstMessageId = cached.firstMessageId || 0;
+            hasMoreOlder = Boolean(cached.hasMoreOlder);
+            if (body) {
+                body.dataset.lastMessageId = String(lastMessageId);
+                body.dataset.firstMessageId = String(firstMessageId);
+                body.dataset.hasMoreOlder = hasMoreOlder ? '1' : '0';
+                body.scrollTop = body.scrollHeight;
+            }
+            if (olderLoader) olderLoader.classList.toggle('d-none', !hasMoreOlder);
+            if (chatPreloader) chatPreloader.classList.add('d-none');
+        } else {
+            // Show Preloader only when not in cache
+            if (chatPreloader) chatPreloader.classList.remove('d-none');
+            clearMessagesBody();
+        }
+
+        try {
+            const res = await fetch(`${messagesUrl}?phone=${encodeURIComponent(phone)}&limit=30&with_summary=1`, {
+                headers: { 'Accept': 'application/json' }
+            });
+            if (!res.ok) throw new Error('Failed to load chat');
+
+            const data = await res.json();
+            const msgs = data.messages || [];
+
+            // If user did not switch away while request was in-flight
+            if (selectedPhone === phone) {
+                lastMessageId = Number(data.last_id || (msgs[msgs.length - 1]?.id || 0));
+                firstMessageId = Number(data.first_id || (msgs[0]?.id || 0));
+                hasMoreOlder = Boolean(data.has_more_older);
+
+                if (body) {
+                    body.dataset.lastMessageId = String(lastMessageId);
+                    body.dataset.firstMessageId = String(firstMessageId);
+                    body.dataset.hasMoreOlder = hasMoreOlder ? '1' : '0';
+                }
+                if (olderLoader) olderLoader.classList.toggle('d-none', !hasMoreOlder);
+
+                // Render fresh messages
+                clearMessagesBody();
+                renderInitialMessagesBatch(msgs);
+
+                if (data.customer) {
+                    updateHeaderCustomerDetails(data.customer, name, phone, color);
+                }
+
+                // Save into SWR Cache
+                chatCache.set(phone, {
+                    lastMessageId: lastMessageId,
+                    firstMessageId: firstMessageId,
+                    hasMoreOlder: hasMoreOlder,
+                    bodyHtml: body.innerHTML,
+                });
+            }
+        } catch (err) {
+            console.warn('Error loading chat messages:', err);
+        } finally {
+            if (chatPreloader) chatPreloader.classList.add('d-none');
+            if (body && selectedPhone === phone) body.scrollTop = body.scrollHeight;
+        }
+    }
+
+    function updateHeaderBasic(name, phone, color) {
+        const avatar = document.getElementById('wabOpenProfilePanel');
+        if (avatar) {
+            avatar.textContent = initials(name);
+            avatar.style.background = `${color}1a`;
+            avatar.style.color = color;
+        }
+        const nameEl = document.querySelector('.wab-conv-name');
+        if (nameEl) nameEl.textContent = name || phone;
+        if (typingLabel) typingLabel.textContent = phone;
+    }
+
+    function updateHeaderCustomerDetails(customer, fallbackName, phone, color) {
+        const nameEl = document.querySelector('.wab-conv-name');
+        const resolvedName = customer.name || fallbackName || phone;
+        if (nameEl) nameEl.textContent = resolvedName;
+
+        const avatar = document.getElementById('wabOpenProfilePanel');
+        if (avatar) {
+            avatar.textContent = initials(resolvedName);
+            avatar.style.background = `${color}1a`;
+            avatar.style.color = color;
+        }
+
+        // Labels row in header
+        const labelRow = document.querySelector('.wab-chat-label-row');
+        const userInfo = document.querySelector('.wab-conv-user-info');
+        const labels = Array.isArray(customer.labels) ? customer.labels : [];
+        if (labels.length > 0) {
+            const labelsHtml = labels.map(l => `<span style="background:${l.color}1a;color:${l.color};border:1px solid ${l.color}30">${escapeHtml(l.name)}</span>`).join('');
+            if (labelRow) {
+                labelRow.innerHTML = labelsHtml;
+            } else if (userInfo) {
+                const newRow = document.createElement('div');
+                newRow.className = 'wab-chat-label-row';
+                newRow.innerHTML = labelsHtml;
+                userInfo.appendChild(newRow);
+            }
+        } else if (labelRow) {
+            labelRow.remove();
+        }
+
+        // Action Buttons (Lead Button)
+        const actions = document.querySelector('.wab-conv-actions');
+        if (actions) {
+            let leadBtn = actions.querySelector('a[href*="/lead/edit"], button[data-bs-target="#waCreateLeadModal"]');
+            if (customer.lead) {
+                const leadId = customer.lead.order_id || customer.lead.id;
+                const leadUrl = customer.lead.edit_url;
+                if (leadBtn) {
+                    leadBtn.outerHTML = `
+                        <a href="${leadUrl}" target="_blank" class="wab-label-btn" style="background:#e8f5e9;color:#2e7d32;border:1px solid #c8e6c9" title="View CRM Lead #${leadId}">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7.5" r="4"></circle><polyline points="17 11 19 13 23 9"></polyline></svg>
+                            Lead #${leadId}
+                        </a>
+                    `;
+                }
+            } else {
+                if (leadBtn) {
+                    leadBtn.outerHTML = `
+                        <button type="button" class="wab-label-btn" style="background:#00a884;color:#fff;border:none" data-bs-toggle="modal" data-bs-target="#waCreateLeadModal" title="Create Lead with this WhatsApp Customer">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>
+                            Create Lead
+                        </button>
+                    `;
+                }
+            }
+        }
+    }
+
+    function clearMessagesBody() {
+        if (!body) return;
+        body.querySelectorAll('.wab-msg-row:not(.wab-typing-row), .wab-date-badge, .wab-empty-message, .wab-panel-card').forEach(el => el.remove());
+    }
+
+    function renderInitialMessagesBatch(messages) {
+        if (!body || !typingRow) return;
+
+        if (!Array.isArray(messages) || messages.length === 0) {
+            const emptyRow = document.createElement('div');
+            emptyRow.className = 'wab-msg-row wab-incoming wab-empty-message';
+            emptyRow.innerHTML = `
+                <div class="wab-msg-bubble">
+                    No messages yet. Start a conversation below.
+                    <div class="wab-msg-meta"><span class="wab-msg-time"></span></div>
+                </div>
+            `;
+            body.insertBefore(emptyRow, typingRow);
+            return;
+        }
+
+        let lastRenderDate = null;
+        messages.forEach(msg => {
+            const key = localDateKey(msg.created_at);
+            if (key && key !== lastRenderDate) {
+                const badge = document.createElement('div');
+                badge.className = 'wab-date-badge';
+                badge.dataset.dateKey = key;
+                badge.textContent = dateLabel(msg.created_at);
+                body.insertBefore(badge, typingRow);
+                lastRenderDate = key;
+            }
+
+            const hasMedia = Boolean(msg.media_url);
+            const mediaClass = mediaTypeClass(msg.media_type);
+            const row = document.createElement('div');
+            row.className = `wab-msg-row ${msg.direction === 'inbound' ? 'wab-incoming' : 'wab-outgoing'}`;
+            row.dataset.messageId = msg.id;
+            row.innerHTML = `
+                <div class="wab-msg-bubble ${hasMedia ? `wab-bubble--media ${mediaClass ? `wab-bubble--${mediaClass}` : ''}` : ''}">
+                    ${messageContentMarkup(msg)}
+                    <div class="wab-msg-meta">
+                        <span class="wab-msg-time">${escapeHtml(msg.time || '')}</span>
+                        ${msg.direction === 'outbound' ? tickMarkup(msg.status) : ''}
+                    </div>
+                </div>
+            `;
+            body.insertBefore(row, typingRow);
+            initVoiceCards(row);
+        });
+    }
+
     function bindContactClick(item) {
-        item.addEventListener('click', () => {
-            document.querySelectorAll('.wab-contact-item').forEach(i => i.classList.remove('is-active'));
-            item.classList.add('is-active');
-            if (window.innerWidth <= 768) sidebar.classList.add('mobile-hidden');
-            if (item.dataset.url) window.location.href = item.dataset.url;
+        item.addEventListener('click', (e) => {
+            e.preventDefault();
+            const phone = item.dataset.phone;
+            const name = item.querySelector('.wab-contact-name')?.textContent || item.dataset.name || phone;
+            const color = item.dataset.color || '#25d366';
+            switchChat(phone, name, color);
         });
     }
 
     document.querySelectorAll('.wab-contact-item').forEach(bindContactClick);
+
+    /* ── Sidebar Infinite Scroll ── */
+    async function fetchNextContacts() {
+        if (!contactsHasMore || isLoadingContacts) return;
+        isLoadingContacts = true;
+        if (contactListLoader) contactListLoader.classList.remove('d-none');
+
+        try {
+            const nextPage = contactPage + 1;
+            const url = `${contactListUrl}?page=${nextPage}&search=${encodeURIComponent(contactSearchQuery)}&active_phone=${encodeURIComponent(selectedPhone)}`;
+            const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+            if (!res.ok) return;
+
+            const data = await res.json();
+            const list = document.getElementById('wabContactList');
+            const contacts = data.contacts || [];
+
+            contacts.forEach(c => {
+                const el = createContactItemElement(c);
+                if (el && list) list.appendChild(el);
+            });
+
+            contactPage = nextPage;
+            contactsHasMore = Boolean(data.has_more);
+        } catch (err) {
+            console.warn('Failed to load more contacts', err);
+        } finally {
+            isLoadingContacts = false;
+            if (contactListLoader) contactListLoader.classList.add('d-none');
+        }
+    }
+
+    const contactListEl = document.getElementById('wabContactList');
+    if (contactListEl) {
+        contactListEl.addEventListener('scroll', () => {
+            if (contactListEl.scrollTop + contactListEl.clientHeight >= contactListEl.scrollHeight - 60) {
+                if (contactsHasMore && !isLoadingContacts) {
+                    fetchNextContacts();
+                }
+            }
+        });
+    }
+
+    function createContactItemElement(c) {
+        if (!c?.phone) return null;
+        const existing = document.querySelector(`.wab-contact-item[data-phone="${c.phone}"]`);
+        if (existing) return null;
+
+        const div = document.createElement('div');
+        div.className = `wab-contact-item ${c.active || c.phone === selectedPhone ? 'is-active' : ''}`;
+        div.dataset.name = (c.name || '').toLowerCase();
+        div.dataset.contactId = c.id || '';
+        div.dataset.url = contactUrl(c.phone);
+        div.dataset.phone = c.phone || '';
+        div.dataset.color = c.color || '#25d366';
+
+        const labels = Array.isArray(c.labels) ? c.labels : [];
+        let dotsHtml = '';
+        let tagsHtml = '';
+        if (labels.length > 0) {
+            dotsHtml = `<div class="wab-contact-label-dots">${labels.slice(0, 3).map(l => `<span class="wab-label-dot" style="background:${l.color}" title="${escapeHtml(l.name)}"></span>`).join('')}</div>`;
+            tagsHtml = `<div class="wab-contact-label-tags">${labels.slice(0, 2).map(l => `<span class="wab-contact-tag-chip" style="background:${l.color}1a;color:${l.color};border:1px solid ${l.color}40">${escapeHtml(l.name)}</span>`).join('')}</div>`;
+        }
+
+        div.innerHTML = `
+            <div class="wab-avatar" style="background:${c.color}1a;color:${c.color}">
+                ${escapeHtml(initials(c.name))}
+                <span class="wab-status-badge wab-status--${c.status || 'offline'}"></span>
+            </div>
+            <div class="wab-contact-info">
+                <div class="wab-contact-row-top">
+                    <span class="wab-contact-name">${escapeHtml(c.name || c.phone)}</span>
+                    <span class="wab-contact-time">${escapeHtml(c.time || '')}</span>
+                </div>
+                <div class="wab-contact-row-bottom">
+                    <span class="wab-contact-preview">${escapeHtml(c.msg || '')}</span>
+                    <div class="wab-contact-row-right">
+                        ${c.badge ? `<span class="wab-badge">${c.badge}</span>` : ''}
+                        ${dotsHtml}
+                    </div>
+                </div>
+                ${tagsHtml}
+            </div>
+        `;
+        bindContactClick(div);
+        return div;
+    }
 
     /* ── Tab filter ── */
     document.querySelectorAll('.wab-tab').forEach(tab => {
@@ -3184,12 +4244,44 @@
         });
     });
 
-    /* ── Search filter ── */
+    /* ── Real-time Debounced Search ── */
     searchInput?.addEventListener('input', function () {
-        const q = this.value.toLowerCase().trim();
-        document.querySelectorAll('.wab-contact-item').forEach(item => {
-            item.style.display = item.dataset.name.includes(q) ? '' : 'none';
-        });
+        const q = this.value.trim();
+        contactSearchQuery = q;
+        clearTimeout(searchDebounceTimer);
+        searchDebounceTimer = setTimeout(async () => {
+            contactPage = 1;
+            contactsHasMore = true;
+            if (contactListLoader) contactListLoader.classList.remove('d-none');
+
+            try {
+                const url = `${contactListUrl}?page=1&search=${encodeURIComponent(q)}&active_phone=${encodeURIComponent(selectedPhone)}`;
+                const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+                if (!res.ok) return;
+
+                const data = await res.json();
+                const list = document.getElementById('wabContactList');
+                if (list) {
+                    list.innerHTML = '';
+                    (data.contacts || []).forEach(c => {
+                        const el = createContactItemElement(c);
+                        if (el) list.appendChild(el);
+                    });
+                }
+                contactsHasMore = Boolean(data.has_more);
+            } catch (err) {
+                console.warn('Search contacts failed', err);
+            } finally {
+                if (contactListLoader) contactListLoader.classList.add('d-none');
+            }
+        }, 250);
+    });
+
+    // Handle browser Back/Forward navigation
+    window.addEventListener('popstate', (e) => {
+        if (e.state && e.state.phone) {
+            switchChat(e.state.phone, e.state.name || e.state.phone, e.state.color || '#25d366');
+        }
     });
 
     function escapeHtml(value) {
@@ -3370,6 +4462,95 @@
         return mediaMarkup + (caption ? `<div class="wab-media-caption">${escapeHtml(message.message)}</div>` : '');
     }
 
+    async function fetchOlderMessages() {
+        if (!selectedPhone || !hasMoreOlder || isLoadingOlder || firstMessageId <= 0) return;
+        isLoadingOlder = true;
+        if (olderLoader) olderLoader.classList.remove('d-none');
+
+        try {
+            const url = `${messagesUrl}?phone=${encodeURIComponent(selectedPhone)}&before_id=${firstMessageId}&limit=25`;
+            const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+            if (!res.ok) return;
+
+            const data = await res.json();
+            const olderList = data.messages || [];
+
+            if (olderList.length === 0) {
+                hasMoreOlder = false;
+                if (olderLoader) olderLoader.classList.add('d-none');
+                return;
+            }
+
+            // Record previous scroll metrics to maintain smooth reading position
+            const prevScrollHeight = body.scrollHeight;
+            const prevScrollTop = body.scrollTop;
+
+            renderOlderMessagesBatch(olderList);
+
+            firstMessageId = Number(data.first_id || olderList[0]?.id || firstMessageId);
+            body.dataset.firstMessageId = String(firstMessageId);
+            hasMoreOlder = Boolean(data.has_more_older);
+
+            if (!hasMoreOlder && olderLoader) {
+                olderLoader.classList.add('d-none');
+            }
+
+            // Restore scroll position
+            const newScrollHeight = body.scrollHeight;
+            body.scrollTop = prevScrollTop + (newScrollHeight - prevScrollHeight);
+        } catch (err) {
+            console.warn('Error fetching older WhatsApp messages:', err);
+        } finally {
+            isLoadingOlder = false;
+            if (!hasMoreOlder && olderLoader) olderLoader.classList.add('d-none');
+        }
+    }
+
+    function renderOlderMessagesBatch(messages) {
+        if (!body || !Array.isArray(messages) || messages.length === 0) return;
+
+        const frag = document.createDocumentFragment();
+        let lastDate = null;
+
+        messages.forEach(message => {
+            if (!message?.id || body.querySelector(`[data-message-id="${message.id}"]`)) return;
+
+            const key = localDateKey(message.created_at);
+            if (key && key !== lastDate) {
+                const badge = document.createElement('div');
+                badge.className = 'wab-date-badge';
+                badge.dataset.dateKey = key;
+                badge.textContent = dateLabel(message.created_at);
+                frag.appendChild(badge);
+                lastDate = key;
+            }
+
+            const hasMedia = Boolean(message.media_url);
+            const mediaClass = mediaTypeClass(message.media_type);
+            const row = document.createElement('div');
+            row.className = `wab-msg-row ${message.direction === 'inbound' ? 'wab-incoming' : 'wab-outgoing'}`;
+            row.dataset.messageId = message.id;
+            row.innerHTML = `
+                <div class="wab-msg-bubble ${hasMedia ? `wab-bubble--media ${mediaClass ? `wab-bubble--${mediaClass}` : ''}` : ''}">
+                    ${messageContentMarkup(message)}
+                    <div class="wab-msg-meta">
+                        <span class="wab-msg-time">${escapeHtml(message.time || '')}</span>
+                        ${message.direction === 'outbound' ? tickMarkup(message.status) : ''}
+                    </div>
+                </div>
+            `;
+            frag.appendChild(row);
+            initVoiceCards(row);
+        });
+
+        // Insert after olderLoader (or at start of body)
+        if (olderLoader && olderLoader.nextSibling) {
+            body.insertBefore(frag, olderLoader.nextSibling);
+        } else {
+            body.prepend(frag);
+        }
+    }
+
     function renderMessage(message) {
         const hasText = String(message?.message || '').trim() !== '';
         const hasMedia = Boolean(message?.media_url);
@@ -3399,6 +4580,10 @@
         initVoiceCards(row);
         lastMessageId = Math.max(lastMessageId, Number(message.id || 0));
         body.dataset.lastMessageId = String(lastMessageId);
+        if (firstMessageId === 0) {
+            firstMessageId = Number(message.id || 0);
+            body.dataset.firstMessageId = String(firstMessageId);
+        }
         body.scrollTop = body.scrollHeight;
     }
 
@@ -4075,26 +5260,39 @@
         @endif
     });
 
-    /* ── Auto scroll on load ── */
-    if (body) body.scrollTop = body.scrollHeight;
-    initVoiceCards();
-    markSelectedChatRead();
-    pollMessages();
-    if (selectedPhone) {
-        setInterval(pollMessages, 2000);
-        if (window.Echo?.private && selectedPhoneChannel) {
-            window.Echo.private(`chat.${selectedPhoneChannel}`)
-                .listen('.MessageSent', pollMessages)
-                .listen('.MessageStatusUpdated', pollMessages);
-        }
-        document.addEventListener('visibilitychange', () => {
-            if (!document.hidden) {
-                markSelectedChatRead();
-                pollMessages();
+    /* ── Auto scroll on load & Scroll-up pagination ── */
+    if (body) {
+        body.scrollTop = body.scrollHeight;
+        body.addEventListener('scroll', () => {
+            if (body.scrollTop <= 60 && hasMoreOlder && !isLoadingOlder) {
+                fetchOlderMessages();
             }
         });
-        window.addEventListener('focus', pollMessages);
     }
+    initVoiceCards();
+    if (selectedPhone) {
+        markSelectedChatRead();
+        pollMessages();
+    }
+
+    setInterval(() => {
+        if (selectedPhone) pollMessages();
+    }, 2000);
+
+    if (window.Echo?.private && selectedPhoneChannel) {
+        window.Echo.private(`chat.${selectedPhoneChannel}`)
+            .listen('.MessageSent', pollMessages)
+            .listen('.MessageStatusUpdated', pollMessages);
+    }
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden && selectedPhone) {
+            markSelectedChatRead();
+            pollMessages();
+        }
+    });
+    window.addEventListener('focus', () => {
+        if (selectedPhone) pollMessages();
+    });
 
 })();
 </script>

@@ -6,6 +6,9 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use App\Models\Leads;
+use App\Models\WhatsappChatLabel;
+use App\Models\WhatsappChatContactLabel;
 use App\Models\WhatsappMessage;
 use App\Models\WhatsappSetting;
 use App\Events\MessageSent;
@@ -14,12 +17,14 @@ use App\Events\MessageStatusUpdated;
 class WhatsAppWebhookController extends Controller
 {
 
-
 public function receive(Request $request)
 {
     $data = $request->all();
     Log::info('WhatsApp Webhook Received:', $data);
 
+    // ----------------------------------------------------
+    // 0. Twilio Webhook Handling (Status Callback & Inbound)
+    // ----------------------------------------------------
     if (($request->has('MessageStatus') || $request->has('SmsStatus')) && ($request->has('MessageSid') || $request->has('SmsMessageSid'))) {
         $waMessageId = $request->input('MessageSid') ?? $request->input('SmsMessageSid');
         $status = strtolower((string) ($request->input('MessageStatus') ?? $request->input('SmsStatus')));
@@ -110,9 +115,13 @@ public function receive(Request $request)
         return response()->json(['status' => 'received'], 200);
     }
 
+    // ----------------------------------------------------
+    // AiSensy / Standard Webhook Event Routing
+    // ----------------------------------------------------
     $topic = $data['topic'] ?? null;
     $eventName = strtolower((string) ($topic ?? $data['event'] ?? $data['type'] ?? ''));
 
+    // Typing Event
     if (str_contains($eventName, 'typing')) {
         $typingPhone = $data['phone']
             ?? $data['from']
@@ -129,53 +138,182 @@ public function receive(Request $request)
         return response()->json(['status' => 'typing'], 200);
     }
 
-    // 1. Handle inbound messages (from user)
-    if ($topic === 'message.created' && isset($data['data']['message'])) {
-        $messageData = $data['data']['message'];
+    // ----------------------------------------------------
+    // 1. Hook: message.created OR message.sender.user (Incoming & Outgoing Messages)
+    // ----------------------------------------------------
+    if (in_array($topic, ['message.created', 'message.sender.user'], true) || str_contains($eventName, 'message.created') || str_contains($eventName, 'message.sender.user')) {
+        $messageData = $data['data']['message'] ?? $data['data'] ?? [];
 
-        $phone = $messageData['phone_number'] ?? null;
-        $text = $messageData['message_content']['text'] ?? '';
-        $sender = $messageData['sender'] ?? '';
-        $userName = $messageData['userName'] ?? 'Unknown';
-        $waMessageId = $messageData['messageId'] ?? null;
+        $phone = $messageData['phone_number'] ?? $messageData['phone'] ?? $messageData['to'] ?? $messageData['from'] ?? null;
+        $sender = strtoupper((string) ($messageData['sender'] ?? ($topic === 'message.sender.user' ? 'USER' : 'USER')));
+        $userName = $messageData['userName'] ?? $messageData['name'] ?? 'WhatsApp User';
+        $waMessageId = $messageData['messageId'] ?? $messageData['id'] ?? null;
 
-        if ($sender === 'USER' && $phone && $text) {
-            $whatsappMessage = WhatsappMessage::create([
-                'phone' => $phone,
-                'name' => $userName,
-                'message' => $text,
-                'direction' => 'inbound',
-                'wa_message_id' => $waMessageId,
-            ]);
-            Cache::forget($this->typingCacheKey($phone));
+        // Parse text content (supports direct text, button text, or interactive reply)
+        $text = $messageData['message_content']['text'] 
+            ?? $messageData['text']['body'] 
+            ?? $messageData['text'] 
+            ?? $messageData['button_reply']['title'] 
+            ?? $messageData['interactive']['button_reply']['title'] 
+            ?? $messageData['interactive']['list_reply']['title'] 
+            ?? '';
 
-            event(new MessageSent($whatsappMessage));
-            Log::info('Broadcasting message event', ['message' => $whatsappMessage]);
+        // Media fields
+        $mediaUrl = $messageData['message_content']['media_url'] 
+            ?? $messageData['media_url'] 
+            ?? $messageData['image']['link'] 
+            ?? $messageData['video']['link'] 
+            ?? $messageData['document']['link'] 
+            ?? $messageData['audio']['link'] 
+            ?? null;
+
+        $mediaType = $messageData['message_content']['media_type'] 
+            ?? $messageData['media_type'] 
+            ?? $messageData['type'] 
+            ?? ($mediaUrl ? 'image' : null);
+
+        $mediaName = $messageData['message_content']['media_name'] 
+            ?? $messageData['media_name'] 
+            ?? $messageData['document']['filename'] 
+            ?? null;
+
+        if ($phone && ($text !== '' || $mediaUrl !== '')) {
+            $phone = ltrim(str_replace('whatsapp:', '', $phone), '+');
+
+            if ($sender === 'USER' || $topic === 'message.sender.user') {
+                // Check if already stored to avoid duplicate webhook processing
+                $existingMessage = $waMessageId ? WhatsappMessage::where('wa_message_id', $waMessageId)->first() : null;
+
+                if (! $existingMessage) {
+                    $whatsappMessage = WhatsappMessage::create([
+                        'phone' => $phone,
+                        'name' => $userName,
+                        'message' => (string) $text,
+                        'direction' => 'inbound',
+                        'wa_message_id' => $waMessageId,
+                        'status' => 'received',
+                        'media_url' => $mediaUrl,
+                        'media_type' => $mediaType,
+                        'media_name' => $mediaName,
+                    ]);
+
+                    Cache::forget($this->typingCacheKey($phone));
+                    event(new MessageSent($whatsappMessage));
+                    Log::info('AiSensy Inbound WhatsApp message created', ['message_id' => $whatsappMessage->id, 'phone' => $phone]);
+                }
+            } else {
+                // Outbound message from campaign/bot
+                if ($waMessageId && ! WhatsappMessage::where('wa_message_id', $waMessageId)->exists()) {
+                    WhatsappMessage::create([
+                        'phone' => $phone,
+                        'name' => 'System',
+                        'message' => (string) $text,
+                        'direction' => 'outbound',
+                        'wa_message_id' => $waMessageId,
+                        'status' => 'sent',
+                        'media_url' => $mediaUrl,
+                        'media_type' => $mediaType,
+                        'media_name' => $mediaName,
+                    ]);
+                }
+            }
         }
     }
 
-    // 2. Handle message status update (e.g., delivered, read)
-    if ($topic === 'message.status.updated') {
-        $msg = $data['data']['message'];
-        $waMessageId = $msg['messageId'];
-        $status = strtolower($msg['status']); // SENT / DELIVERED / READ
+    // ----------------------------------------------------
+    // 2. Hook: message.status.updated (Message Status: SENT / DELIVERED / READ / FAILED)
+    // ----------------------------------------------------
+    if ($topic === 'message.status.updated' || str_contains($eventName, 'status')) {
+        $msg = $data['data']['message'] ?? $data['data'] ?? [];
+        $waMessageId = $msg['messageId'] ?? $msg['id'] ?? null;
+        $status = strtolower((string) ($msg['status'] ?? ''));
 
-        $message = WhatsappMessage::where('wa_message_id', $waMessageId)->first();
+        if ($waMessageId && $status !== '') {
+            $message = WhatsappMessage::where('wa_message_id', $waMessageId)->first();
 
-        if ($message) {
-            $message->status = $status;
-            $message->save();
+            if ($message) {
+                $message->status = $status;
+                $message->save();
 
-            event(new MessageStatusUpdated($message)); // Make sure this event exists
-            Log::info('Broadcasting message status update event', [
-                'id' => $message->wa_message_id,
-                'phone' => $message->phone,
-                'status' => $status,
-            ]);
-        } else {
-            Log::warning('No matching message found for status update', [
-                'wa_message_id' => $waMessageId,
-                'status' => $status,
+                event(new MessageStatusUpdated($message));
+                Log::info('AiSensy message status updated', [
+                    'wa_message_id' => $waMessageId,
+                    'phone' => $message->phone,
+                    'status' => $status,
+                ]);
+            } else {
+                Log::warning('AiSensy message status update without matching message', [
+                    'wa_message_id' => $waMessageId,
+                    'status' => $status,
+                ]);
+            }
+        }
+    }
+
+    // ----------------------------------------------------
+    // 3. Hook: contact.first_message.updated (New Lead Creation on First Contact)
+    // ----------------------------------------------------
+    if ($topic === 'contact.first_message.updated' || str_contains($eventName, 'first_message')) {
+        $contactData = $data['data']['contact'] ?? $data['data'] ?? [];
+        $contactPhone = $contactData['phone_number'] ?? $contactData['phone'] ?? null;
+        $contactName = $contactData['name'] ?? $contactData['userName'] ?? 'WhatsApp Lead';
+
+        if ($contactPhone) {
+            $cleanPhone = ltrim(str_replace('whatsapp:', '', $contactPhone), '+');
+
+            // Check if lead already exists
+            $existingLead = Leads::where('mobile', $cleanPhone)
+                ->orWhere('mobile', '+' . $cleanPhone)
+                ->first();
+
+            if (! $existingLead) {
+                Leads::create([
+                    'user_name' => $contactName,
+                    'mobile' => $cleanPhone,
+                    'l_status' => 'New Lead',
+                    'lead_source' => 'WhatsApp',
+                    'message' => 'First message received via WhatsApp AiSensy',
+                ]);
+
+                Log::info('New Lead automatically created from WhatsApp first_message hook', [
+                    'phone' => $cleanPhone,
+                    'name' => $contactName,
+                ]);
+            }
+        }
+    }
+
+    // ----------------------------------------------------
+    // 4. Hook: contact.tag.updated (Sync AiSensy Tags with WhatsApp Chat Labels)
+    // ----------------------------------------------------
+    if ($topic === 'contact.tag.updated' || str_contains($eventName, 'tag')) {
+        $contactData = $data['data']['contact'] ?? $data['data'] ?? [];
+        $contactPhone = $contactData['phone_number'] ?? $contactData['phone'] ?? null;
+        $tags = (array) ($contactData['tags'] ?? $contactData['tag'] ?? $data['tag'] ?? []);
+
+        if ($contactPhone && ! empty($tags)) {
+            $cleanPhone = ltrim(str_replace('whatsapp:', '', $contactPhone), '+');
+
+            foreach ($tags as $tagName) {
+                $tagName = trim((string) $tagName);
+                if ($tagName === '') {
+                    continue;
+                }
+
+                $label = WhatsappChatLabel::firstOrCreate(
+                    ['name' => $tagName],
+                    ['color' => '#25d366']
+                );
+
+                WhatsappChatContactLabel::firstOrCreate([
+                    'phone' => $cleanPhone,
+                    'label_id' => $label->id,
+                ]);
+            }
+
+            Log::info('AiSensy contact tags synced with chat labels', [
+                'phone' => $cleanPhone,
+                'tags' => $tags,
             ]);
         }
     }

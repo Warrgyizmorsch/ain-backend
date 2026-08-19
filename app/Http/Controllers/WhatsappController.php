@@ -4,17 +4,23 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use App\Models\Order;
+use App\Models\Leads;
+use App\Models\Services;
+use App\Models\Paper;
+use App\Models\Source;
 use App\Models\WhatsappChatContactLabel;
 use App\Models\WhatsappChatLabel;
 use App\Models\WhatsappChatPanelSetting;
 use App\Models\WhatsappMessage;
 use App\Models\WhatsappSetting;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
@@ -69,14 +75,24 @@ class WhatsappController extends Controller
     public function chat(Request $request): View
     {
         $activePhone = $request->query('phone');
-        $contacts = $this->getContacts($activePhone);
-        $selectedContact = collect($contacts)->firstWhere('active', true);
-        $selectedPhone = $selectedContact['phone'] ?? null;
 
-        if ($selectedPhone) {
-            $this->markPhoneMessagesRead($selectedPhone);
-            $contacts = $this->getContacts($selectedPhone);
-            $selectedContact = collect($contacts)->firstWhere('active', true) ?? $selectedContact;
+        if ($activePhone) {
+            $this->markPhoneMessagesRead($activePhone);
+        }
+
+        $contactData = $this->getContactsPaginated($activePhone, 25, 1);
+        $contacts = $contactData['contacts'];
+        $selectedContact = collect($contacts)->firstWhere('active', true);
+        $selectedPhone = $selectedContact['phone'] ?? $activePhone;
+
+        // If activePhone was given but not in top 25 recent, fetch it directly
+        if ($activePhone && ! $selectedContact) {
+            $singleContactData = $this->getContactsPaginated($activePhone, 1, 1, $activePhone);
+            if (! empty($singleContactData['contacts'])) {
+                $selectedContact = $singleContactData['contacts'][0];
+                $selectedContact['active'] = true;
+                array_unshift($contacts, $selectedContact);
+            }
         }
 
         $panelDefinitions = $this->chatPanelDefinitions();
@@ -89,24 +105,54 @@ class WhatsappController extends Controller
             ? WhatsappChatContactLabel::query()->where('phone', $selectedPhone)->pluck('label_id')->all()
             : [];
 
-        // Load all contact-label assignments for sidebar display
+        // Load contact-label assignments for loaded sidebar contacts
         $allPhones = collect($contacts)->pluck('phone')->filter()->values()->all();
-        $allContactLabelMap = WhatsappChatContactLabel::query()
-            ->whereIn('phone', $allPhones)
-            ->get()
-            ->groupBy('phone')
-            ->map(fn($rows) => $rows->pluck('label_id')->all());
+        $allContactLabelMap = !empty($allPhones)
+            ? WhatsappChatContactLabel::query()
+                ->whereIn('phone', $allPhones)
+                ->get()
+                ->groupBy('phone')
+                ->map(fn($rows) => $rows->pluck('label_id')->all())
+            : collect();
 
         $messages = $selectedPhone
             ? WhatsappMessage::query()
                 ->where('phone', $selectedPhone)
-                ->orderBy('created_at')
-                ->orderBy('id')
+                ->where(function ($query) {
+                    $query->whereRaw("TRIM(COALESCE(message, '')) != ''")
+                        ->orWhereNotNull('media_url');
+                })
+                ->orderByDesc('id')
+                ->take(30)
                 ->get()
+                ->reverse()
+                ->values()
             : collect();
+
+        $firstMsgId = optional($messages->first())->id ?? 0;
+        $hasMoreOlderMessages = ($selectedPhone && $firstMsgId > 0)
+            ? WhatsappMessage::query()
+                ->where('phone', $selectedPhone)
+                ->where('id', '<', $firstMsgId)
+                ->where(function ($query) {
+                    $query->whereRaw("TRIM(COALESCE(message, '')) != ''")
+                        ->orWhereNotNull('media_url');
+                })
+                ->exists()
+            : false;
+
+        $customerSummary = $selectedPhone ? $this->getCustomerSummary($selectedPhone) : null;
+        $existingLead = $customerSummary['lead_model'] ?? null;
+        $existingUser = $customerSummary['user_model'] ?? null;
+
+        $servicesList = Services::all();
+        $papersList = Paper::all();
+        $sourcesList = Source::all();
 
         return view('back-end.whatsapp.chat', [
             'dynamicContacts' => $contacts,
+            'contactsHasMore' => $contactData['has_more'],
+            'contactsTotal' => $contactData['total'],
             'selectedContact' => $selectedContact,
             'selectedPhone' => $selectedPhone,
             'messages' => $messages,
@@ -117,6 +163,148 @@ class WhatsappController extends Controller
             'labels' => $labels,
             'selectedContactLabels' => $selectedContactLabels,
             'allContactLabelMap' => $allContactLabelMap,
+            'existingLead' => $existingLead,
+            'existingUser' => $existingUser,
+            'hasMoreOlderMessages' => $hasMoreOlderMessages,
+            'servicesList' => $servicesList,
+            'papersList' => $papersList,
+            'sourcesList' => $sourcesList,
+        ]);
+    }
+
+    public function createLeadFromChat(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'countrycode' => 'required',
+            'mobile' => 'required',
+            'lead_source' => 'required',
+        ], [
+            'countrycode.required' => 'Country Code is required.',
+            'mobile.required' => 'Mobile number is required.',
+            'lead_source.required' => 'Lead Source is required.',
+        ]);
+
+        $today = Carbon::today();
+        $deliveryDate = $request->input('delivery_date');
+        if ($deliveryDate && Carbon::parse($deliveryDate)->lt($today)) {
+            return back()->with('error', 'Delivery date cannot be before today.')->withInput();
+        }
+
+        $mobile = preg_replace('/\D+/', '', (string) $request->input('mobile'));
+        $countrycode = $request->input('countrycode');
+        $fullPhone = $countrycode . $mobile;
+
+        // User lookup or creation
+        $user = User::where('id', $request->input('id'))->first();
+        if (!$user) {
+            $user = User::where('mobile_no', $mobile)->orWhere('mobile_no', $fullPhone)->first();
+        }
+
+        if (!$user) {
+            if ($request->filled('email')) {
+                $existingUser = User::where('email', $request->input('email'))->first();
+                if ($existingUser) {
+                    return back()->withInput()->with('error', 'Email already exists with another account.');
+                }
+            }
+
+            $user = new User();
+            $user->email = $request->input('email') ?: 'user' . $mobile . '@gmail.com';
+            $user->mobile_no = $mobile;
+            $user->name = $request->input('user_name') ?: ('WhatsApp User ' . $mobile);
+            $user->countrycode = $countrycode;
+            $user->password = Hash::make('user@123');
+            $user->role_id = 2;
+            $user->refer_id = $request->refer_id ?? null;
+            $user->save();
+        } else {
+            if ($request->filled('email')) {
+                $user->email = $request->input('email');
+            }
+            if ($request->filled('user_name')) {
+                $user->name = $request->input('user_name');
+            }
+            $user->countrycode = $countrycode;
+            $user->save();
+        }
+
+        $userId = $user->id;
+
+        // Generate next UKS order id
+        $latestOrder = Order::orderByDesc('id')->first();
+        $newOrderNumber = $latestOrder ? intval(substr($latestOrder->order_id, 3)) : 0;
+        $newOrderNumber++;
+        $newOrderId = 'UKS' . $newOrderNumber;
+
+        $creatorId = Auth::id() ?: 1;
+
+        // Create Lead
+        $lead = new Leads();
+        $lead->order_id = $newOrderId;
+        $lead->emp_id = $userId;
+        $lead->user_name = $user->name;
+        $lead->mobile = $mobile;
+        $lead->countrycode = $countrycode;
+        $lead->email = $user->email;
+        $lead->project_title = $request->input('project_title') ?: 'WhatsApp Chat Inquiry';
+        $lead->module_code = $request->input('module_code');
+        $lead->pages = is_numeric($request->input('pages')) ? $request->input('pages') : 0;
+        $lead->deadline = $deliveryDate ?: now()->addDays(3)->toDateString();
+        $lead->delivery_time = $request->input('delivery_time') ?: '18:00';
+        $lead->price = is_numeric($request->input('amount')) ? $request->input('amount') : 0;
+        $lead->l_status = $request->input('i_status') ?: 'Waiting';
+        $lead->message = $request->input('message') ?: 'Created directly from WhatsApp Chat conversation';
+        $lead->service_type = $request->input('service_type');
+        $lead->typeofpaper = $request->input('paper');
+        $lead->tech = $request->filled('tech') ? 'on' : 'off';
+        $lead->resit = $request->filled('resit') ? 'on' : 'off';
+        $lead->chapter = in_array($lead->typeofpaper, ['Dissertation', 'Thesis']) ? $request->input('chapter') : null;
+        $lead->semester = $request->input('semester');
+        $lead->lead_source = $request->input('lead_source') ?: 'WhatsApp';
+        $lead->created_by = $creatorId;
+        $lead->create_at = now();
+        $lead->save();
+
+        // Create Order
+        $order = new Order();
+        $order->uid = $userId;
+        $order->order_id = $newOrderId;
+        $order->lead_id = $lead->id;
+        $order->created_by = $creatorId;
+        $order->title = $lead->project_title;
+        $order->pages = $lead->pages;
+        $order->amount = $lead->price;
+        $order->projectstatus = 'Pending';
+        $order->order_date = now();
+        $order->delivery_date = $lead->deadline;
+        $order->delivery_time = $lead->delivery_time;
+        $order->service_type = $lead->service_type;
+        $order->typeofpaper = $lead->typeofpaper;
+        $order->chapter = $lead->chapter;
+        $order->tech = $lead->tech;
+        $order->resit = $lead->resit;
+        $order->message = $lead->message;
+        $order->save();
+
+        return redirect()->route('whatsapp.chat', ['phone' => $request->input('return_phone') ?: $mobile])
+            ->with('success', "New Lead #{$newOrderId} successfully created for {$user->name}!");
+    }
+
+    public function contactList(Request $request): JsonResponse
+    {
+        $activePhone = $request->query('active_phone');
+        $page = max(1, (int) $request->query('page', 1));
+        $limit = max(1, min(100, (int) $request->query('limit', 25)));
+        $search = trim((string) $request->query('search', ''));
+
+        $data = $this->getContactsPaginated($activePhone, $limit, $page, $search);
+
+        return response()->json([
+            'success' => true,
+            'contacts' => $data['contacts'],
+            'total' => $data['total'],
+            'has_more' => $data['has_more'],
+            'page' => $page,
         ]);
     }
 
@@ -125,29 +313,229 @@ class WhatsappController extends Controller
         $validated = $request->validate([
             'phone' => ['required', 'string', 'max:30'],
             'after_id' => ['nullable', 'integer', 'min:0'],
+            'before_id' => ['nullable', 'integer', 'min:0'],
+            'limit' => ['nullable', 'integer', 'min:1', 'max:50'],
+            'with_summary' => ['nullable', 'boolean'],
         ]);
 
         $phone = $validated['phone'];
         $afterId = (int) ($validated['after_id'] ?? 0);
+        $beforeId = (int) ($validated['before_id'] ?? 0);
+        $limit = max(1, min(50, (int) ($validated['limit'] ?? 30)));
 
-        $messages = WhatsappMessage::query()
+        $query = WhatsappMessage::query()
             ->where('phone', $phone)
-            ->when($afterId > 0, fn ($query) => $query->where('id', '>', $afterId))
-            ->where(function ($query) {
-                $query->whereRaw("TRIM(COALESCE(message, '')) != ''")
+            ->where(function ($q) {
+                $q->whereRaw("TRIM(COALESCE(message, '')) != ''")
                     ->orWhereNotNull('media_url');
-            })
-            ->orderBy('created_at')
-            ->orderBy('id')
-            ->get();
+            });
+
+        // 1. Fetch older messages before before_id (scroll up pagination)
+        if ($beforeId > 0) {
+            $olderMessages = (clone $query)->where('id', '<', $beforeId)
+                ->orderByDesc('id')
+                ->take($limit)
+                ->get()
+                ->reverse()
+                ->values();
+
+            $oldestId = optional($olderMessages->first())->id ?? 0;
+            $hasMoreOlder = $oldestId > 0
+                ? (clone $query)->where('id', '<', $oldestId)->exists()
+                : false;
+
+            return response()->json([
+                'messages' => $olderMessages->map(fn (WhatsappMessage $m) => $this->messagePayload($m))->values(),
+                'has_more_older' => $hasMoreOlder,
+                'first_id' => $oldestId,
+                'is_older' => true,
+            ]);
+        }
+
+        // 2. Fetch new real-time messages after after_id
+        if ($afterId > 0) {
+            $messages = (clone $query)->where('id', '>', $afterId)
+                ->orderBy('created_at')
+                ->orderBy('id')
+                ->get();
+            $hasMoreOlder = false;
+        } else {
+            // 3. Initial load of latest messages (batch 30)
+            $messages = (clone $query)->orderByDesc('id')
+                ->take($limit)
+                ->get()
+                ->reverse()
+                ->values();
+
+            $firstMsgId = optional($messages->first())->id ?? 0;
+            $hasMoreOlder = $firstMsgId > 0
+                ? (clone $query)->where('id', '<', $firstMsgId)->exists()
+                : false;
+        }
 
         $this->markPhoneMessagesRead($phone);
 
-        return response()->json([
+        $response = [
             'messages' => $messages->map(fn (WhatsappMessage $message) => $this->messagePayload($message))->values(),
             'statuses' => $this->recentOutboundStatuses($phone),
-            'contacts' => $this->getContacts($phone),
             'typing' => Cache::has($this->typingCacheKey($phone)),
+            'has_more_older' => $hasMoreOlder,
+            'first_id' => optional($messages->first())->id ?? 0,
+            'last_id' => optional($messages->last())->id ?? 0,
+        ];
+
+        // Customer details for dynamic header switching
+        if ($request->boolean('with_summary', true) && $afterId === 0) {
+            $response['customer'] = $this->getCustomerSummary($phone);
+        }
+
+        return response()->json($response);
+    }
+
+    public function customerLeads(Request $request): JsonResponse
+    {
+        $phone = (string) $request->input('phone');
+        $page = max(1, (int) $request->input('page', 1));
+        $limit = max(1, min(50, (int) $request->input('limit', 10)));
+
+        if (! $phone) {
+            return response()->json(['success' => false, 'leads' => [], 'total' => 0, 'has_more' => false]);
+        }
+
+        $cleanPhone = preg_replace('/\D+/', '', $phone);
+        $last10 = strlen($cleanPhone) >= 10 ? substr($cleanPhone, -10) : $cleanPhone;
+
+        $query = Leads::query()
+            ->where(function ($q) use ($phone, $cleanPhone, $last10) {
+                $q->where('mobile', $phone)
+                  ->orWhere('mobile', $cleanPhone)
+                  ->orWhere('mobile', 'like', "%{$last10}");
+            })
+            ->orderByDesc('id');
+
+        $total = $query->count();
+        $leads = $query->skip(($page - 1) * $limit)->take($limit)->get();
+
+        $formatted = $leads->map(function ($lead) {
+            $statusClass = match(strtolower($lead->l_status ?? '')) {
+                'waiting' => 'badge-warning',
+                'quote' => 'badge-info',
+                'confirmation' => 'badge-primary',
+                'converted' => 'badge-success',
+                'cancelled', 'cancel' => 'badge-danger',
+                default => 'badge-secondary',
+            };
+
+            return [
+                'id' => $lead->id,
+                'order_id' => $lead->order_id ?? (string) $lead->id,
+                'project_title' => $lead->project_title ?: 'N/A',
+                'service_type' => $lead->service_type ?: 'General',
+                'pages' => $lead->pages ? number_format($lead->pages) : '—',
+                'price' => is_numeric($lead->price) ? (float)$lead->price : 0,
+                'price_formatted' => number_format((float)($lead->price ?: 0), 2),
+                'status' => $lead->l_status ?: 'Waiting',
+                'status_class' => $statusClass,
+                'deadline' => !empty($lead->deadline) && strtotime($lead->deadline) ? date('d M Y', strtotime($lead->deadline)) : '—',
+                'delivery_time' => $lead->delivery_time ?: '',
+                'edit_url' => route('leadedit', $lead->id),
+            ];
+        });
+
+        return response()->json([
+            'success' => true,
+            'leads' => $formatted,
+            'total' => $total,
+            'has_more' => ($page * $limit) < $total,
+            'page' => $page,
+        ]);
+    }
+
+    public function customerOrders(Request $request): JsonResponse
+    {
+        $phone = (string) $request->input('phone');
+        $page = max(1, (int) $request->input('page', 1));
+        $limit = max(1, min(50, (int) $request->input('limit', 10)));
+
+        if (! $phone) {
+            return response()->json(['success' => false, 'orders' => [], 'total' => 0, 'has_more' => false]);
+        }
+
+        $cleanPhone = preg_replace('/\D+/', '', $phone);
+        $last10 = strlen($cleanPhone) >= 10 ? substr($cleanPhone, -10) : $cleanPhone;
+
+        $existingUser = User::query()
+            ->where(function ($q) use ($phone, $cleanPhone, $last10) {
+                $q->where('mobile_no', $phone)
+                  ->orWhere('mobile_no', $cleanPhone)
+                  ->orWhere('mobile_no', 'like', "%{$last10}");
+            })
+            ->first();
+
+        $matchingLeads = Leads::query()
+            ->where(function ($q) use ($phone, $cleanPhone, $last10) {
+                $q->where('mobile', $phone)
+                  ->orWhere('mobile', $cleanPhone)
+                  ->orWhere('mobile', 'like', "%{$last10}");
+            })
+            ->get(['emp_id', 'order_id']);
+
+        $userIds = $existingUser ? [$existingUser->id] : [];
+        $leadEmpIds = $matchingLeads->pluck('emp_id')->filter()->all();
+        $allUids = array_unique(array_filter(array_merge($userIds, $leadEmpIds)));
+        $leadOrderIds = $matchingLeads->pluck('order_id')->filter()->all();
+
+        $query = Order::query()
+            ->where(function ($q) use ($allUids, $leadOrderIds) {
+                if (!empty($allUids)) {
+                    $q->whereIn('uid', $allUids);
+                }
+                if (!empty($leadOrderIds)) {
+                    $q->orWhereIn('order_id', $leadOrderIds);
+                }
+            })
+            ->orderByDesc('id');
+
+        $total = (!empty($allUids) || !empty($leadOrderIds)) ? $query->count() : 0;
+        $orders = (!empty($allUids) || !empty($leadOrderIds)) ? $query->skip(($page - 1) * $limit)->take($limit)->get() : collect();
+
+        $formatted = $orders->map(function ($ord) {
+            $statusClass = match(strtolower($ord->projectstatus ?? '')) {
+                'completed', 'delivered' => 'badge-success',
+                'working', 'in progress' => 'badge-warning',
+                'failed', 'cancelled' => 'badge-danger',
+                default => 'badge-primary',
+            };
+
+            $basePriceAmt = is_numeric($ord->amount) ? (float)$ord->amount : 0;
+            $recvPriceAmt = is_numeric($ord->received_amount) ? (float)$ord->received_amount : 0;
+            $calcDueAmt = max(0, $basePriceAmt - $recvPriceAmt);
+
+            return [
+                'id' => $ord->id,
+                'order_id' => $ord->order_id ?: (string) $ord->id,
+                'title' => $ord->title ?: 'N/A',
+                'service_type' => $ord->service_type ?: 'General',
+                'pages' => $ord->pages ? number_format($ord->pages) : '—',
+                'total_amount' => $basePriceAmt,
+                'total_amount_formatted' => number_format($basePriceAmt, 2),
+                'received_amount' => $recvPriceAmt,
+                'received_amount_formatted' => number_format($recvPriceAmt, 2),
+                'due_amount' => $calcDueAmt,
+                'due_amount_formatted' => number_format($calcDueAmt, 2),
+                'status' => $ord->projectstatus ?: 'Pending',
+                'status_class' => $statusClass,
+                'delivery_date' => !empty($ord->delivery_date) && strtotime($ord->delivery_date) ? date('d M Y', strtotime($ord->delivery_date)) : '—',
+                'edit_url' => route('edit', $ord->id),
+            ];
+        });
+
+        return response()->json([
+            'success' => true,
+            'orders' => $formatted,
+            'total' => $total,
+            'has_more' => ($page * $limit) < $total,
+            'page' => $page,
         ]);
     }
 
@@ -338,33 +726,128 @@ class WhatsappController extends Controller
         return redirect()->route('whatsapp.chat', ['phone' => $validated['phone']]);
     }
 
+    private function getPhoneVariants(?string $phone): array
+    {
+        if (!$phone) return [];
+        $raw = trim($phone);
+        $clean = preg_replace('/\D+/', '', $raw);
+        $last10 = strlen($clean) >= 10 ? substr($clean, -10) : $clean;
+
+        return array_values(array_unique(array_filter([
+            $raw,
+            '+' . ltrim($raw, '+'),
+            $clean,
+            $last10,
+            '+91' . $last10,
+            '91' . $last10,
+            '0' . $last10,
+            '+44' . $last10,
+            '44' . $last10,
+        ])));
+    }
+
     private function getContacts(?string $activePhone): array
     {
-        $latestMessages = DB::table('whatsapp_messages as latest')
+        return $this->getContactsPaginated($activePhone, 25, 1)['contacts'];
+    }
+
+    private function getContactsPaginated(?string $activePhone, int $limit = 25, int $page = 1, ?string $search = null): array
+    {
+        $query = DB::table('whatsapp_messages as latest')
             ->join(DB::raw('(SELECT phone, MAX(id) as max_id FROM whatsapp_messages GROUP BY phone) as grouped'), function ($join) {
                 $join->on('latest.id', '=', 'grouped.max_id');
             })
-            ->select('latest.phone', 'latest.name', 'latest.message', 'latest.media_type', 'latest.media_name', 'latest.created_at', 'latest.id')
-            ->orderByDesc('latest.created_at')
+            ->select('latest.phone', 'latest.name', 'latest.message', 'latest.media_type', 'latest.media_name', 'latest.created_at', 'latest.id');
+
+        if ($search !== null && $search !== '') {
+            $cleanSearch = preg_replace('/\D+/', '', $search);
+            $matchedUserPhones = User::query()
+                ->where('name', 'like', "%{$search}%")
+                ->orWhere('mobile_no', 'like', "%{$search}%")
+                ->pluck('mobile_no')
+                ->filter()
+                ->values()
+                ->all();
+
+            $query->where(function ($q) use ($search, $cleanSearch, $matchedUserPhones) {
+                $q->where('latest.name', 'like', "%{$search}%")
+                  ->orWhere('latest.phone', 'like', "%{$search}%");
+                if ($cleanSearch !== '') {
+                    $q->orWhere('latest.phone', 'like', "%{$cleanSearch}%");
+                }
+                if (!empty($matchedUserPhones)) {
+                    $q->orWhereIn('latest.phone', $matchedUserPhones);
+                }
+            });
+        }
+
+        // Fetch limit + 1 to determine has_more without expensive COUNT(*) table scan
+        $latestMessages = $query->orderByDesc('latest.created_at')
             ->orderByDesc('latest.id')
+            ->skip(($page - 1) * $limit)
+            ->take($limit + 1)
             ->get();
 
-        $phones = $latestMessages->pluck('phone')->filter()->values();
-        $users = User::query()
-            ->whereIn('mobile_no', $phones)
-            ->get()
-            ->keyBy('mobile_no');
+        $hasMore = $latestMessages->count() > $limit;
+        if ($hasMore) {
+            $latestMessages = $latestMessages->slice(0, $limit);
+        }
 
-        return $latestMessages->map(function ($contact, int $index) use ($users, $activePhone) {
-            $user = $users->get($contact->phone);
-            $name = $user?->name ?: ($contact->name ?: $contact->phone);
-            $unreadCount = WhatsappMessage::query()
-                ->where('phone', $contact->phone)
+        $phones = $latestMessages->pluck('phone')->filter()->values()->all();
+
+        // Build all phone variants for fast indexed lookup
+        $allVariants = [];
+        foreach ($phones as $p) {
+            foreach ($this->getPhoneVariants($p) as $v) {
+                $allVariants[$v] = $p;
+            }
+        }
+
+        $users = !empty($allVariants)
+            ? User::query()->whereIn('mobile_no', array_keys($allVariants))->get(['id', 'name', 'mobile_no'])
+            : collect();
+
+        $userMap = [];
+        foreach ($users as $u) {
+            $matchedPhone = $allVariants[$u->mobile_no] ?? null;
+            if ($matchedPhone && !isset($userMap[$matchedPhone])) {
+                $userMap[$matchedPhone] = $u;
+            }
+        }
+
+        // 1 Single Grouped Query for unread counts (Eliminates N+1)
+        $unreadCounts = !empty($phones)
+            ? WhatsappMessage::query()
+                ->whereIn('phone', $phones)
                 ->where('direction', 'inbound')
-                ->where(function ($query) {
-                    $query->whereNull('status')->orWhere('status', '!=', 'read');
+                ->where(function ($q) {
+                    $q->whereNull('status')->orWhere('status', '!=', 'read');
                 })
-                ->count();
+                ->select('phone', DB::raw('COUNT(*) as unread_count'))
+                ->groupBy('phone')
+                ->pluck('unread_count', 'phone')
+                ->all()
+            : [];
+
+        // Fetch labels for these contacts
+        $labelsMap = !empty($phones)
+            ? WhatsappChatContactLabel::query()
+                ->whereIn('phone', $phones)
+                ->get()
+                ->groupBy('phone')
+                ->map(fn($rows) => $rows->pluck('label_id')->all())
+                ->all()
+            : [];
+
+        $allLabels = WhatsappChatLabel::query()->get()->keyBy('id');
+
+        $contacts = $latestMessages->map(function ($contact, int $index) use ($userMap, $activePhone, $unreadCounts, $labelsMap, $allLabels, $page, $limit) {
+            $user = $userMap[$contact->phone] ?? null;
+            $name = $user?->name ?: ($contact->name ?: $contact->phone);
+            $unreadCount = (int) ($unreadCounts[$contact->phone] ?? 0);
+            $globalIndex = (($page - 1) * $limit) + $index;
+            $contactLabelIds = $labelsMap[$contact->phone] ?? [];
+            $contactLabels = collect($contactLabelIds)->map(fn($id) => $allLabels->get($id))->filter()->values();
 
             return [
                 'id' => $contact->id,
@@ -376,10 +859,60 @@ class WhatsappController extends Controller
                     : optional($contact->created_at ? \Carbon\Carbon::parse($contact->created_at) : null)->format('D'),
                 'active' => $contact->phone === $activePhone,
                 'badge' => $unreadCount,
-                'color' => $this->avatarColor($index),
+                'color' => $this->avatarColor($globalIndex),
                 'status' => $unreadCount > 0 ? 'online' : 'offline',
+                'label_ids' => $contactLabelIds,
+                'labels' => $contactLabels,
             ];
-        })->toArray();
+        })->values()->toArray();
+
+        return [
+            'contacts' => $contacts,
+            'total' => count($contacts),
+            'has_more' => $hasMore,
+        ];
+    }
+
+    private function getCustomerSummary(string $phone): array
+    {
+        $variants = $this->getPhoneVariants($phone);
+
+        $existingUser = User::query()
+            ->whereIn('mobile_no', $variants)
+            ->first();
+
+        $existingLead = Leads::query()
+            ->whereIn('mobile', $variants)
+            ->latest('id')
+            ->first();
+
+        $labelIds = WhatsappChatContactLabel::query()
+            ->where('phone', $phone)
+            ->pluck('label_id')
+            ->all();
+
+        $labels = !empty($labelIds)
+            ? WhatsappChatLabel::query()->whereIn('id', $labelIds)->get(['id', 'name', 'color'])
+            : collect();
+
+        return [
+            'name' => $existingUser?->name ?? ($existingLead?->user_name ?? $phone),
+            'phone' => $phone,
+            'lead' => $existingLead ? [
+                'id' => $existingLead->id,
+                'order_id' => $existingLead->order_id ?? (string) $existingLead->id,
+                'edit_url' => route('leadedit', $existingLead->id),
+                'status' => $existingLead->l_status ?: 'Waiting',
+            ] : null,
+            'user' => $existingUser ? [
+                'id' => $existingUser->id,
+                'name' => $existingUser->name,
+                'email' => $existingUser->email,
+            ] : null,
+            'labels' => $labels,
+            'lead_model' => $existingLead,
+            'user_model' => $existingUser,
+        ];
     }
 
     private function contactPreview(object $contact): string
@@ -464,91 +997,188 @@ class WhatsappController extends Controller
     {
         $setting = WhatsappSetting::query()->where('is_active', true)->first();
 
-        if (! $setting || $setting->provider !== 'twilio') {
+        if (! $setting) {
             $message->update(['status' => 'failed']);
 
             return [
                 'success' => false,
-                'error' => $setting
-                    ? ucfirst($setting->provider) . ' sending is not configured for this chat panel.'
-                    : 'No active WhatsApp provider is configured.',
+                'error' => 'No active WhatsApp provider is configured in WhatsApp Settings.',
             ];
         }
 
         $config = $setting->settings ?? [];
-        $sid = $config['account_sid'] ?? null;
-        $token = $config['auth_token'] ?? null;
-        $from = $config['whatsapp_from_number'] ?? null;
 
-        if (! $sid || ! $token || ! $from) {
-            $message->update(['status' => 'failed']);
+        // -----------------------------------------------------------------
+        // 1. AiSensy Provider Sending
+        // -----------------------------------------------------------------
+        if ($setting->provider === 'ai-sense') {
+            $apiKey = $config['api_key'] ?? env('AISENSY_API_KEY');
+            $projectId = $config['project_id'] ?? null;
+            $apiUrl = $config['api_url'] ?? ($projectId ? "https://apis.aisensy.com/project-apis/v1/project/{$projectId}/messages" : env('AISENSY_API_URL'));
 
-            return [
-                'success' => false,
-                'error' => 'Twilio WhatsApp settings are incomplete.',
-            ];
-        }
-
-        try {
-            $payload = [
-                'From' => str_starts_with($from, 'whatsapp:') ? $from : 'whatsapp:' . $from,
-                'To' => str_starts_with($message->phone, 'whatsapp:') ? $message->phone : 'whatsapp:' . $message->phone,
-            ];
-
-            $statusCallback = $this->providerWebhookUrl($config);
-            if ($statusCallback) {
-                $payload['StatusCallback'] = $statusCallback;
-            }
-
-            if (trim((string) $message->message) !== '') {
-                $payload['Body'] = $message->message;
-            }
-
-            if ($message->media_url) {
-                $payload['MediaUrl'] = $this->providerMediaUrl($message->media_url, $config);
-            }
-
-            if (! isset($payload['Body']) && ! isset($payload['MediaUrl'])) {
+            if (! $apiKey || ! $apiUrl) {
                 $message->update(['status' => 'failed']);
 
                 return [
                     'success' => false,
-                    'error' => 'Message body or media is required.',
+                    'error' => 'AiSensy API Key or API URL is missing in WhatsApp Settings.',
                 ];
             }
 
-            $response = Http::withBasicAuth($sid, $token)
-                ->asForm()
-                ->post("https://api.twilio.com/2010-04-01/Accounts/{$sid}/Messages.json", $payload);
+            $cleanPhone = ltrim(preg_replace('/\D+/', '', $message->phone), '+');
 
-            if ($response->successful()) {
-                $message->update([
-                    'wa_message_id' => $response->json('sid'),
-                    'status' => $response->json('status', 'sent'),
-                ]);
+            try {
+                if ($message->media_url) {
+                    $mediaType = $message->media_type ?: 'image';
+                    $fullMediaUrl = str_starts_with($message->media_url, 'http') ? $message->media_url : url($message->media_url);
 
-                return ['success' => true, 'error' => null];
-            } else {
+                    $payload = [
+                        'to' => $cleanPhone,
+                        'type' => $mediaType,
+                        $mediaType => [
+                            'link' => $fullMediaUrl,
+                            'caption' => (string) ($message->message ?? ''),
+                        ],
+                    ];
+
+                    if ($mediaType === 'document' && $message->media_name) {
+                        $payload['document']['filename'] = $message->media_name;
+                    }
+                } else {
+                    $payload = [
+                        'to' => $cleanPhone,
+                        'type' => 'text',
+                        'recipient_type' => 'individual',
+                        'text' => [
+                            'body' => (string) $message->message,
+                        ],
+                    ];
+                }
+
+                $response = Http::withHeaders([
+                    'Accept' => 'application/json',
+                    'Content-Type' => 'application/json',
+                    'X-AiSensy-Project-API-Pwd' => $apiKey,
+                ])->timeout(25)->post($apiUrl, $payload);
+
+                if ($response->successful()) {
+                    $resData = $response->json();
+                    $waMsgId = $resData['messages'][0]['id'] ?? $resData['messageId'] ?? $resData['id'] ?? null;
+
+                    $message->update([
+                        'wa_message_id' => $waMsgId,
+                        'status' => 'sent',
+                    ]);
+
+                    return ['success' => true, 'error' => null];
+                }
+
                 $message->update(['status' => 'failed']);
-                Log::warning('Twilio WhatsApp send failed', [
-                    'payload' => collect($payload)->except(['Body'])->all(),
+                Log::warning('AiSensy WhatsApp send failed', [
+                    'payload' => $payload,
                     'response' => $response->json(),
                 ]);
 
                 return [
                     'success' => false,
-                    'error' => $response->json('message') ?: 'Twilio WhatsApp send failed.',
+                    'error' => $response->json('message') ?? $response->json('error') ?? 'AiSensy send failed.',
+                ];
+            } catch (\Throwable $exception) {
+                $message->update(['status' => 'failed']);
+                Log::error('AiSensy WhatsApp send exception', ['exception' => $exception]);
+
+                return [
+                    'success' => false,
+                    'error' => 'AiSensy WhatsApp send error: ' . $exception->getMessage(),
                 ];
             }
-        } catch (\Throwable $exception) {
-            $message->update(['status' => 'failed']);
-            Log::error('Twilio WhatsApp send exception', ['exception' => $exception]);
-
-            return [
-                'success' => false,
-                'error' => 'WhatsApp send failed: ' . $exception->getMessage(),
-            ];
         }
+
+        // -----------------------------------------------------------------
+        // 2. Twilio Provider Sending
+        // -----------------------------------------------------------------
+        if ($setting->provider === 'twilio') {
+            $sid = $config['account_sid'] ?? null;
+            $token = $config['auth_token'] ?? null;
+            $from = $config['whatsapp_from_number'] ?? null;
+
+            if (! $sid || ! $token || ! $from) {
+                $message->update(['status' => 'failed']);
+
+                return [
+                    'success' => false,
+                    'error' => 'Twilio WhatsApp settings are incomplete.',
+                ];
+            }
+
+            try {
+                $payload = [
+                    'From' => str_starts_with($from, 'whatsapp:') ? $from : 'whatsapp:' . $from,
+                    'To' => str_starts_with($message->phone, 'whatsapp:') ? $message->phone : 'whatsapp:' . $message->phone,
+                ];
+
+                $statusCallback = $this->providerWebhookUrl($config);
+                if ($statusCallback) {
+                    $payload['StatusCallback'] = $statusCallback;
+                }
+
+                if (trim((string) $message->message) !== '') {
+                    $payload['Body'] = $message->message;
+                }
+
+                if ($message->media_url) {
+                    $payload['MediaUrl'] = $this->providerMediaUrl($message->media_url, $config);
+                }
+
+                if (! isset($payload['Body']) && ! isset($payload['MediaUrl'])) {
+                    $message->update(['status' => 'failed']);
+
+                    return [
+                        'success' => false,
+                        'error' => 'Message body or media is required.',
+                    ];
+                }
+
+                $response = Http::withBasicAuth($sid, $token)
+                    ->asForm()
+                    ->post("https://api.twilio.com/2010-04-01/Accounts/{$sid}/Messages.json", $payload);
+
+                if ($response->successful()) {
+                    $message->update([
+                        'wa_message_id' => $response->json('sid'),
+                        'status' => $response->json('status', 'sent'),
+                    ]);
+
+                    return ['success' => true, 'error' => null];
+                } else {
+                    $message->update(['status' => 'failed']);
+                    Log::warning('Twilio WhatsApp send failed', [
+                        'payload' => collect($payload)->except(['Body'])->all(),
+                        'response' => $response->json(),
+                    ]);
+
+                    return [
+                        'success' => false,
+                        'error' => $response->json('message') ?: 'Twilio WhatsApp send failed.',
+                    ];
+                }
+            } catch (\Throwable $exception) {
+                $message->update(['status' => 'failed']);
+                Log::error('Twilio WhatsApp send exception', ['exception' => $exception]);
+
+                return [
+                    'success' => false,
+                    'error' => 'WhatsApp send failed: ' . $exception->getMessage(),
+                ];
+            }
+        }
+
+        $message->update(['status' => 'failed']);
+
+        return [
+            'success' => false,
+            'error' => ucfirst($setting->provider) . ' sending is not supported yet.',
+        ];
     }
 
     private function cleanSettings(array $settings): array

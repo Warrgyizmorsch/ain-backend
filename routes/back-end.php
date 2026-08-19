@@ -78,6 +78,7 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/chat/start', [WhatsappController::class, 'startChat'])->name('chat.start');
         Route::post('/chat/send', [WhatsappController::class, 'sendMessage'])->name('chat.send');
         Route::get('/chat/messages', [WhatsappController::class, 'messages'])->name('chat.messages');
+        Route::get('/chat/contacts', [WhatsappController::class, 'contactList'])->name('chat.contacts');
         Route::post('/chat/mark-read', [WhatsappController::class, 'markRead'])->name('chat.mark-read');
         Route::post('/chat/mark-unread', [WhatsappController::class, 'markUnread'])->name('chat.mark-unread');
         Route::post('/chat/panel-settings', [WhatsappController::class, 'saveChatPanelSettings'])->name('chat.panel-settings');
@@ -85,6 +86,9 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/chat/contact-labels', [WhatsappController::class, 'saveContactLabels'])->name('chat.contact-labels.save');
         Route::post('/chat/import-contacts', [WhatsappController::class, 'importContacts'])->name('chat.import-contacts');
         Route::post('/chat/send-media', [WhatsappController::class, 'sendMedia'])->name('chat.send-media');
+        Route::post('/chat/create-lead', [WhatsappController::class, 'createLeadFromChat'])->name('chat.create-lead');
+        Route::get('/chat/customer-leads', [WhatsappController::class, 'customerLeads'])->name('chat.customer-leads');
+        Route::get('/chat/customer-orders', [WhatsappController::class, 'customerOrders'])->name('chat.customer-orders');
     });
 
     Route::prefix('career')->group(function () {

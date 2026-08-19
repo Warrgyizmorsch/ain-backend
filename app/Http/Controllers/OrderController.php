@@ -5178,9 +5178,9 @@ class OrderController extends Controller
         $data = [
             'Team' => Writer::select('id', 'writer_name')->get(),
             'Status' => Status::select('id', 'status')->get(),
-            'formatting' => Formatting::select('id', 'formatting')->get(),
+            'formatting' => Formatting::select('id', 'formatting_name')->get(),
             'service' => Services::select('id', 'service_name')->get(),
-            'Writting' => Writting::select('id', 'writting_style')->get(),
+            'Writting' => Writting::select('id', 'type_of_writing')->get(),
             'paper' => Paper::select('id', 'paper_type')->get(),
             'user' => collect(),
             'college' => College::select('id', 'college_name')->get(),

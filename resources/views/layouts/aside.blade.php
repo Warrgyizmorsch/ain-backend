@@ -281,8 +281,6 @@
     </div>
 </div>
 
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
-
 <style>
     #kt_aside .menu-item.here > .menu-link,
     #kt_aside .menu-link.active {

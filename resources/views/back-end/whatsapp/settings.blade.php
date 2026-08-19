@@ -39,7 +39,7 @@
                     <div class="row g-4">
                         @php
                             $providers = [
-                                ['key' => 'ai-sense', 'name' => 'AI Sense', 'tag' => 'AIN Internal', 'icon' => 'fa-bolt', 'desc' => 'Use AIN Sense for internal WhatsApp automation, routing, and AI-assisted replies.', 'active' => $activeProvider === 'ai-sense'],
+                                ['key' => 'ai-sense', 'name' => 'AiSensy', 'tag' => 'Official API', 'icon' => 'fa-bolt', 'desc' => 'Use AiSensy Project API for live WhatsApp messaging, template broadcasts, and real-time webhook sync.', 'active' => $activeProvider === 'ai-sense'],
                                 ['key' => 'wati', 'name' => 'WATI', 'tag' => 'Team Inbox', 'icon' => 'fa-comments', 'desc' => 'Use WATI for shared inbox, templates, broadcast campaigns, and agent assignment.', 'active' => $activeProvider === 'wati'],
                                 ['key' => 'twilio', 'name' => 'Twilio', 'tag' => 'API Gateway', 'icon' => 'fa-random', 'desc' => 'Use Twilio WhatsApp API for programmable messaging and webhook-based flows.', 'active' => $activeProvider === 'twilio'],
                                 ['key' => 'interakt', 'name' => 'Interakt', 'tag' => 'CRM Commerce', 'icon' => 'fa-briefcase', 'desc' => 'Use Interakt for CRM-style WhatsApp conversations, campaigns, and catalog journeys.', 'active' => $activeProvider === 'interakt'],
@@ -73,8 +73,8 @@
             <div class="card mt-5 integration-card">
                 <div class="card-header border-0 pt-6">
                     <div class="card-title d-block">
-                        <h3 class="fw-bolder mb-1">Integration Options</h3>
-                        <div class="text-muted fs-7">Each app has different credentials. Fill the selected provider section.</div>
+                        <h3 class="fw-bolder mb-1">Integration Credentials & Options</h3>
+                        <div class="text-muted fs-7">Configure API connection details according to your selected provider.</div>
                     </div>
                 </div>
                 <div class="card-body pt-0">
@@ -82,30 +82,142 @@
                         <div class="integration-heading">
                             <span class="provider-icon small"><i class="fa fa-bolt"></i></span>
                             <div>
-                                <div class="fw-bolder text-dark">AI Sense Setup</div>
-                                <div class="text-muted fs-8">Internal AIN automation connector.</div>
+                                <div class="fw-bolder text-dark">AiSensy Project Setup</div>
+                                <div class="text-muted fs-8">AiSensy Project API connection for chat & real-time webhook updates.</div>
                             </div>
                         </div>
                         <div class="row g-4 mt-1">
                             <div class="col-md-6">
-                                <label class="form-label fw-bold">AI Sense App Key</label>
-                                <input type="text" name="settings[ai-sense][app_key]" class="form-control form-control-solid" placeholder="AIN-SENSE-APP-KEY" value="{{ $settingValue('ai-sense', 'app_key') }}">
+                                <label class="form-label fw-bold">AiSensy API Key / Secret (X-AiSensy-Project-API-Pwd)</label>
+                                <input type="password" name="settings[ai-sense][api_key]" class="form-control form-control-solid font-monospace" placeholder="e.g. 222488aa8678e32a..." value="{{ $settingValue('ai-sense', 'api_key', env('AISENSY_API_KEY')) }}">
+                                <div class="text-muted fs-8 mt-1">Found in AiSensy Dashboard &gt; Project Settings &gt; API Keys.</div>
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label fw-bold">Workspace ID</label>
-                                <input type="text" name="settings[ai-sense][workspace_id]" class="form-control form-control-solid" placeholder="workspace_ain" value="{{ $settingValue('ai-sense', 'workspace_id') }}">
+                                <label class="form-label fw-bold">Project ID</label>
+                                <input type="text" name="settings[ai-sense][project_id]" class="form-control form-control-solid font-monospace" placeholder="e.g. 67e109077c4b230bed2fb1ff" value="{{ $settingValue('ai-sense', 'project_id') }}">
+                                <div class="text-muted fs-8 mt-1">Your unique AiSensy project identifier.</div>
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label fw-bold">Default Reply Mode</label>
-                                <select name="settings[ai-sense][reply_mode]" class="form-select form-select-solid">
-                                    @foreach(['Manual Approval', 'Auto Reply', 'Suggestion Only'] as $mode)
-                                        <option value="{{ $mode }}" @selected($settingValue('ai-sense', 'reply_mode', 'Manual Approval') === $mode)>{{ $mode }}</option>
-                                    @endforeach
-                                </select>
+                                <label class="form-label fw-bold">API Endpoint URL</label>
+                                <div class="input-group">
+                                    <input type="text" id="aisensyApiUrlInput" name="settings[ai-sense][api_url]" class="form-control form-control-solid font-monospace" placeholder="https://apis.aisensy.com/project-apis/v1/project/{project_id}/messages" value="{{ $settingValue('ai-sense', 'api_url', env('AISENSY_API_URL', 'https://apis.aisensy.com/project-apis/v1/project/messages')) }}">
+                                    <button type="button" class="btn btn-light-primary btn-sm px-3" title="Copy Endpoint" onclick="navigator.clipboard.writeText(document.getElementById('aisensyApiUrlInput').value); alert('Endpoint URL copied!');">
+                                        <i class="fa fa-copy"></i>
+                                    </button>
+                                </div>
+                                <div class="text-muted fs-8 mt-1">Default: <code>https://apis.aisensy.com/project-apis/v1/project/{project_id}/messages</code></div>
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label fw-bold">Webhook URL</label>
-                                <input type="text" name="settings[ai-sense][webhook_url]" class="form-control form-control-solid" value="{{ $webhookUrl }}" readonly>
+                                <label class="form-label fw-bold">Webhook URL (Paste in AiSensy Dashboard)</label>
+                                <div class="input-group">
+                                    <input type="text" class="form-control form-control-solid font-monospace" value="{{ $webhookUrl }}" readonly>
+                                    <button type="button" class="btn btn-primary btn-sm px-3" onclick="navigator.clipboard.writeText('{{ $webhookUrl }}'); alert('Webhook URL copied to clipboard!');">
+                                        <i class="fa fa-copy"></i>
+                                    </button>
+                                </div>
+                                <div class="text-muted fs-8 mt-1">AiSensy Webhook Settings me is endpoint ko set karein.</div>
+                            </div>
+                        </div>
+
+                        <div class="mt-6 border-top pt-5">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <div>
+                                    <h5 class="fw-bolder text-dark mb-1"><i class="fa fa-code-fork text-success me-2"></i>AiSensy Webhook Hooks & Events</h5>
+                                    <div class="text-muted fs-8">These are the specific webhook topics supported by your AiSensy WhatsApp integration:</div>
+                                </div>
+                                <span class="badge badge-light-success fw-bolder fs-8">5 AiSensy Hooks Active</span>
+                            </div>
+
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <div class="p-3 rounded bg-light border border-dashed h-100 d-flex flex-column justify-content-between">
+                                        <div>
+                                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                                <code class="text-primary fw-bold fs-7">message.created</code>
+                                                <span class="badge badge-success py-1 px-2 fs-9">Inbound/Outbound</span>
+                                            </div>
+                                            <div class="text-gray-700 fs-8 mt-1">Har naye message (text ya media) ko database me save karta hai aur live chat screen update karta hai.</div>
+                                        </div>
+                                        <div class="mt-3 pt-2 border-top d-flex justify-content-between align-items-center">
+                                            <span class="text-muted fs-9 font-monospace text-truncate me-2">{{ $webhookUrl }}</span>
+                                            <button type="button" class="btn btn-xs btn-light-primary py-1 px-2" onclick="navigator.clipboard.writeText('{{ $webhookUrl }}'); alert('Webhook URL copied!');">
+                                                <i class="fa fa-copy me-1"></i>Copy URL
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <div class="p-3 rounded bg-light border border-dashed h-100 d-flex flex-column justify-content-between">
+                                        <div>
+                                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                                <code class="text-primary fw-bold fs-7">message.sender.user</code>
+                                                <span class="badge badge-warning py-1 px-2 fs-9">Customer Reply</span>
+                                            </div>
+                                            <div class="text-gray-700 fs-8 mt-1">Customer ke incoming reply, button click aur interactive list select hone par message receive karta hai.</div>
+                                        </div>
+                                        <div class="mt-3 pt-2 border-top d-flex justify-content-between align-items-center">
+                                            <span class="text-muted fs-9 font-monospace text-truncate me-2">{{ $webhookUrl }}</span>
+                                            <button type="button" class="btn btn-xs btn-light-primary py-1 px-2" onclick="navigator.clipboard.writeText('{{ $webhookUrl }}'); alert('Webhook URL copied!');">
+                                                <i class="fa fa-copy me-1"></i>Copy URL
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <div class="p-3 rounded bg-light border border-dashed h-100 d-flex flex-column justify-content-between">
+                                        <div>
+                                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                                <code class="text-primary fw-bold fs-7">message.status.updated</code>
+                                                <span class="badge badge-info py-1 px-2 fs-9">Ticks & Status</span>
+                                            </div>
+                                            <div class="text-gray-700 fs-8 mt-1">Message ke delivery status (`SENT`, `DELIVERED`, `READ` Blue Tick, `FAILED`) ko real-time sync karta hai.</div>
+                                        </div>
+                                        <div class="mt-3 pt-2 border-top d-flex justify-content-between align-items-center">
+                                            <span class="text-muted fs-9 font-monospace text-truncate me-2">{{ $webhookUrl }}</span>
+                                            <button type="button" class="btn btn-xs btn-light-primary py-1 px-2" onclick="navigator.clipboard.writeText('{{ $webhookUrl }}'); alert('Webhook URL copied!');">
+                                                <i class="fa fa-copy me-1"></i>Copy URL
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <div class="p-3 rounded bg-light border border-dashed h-100 d-flex flex-column justify-content-between">
+                                        <div>
+                                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                                <code class="text-primary fw-bold fs-7">contact.first_message.updated</code>
+                                                <span class="badge badge-danger py-1 px-2 fs-9">Auto Lead</span>
+                                            </div>
+                                            <div class="text-gray-700 fs-8 mt-1">Jab koi naya customer pehli baar message karta hai to automatically CRM `Leads` table me new lead generate karta hai.</div>
+                                        </div>
+                                        <div class="mt-3 pt-2 border-top d-flex justify-content-between align-items-center">
+                                            <span class="text-muted fs-9 font-monospace text-truncate me-2">{{ $webhookUrl }}</span>
+                                            <button type="button" class="btn btn-xs btn-light-primary py-1 px-2" onclick="navigator.clipboard.writeText('{{ $webhookUrl }}'); alert('Webhook URL copied!');">
+                                                <i class="fa fa-copy me-1"></i>Copy URL
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="col-12">
+                                    <div class="p-3 rounded bg-light border border-dashed d-flex flex-column justify-content-between">
+                                        <div>
+                                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                                <code class="text-primary fw-bold fs-7">contact.tag.updated</code>
+                                                <span class="badge badge-dark py-1 px-2 fs-9">Chat Labels Sync</span>
+                                            </div>
+                                            <div class="text-gray-700 fs-8 mt-1">AiSensy me contact par lagaye gaye Tags (e.g. `Hot Lead`, `Order Confirmed`) ko WhatsApp chat sidebar labels ke sath sync karta hai.</div>
+                                        </div>
+                                        <div class="mt-3 pt-2 border-top d-flex justify-content-between align-items-center">
+                                            <span class="text-muted fs-9 font-monospace text-truncate me-2">Target Webhook: {{ $webhookUrl }}</span>
+                                            <button type="button" class="btn btn-xs btn-light-primary py-1 px-2" onclick="navigator.clipboard.writeText('{{ $webhookUrl }}'); alert('Webhook URL copied!');">
+                                                <i class="fa fa-copy me-1"></i>Copy URL
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -210,7 +322,27 @@
         </div>
 
         <div class="col-xl-4">
-            <div class="card h-100">
+            <div class="card mb-5">
+                <div class="card-header border-0 pt-6">
+                    <div class="card-title">
+                        <h3 class="fw-bolder mb-0"><i class="fa fa-plug text-primary me-2"></i>Webhook Endpoint</h3>
+                    </div>
+                </div>
+                <div class="card-body pt-0">
+                    <div class="mb-2">
+                        <label class="form-label fw-bold text-dark fs-7">Global Webhook URL</label>
+                        <div class="input-group">
+                            <input type="text" id="globalWebhookUrlInput" class="form-control form-control-solid fs-8 font-monospace" value="{{ $webhookUrl }}" readonly>
+                            <button type="button" class="btn btn-primary btn-sm px-4" onclick="navigator.clipboard.writeText('{{ $webhookUrl }}'); alert('Webhook URL copied to clipboard!');">
+                                <i class="fa fa-copy"></i>
+                            </button>
+                        </div>
+                        <div class="text-muted fs-8 mt-2">Paste this URL into your active provider dashboard (AiSensy, Twilio, etc.) to receive real-time updates.</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
                 <div class="card-header border-0 pt-6">
                     <div class="card-title">
                         <h3 class="fw-bolder mb-0">Setup Checklist</h3>
@@ -218,7 +350,7 @@
                 </div>
                 <div class="card-body pt-0">
                     <div class="timeline-label">
-                        @foreach(['Choose app/provider', 'Add provider credentials', 'Set webhook URL', 'Map templates', 'Send test message'] as $step)
+                        @foreach(['Choose app/provider', 'Add provider credentials', 'Set webhook URL in provider', 'Enable webhook topics/events', 'Test send & receive'] as $step)
                             <div class="timeline-item">
                                 <div class="timeline-label fw-bold text-gray-800 fs-7">{{ $loop->iteration }}</div>
                                 <div class="timeline-badge">
@@ -227,11 +359,6 @@
                                 <div class="fw-bold text-gray-700 ps-3">{{ $step }}</div>
                             </div>
                         @endforeach
-                    </div>
-
-                    <div class="notice bg-light-primary rounded border-primary border border-dashed p-5 mt-8">
-                        <div class="fw-bolder text-dark mb-2">Webhook URL</div>
-                        <div class="text-muted fs-7">Copy the selected provider webhook URL into the provider dashboard and keep credentials updated here.</div>
                     </div>
                 </div>
             </div>
