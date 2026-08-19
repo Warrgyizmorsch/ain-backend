@@ -46,7 +46,7 @@ class WhatsappController extends Controller
         ]);
     }
 
-    public function saveSettings(Request $request): RedirectResponse
+    public function saveSettings(Request $request): RedirectResponse|JsonResponse
     {
         $validated = $request->validate([
             'provider' => ['required', 'in:' . implode(',', $this->providers)],
@@ -68,6 +68,13 @@ class WhatsappController extends Controller
                 'created_by' => Auth::id(),
             ]
         );
+
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'WhatsApp settings saved successfully.',
+            ]);
+        }
 
         return back()->with('success', 'WhatsApp settings saved successfully.');
     }

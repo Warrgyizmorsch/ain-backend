@@ -10,17 +10,19 @@
     };
 @endphp
 <div class="container-fluid py-5 whatsapp-settings-page">
-    <form method="POST" action="{{ route('whatsapp.settings.save') }}">
+    <form id="whatsappSettingsForm" method="POST" action="{{ route('whatsapp.settings.save') }}">
         @csrf
     <div class="d-flex flex-wrap justify-content-between align-items-center mb-6 gap-3">
         <div>
             <h1 class="fs-2 fw-bolder text-dark mb-1">WhatsApp Integration Settings</h1>
             <div class="text-muted fw-bold fs-7">Choose one app/provider and configure its connection details.</div>
         </div>
-        <button type="submit" class="btn btn-sm btn-success">
-            <i class="fa fa-save me-2"></i>Save Settings
+        <button type="submit" id="saveSettingsBtn" class="btn btn-sm btn-success">
+            <i class="fa fa-save me-2"></i><span id="saveBtnText">Save Settings</span>
         </button>
     </div>
+
+    <div id="settingsAlertContainer"></div>
 
     @if(session('success'))
         <div class="alert alert-success fw-bold">{{ session('success') }}</div>
@@ -473,5 +475,61 @@
             });
         });
     });
+
+    const settingsForm = document.getElementById('whatsappSettingsForm');
+    const saveBtn = document.getElementById('saveSettingsBtn');
+    const saveBtnText = document.getElementById('saveBtnText');
+    const alertContainer = document.getElementById('settingsAlertContainer');
+
+    if (settingsForm) {
+        settingsForm.addEventListener('submit', function (e) {
+            e.preventDefault();
+
+            const originalBtnHtml = saveBtn.innerHTML;
+            saveBtn.disabled = true;
+            saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Saving...';
+            alertContainer.innerHTML = '';
+
+            const formData = new FormData(settingsForm);
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || formData.get('_token');
+
+            fetch(settingsForm.action, {
+                method: 'POST',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': csrfToken,
+                    'Accept': 'application/json'
+                },
+                body: formData
+            })
+            .then(async response => {
+                const data = await response.json().catch(() => ({}));
+                if (response.ok && data.success) {
+                    alertContainer.innerHTML = `
+                        <div class="alert alert-success alert-dismissible fade show fw-bold" role="alert">
+                            <i class="fa fa-check-circle me-2"></i>${data.message || 'WhatsApp settings saved successfully!'}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>`;
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                } else {
+                    const errorMsg = data.message || 'Failed to save settings. Please try again.';
+                    alertContainer.innerHTML = `
+                        <div class="alert alert-danger alert-dismissible fade show fw-bold" role="alert">
+                            <i class="fa fa-exclamation-triangle me-2"></i>${errorMsg}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>`;
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                }
+            })
+            .catch(error => {
+                // If fetch fails, fallback to regular submit
+                settingsForm.submit();
+            })
+            .finally(() => {
+                saveBtn.disabled = false;
+                saveBtn.innerHTML = originalBtnHtml;
+            });
+        });
+    }
 </script>
 @endsection
