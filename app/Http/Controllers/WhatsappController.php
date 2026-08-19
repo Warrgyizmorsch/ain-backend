@@ -1021,20 +1021,30 @@ class WhatsappController extends Controller
         // 1. AiSensy Provider Sending
         // -----------------------------------------------------------------
         if ($setting->provider === 'ai-sense') {
-            $apiKey = $config['api_key'] ?? env('AISENSY_API_KEY');
-            $projectId = $config['project_id'] ?? null;
-            $apiUrl = $config['api_url'] ?? ($projectId ? "https://apis.aisensy.com/project-apis/v1/project/{$projectId}/messages" : env('AISENSY_API_URL', 'https://apis.aisensy.com/project-apis/v1/project/messages'));
+            $apiKey = trim((string) ($config['api_key'] ?? env('AISENSY_API_KEY', '')));
+            $projectId = trim((string) ($config['project_id'] ?? ''), " \t\n\r\0\x0B/");
+            $apiUrl = trim((string) ($config['api_url'] ?? ''));
 
-            if ($projectId && str_contains($apiUrl, '{project_id}')) {
-                $apiUrl = str_replace('{project_id}', $projectId, $apiUrl);
+            // Auto-detect project ID from URL if user entered full URL containing the ID
+            if (! $projectId && ! empty($apiUrl)) {
+                if (preg_match('#project-apis/v1/project/([a-zA-Z0-9_-]+)/messages#', $apiUrl, $matches)) {
+                    if ($matches[1] !== 'messages' && $matches[1] !== '{project_id}') {
+                        $projectId = $matches[1];
+                    }
+                }
             }
 
-            if (! $apiKey || ! $apiUrl) {
+            // Always ensure the correct AiSensy project endpoint format
+            if ($projectId) {
+                $apiUrl = "https://apis.aisensy.com/project-apis/v1/project/{$projectId}/messages";
+            }
+
+            if (! $apiKey || ! $projectId || ! $apiUrl) {
                 $message->update(['status' => 'failed']);
 
                 return [
                     'success' => false,
-                    'error' => 'AiSensy API Key or API URL is missing in WhatsApp Settings.',
+                    'error' => 'AiSensy Project ID or API Key is missing. Please check your WhatsApp Settings.',
                 ];
             }
 

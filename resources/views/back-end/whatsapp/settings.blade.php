@@ -96,18 +96,27 @@
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label fw-bold">Project ID</label>
-                                <input type="text" name="settings[ai-sense][project_id]" class="form-control form-control-solid font-monospace" placeholder="e.g. 67e109077c4b230bed2fb1ff" value="{{ $settingValue('ai-sense', 'project_id') }}">
-                                <div class="text-muted fs-8 mt-1">Your unique AiSensy project identifier.</div>
+                                <input type="text" id="aisensyProjectIdInput" name="settings[ai-sense][project_id]" class="form-control form-control-solid font-monospace" placeholder="e.g. 64b7904a3702730b51b76dc1" value="{{ $settingValue('ai-sense', 'project_id') }}" oninput="updateAisensyApiUrl(this.value)">
+                                <div class="text-muted fs-8 mt-1">Your unique AiSensy project identifier (bina kisi trailing slash ke).</div>
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label fw-bold">API Endpoint URL</label>
+                                @php
+                                    $savedProjectId = trim((string)$settingValue('ai-sense', 'project_id'), " /");
+                                    $currentAisensyUrl = $settingValue('ai-sense', 'api_url');
+                                    if ($savedProjectId && (empty($currentAisensyUrl) || $currentAisensyUrl === 'https://apis.aisensy.com/project-apis/v1/project/messages')) {
+                                        $currentAisensyUrl = "https://apis.aisensy.com/project-apis/v1/project/{$savedProjectId}/messages";
+                                    } elseif (empty($currentAisensyUrl)) {
+                                        $currentAisensyUrl = "https://apis.aisensy.com/project-apis/v1/project/{project_id}/messages";
+                                    }
+                                @endphp
                                 <div class="input-group">
-                                    <input type="text" id="aisensyApiUrlInput" name="settings[ai-sense][api_url]" class="form-control form-control-solid font-monospace" placeholder="https://apis.aisensy.com/project-apis/v1/project/{project_id}/messages" value="{{ $settingValue('ai-sense', 'api_url', env('AISENSY_API_URL', 'https://apis.aisensy.com/project-apis/v1/project/messages')) }}">
+                                    <input type="text" id="aisensyApiUrlInput" name="settings[ai-sense][api_url]" class="form-control form-control-solid font-monospace" placeholder="https://apis.aisensy.com/project-apis/v1/project/{project_id}/messages" value="{{ $currentAisensyUrl }}">
                                     <button type="button" class="btn btn-light-primary btn-sm px-3" title="Copy Endpoint" onclick="navigator.clipboard.writeText(document.getElementById('aisensyApiUrlInput').value); alert('Endpoint URL copied!');">
                                         <i class="fa fa-copy"></i>
                                     </button>
                                 </div>
-                                <div class="text-muted fs-8 mt-1">Default: <code>https://apis.aisensy.com/project-apis/v1/project/{project_id}/messages</code></div>
+                                <div class="text-muted fs-8 mt-1">Format: <code>https://apis.aisensy.com/project-apis/v1/project/{project_id}/messages</code></div>
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label fw-bold">Webhook URL (Paste in AiSensy Dashboard)</label>
@@ -530,6 +539,14 @@
                 saveBtn.innerHTML = originalBtnHtml;
             });
         });
+    function updateAisensyApiUrl(val) {
+        const cleanId = (val || '').trim().replace(/\/+$/, '');
+        const urlInput = document.getElementById('aisensyApiUrlInput');
+        if (urlInput) {
+            urlInput.value = cleanId 
+                ? `https://apis.aisensy.com/project-apis/v1/project/${cleanId}/messages`
+                : 'https://apis.aisensy.com/project-apis/v1/project/{project_id}/messages';
+        }
     }
 </script>
 @endsection
