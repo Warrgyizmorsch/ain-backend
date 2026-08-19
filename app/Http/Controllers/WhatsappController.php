@@ -992,6 +992,7 @@ class WhatsappController extends Controller
     private function storeOutboundMessage(string $phone, string $text): WhatsappMessage
     {
         return WhatsappMessage::query()->create([
+            'wa_message_id' => 'wa_' . (string) Str::uuid(),
             'phone' => $phone,
             'name' => Auth::user()?->name ?? 'Admin',
             'message' => $text,
@@ -1021,7 +1022,11 @@ class WhatsappController extends Controller
         if ($setting->provider === 'ai-sense') {
             $apiKey = $config['api_key'] ?? env('AISENSY_API_KEY');
             $projectId = $config['project_id'] ?? null;
-            $apiUrl = $config['api_url'] ?? ($projectId ? "https://apis.aisensy.com/project-apis/v1/project/{$projectId}/messages" : env('AISENSY_API_URL'));
+            $apiUrl = $config['api_url'] ?? ($projectId ? "https://apis.aisensy.com/project-apis/v1/project/{$projectId}/messages" : env('AISENSY_API_URL', 'https://apis.aisensy.com/project-apis/v1/project/messages'));
+
+            if ($projectId && str_contains($apiUrl, '{project_id}')) {
+                $apiUrl = str_replace('{project_id}', $projectId, $apiUrl);
+            }
 
             if (! $apiKey || ! $apiUrl) {
                 $message->update(['status' => 'failed']);
@@ -1393,6 +1398,7 @@ class WhatsappController extends Controller
             }
 
             $message = WhatsappMessage::query()->create([
+                'wa_message_id' => 'wa_' . (string) Str::uuid(),
                 'phone'      => $phone,
                 'name'       => Auth::user()?->name ?? 'Admin',
                 'message'    => $index === 0 ? $caption : '',
