@@ -13,6 +13,7 @@ use App\Models\WhatsappMessage;
 use App\Models\WhatsappSetting;
 use App\Events\MessageSent;
 use App\Events\MessageStatusUpdated;
+use Illuminate\Support\Str;
 
 class WhatsAppWebhookController extends Controller
 {
