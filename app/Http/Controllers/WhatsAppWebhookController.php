@@ -140,32 +140,60 @@ public function receive(Request $request)
     }
 
     // ----------------------------------------------------
-    // 1. Hook: message.created OR message.sender.user (Incoming & Outgoing Messages)
+    // 1. Hook: Inbound & Outbound Messages (All topics & formats)
     // ----------------------------------------------------
-    if (in_array($topic, ['message.created', 'message.sender.user'], true) || str_contains($eventName, 'message.created') || str_contains($eventName, 'message.sender.user')) {
+    $isInboundOrMessage = in_array($topic, ['message.created', 'message.received', 'message.inbound', 'incoming.message', 'message.sender.user', 'message.sender.contact'], true)
+        || str_contains($eventName, 'message.created')
+        || str_contains($eventName, 'message.received')
+        || str_contains($eventName, 'message.inbound')
+        || str_contains($eventName, 'message.sender');
+
+    if ($isInboundOrMessage || (! str_contains($eventName, 'status') && ! str_contains($eventName, 'typing') && ! empty($data['data']['message'] ?? $data['data'] ?? []))) {
         $messageData = $data['data']['message'] ?? $data['data'] ?? [];
 
-        $phone = $messageData['phone_number'] ?? $messageData['phone'] ?? $messageData['to'] ?? $messageData['from'] ?? null;
+        $phone = $messageData['phone_number']
+            ?? $messageData['phone']
+            ?? $messageData['to']
+            ?? $messageData['from']
+            ?? $data['customer']['phone']
+            ?? $data['customer']['phone_number']
+            ?? $data['data']['contact']['phone_number']
+            ?? $data['data']['contact']['phone']
+            ?? null;
+
         $sender = strtoupper((string) ($messageData['sender'] ?? ($topic === 'message.sender.user' ? 'USER' : 'USER')));
-        $userName = $messageData['userName'] ?? $messageData['name'] ?? 'WhatsApp User';
+        $userName = $messageData['userName']
+            ?? $messageData['name']
+            ?? $data['data']['contact']['userName']
+            ?? $data['data']['contact']['name']
+            ?? 'WhatsApp User';
         $waMessageId = $messageData['messageId'] ?? $messageData['id'] ?? null;
 
-        // Parse text content (supports direct text, button text, or interactive reply)
+        // Parse text content (supports direct text, caption, button reply, or interactive reply)
         $text = $messageData['message_content']['text'] 
             ?? $messageData['text']['body'] 
             ?? $messageData['text'] 
+            ?? $messageData['caption']
+            ?? $messageData['message_content']['caption']
             ?? $messageData['button_reply']['title'] 
             ?? $messageData['interactive']['button_reply']['title'] 
             ?? $messageData['interactive']['list_reply']['title'] 
+            ?? $messageData['interactive_reply']['title']
             ?? '';
 
-        // Media fields
+        // Media fields (supports link, url, and all media types)
         $mediaUrl = $messageData['message_content']['media_url'] 
             ?? $messageData['media_url'] 
             ?? $messageData['image']['link'] 
+            ?? $messageData['image']['url']
             ?? $messageData['video']['link'] 
+            ?? $messageData['video']['url']
             ?? $messageData['document']['link'] 
+            ?? $messageData['document']['url']
             ?? $messageData['audio']['link'] 
+            ?? $messageData['audio']['url']
+            ?? $messageData['voice']['link']
+            ?? $messageData['voice']['url']
             ?? null;
 
         $mediaType = $messageData['message_content']['media_type'] 
@@ -178,10 +206,10 @@ public function receive(Request $request)
             ?? $messageData['document']['filename'] 
             ?? null;
 
-        if ($phone && ($text !== '' || $mediaUrl !== '')) {
+        if ($phone && ($text !== '' || $mediaUrl !== null)) {
             $phone = ltrim(str_replace('whatsapp:', '', $phone), '+');
 
-            if ($sender === 'USER' || $topic === 'message.sender.user') {
+            if ($sender === 'USER' || $topic === 'message.sender.user' || str_contains($eventName, 'user') || str_contains($eventName, 'inbound') || str_contains($eventName, 'received')) {
                 // Check if already stored to avoid duplicate webhook processing
                 $existingMessage = $waMessageId ? WhatsappMessage::where('wa_message_id', $waMessageId)->first() : null;
 
@@ -191,7 +219,7 @@ public function receive(Request $request)
                         'name' => $userName,
                         'message' => (string) $text,
                         'direction' => 'inbound',
-                        'wa_message_id' => $waMessageId,
+                        'wa_message_id' => $waMessageId ?: 'in_' . (string) Str::uuid(),
                         'status' => 'received',
                         'media_url' => $mediaUrl,
                         'media_type' => $mediaType,
@@ -252,17 +280,42 @@ public function receive(Request $request)
     }
 
     // ----------------------------------------------------
-    // 3. Hook: contact.first_message.updated (New Lead Creation on First Contact)
+    // 3. Hook: contact.first_message.updated (New Lead & Message Creation on First Contact)
     // ----------------------------------------------------
     if ($topic === 'contact.first_message.updated' || str_contains($eventName, 'first_message')) {
         $contactData = $data['data']['contact'] ?? $data['data'] ?? [];
         $contactPhone = $contactData['phone_number'] ?? $contactData['phone'] ?? null;
         $contactName = $contactData['name'] ?? $contactData['userName'] ?? 'WhatsApp Lead';
 
+        $firstText = $contactData['last_message'] 
+            ?? $contactData['message'] 
+            ?? $data['data']['message']['message_content']['text'] 
+            ?? $data['data']['message']['text']['body'] 
+            ?? $data['data']['message']['text'] 
+            ?? 'First message received via WhatsApp AiSensy';
+
         if ($contactPhone) {
             $cleanPhone = ltrim(str_replace('whatsapp:', '', $contactPhone), '+');
 
-            // Check if lead already exists
+            // 1. Create message in whatsapp_messages if not exists
+            $existingMsg = WhatsappMessage::where('phone', $cleanPhone)
+                ->where('direction', 'inbound')
+                ->first();
+
+            if (! $existingMsg) {
+                $createdFirstMsg = WhatsappMessage::create([
+                    'phone' => $cleanPhone,
+                    'name' => $contactName,
+                    'message' => (string) $firstText,
+                    'direction' => 'inbound',
+                    'wa_message_id' => 'first_' . (string) Str::uuid(),
+                    'status' => 'received',
+                ]);
+
+                event(new MessageSent($createdFirstMsg));
+            }
+
+            // 2. Check if lead already exists
             $existingLead = Leads::where('mobile', $cleanPhone)
                 ->orWhere('mobile', '+' . $cleanPhone)
                 ->first();
@@ -273,10 +326,10 @@ public function receive(Request $request)
                     'mobile' => $cleanPhone,
                     'l_status' => 'New Lead',
                     'lead_source' => 'WhatsApp',
-                    'message' => 'First message received via WhatsApp AiSensy',
+                    'message' => (string) $firstText,
                 ]);
 
-                Log::info('New Lead automatically created from WhatsApp first_message hook', [
+                Log::info('New Lead and First Message automatically created from WhatsApp first_message hook', [
                     'phone' => $cleanPhone,
                     'name' => $contactName,
                 ]);

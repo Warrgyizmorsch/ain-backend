@@ -327,12 +327,13 @@ class WhatsappController extends Controller
         ]);
 
         $phone = $validated['phone'];
+        $variants = $this->getPhoneVariants($phone);
         $afterId = (int) ($validated['after_id'] ?? 0);
         $beforeId = (int) ($validated['before_id'] ?? 0);
         $limit = max(1, min(50, (int) ($validated['limit'] ?? 30)));
 
         $query = WhatsappMessage::query()
-            ->where('phone', $phone)
+            ->whereIn('phone', $variants)
             ->where(function ($q) {
                 $q->whereRaw("TRIM(COALESCE(message, '')) != ''")
                     ->orWhereNotNull('media_url');
@@ -568,8 +569,10 @@ class WhatsappController extends Controller
             'phone' => ['required', 'string', 'max:30'],
         ]);
 
+        $variants = $this->getPhoneVariants($validated['phone']);
+
         $updated = WhatsappMessage::query()
-            ->where('phone', $validated['phone'])
+            ->whereIn('phone', $variants)
             ->where('direction', 'inbound')
             ->latest('id')
             ->limit(1)
@@ -577,7 +580,7 @@ class WhatsappController extends Controller
 
         if (! $updated) {
             $latest = WhatsappMessage::query()
-                ->where('phone', $validated['phone'])
+                ->whereIn('phone', $variants)
                 ->latest('id')
                 ->first();
 
@@ -942,8 +945,10 @@ class WhatsappController extends Controller
 
     private function markPhoneMessagesRead(string $phone): int
     {
+        $variants = $this->getPhoneVariants($phone);
+
         return WhatsappMessage::query()
-            ->where('phone', $phone)
+            ->whereIn('phone', $variants)
             ->where('direction', 'inbound')
             ->where(function ($query) {
                 $query->whereNull('status')->orWhere('status', '!=', 'read');
@@ -971,8 +976,10 @@ class WhatsappController extends Controller
 
     private function recentOutboundStatuses(string $phone): array
     {
+        $variants = $this->getPhoneVariants($phone);
+
         return WhatsappMessage::query()
-            ->where('phone', $phone)
+            ->whereIn('phone', $variants)
             ->where('direction', 'outbound')
             ->latest('id')
             ->limit(100)
