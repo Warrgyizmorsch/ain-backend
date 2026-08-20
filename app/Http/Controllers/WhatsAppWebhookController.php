@@ -181,9 +181,15 @@ public function receive(Request $request)
             ?? $messageData['interactive_reply']['title']
             ?? '';
 
-        // Media fields (supports link, url, and all media types)
+        // Media fields (supports link, url, and all media types from AiSensy & WhatsApp)
         $mediaUrl = $messageData['message_content']['media_url'] 
+            ?? $messageData['message_content']['url']
             ?? $messageData['media_url'] 
+            ?? $messageData['mediaUrl']
+            ?? $messageData['file_url']
+            ?? $messageData['fileUrl']
+            ?? $messageData['attachment_url']
+            ?? $messageData['url']
             ?? $messageData['image']['link'] 
             ?? $messageData['image']['url']
             ?? $messageData['video']['link'] 
@@ -194,19 +200,51 @@ public function receive(Request $request)
             ?? $messageData['audio']['url']
             ?? $messageData['voice']['link']
             ?? $messageData['voice']['url']
+            ?? $messageData['sticker']['link']
+            ?? $messageData['sticker']['url']
+            ?? $messageData['attachment']['url']
+            ?? $messageData['file']['url']
+            ?? $data['data']['media_url']
+            ?? $data['data']['url']
+            ?? $data['media_url']
+            ?? $data['url']
             ?? null;
 
         $mediaType = $messageData['message_content']['media_type'] 
             ?? $messageData['media_type'] 
+            ?? $messageData['mediaType']
             ?? $messageData['type'] 
-            ?? ($mediaUrl ? 'image' : null);
+            ?? null;
+
+        if (! $mediaType && $mediaUrl) {
+            $ext = strtolower(pathinfo(parse_url($mediaUrl, PHP_URL_PATH) ?? '', PATHINFO_EXTENSION));
+            $mediaType = match ($ext) {
+                'jpg', 'jpeg', 'png', 'webp', 'gif' => 'image',
+                'mp4', 'mov', 'avi', 'mkv', 'webm' => 'video',
+                'mp3', 'ogg', 'wav', 'aac', 'm4a' => 'audio',
+                'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'zip', 'rar', 'txt', 'csv' => 'document',
+                default => 'image',
+            };
+        }
 
         $mediaName = $messageData['message_content']['media_name'] 
             ?? $messageData['media_name'] 
+            ?? $messageData['mediaName']
+            ?? $messageData['file_name']
+            ?? $messageData['fileName']
             ?? $messageData['document']['filename'] 
-            ?? null;
+            ?? $messageData['document']['name']
+            ?? $messageData['document']['file_name']
+            ?? ($mediaUrl ? basename(parse_url($mediaUrl, PHP_URL_PATH) ?? 'attachment') : null);
 
-        if ($phone && ($text !== '' || $mediaUrl !== null)) {
+        // Location support
+        if (empty($text) && ! empty($messageData['location'])) {
+            $loc = $messageData['location'];
+            $locName = $loc['name'] ?? $loc['address'] ?? '';
+            $text = '📍 Location: ' . ($locName ? "{$locName} " : '') . "https://maps.google.com/?q={$loc['latitude']},{$loc['longitude']}";
+        }
+
+        if ($phone && ($text !== '' || ! empty($mediaUrl))) {
             $phone = ltrim(str_replace('whatsapp:', '', $phone), '+');
 
             if ($sender === 'USER' || $topic === 'message.sender.user' || str_contains($eventName, 'user') || str_contains($eventName, 'inbound') || str_contains($eventName, 'received')) {

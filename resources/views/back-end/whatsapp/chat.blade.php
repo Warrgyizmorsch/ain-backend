@@ -4085,13 +4085,42 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    function getTypingRow() {
+        let el = document.getElementById('wabTypingRow');
+        if (!el && body) {
+            el = document.createElement('div');
+            el.id = 'wabTypingRow';
+            el.className = 'wab-msg-row wab-incoming wab-typing-row';
+            el.hidden = true;
+            el.innerHTML = `
+                <div class="wab-msg-bubble">
+                    <div class="wab-typing-dots">
+                        <span></span><span></span><span></span>
+                    </div>
+                </div>
+            `;
+            body.appendChild(el);
+        }
+        return el;
+    }
+
+    function insertBeforeTyping(node) {
+        if (!body || !node) return;
+        const target = getTypingRow();
+        if (target && target.parentNode === body) {
+            body.insertBefore(node, target);
+        } else {
+            body.appendChild(node);
+        }
+    }
+
     function clearMessagesBody() {
         if (!body) return;
         body.querySelectorAll('.wab-msg-row:not(.wab-typing-row), .wab-date-badge, .wab-empty-message, .wab-panel-card').forEach(el => el.remove());
     }
 
     function renderInitialMessagesBatch(messages) {
-        if (!body || !typingRow) return;
+        if (!body) return;
 
         if (!Array.isArray(messages) || messages.length === 0) {
             const emptyRow = document.createElement('div');
@@ -4102,7 +4131,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     <div class="wab-msg-meta"><span class="wab-msg-time"></span></div>
                 </div>
             `;
-            body.insertBefore(emptyRow, typingRow);
+            insertBeforeTyping(emptyRow);
             return;
         }
 
@@ -4114,7 +4143,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 badge.className = 'wab-date-badge';
                 badge.dataset.dateKey = key;
                 badge.textContent = dateLabel(msg.created_at);
-                body.insertBefore(badge, typingRow);
+                insertBeforeTyping(badge);
                 lastRenderDate = key;
             }
 
@@ -4132,7 +4161,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     </div>
                 </div>
             `;
-            body.insertBefore(row, typingRow);
+            insertBeforeTyping(row);
             initVoiceCards(row);
         });
     }
@@ -4400,7 +4429,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function ensureDateBadge(message) {
-        if (!body || !typingRow) return;
+        if (!body) return;
 
         const key = localDateKey(message?.created_at);
         if (!key || body.querySelector(`.wab-date-badge[data-date-key="${key}"]`)) return;
@@ -4409,7 +4438,7 @@ document.addEventListener('DOMContentLoaded', function() {
         badge.className = 'wab-date-badge';
         badge.dataset.dateKey = key;
         badge.textContent = dateLabel(message?.created_at);
-        body.insertBefore(badge, typingRow);
+        insertBeforeTyping(badge);
     }
 
     function messageContentMarkup(message) {
@@ -4544,7 +4573,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
         // Insert after olderLoader (or at start of body)
-        if (olderLoader && olderLoader.nextSibling) {
+        if (olderLoader && olderLoader.parentNode === body && olderLoader.nextSibling) {
             body.insertBefore(frag, olderLoader.nextSibling);
         } else {
             body.prepend(frag);
@@ -4555,7 +4584,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const hasText = String(message?.message || '').trim() !== '';
         const hasMedia = Boolean(message?.media_url);
 
-        if (!body || !typingRow || (!hasText && !hasMedia) || document.querySelector(`[data-message-id="${message.id}"]`)) {
+        if (!body || (!hasText && !hasMedia) || document.querySelector(`[data-message-id="${message.id}"]`)) {
             return;
         }
 
@@ -4576,7 +4605,7 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>
         `;
 
-        body.insertBefore(row, typingRow);
+        insertBeforeTyping(row);
         initVoiceCards(row);
         lastMessageId = Math.max(lastMessageId, Number(message.id || 0));
         body.dataset.lastMessageId = String(lastMessageId);
@@ -4728,18 +4757,19 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function setRemoteTyping(isTyping) {
-        if (!typingRow) return;
+        const row = getTypingRow();
+        if (!row) return;
 
         if (isTyping) {
-            typingRow.hidden = false;
-            typingRow.classList.add('is-visible');
+            row.hidden = false;
+            row.classList.add('is-visible');
             if (typingLabel) typingLabel.textContent = 'typing...';
             body.scrollTop = body.scrollHeight;
             return;
         }
 
-        typingRow.classList.remove('is-visible');
-        typingRow.hidden = true;
+        row.classList.remove('is-visible');
+        row.hidden = true;
         if (typingLabel) typingLabel.textContent = defaultTypingLabel;
     }
 
