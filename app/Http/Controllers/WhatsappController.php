@@ -1093,10 +1093,17 @@ class WhatsappController extends Controller
 
                 if ($response->successful()) {
                     $resData = $response->json();
-                    $waMsgId = $resData['messages'][0]['id'] ?? $resData['messageId'] ?? $resData['id'] ?? null;
+                    $waMsgId = $resData['messages'][0]['id'] 
+                        ?? $resData['messageId'] 
+                        ?? $resData['id'] 
+                        ?? $resData['data']['messageId'] 
+                        ?? $resData['data']['id'] 
+                        ?? $resData['data']['messages'][0]['id'] 
+                        ?? $resData['message_id'] 
+                        ?? null;
 
                     $message->update([
-                        'wa_message_id' => $waMsgId,
+                        'wa_message_id' => $waMsgId ?: $message->wa_message_id,
                         'status' => 'sent',
                     ]);
 

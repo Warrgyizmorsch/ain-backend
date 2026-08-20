@@ -3897,12 +3897,9 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    /* ── Dynamic Instant Chat Switch (SPA mode - sub-50ms / 0ms with SWR) ── */
+    /* ── Dynamic Live Chat Switch (Always fetch fresh latest data) ── */
     async function switchChat(phone, name, color) {
         if (!phone) return;
-        if (selectedPhone === phone && body && body.querySelectorAll('.wab-msg-row:not(.wab-empty-message)').length > 0) {
-            return;
-        }
 
         selectedPhone = phone;
         selectedPhoneChannel = phone.replace(/\D+/g, '');
@@ -3918,7 +3915,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
         // Hide sidebar on mobile
-        if (window.innerWidth <= 768) sidebar.classList.add('mobile-hidden');
+        if (window.innerWidth <= 768 && sidebar) sidebar.classList.add('mobile-hidden');
 
         // Update browser URL without reloading
         const newUrl = contactUrl(phone);
@@ -3948,26 +3945,9 @@ document.addEventListener('DOMContentLoaded', function() {
         // Update header basics immediately
         updateHeaderBasic(name, phone, color);
 
-        // If contact is in SWR cache, render INSTANTLY (0ms)
-        const cached = chatCache.get(phone);
-        if (cached && cached.bodyHtml) {
-            body.innerHTML = cached.bodyHtml;
-            lastMessageId = cached.lastMessageId || 0;
-            firstMessageId = cached.firstMessageId || 0;
-            hasMoreOlder = Boolean(cached.hasMoreOlder);
-            if (body) {
-                body.dataset.lastMessageId = String(lastMessageId);
-                body.dataset.firstMessageId = String(firstMessageId);
-                body.dataset.hasMoreOlder = hasMoreOlder ? '1' : '0';
-                body.scrollTop = body.scrollHeight;
-            }
-            if (olderLoader) olderLoader.classList.toggle('d-none', !hasMoreOlder);
-            if (chatPreloader) chatPreloader.classList.add('d-none');
-        } else {
-            // Show Preloader only when not in cache
-            if (chatPreloader) chatPreloader.classList.remove('d-none');
-            clearMessagesBody();
-        }
+        // Show Preloader
+        if (chatPreloader) chatPreloader.classList.remove('d-none');
+        clearMessagesBody();
 
         try {
             const res = await fetch(`${messagesUrl}?phone=${encodeURIComponent(phone)}&limit=30&with_summary=1`, {
@@ -3992,20 +3972,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (olderLoader) olderLoader.classList.toggle('d-none', !hasMoreOlder);
 
                 // Render fresh messages
-                clearMessagesBody();
                 renderInitialMessagesBatch(msgs);
 
                 if (data.customer) {
                     updateHeaderCustomerDetails(data.customer, name, phone, color);
                 }
-
-                // Save into SWR Cache
-                chatCache.set(phone, {
-                    lastMessageId: lastMessageId,
-                    firstMessageId: firstMessageId,
-                    hasMoreOlder: hasMoreOlder,
-                    bodyHtml: body.innerHTML,
-                });
             }
         } catch (err) {
             console.warn('Error loading chat messages:', err);
@@ -4326,8 +4297,16 @@ document.addEventListener('DOMContentLoaded', function() {
     function normalizeMessageStatus(status) {
         const value = String(status || 'sent').toLowerCase();
 
-        if (['read', 'delivered', 'failed', 'undelivered'].includes(value)) {
-            return value;
+        if (['read', 'seen', 'viewed', 'read_by_user', 'blue'].includes(value)) {
+            return 'read';
+        }
+
+        if (['delivered', 'received'].includes(value)) {
+            return 'delivered';
+        }
+
+        if (['failed', 'undelivered', 'error'].includes(value)) {
+            return 'failed';
         }
 
         return 'sent';

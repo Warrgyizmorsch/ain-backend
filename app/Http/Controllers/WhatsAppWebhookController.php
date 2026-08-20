@@ -292,14 +292,51 @@ public function receive(Request $request)
     // ----------------------------------------------------
     if ($topic === 'message.status.updated' || str_contains($eventName, 'status')) {
         $msg = $data['data']['message'] ?? $data['data'] ?? [];
-        $waMessageId = $msg['messageId'] ?? $msg['id'] ?? null;
-        $status = strtolower((string) ($msg['status'] ?? ''));
+        $waMessageId = $msg['messageId'] 
+            ?? $msg['id'] 
+            ?? $msg['wa_message_id']
+            ?? $data['data']['messageId']
+            ?? $data['data']['id']
+            ?? $data['messageId']
+            ?? $data['id']
+            ?? null;
 
-        if ($waMessageId && $status !== '') {
-            $message = WhatsappMessage::where('wa_message_id', $waMessageId)->first();
+        $rawStatus = strtolower((string) ($msg['status'] ?? $data['data']['status'] ?? $data['status'] ?? ''));
+        $status = match ($rawStatus) {
+            'read', 'seen', 'viewed', 'read_by_user' => 'read',
+            'delivered', 'received' => 'delivered',
+            'failed', 'undelivered', 'error' => 'failed',
+            'sent', 'accepted' => 'sent',
+            default => $rawStatus,
+        };
+
+        if ($status !== '') {
+            $message = null;
+            if ($waMessageId) {
+                $message = WhatsappMessage::where('wa_message_id', $waMessageId)->first();
+            }
+
+            // Fallback: match by recipient phone if wa_message_id was not matched directly
+            if (! $message) {
+                $statusPhone = $msg['phone_number'] ?? $msg['phone'] ?? $msg['to'] ?? $msg['recipient'] ?? $data['customer']['phone'] ?? null;
+                if ($statusPhone) {
+                    $cleanStatusPhone = ltrim(preg_replace('/\D+/', '', $statusPhone), '+');
+                    $last10Status = strlen($cleanStatusPhone) >= 10 ? substr($cleanStatusPhone, -10) : $cleanStatusPhone;
+                    $message = WhatsappMessage::where('direction', 'outbound')
+                        ->where(function ($q) use ($cleanStatusPhone, $last10Status) {
+                            $q->where('phone', 'like', "%{$cleanStatusPhone}%")
+                              ->orWhere('phone', 'like', "%{$last10Status}%");
+                        })
+                        ->latest('id')
+                        ->first();
+                }
+            }
 
             if ($message) {
                 $message->status = $status;
+                if ($waMessageId && str_starts_with((string)$message->wa_message_id, 'wa_')) {
+                    $message->wa_message_id = $waMessageId;
+                }
                 $message->save();
 
                 event(new MessageStatusUpdated($message));
@@ -307,6 +344,7 @@ public function receive(Request $request)
                     'wa_message_id' => $waMessageId,
                     'phone' => $message->phone,
                     'status' => $status,
+                    'message_id' => $message->id,
                 ]);
             } else {
                 Log::warning('AiSensy message status update without matching message', [
