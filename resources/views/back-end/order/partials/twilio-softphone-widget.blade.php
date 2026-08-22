@@ -235,9 +235,13 @@ class TwilioSoftphoneController {
     async init() {
         try {
             const res = await $.get("{{ route('plugins.twilio.token') }}");
-            if (!res.token) {
-                this.setStatus('Error Token', false);
-                return;
+            if (!res || !res.token) {
+                this.setStatus('Not Configured', false);
+                return false;
+            }
+
+            if (this.device) {
+                try { this.device.destroy(); } catch(e){}
             }
 
             this.device = new Twilio.Device(res.token, {
@@ -251,8 +255,14 @@ class TwilioSoftphoneController {
                 this.setStatus('Ready (Online)', true);
             });
 
+            this.device.on('unregistered', () => {
+                this.isReady = false;
+                this.setStatus('Offline', false);
+            });
+
             this.device.on('error', (err) => {
                 console.error('Twilio Device Error:', err);
+                this.isReady = false;
                 this.setStatus('Device Error', false);
             });
 
@@ -261,9 +271,14 @@ class TwilioSoftphoneController {
             });
 
             await this.device.register();
+            this.isReady = true;
+            this.setStatus('Ready (Online)', true);
+            return true;
         } catch (e) {
             console.log('Twilio WebRTC init failed or not configured yet:', e.message);
+            this.isReady = false;
             this.setStatus('Not Configured', false);
+            return false;
         }
     }
 

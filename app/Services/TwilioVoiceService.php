@@ -91,6 +91,7 @@ class TwilioVoiceService
      */
     public function generateAccessToken(string $identity, int $ttl = 3600): array
     {
+        $this->plugin = PluginSetting::where('plugin_key', 'twilio_call')->first();
         $accountSid = $this->plugin?->getSetting('account_sid');
         $apiKey = $this->plugin?->getSetting('api_key_sid');
         $apiSecret = $this->plugin?->getSetting('api_secret');
