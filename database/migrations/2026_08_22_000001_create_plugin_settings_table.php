@@ -11,20 +11,22 @@ return new class extends Migration
      */
     public function up(): void
     {
-        if (!Schema::hasTable('plugin_settings')) {
-            Schema::create('plugin_settings', function (Blueprint $table) {
-                $table->id();
-                $table->string('plugin_key')->unique();
-                $table->string('name');
-                $table->string('category')->default('communication');
-                $table->text('description')->nullable();
-                $table->boolean('is_active')->default(false);
-                $table->json('settings')->nullable();
-                $table->unsignedBigInteger('created_by')->nullable();
-                $table->unsignedBigInteger('updated_by')->nullable();
-                $table->timestamps();
-            });
+        if (Schema::hasTable('plugin_settings')) {
+            Schema::dropIfExists('plugin_settings');
         }
+
+        Schema::create('plugin_settings', function (Blueprint $table) {
+            $table->id();
+            $table->string('plugin_key', 100)->unique();
+            $table->string('name', 150);
+            $table->string('category', 50)->default('communication');
+            $table->text('description')->nullable();
+            $table->boolean('is_active')->default(false);
+            $table->json('settings')->nullable();
+            $table->unsignedBigInteger('created_by')->nullable();
+            $table->unsignedBigInteger('updated_by')->nullable();
+            $table->timestamps();
+        });
     }
 
     /**
