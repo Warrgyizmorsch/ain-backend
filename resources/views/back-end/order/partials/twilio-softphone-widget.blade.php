@@ -138,9 +138,14 @@ if (typeof Twilio === 'undefined' || !Twilio.Device) {
             <span class="fw-bold fs-7">Twilio Voice Dialer</span>
             <span id="twilioStatusText" class="badge badge-light-danger py-1 px-2 fs-9">Offline</span>
         </div>
-        <button type="button" class="btn btn-sm btn-icon btn-active-color-primary text-muted p-0" onclick="twilioSoftphone.toggleWidget()">
-            <i class="fa fa-times text-white"></i>
-        </button>
+        <div class="d-flex align-items-center gap-2">
+            <button type="button" class="btn btn-sm btn-icon text-muted p-0" onclick="twilioSoftphone.openPopout()" title="Popout Window (Stays active across all CRM pages)">
+                <i class="fa fa-external-link-alt text-white fs-8"></i>
+            </button>
+            <button type="button" class="btn btn-sm btn-icon btn-active-color-primary text-muted p-0" onclick="twilioSoftphone.toggleWidget()">
+                <i class="fa fa-times text-white"></i>
+            </button>
+        </div>
     </div>
 
     <!-- Body -->
@@ -469,11 +474,23 @@ class TwilioSoftphoneController {
         $('#twilioActiveCallView').addClass('d-none');
         $('#twilioIncomingCallView').addClass('d-none');
         $('#twilioDialpadView').removeClass('d-none');
+    openPopout() {
+        const url = "{{ route('plugins.dialer.window') }}";
+        window.open(url, 'AINSoftphonePopout', 'width=380,height=640,status=no,toolbar=no,menubar=no,location=no,resizable=yes');
     }
 }
 
 // Instantiate global softphone
 window.twilioSoftphone = new TwilioSoftphoneController();
+
+// Guard against accidental page navigation during an active call
+window.addEventListener('beforeunload', function(e) {
+    if (window.twilioSoftphone && window.twilioSoftphone.activeCall) {
+        e.preventDefault();
+        e.returnValue = 'You are currently on a live voice call. Navigating away will disconnect the call.';
+        return e.returnValue;
+    }
+});
 
 $(document).ready(function() {
     window.twilioSoftphone.init();

@@ -124,6 +124,7 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/twilio/test-inbound', [PluginController::class, 'testInboundCall'])->name('twilio.test.inbound');
         Route::post('/twilio/call-order', [PluginController::class, 'initiateOrderCall'])->name('twilio.order.call');
         Route::get('/twilio/token', [PluginController::class, 'getWebRtcToken'])->name('twilio.token');
+        Route::get('/dialer-window', [PluginController::class, 'dialerWindow'])->name('dialer.window');
         Route::post('/toggle-status', [PluginController::class, 'toggleStatus'])->name('toggle');
     });
 

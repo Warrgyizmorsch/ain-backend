@@ -1,7 +1,6 @@
 @extends('layouts.app')
 
 @section('content')
-@include('back-end.order.partials.twilio-softphone-widget')
 @php
     $twilioSettings = $twilioPlugin->settings ?? [];
     $isTwilioActive = (bool) ($twilioPlugin->is_active ?? false);

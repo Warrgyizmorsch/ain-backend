@@ -123,6 +123,14 @@ class PluginController extends Controller
     }
 
     /**
+     * Standalone Popout Dialer Window (persists across CRM navigation).
+     */
+    public function dialerWindow(): View
+    {
+        return view('back-end.plugins.dialer-window');
+    }
+
+    /**
      * TwiML Voice Webhook endpoint hit by Twilio when browser client dials or an inbound call arrives.
      */
     public function handleTwilioVoiceWebhook(Request $request): Response

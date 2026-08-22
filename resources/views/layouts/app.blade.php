@@ -946,6 +946,8 @@
         setInterval(checkUrgentOrders, CHECK_INTERVAL);
     </script>
 
+    {{-- Global Twilio Softphone Dialer Widget --}}
+    @include('back-end.order.partials.twilio-softphone-widget')
 
 </body>
 </html>

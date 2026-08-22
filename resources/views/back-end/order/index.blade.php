@@ -3,7 +3,6 @@
 @section('content')
 @include('back-end.group-master.user-modal')
 @include('back-end.order.partials.twilio-call-modal')
-@include('back-end.order.partials.twilio-softphone-widget')
 
 <style>
     /* Red Blinking Animation */

@@ -115,8 +115,8 @@ class TwilioVoiceService
             'jti' => $apiKey . '-' . $now . '-' . mt_rand(100, 999),
             'iss' => $apiKey,
             'sub' => $accountSid,
-            'nbf' => $now - 10,
-            'exp' => $now + $ttl,
+            'nbf' => $now - 300, // 5 minutes in past to prevent any server clock skew
+            'exp' => $now + 86400, // 24 hours validity
             'grants' => [
                 'identity' => $identity,
                 'voice' => [
@@ -184,6 +184,7 @@ class TwilioVoiceService
             . '<Response>'
             . '<Say voice="alice">Connecting to customer support, please hold.</Say>'
             . '<Dial timeout="30">'
+            . '<Client>agent_12641</Client>'
             . '<Client>agent_1</Client>'
             . '<Client>agent_admin</Client>'
             . '</Dial>'
