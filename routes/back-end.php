@@ -117,6 +117,7 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/updateUser/{id}', [LeadsController::class, 'updateUser']);
 
     // Plugins Management
+    Route::get('/plugins', [PluginController::class, 'index'])->name('plugins.direct');
     Route::prefix('admin/plugins')->name('plugins.')->group(function () {
         Route::get('/', [PluginController::class, 'index'])->name('index');
         Route::post('/twilio/save', [PluginController::class, 'saveTwilio'])->name('twilio.save');
