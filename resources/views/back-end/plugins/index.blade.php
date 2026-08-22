@@ -191,13 +191,13 @@
 
                         <div class="col-md-6">
                             <label class="form-label fw-bold required">Twilio Caller Phone Number (From)</label>
-                            <input type="text" name="twilio_number" class="form-control font-monospace" placeholder="e.g. +15054963739" value="{{ $twilioNumber }}" required>
+                            <input type="text" name="twilio_number" class="form-control font-monospace" placeholder="e.g. +12055550199" value="{{ $twilioNumber }}" required>
                             <div class="text-muted fs-8 mt-1">Your Twilio purchased/trial virtual number.</div>
                         </div>
 
                         <div class="col-md-6">
                             <label class="form-label fw-bold">Default Agent Phone Number (For Bridge Mode)</label>
-                            <input type="text" name="default_agent_number" class="form-control font-monospace" placeholder="e.g. +917850888522" value="{{ $agentNumber }}">
+                            <input type="text" name="default_agent_number" class="form-control font-monospace" placeholder="e.g. +919876543210" value="{{ $agentNumber }}">
                             <div class="text-muted fs-8 mt-1">Twilio will call this phone first in Mobile Bridge mode.</div>
                         </div>
 
@@ -229,13 +229,13 @@
                                     <div class="row g-3">
                                         <div class="col-md-6">
                                             <label class="form-label fw-bold">API Key SID (SK...)</label>
-                                            <input type="text" name="api_key_sid" class="form-control font-monospace" placeholder="e.g. SKe0aecfbe06d31c035968ee4c17341931" value="{{ $apiKeySid }}">
+                                            <input type="text" name="api_key_sid" class="form-control font-monospace" placeholder="e.g. SKxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" value="{{ $apiKeySid }}">
                                             <div class="text-muted fs-8 mt-1">Found in Twilio Console &gt; API Keys &amp; Tokens</div>
                                         </div>
 
                                         <div class="col-md-6">
                                             <label class="form-label fw-bold">API Secret</label>
-                                            <input type="password" name="api_secret" class="form-control font-monospace" placeholder="e.g. uGhr7iwrDVJhXTJ7o0tyJuc7n7Ys7pdc" value="{{ $apiSecret }}">
+                                            <input type="password" name="api_secret" class="form-control font-monospace" placeholder="e.g. your_api_secret_key" value="{{ $apiSecret }}">
                                             <div class="text-muted fs-8 mt-1">Secret revealed when API Key was created.</div>
                                         </div>
 
@@ -289,7 +289,7 @@
 
                     <div class="mb-4">
                         <label class="form-label fw-bold required">Test Phone Number (With Country Code)</label>
-                        <input type="text" id="test_phone_number" name="test_phone_number" class="form-control font-monospace" placeholder="e.g. +917850888522" value="{{ $agentNumber }}" required>
+                        <input type="text" id="test_phone_number" name="test_phone_number" class="form-control font-monospace" placeholder="e.g. +919876543210" value="{{ $agentNumber }}" required>
                         <div class="text-muted fs-8 mt-1">
                             <span class="badge badge-light-warning">Free Trial Note</span> If your Twilio account is a Free Trial, this number MUST be in your <strong>Twilio Verified Caller IDs</strong>.
                         </div>
