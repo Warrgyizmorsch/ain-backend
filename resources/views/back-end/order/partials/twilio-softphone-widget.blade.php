@@ -401,10 +401,13 @@ class TwilioSoftphoneController {
         $('#twilioActiveCallView').addClass('d-none');
         $('#twilioIncomingCallView').removeClass('d-none');
 
-        const from = call.parameters.From || 'Unknown Customer';
+        const from = call.parameters?.From || 'Incoming Customer';
         $('#twilioIncomingFromNumber').text(from);
 
         call.on('disconnect', () => {
+            this.endCallUI();
+        });
+        call.on('cancel', () => {
             this.endCallUI();
         });
     }

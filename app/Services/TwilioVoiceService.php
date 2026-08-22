@@ -155,22 +155,24 @@ class TwilioVoiceService
      */
     public function generateTwiMLResponse(Request $request): string
     {
-        $to = trim((string) ($request->input('To') ?? $request->input('phoneNumber') ?? ''));
-        $from = trim((string) $request->input('From', ''));
-        $callerId = $this->plugin?->getSetting('twilio_number');
+        $this->plugin = PluginSetting::where('plugin_key', 'twilio_call')->first();
+        $rawTo = trim((string) ($request->input('To') ?? $request->input('phoneNumber') ?? ''));
+        $rawFrom = trim((string) $request->input('From', ''));
+        $callerId = $this->plugin?->getSetting('twilio_number') ?: '+15054963739';
+
+        $cleanTo = preg_replace('/[^\d\+]/', '', $rawTo);
+        $formattedCallerId = self::formatPhoneNumber('', $callerId);
+        $formattedTo = self::formatPhoneNumber('', $cleanTo);
 
         Log::info('Twilio TwiML Voice Webhook Triggered', [
-            'params' => $request->all(),
-            'to' => $to,
-            'from' => $from,
-            'callerId' => $callerId,
+            'rawTo' => $rawTo,
+            'cleanTo' => $cleanTo,
+            'formattedTo' => $formattedTo,
+            'callerId' => $formattedCallerId,
         ]);
 
-        $formattedCallerId = self::formatPhoneNumber('', $callerId);
-        $formattedTo = self::formatPhoneNumber('', $to);
-
         // Case 1: Outbound call initiated from browser to an external phone number
-        if (!empty($to) && $formattedTo !== $formattedCallerId && preg_match('/^\+?\d{7,16}$/', $to)) {
+        if (!empty($cleanTo) && !str_starts_with($cleanTo, 'client:') && $formattedTo !== $formattedCallerId && strlen($cleanTo) >= 7) {
             return '<?xml version="1.0" encoding="UTF-8"?>'
                 . '<Response>'
                 . '<Dial callerId="' . htmlspecialchars($formattedCallerId) . '" answerOnBridge="true">'
