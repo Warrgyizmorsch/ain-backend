@@ -1,6 +1,11 @@
 @once
-<!-- Twilio Voice WebRTC SDK -->
-<script src="https://sdk.twilio.com/js/voice/releases/2.11.0/twilio.min.js"></script>
+<!-- Twilio Voice WebRTC SDK (Local bundle with jsDelivr Fallback) -->
+<script src="{{ asset('assets/plugins/twilio/twilio.min.js') }}"></script>
+<script>
+if (typeof Twilio === 'undefined' || !Twilio.Device) {
+    document.write('<script src="https://cdn.jsdelivr.net/npm/@twilio/voice-sdk@2.11.0/dist/twilio.min.js"><\/script>');
+}
+</script>
 
 <!-- Twilio Softphone Floating Widget Styles -->
 <style>
