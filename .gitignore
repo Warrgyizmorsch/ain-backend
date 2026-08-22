@@ -7,5 +7,4 @@ storage/*.key
 /storage/app/firebase/
 storage/framework/sessions/*
 vendor/*
-.htaccess
 
