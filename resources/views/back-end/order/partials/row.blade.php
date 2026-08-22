@@ -41,14 +41,6 @@
                     <i class="fa fa-phone"></i>
                 </button>
 
-                <!-- Twilio Call Customer Button -->
-                <button type="button"
-                    class="btn btn-icon btn-light-primary btn-sm"
-                    title="Twilio Call Customer"
-                    onclick="triggerTwilioCall({{ $order->id }}, @js(optional($order->user)->name), @js(optional($order->user)->countrycode), @js(optional($order->user)->mobile_no))">
-                    <i class="fa fa-phone text-primary"></i>
-                </button>
-
                 <!-- Button to Open Unified Payment Page -->
                 <a href="{{ route('orders.payment.form', ['orderId' => $order->id]) }}"
                     target="_blank"
