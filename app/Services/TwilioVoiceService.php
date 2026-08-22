@@ -154,32 +154,37 @@ class TwilioVoiceService
      */
     public function generateTwiMLResponse(Request $request): string
     {
-        $to = $request->input('To') ?? $request->input('phoneNumber') ?? '';
+        $to = trim((string) ($request->input('To') ?? $request->input('phoneNumber') ?? ''));
+        $from = trim((string) $request->input('From', ''));
         $callerId = $this->plugin?->getSetting('twilio_number');
 
         Log::info('Twilio TwiML Voice Webhook Triggered', [
             'params' => $request->all(),
             'to' => $to,
+            'from' => $from,
             'callerId' => $callerId,
         ]);
 
-        // If 'To' starts with '+' or digits -> Outbound call to customer
-        if (!empty($to) && preg_match('/^[\d\+]+$/', $to)) {
-            $formattedTo = self::formatPhoneNumber('', $to);
+        $formattedCallerId = self::formatPhoneNumber('', $callerId);
+        $formattedTo = self::formatPhoneNumber('', $to);
+
+        // Case 1: Outbound call initiated from browser to an external phone number
+        if (!empty($to) && $formattedTo !== $formattedCallerId && preg_match('/^\+?\d{7,16}$/', $to)) {
             return '<?xml version="1.0" encoding="UTF-8"?>'
                 . '<Response>'
-                . '<Dial callerId="' . htmlspecialchars($callerId) . '" answerOnBridge="true">'
+                . '<Dial callerId="' . htmlspecialchars($formattedCallerId) . '" answerOnBridge="true">'
                 . '<Number>' . htmlspecialchars($formattedTo) . '</Number>'
                 . '</Dial>'
                 . '</Response>';
         }
 
-        // If call is to client identity or inbound call -> ring web agent client
-        $agentIdentity = $request->input('agent_identity', 'agent_admin');
+        // Case 2: Inbound call from a customer dialing our Twilio Number -> Ring active web softphones
         return '<?xml version="1.0" encoding="UTF-8"?>'
             . '<Response>'
-            . '<Dial callerId="' . htmlspecialchars($callerId) . '">'
-            . '<Client>' . htmlspecialchars($agentIdentity) . '</Client>'
+            . '<Say voice="alice">Connecting to customer support, please hold.</Say>'
+            . '<Dial timeout="30">'
+            . '<Client>agent_1</Client>'
+            . '<Client>agent_admin</Client>'
             . '</Dial>'
             . '</Response>';
     }

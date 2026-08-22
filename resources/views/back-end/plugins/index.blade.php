@@ -1,6 +1,7 @@
 @extends('layouts.app')
 
 @section('content')
+@include('back-end.order.partials.twilio-softphone-widget')
 @php
     $twilioSettings = $twilioPlugin->settings ?? [];
     $isTwilioActive = (bool) ($twilioPlugin->is_active ?? false);
@@ -82,9 +83,12 @@
                         </div>
                     </div>
 
-                    <div class="d-flex gap-2 pt-2 border-top">
+                    <div class="d-flex flex-wrap gap-2 pt-2 border-top">
                         <button type="button" class="btn btn-sm btn-light-primary flex-fill" data-bs-toggle="modal" data-bs-target="#twilioSettingsModal">
                             <i class="fa fa-cog me-1"></i> Settings
+                        </button>
+                        <button type="button" class="btn btn-sm btn-light-info flex-fill" onclick="window.twilioSoftphone.toggleWidget()">
+                            <i class="fa fa-phone me-1"></i> Open Dialer
                         </button>
                         <button type="button" class="btn btn-sm btn-light-success flex-fill" data-bs-toggle="modal" data-bs-target="#twilioTestCallModal">
                             <i class="fa fa-phone-volume me-1"></i> Test Call
@@ -297,11 +301,16 @@
 
                     <div id="testCallStatusContainer" class="d-none mt-3"></div>
                 </div>
-                <div class="modal-footer">
+                <div class="modal-footer d-flex justify-content-between">
                     <button type="button" class="btn btn-light" data-bs-dismiss="modal">Close</button>
-                    <button type="submit" id="startTestCallBtn" class="btn btn-success">
-                        <i class="fa fa-phone me-1"></i> <span id="testCallBtnText">Trigger Test Call</span>
-                    </button>
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-info" onclick="testViaSoftphone()">
+                            <i class="fa fa-laptop me-1"></i> Call from Softphone
+                        </button>
+                        <button type="submit" id="startTestCallBtn" class="btn btn-success">
+                            <i class="fa fa-phone me-1"></i> <span id="testCallBtnText">Automated API Call</span>
+                        </button>
+                    </div>
                 </div>
             </form>
         </div>
@@ -317,6 +326,20 @@ function toggleWebRtcFields(isEnabled) {
     } else {
         $('#webrtc_fields_container').addClass('d-none');
         $('#call_mode_input').val('bridge');
+    }
+}
+
+function testViaSoftphone() {
+    const testNum = $('#test_phone_number').val().trim();
+    if (!testNum) {
+        Swal.fire('Error', 'Please enter a test phone number with country code.', 'warning');
+        return;
+    }
+    $('#twilioTestCallModal').modal('hide');
+    if (window.twilioSoftphone) {
+        window.twilioSoftphone.makeCall(testNum, 'Test Outbound Call');
+    } else {
+        Swal.fire('Error', 'Softphone widget is loading. Please try again.', 'warning');
     }
 }
 
