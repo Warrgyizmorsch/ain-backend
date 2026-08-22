@@ -121,6 +121,7 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/', [PluginController::class, 'index'])->name('index');
         Route::post('/twilio/save', [PluginController::class, 'saveTwilio'])->name('twilio.save');
         Route::post('/twilio/test-call', [PluginController::class, 'testCall'])->name('twilio.test');
+        Route::post('/twilio/test-inbound', [PluginController::class, 'testInboundCall'])->name('twilio.test.inbound');
         Route::post('/twilio/call-order', [PluginController::class, 'initiateOrderCall'])->name('twilio.order.call');
         Route::get('/twilio/token', [PluginController::class, 'getWebRtcToken'])->name('twilio.token');
         Route::post('/toggle-status', [PluginController::class, 'toggleStatus'])->name('toggle');

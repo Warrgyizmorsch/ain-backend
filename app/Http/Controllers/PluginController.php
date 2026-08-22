@@ -156,6 +156,19 @@ class PluginController extends Controller
     }
 
     /**
+     * Trigger an Inbound Test Call to test WebRTC ringing on browser softphone.
+     */
+    public function testInboundCall(Request $request): JsonResponse
+    {
+        $userId = Auth::id() ?? 1;
+        $identity = 'agent_' . $userId;
+
+        $result = $this->twilioService->triggerInboundTestCall($identity);
+
+        return response()->json($result, $result['success'] ? 200 : 422);
+    }
+
+    /**
      * Initiate a Click-to-Call from the Orders page.
      */
     public function initiateOrderCall(Request $request): JsonResponse

@@ -215,6 +215,54 @@ class TwilioVoiceService
     }
 
     /**
+     * Trigger an Inbound Test Call directly to the Web Agent Softphone client.
+     */
+    public function triggerInboundTestCall(string $identity): array
+    {
+        $this->plugin = PluginSetting::where('plugin_key', 'twilio_call')->first();
+        if (!$this->isConfigured()) {
+            return ['success' => false, 'message' => 'Twilio plugin is not configured.'];
+        }
+
+        $sid = $this->plugin->getSetting('account_sid');
+        $token = $this->plugin->getSetting('auth_token');
+        $from = $this->plugin->getSetting('twilio_number') ?: '+15054963739';
+
+        $twiml = '<Response><Say voice="Polly.Aditi" language="hi-IN">Namaste! This is an incoming test call received on your web softphone.</Say><Pause length="1"/><Say voice="alice">Your inbound WebRTC routing is fully functional.</Say></Response>';
+
+        $url = "https://api.twilio.com/2010-04-01/Accounts/{$sid}/Calls.json";
+
+        try {
+            $client = new \GuzzleHttp\Client(['timeout' => 15, 'http_errors' => false]);
+            $response = $client->post($url, [
+                'auth' => [$sid, $token],
+                'form_params' => [
+                    'To' => "client:{$identity}",
+                    'From' => $from,
+                    'Twiml' => $twiml,
+                ],
+            ]);
+
+            $body = json_decode((string) $response->getBody(), true);
+
+            if ($response->getStatusCode() >= 200 && $response->getStatusCode() < 300) {
+                return [
+                    'success' => true,
+                    'message' => 'Inbound test call triggered! Watch your screen for the incoming call popup.',
+                    'call_sid' => $body['sid'] ?? null,
+                ];
+            }
+
+            return [
+                'success' => false,
+                'message' => $body['message'] ?? 'Failed to trigger inbound call from Twilio.',
+            ];
+        } catch (\Throwable $e) {
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+    }
+
+    /**
      * Initiate Bridge Call (Clicks-to-Call):
      * 1. Twilio calls the Agent first.
      * 2. When Agent picks up, Twilio bridges (dials) the Customer.

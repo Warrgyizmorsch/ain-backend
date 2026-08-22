@@ -301,14 +301,17 @@
 
                     <div id="testCallStatusContainer" class="d-none mt-3"></div>
                 </div>
-                <div class="modal-footer d-flex justify-content-between">
+                <div class="modal-footer d-flex flex-wrap justify-content-between gap-2">
                     <button type="button" class="btn btn-light" data-bs-dismiss="modal">Close</button>
-                    <div class="d-flex gap-2">
+                    <div class="d-flex flex-wrap gap-2">
+                        <button type="button" class="btn btn-warning" id="testInboundBtn" onclick="testInboundRinging()">
+                            <i class="fa fa-bell me-1"></i> Ring Inbound (Test Callback)
+                        </button>
                         <button type="button" class="btn btn-info" onclick="testViaSoftphone()">
                             <i class="fa fa-laptop me-1"></i> Call from Softphone
                         </button>
                         <button type="submit" id="startTestCallBtn" class="btn btn-success">
-                            <i class="fa fa-phone me-1"></i> <span id="testCallBtnText">Automated API Call</span>
+                            <i class="fa fa-phone me-1"></i> <span id="testCallBtnText">Outbound API Call</span>
                         </button>
                     </div>
                 </div>
@@ -341,6 +344,34 @@ function testViaSoftphone() {
     } else {
         Swal.fire('Error', 'Softphone widget is loading. Please try again.', 'warning');
     }
+}
+
+function testInboundRinging() {
+    const btn = $('#testInboundBtn');
+    btn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin me-1"></i> Triggering Call...');
+    
+    $.ajax({
+        url: "{{ route('plugins.twilio.test.inbound') }}",
+        type: "POST",
+        data: {
+            _token: "{{ csrf_token() }}"
+        },
+        success: function(res) {
+            btn.prop('disabled', false).html('<i class="fa fa-bell me-1"></i> Ring Inbound (Test Callback)');
+            $('#twilioTestCallModal').modal('hide');
+            Swal.fire({
+                icon: 'success',
+                title: 'Inbound Call Dispatched!',
+                text: 'Twilio is placing an incoming call to your softphone right now! Watch your screen for the ringing popup.',
+                timer: 3000,
+                showConfirmButton: true
+            });
+        },
+        error: function(xhr) {
+            btn.prop('disabled', false).html('<i class="fa fa-bell me-1"></i> Ring Inbound (Test Callback)');
+            Swal.fire('Inbound Test Failed', xhr.responseJSON?.message || 'Could not trigger inbound test call.', 'error');
+        }
+    });
 }
 
 function togglePluginStatus(pluginKey, isActive) {
