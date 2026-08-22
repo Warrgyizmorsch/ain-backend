@@ -89,7 +89,7 @@ class TwilioVoiceService
     /**
      * Generate Twilio Voice JWT Access Token for WebRTC Client SDK.
      */
-    public function generateAccessToken(string $identity, int $ttl = 3600): array
+    public function generateAccessToken(string $identity, int $ttl = 86400): array
     {
         $this->plugin = PluginSetting::where('plugin_key', 'twilio_call')->first();
         $accountSid = $this->plugin?->getSetting('account_sid');
@@ -104,50 +104,57 @@ class TwilioVoiceService
             ];
         }
 
-        $now = time();
-        $header = [
-            'typ' => 'JWT',
-            'alg' => 'HS256',
-            'cty' => 'twilio-fpa;v=1',
-        ];
+        try {
+            if (class_exists(\Twilio\Jwt\AccessToken::class) && class_exists(\Twilio\Jwt\Grants\VoiceGrant::class)) {
+                $accessToken = new \Twilio\Jwt\AccessToken(
+                    $accountSid,
+                    $apiKey,
+                    $apiSecret,
+                    $ttl,
+                    $identity
+                );
 
-        $payload = [
-            'jti' => $apiKey . '-' . $now . '-' . mt_rand(100, 999),
-            'iss' => $apiKey,
-            'sub' => $accountSid,
-            'nbf' => $now - 300, // 5 minutes in past to prevent any server clock skew
-            'exp' => $now + 86400, // 24 hours validity
-            'grants' => [
+                $voiceGrant = new \Twilio\Jwt\Grants\VoiceGrant();
+                $voiceGrant->setOutgoingApplicationSid($appSid);
+                $voiceGrant->setIncomingAllow(true);
+
+                $accessToken->addGrant($voiceGrant);
+                $jwt = $accessToken->toJWT();
+            } else {
+                // Fallback generator
+                $now = time();
+                $header = ['typ' => 'JWT', 'alg' => 'HS256', 'cty' => 'twilio-fpa;v=1'];
+                $payload = [
+                    'jti' => $apiKey . '-' . $now,
+                    'iss' => $apiKey,
+                    'sub' => $accountSid,
+                    'exp' => $now + $ttl,
+                    'grants' => [
+                        'identity' => $identity,
+                        'voice' => [
+                            'incoming' => ['allow' => true],
+                            'outgoing' => ['application_sid' => $appSid],
+                        ],
+                    ],
+                ];
+                $encodedHeader = self::base64UrlEncode(json_encode($header, JSON_UNESCAPED_SLASHES));
+                $encodedPayload = self::base64UrlEncode(json_encode($payload, JSON_UNESCAPED_SLASHES));
+                $signature = hash_hmac('sha256', "{$encodedHeader}.{$encodedPayload}", $apiSecret, true);
+                $jwt = "{$encodedHeader}.{$encodedPayload}." . self::base64UrlEncode($signature);
+            }
+
+            return [
+                'success' => true,
+                'token' => $jwt,
                 'identity' => $identity,
-                'voice' => [
-                    'outgoing' => [
-                        'application_sid' => $appSid,
-                    ],
-                    'incoming' => [
-                        'allow' => true,
-                    ],
-                ],
-            ],
-        ];
-
-        $encodedHeader = self::base64UrlEncode(json_encode($header, JSON_UNESCAPED_SLASHES));
-        $encodedPayload = self::base64UrlEncode(json_encode($payload, JSON_UNESCAPED_SLASHES));
-        $signature = hash_hmac('sha256', "{$encodedHeader}.{$encodedPayload}", $apiSecret, true);
-        $encodedSignature = self::base64UrlEncode($signature);
-
-        $jwt = "{$encodedHeader}.{$encodedPayload}.{$encodedSignature}";
-
-        return [
-            'success' => true,
-            'token' => $jwt,
-            'identity' => $identity,
-            'twilio_number' => $this->plugin?->getSetting('twilio_number'),
-        ];
-    }
-
-    private static function base64UrlEncode(string $data): string
-    {
-        return rtrim(strtr(base64_encode($data), '+/', '-_'), '=');
+                'twilio_number' => $this->plugin?->getSetting('twilio_number'),
+            ];
+        } catch (\Throwable $e) {
+            return [
+                'success' => false,
+                'message' => 'Token Generation Error: ' . $e->getMessage(),
+            ];
+        }
     }
 
     /**

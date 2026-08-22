@@ -136,7 +136,9 @@ if (typeof Twilio === 'undefined' || !Twilio.Device) {
         <div class="d-flex align-items-center gap-2">
             <i class="fa fa-phone text-primary"></i>
             <span class="fw-bold fs-7">Twilio Voice Dialer</span>
-            <span id="twilioStatusText" class="badge badge-light-danger py-1 px-2 fs-9">Offline</span>
+            <span id="twilioStatusText" class="badge badge-light-primary py-1 px-2 fs-9">
+                <i class="fa fa-spinner fa-spin me-1"></i> Connecting...
+            </span>
         </div>
         <div class="d-flex align-items-center gap-2">
             <button type="button" class="btn btn-sm btn-icon text-muted p-0" onclick="twilioSoftphone.openPopout()" title="Popout Window (Stays active across all CRM pages)">
@@ -224,6 +226,12 @@ if (typeof Twilio === 'undefined' || !Twilio.Device) {
                     <i class="fa fa-phone me-1"></i> Call
                 </button>
             </div>
+
+            <div class="text-center mt-3 pt-2 border-top border-secondary">
+                <a href="javascript:void(0)" onclick="twilioSoftphone.openPopout()" class="text-primary fs-9 text-decoration-none">
+                    <i class="fa fa-external-link-alt fs-9 me-1"></i> Open Standalone Window (Multi-Tab Safe)
+                </a>
+            </div>
         </div>
     </div>
 </div>
@@ -240,21 +248,31 @@ class TwilioSoftphoneController {
         this.isMuted = false;
         this.isHeld = false;
         this.isReady = false;
+        this.isInitializing = false;
     }
 
     async init() {
+        if (this.isInitializing) return;
+        if (this.isReady && this.device && this.device.state === 'registered') {
+            this.setStatus('Ready (Online)', true);
+            return true;
+        }
+
+        this.isInitializing = true;
+        this.setStatus('Connecting...', false);
+
         try {
             // 1. Wait for Twilio Voice SDK script to be available
             let waitAttempts = 0;
-            while ((typeof Twilio === 'undefined' || !Twilio.Device) && waitAttempts < 25) {
-                await new Promise(r => setTimeout(r, 200));
+            while ((typeof Twilio === 'undefined' || !Twilio.Device) && waitAttempts < 30) {
+                await new Promise(r => setTimeout(r, 150));
                 waitAttempts++;
             }
 
             if (typeof Twilio === 'undefined' || !Twilio.Device) {
-                console.error('Twilio Voice JS SDK script failed to load from CDN.');
+                console.error('Twilio Voice JS SDK script failed to load.');
                 this.setStatus('SDK Load Error', false);
-                this.lastErrorMessage = 'Twilio Voice SDK script could not be loaded from CDN. Check your internet or ad-blocker.';
+                this.lastErrorMessage = 'Twilio Voice SDK script could not be loaded.';
                 return false;
             }
 
@@ -283,6 +301,7 @@ class TwilioSoftphoneController {
             });
 
             this.device.on('unregistered', () => {
+                console.log('Twilio Device unregistered');
                 this.isReady = false;
                 this.setStatus('Offline', false);
             });
@@ -298,6 +317,15 @@ class TwilioSoftphoneController {
                 this.handleIncoming(call);
             });
 
+            this.device.on('tokenWillExpire', async () => {
+                try {
+                    const fresh = await $.get("{{ route('plugins.twilio.token') }}");
+                    if (fresh && fresh.token) {
+                        await this.device.updateToken(fresh.token);
+                    }
+                } catch(e) {}
+            });
+
             await this.device.register();
             this.isReady = true;
             this.setStatus('Ready (Online)', true);
@@ -305,9 +333,11 @@ class TwilioSoftphoneController {
         } catch (e) {
             console.error('Twilio WebRTC init failed:', e);
             this.isReady = false;
-            this.lastErrorMessage = e.responseJSON?.message || e.message || 'Twilio settings not configured';
-            this.setStatus(e.status === 422 ? 'Not Configured' : 'Offline', false);
+            this.lastErrorMessage = (e && e.responseJSON && e.responseJSON.message) ? e.responseJSON.message : ((e && e.message) ? e.message : 'Twilio settings not configured');
+            this.setStatus((e && e.status === 422) ? 'Not Configured' : 'Offline', false);
             return false;
+        } finally {
+            this.isInitializing = false;
         }
     }
 
@@ -488,7 +518,69 @@ class TwilioSoftphoneController {
 // Instantiate global softphone
 window.twilioSoftphone = new TwilioSoftphoneController();
 
-// Guard against accidental page navigation during an active call
+// Immediately trigger softphone init in background
+window.twilioSoftphone.init();
+
+// Seamless In-Page Navigation Engine (keeps call active without disconnecting)
+async function seamlessNavigateTo(url) {
+    try {
+        if ($('#nprogress-bar').length === 0) {
+            $('body').append('<div id="nprogress-bar" style="position:fixed;top:0;left:0;height:3px;background:#009ef7;width:0%;z-index:99999;transition:width 0.3s ease;box-shadow:0 0 10px #009ef7;"></div>');
+        }
+        $('#nprogress-bar').css('width', '40%').show();
+
+        const response = await fetch(url);
+        if (!response.ok) {
+            window.location.href = url;
+            return;
+        }
+
+        $('#nprogress-bar').css('width', '80%');
+        const html = await response.text();
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+
+        const newTitle = doc.querySelector('title')?.innerText || document.title;
+        const newMain = doc.querySelector('main.content') || doc.querySelector('#kt_content') || doc.querySelector('#kt_wrapper');
+        const currentMain = document.querySelector('main.content') || document.querySelector('#kt_content') || document.querySelector('#kt_wrapper');
+
+        if (newMain && currentMain) {
+            currentMain.innerHTML = newMain.innerHTML;
+            document.title = newTitle;
+            window.history.pushState({ path: url }, newTitle, url);
+
+            // Execute scripts in the newly loaded page
+            const scripts = newMain.querySelectorAll('script');
+            scripts.forEach(s => {
+                const newScript = document.createElement('script');
+                if (s.src) {
+                    newScript.src = s.src;
+                } else {
+                    newScript.textContent = s.textContent;
+                }
+                document.body.appendChild(newScript);
+            });
+
+            // Update active menu link in sidebar
+            $('.menu-link').removeClass('active');
+            $(`a[href="${url}"]`).addClass('active');
+
+            // Trigger window load/resize/ready events
+            $(document).trigger('ready');
+            window.dispatchEvent(new Event('resize'));
+        } else {
+            window.location.href = url;
+        }
+
+        $('#nprogress-bar').css('width', '100%');
+        setTimeout(() => $('#nprogress-bar').fadeOut(200).css('width', '0%'), 250);
+    } catch (err) {
+        console.error('Seamless navigation error, falling back:', err);
+        window.location.href = url;
+    }
+}
+
+// Guard against accidental page reload during an active call
 window.addEventListener('beforeunload', function(e) {
     if (window.twilioSoftphone && window.twilioSoftphone.activeCall) {
         e.preventDefault();
@@ -497,8 +589,36 @@ window.addEventListener('beforeunload', function(e) {
     }
 });
 
+// Protect active call: seamlessly navigate in-page when clicking any internal link in the CRM
+$(document).on('click', 'a[href]', function(e) {
+    const href = $(this).attr('href');
+    if (!href || href.startsWith('#') || href.startsWith('javascript:') || href.startsWith('mailto:') || href.startsWith('tel:') || $(this).attr('target') === '_blank') {
+        return;
+    }
+
+    if (window.twilioSoftphone && window.twilioSoftphone.activeCall) {
+        e.preventDefault();
+        seamlessNavigateTo(href);
+    }
+});
+
+// Handle browser back/forward buttons during active call
+window.addEventListener('popstate', function(e) {
+    if (window.twilioSoftphone && window.twilioSoftphone.activeCall) {
+        seamlessNavigateTo(window.location.href);
+    }
+});
+
+// Auto-initialize on page load & continuous heartbeat to keep device Always Online
 $(document).ready(function() {
     window.twilioSoftphone.init();
+
+    // Auto reconnect heartbeat every 10 seconds if device drops offline
+    setInterval(function() {
+        if (window.twilioSoftphone && !window.twilioSoftphone.isReady && !window.twilioSoftphone.activeCall) {
+            window.twilioSoftphone.init();
+        }
+    }, 10000);
 });
 </script>
 @endonce
