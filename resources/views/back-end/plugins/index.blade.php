@@ -229,22 +229,28 @@
                         <div class="col-12 {{ $callMode === 'webrtc' ? '' : 'd-none' }}" id="webrtc_fields_container">
                             <div class="card border border-primary border-dashed bg-light-primary mb-0">
                                 <div class="card-body p-4">
+                                    <div class="d-flex justify-content-between align-items-center mb-3">
+                                        <span class="fw-bold text-dark fs-7">API Key Credentials</span>
+                                        <button type="button" class="btn btn-xs btn-primary py-1 px-3 fs-8" id="autoFixKeysBtn" onclick="autoFixTwilioKeys()">
+                                            <i class="fa fa-magic me-1"></i> Auto-Generate & Save Key from Twilio
+                                        </button>
+                                    </div>
                                     <div class="row g-3">
                                         <div class="col-md-6">
                                             <label class="form-label fw-bold">API Key SID (SK...)</label>
-                                            <input type="text" name="api_key_sid" class="form-control font-monospace" placeholder="e.g. SKxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" value="{{ $apiKeySid }}">
+                                            <input type="text" name="api_key_sid" id="setting_api_key_sid" class="form-control font-monospace" placeholder="e.g. SKxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" value="{{ $apiKeySid }}">
                                             <div class="text-muted fs-8 mt-1">Found in Twilio Console &gt; API Keys &amp; Tokens</div>
                                         </div>
 
                                         <div class="col-md-6">
                                             <label class="form-label fw-bold">API Secret</label>
-                                            <input type="password" name="api_secret" class="form-control font-monospace" placeholder="e.g. your_api_secret_key" value="{{ $apiSecret }}">
+                                            <input type="password" name="api_secret" id="setting_api_secret" class="form-control font-monospace" placeholder="e.g. your_api_secret_key" value="{{ $apiSecret }}">
                                             <div class="text-muted fs-8 mt-1">Secret revealed when API Key was created.</div>
                                         </div>
 
                                         <div class="col-md-12">
                                             <label class="form-label fw-bold">TwiML App SID (AP...)</label>
-                                            <input type="text" name="twiml_app_sid" class="form-control font-monospace" placeholder="e.g. APxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" value="{{ $twimlAppSid }}">
+                                            <input type="text" name="twiml_app_sid" id="setting_twiml_app_sid" class="form-control font-monospace" placeholder="e.g. APxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" value="{{ $twimlAppSid }}">
                                             <div class="text-muted fs-8 mt-1">Found in Twilio Console &gt; Voice &gt; TwiML Apps (Application SID)</div>
                                         </div>
                                     </div>
@@ -351,6 +357,32 @@ async function testViaSoftphone() {
     } else {
         Swal.fire('Connecting', 'Connecting softphone service, please click again in a moment.', 'info');
     }
+}
+
+function autoFixTwilioKeys() {
+    const btn = $('#autoFixKeysBtn');
+    btn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin me-1"></i> Generating...');
+
+    $.ajax({
+        url: "{{ route('plugins.twilio.autofix') }}",
+        type: "POST",
+        data: {
+            _token: "{{ csrf_token() }}"
+        },
+        success: function(res) {
+            btn.prop('disabled', false).html('<i class="fa fa-check text-success me-1"></i> Key Synced!');
+            if (res.api_key_sid) $('#setting_api_key_sid').val(res.api_key_sid);
+            if (res.api_secret) $('#setting_api_secret').val(res.api_secret);
+            Swal.fire('Twilio API Key Synced!', 'A fresh verified API Key & Secret were created and saved automatically!', 'success');
+            if (window.twilioSoftphone) {
+                window.twilioSoftphone.init();
+            }
+        },
+        error: function(xhr) {
+            btn.prop('disabled', false).html('<i class="fa fa-magic me-1"></i> Auto-Generate & Save');
+            Swal.fire('Auto-Sync Failed', xhr.responseJSON?.message || 'Could not auto-generate key. Please verify Account SID & Auth Token.', 'error');
+        }
+    });
 }
 
 function testInboundRinging() {

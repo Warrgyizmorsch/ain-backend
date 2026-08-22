@@ -177,6 +177,16 @@ class PluginController extends Controller
     }
 
     /**
+     * Auto-generate and save a verified Twilio API Key & Secret with 1-click.
+     */
+    public function autoFixKeys(): JsonResponse
+    {
+        $result = $this->twilioService->autoGenerateAndSaveApiKey();
+
+        return response()->json($result, $result['success'] ? 200 : 422);
+    }
+
+    /**
      * Initiate a Click-to-Call from the Orders page.
      */
     public function initiateOrderCall(Request $request): JsonResponse

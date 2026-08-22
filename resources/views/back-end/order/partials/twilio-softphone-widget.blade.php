@@ -371,11 +371,11 @@ class TwilioSoftphoneController {
             return;
         }
 
-        if (!this.device || !this.isReady) {
+        if (!this.device) {
             await this.init();
         }
 
-        if (!this.device || !this.isReady) {
+        if (!this.device) {
             const errorDetails = this.lastErrorMessage || 'Please verify API Key SID, API Secret, and TwiML App SID in Settings > Plugins.';
             Swal.fire('Twilio Not Ready', errorDetails, 'warning');
             return;

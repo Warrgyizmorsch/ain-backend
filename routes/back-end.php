@@ -125,6 +125,7 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/twilio/call-order', [PluginController::class, 'initiateOrderCall'])->name('twilio.order.call');
         Route::get('/twilio/token', [PluginController::class, 'getWebRtcToken'])->name('twilio.token');
         Route::get('/dialer-window', [PluginController::class, 'dialerWindow'])->name('dialer.window');
+        Route::post('/twilio/auto-fix-keys', [PluginController::class, 'autoFixKeys'])->name('twilio.autofix');
         Route::post('/toggle-status', [PluginController::class, 'toggleStatus'])->name('toggle');
     });
 
