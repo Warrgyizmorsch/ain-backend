@@ -331,17 +331,25 @@ function toggleWebRtcFields(isEnabled) {
     }
 }
 
-function testViaSoftphone() {
+async function testViaSoftphone() {
     const testNum = $('#test_phone_number').val().trim();
     if (!testNum) {
         Swal.fire('Error', 'Please enter a test phone number with country code.', 'warning');
         return;
     }
     $('#twilioTestCallModal').modal('hide');
+
+    // Wait if softphone is still initializing
+    let attempts = 0;
+    while (!window.twilioSoftphone && attempts < 20) {
+        await new Promise(r => setTimeout(r, 150));
+        attempts++;
+    }
+
     if (window.twilioSoftphone) {
         window.twilioSoftphone.makeCall(testNum, 'Test Outbound Call');
     } else {
-        Swal.fire('Error', 'Softphone widget is loading. Please try again.', 'warning');
+        Swal.fire('Connecting', 'Connecting softphone service, please click again in a moment.', 'info');
     }
 }
 

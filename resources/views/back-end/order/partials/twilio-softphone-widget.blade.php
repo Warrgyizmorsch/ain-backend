@@ -474,6 +474,8 @@ class TwilioSoftphoneController {
         $('#twilioActiveCallView').addClass('d-none');
         $('#twilioIncomingCallView').addClass('d-none');
         $('#twilioDialpadView').removeClass('d-none');
+    }
+
     openPopout() {
         const url = "{{ route('plugins.dialer.window') }}";
         window.open(url, 'AINSoftphonePopout', 'width=380,height=640,status=no,toolbar=no,menubar=no,location=no,resizable=yes');

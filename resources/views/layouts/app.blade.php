@@ -43,6 +43,9 @@
                     @yield('content')
                 </main>
 
+                {{-- Global Twilio Softphone Dialer Widget --}}
+                @include('back-end.order.partials.twilio-softphone-widget')
+
             </div>
         </div>
     </div>
@@ -945,9 +948,6 @@
         // -------------------------------
         setInterval(checkUrgentOrders, CHECK_INTERVAL);
     </script>
-
-    {{-- Global Twilio Softphone Dialer Widget --}}
-    @include('back-end.order.partials.twilio-softphone-widget')
 
 </body>
 </html>
