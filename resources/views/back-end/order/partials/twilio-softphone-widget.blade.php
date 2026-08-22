@@ -234,6 +234,21 @@ class TwilioSoftphoneController {
 
     async init() {
         try {
+            // 1. Wait for Twilio Voice SDK script to be available
+            let waitAttempts = 0;
+            while ((typeof Twilio === 'undefined' || !Twilio.Device) && waitAttempts < 25) {
+                await new Promise(r => setTimeout(r, 200));
+                waitAttempts++;
+            }
+
+            if (typeof Twilio === 'undefined' || !Twilio.Device) {
+                console.error('Twilio Voice JS SDK script failed to load from CDN.');
+                this.setStatus('SDK Load Error', false);
+                this.lastErrorMessage = 'Twilio Voice SDK script could not be loaded from CDN. Check your internet or ad-blocker.';
+                return false;
+            }
+
+            // 2. Fetch fresh JWT Token
             const res = await $.get("{{ route('plugins.twilio.token') }}");
             if (!res || !res.token) {
                 this.setStatus('Not Configured', false);
@@ -244,6 +259,7 @@ class TwilioSoftphoneController {
                 try { this.device.destroy(); } catch(e){}
             }
 
+            // 3. Initialize Twilio Device
             this.device = new Twilio.Device(res.token, {
                 codecPreferences: ['opus', 'pcmu'],
                 fakeLocalDTMF: true,
@@ -251,6 +267,7 @@ class TwilioSoftphoneController {
             });
 
             this.device.on('registered', () => {
+                console.log('Twilio Device registered successfully for identity:', res.identity);
                 this.isReady = true;
                 this.setStatus('Ready (Online)', true);
             });
@@ -263,7 +280,7 @@ class TwilioSoftphoneController {
             this.device.on('error', (err) => {
                 console.error('Twilio Device Error:', err);
                 this.isReady = false;
-                this.lastErrorMessage = (err && err.message) ? err.message : 'Device registration error';
+                this.lastErrorMessage = (err && (err.message || err.explanation)) ? (err.message || err.explanation) : 'Device registration error';
                 this.setStatus('Error: ' + (err.code || 'Device Error'), false);
             });
 
