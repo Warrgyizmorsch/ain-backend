@@ -21,9 +21,7 @@ use App\Http\Controllers\Api\SubjectApiController;
 use App\Http\Controllers\Api\SubjectPageApiController;
 use App\Http\Controllers\Api\CityPageApiController;
 use App\Http\Controllers\Api\EnquiryApiController;
-
-
-
+use App\Http\Controllers\PluginController;
 
 /*
 |--------------------------------------------------------------------------
@@ -39,6 +37,9 @@ use App\Http\Controllers\Api\EnquiryApiController;
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
 });
+
+// Twilio Voice Webhook (TwiML Voice Application)
+Route::match(['GET', 'POST'], '/twilio/voice', [PluginController::class, 'handleTwilioVoiceWebhook'])->name('api.twilio.voice');
 
 // Route::get('/webhooks/whatsapp', [WhatsAppWebhookController::class, 'verify']);
 Route::post('/webhooks/whatsapp', [WhatsAppWebhookController::class, 'receive']);

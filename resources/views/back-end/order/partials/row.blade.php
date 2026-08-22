@@ -33,12 +33,20 @@
                     <i style="color: white;" class="fa fa-edit"></i>
                 </a>
 
-                <!-- Call Customer Button -->
+                <!-- Call Customer Button (Ringfy) -->
                 <button type="button"
                     class="btn btn-icon btn-success btn-sm"
-                    title="Call customer"
+                    title="Call customer (Ringfy)"
                     onclick="openRingfySoftphone(@js($order->id), @js(optional($order->user)->countrycode), @js(optional($order->user)->mobile_no))">
                     <i class="fa fa-phone"></i>
+                </button>
+
+                <!-- Twilio Call Customer Button -->
+                <button type="button"
+                    class="btn btn-icon btn-light-primary btn-sm"
+                    title="Twilio Call Customer"
+                    onclick="triggerTwilioCall({{ $order->id }}, @js(optional($order->user)->name), @js(optional($order->user)->countrycode), @js(optional($order->user)->mobile_no))">
+                    <i class="fa fa-phone text-primary"></i>
                 </button>
 
                 <!-- Button to Open Unified Payment Page -->

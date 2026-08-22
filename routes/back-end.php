@@ -32,6 +32,7 @@ use App\Http\Controllers\SubjectPageController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\EnquiryController;
 use App\Http\Controllers\ChatbotController;
+use App\Http\Controllers\PluginController;
 
 Route::middleware(['auth'])->group(function () {
 
@@ -114,6 +115,16 @@ Route::middleware(['auth'])->group(function () {
     Route::Post('/userright', [MenuController::class, 'permission'])->name('userright');
     Route::get('/rolePermission', [MenuController::class, 'rolePermission'])->name('rolePermission');
     Route::post('/updateUser/{id}', [LeadsController::class, 'updateUser']);
+
+    // Plugins Management
+    Route::prefix('admin/plugins')->name('plugins.')->group(function () {
+        Route::get('/', [PluginController::class, 'index'])->name('index');
+        Route::post('/twilio/save', [PluginController::class, 'saveTwilio'])->name('twilio.save');
+        Route::post('/twilio/test-call', [PluginController::class, 'testCall'])->name('twilio.test');
+        Route::post('/twilio/call-order', [PluginController::class, 'initiateOrderCall'])->name('twilio.order.call');
+        Route::get('/twilio/token', [PluginController::class, 'getWebRtcToken'])->name('twilio.token');
+        Route::post('/toggle-status', [PluginController::class, 'toggleStatus'])->name('toggle');
+    });
 
 
     // User Managment
