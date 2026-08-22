@@ -263,7 +263,8 @@ class TwilioSoftphoneController {
             this.device.on('error', (err) => {
                 console.error('Twilio Device Error:', err);
                 this.isReady = false;
-                this.setStatus('Device Error', false);
+                this.lastErrorMessage = (err && err.message) ? err.message : 'Device registration error';
+                this.setStatus('Error: ' + (err.code || 'Device Error'), false);
             });
 
             this.device.on('incoming', (call) => {
@@ -275,9 +276,10 @@ class TwilioSoftphoneController {
             this.setStatus('Ready (Online)', true);
             return true;
         } catch (e) {
-            console.log('Twilio WebRTC init failed or not configured yet:', e.message);
+            console.error('Twilio WebRTC init failed:', e);
             this.isReady = false;
-            this.setStatus('Not Configured', false);
+            this.lastErrorMessage = e.responseJSON?.message || e.message || 'Twilio settings not configured';
+            this.setStatus(e.status === 422 ? 'Not Configured' : 'Offline', false);
             return false;
         }
     }
@@ -316,8 +318,9 @@ class TwilioSoftphoneController {
             await this.init();
         }
 
-        if (!this.device) {
-            Swal.fire('Twilio Not Ready', 'Twilio WebRTC device is not ready. Please configure API Keys in Setting > Plugins.', 'warning');
+        if (!this.device || !this.isReady) {
+            const errorDetails = this.lastErrorMessage || 'Please verify API Key SID, API Secret, and TwiML App SID in Settings > Plugins.';
+            Swal.fire('Twilio Not Ready', errorDetails, 'warning');
             return;
         }
 
