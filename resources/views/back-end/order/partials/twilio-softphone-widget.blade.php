@@ -1,9 +1,11 @@
 @once
-<!-- Twilio Voice WebRTC SDK (Local bundle with jsDelivr Fallback) -->
-<script src="{{ asset('assets/plugins/twilio/twilio.min.js') }}"></script>
+<!-- Twilio Voice WebRTC SDK -->
+<script src="https://cdn.jsdelivr.net/npm/@twilio/voice-sdk@2.11.0/dist/twilio.min.js"></script>
 <script>
 if (typeof Twilio === 'undefined' || !Twilio.Device) {
-    document.write('<script src="https://cdn.jsdelivr.net/npm/@twilio/voice-sdk@2.11.0/dist/twilio.min.js"><\/script>');
+    const fallbackScript = document.createElement('script');
+    fallbackScript.src = "{{ asset('assets/plugins/twilio/twilio.min.js') }}";
+    document.head.appendChild(fallbackScript);
 }
 </script>
 
@@ -334,7 +336,12 @@ class TwilioSoftphoneController {
             console.error('Twilio WebRTC init failed:', e);
             this.isReady = false;
             this.lastErrorMessage = (e && e.responseJSON && e.responseJSON.message) ? e.responseJSON.message : ((e && e.message) ? e.message : 'Twilio settings not configured');
-            this.setStatus((e && e.status === 422) ? 'Not Configured' : 'Offline', false);
+            if (e && e.status === 422) {
+                this.hasConfigError = true;
+                this.setStatus('Not Configured', false);
+            } else {
+                this.setStatus('Offline', false);
+            }
             return false;
         } finally {
             this.isInitializing = false;
@@ -347,6 +354,10 @@ class TwilioSoftphoneController {
     }
 
     toggleWidget() {
+        this.hasConfigError = false;
+        if (!this.isReady && !this.isInitializing) {
+            this.init();
+        }
         const box = $('#twilioSoftphoneBox');
         box.toggle();
     }
@@ -613,12 +624,12 @@ window.addEventListener('popstate', function(e) {
 $(document).ready(function() {
     window.twilioSoftphone.init();
 
-    // Auto reconnect heartbeat every 10 seconds if device drops offline
+    // Auto reconnect heartbeat every 15 seconds if device drops offline (unless config error)
     setInterval(function() {
-        if (window.twilioSoftphone && !window.twilioSoftphone.isReady && !window.twilioSoftphone.activeCall) {
+        if (window.twilioSoftphone && !window.twilioSoftphone.isReady && !window.twilioSoftphone.activeCall && !window.twilioSoftphone.hasConfigError && !window.twilioSoftphone.isInitializing) {
             window.twilioSoftphone.init();
         }
-    }, 10000);
+    }, 15000);
 });
 </script>
 @endonce

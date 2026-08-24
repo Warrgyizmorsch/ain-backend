@@ -151,11 +151,20 @@ class TwilioVoiceService
                 'twilio_number' => $twilioNumber,
             ];
         } catch (\Throwable $e) {
+            Log::error('Twilio JWT Token Generation Error: ' . $e->getMessage());
             return [
                 'success' => false,
                 'message' => 'Token Generation Error: ' . $e->getMessage(),
             ];
         }
+    }
+
+    /**
+     * URL-safe Base64 encoder for JWT tokens.
+     */
+    public static function base64UrlEncode(string $data): string
+    {
+        return rtrim(strtr(base64_encode($data), '+/', '-_'), '=');
     }
 
     /**

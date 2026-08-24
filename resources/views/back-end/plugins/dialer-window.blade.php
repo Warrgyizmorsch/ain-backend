@@ -9,10 +9,12 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <script src="{{ asset('assets/plugins/twilio/twilio.min.js') }}"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@twilio/voice-sdk@2.11.0/dist/twilio.min.js"></script>
     <script>
     if (typeof Twilio === 'undefined' || !Twilio.Device) {
-        document.write('<script src="https://cdn.jsdelivr.net/npm/@twilio/voice-sdk@2.11.0/dist/twilio.min.js"><\/script>');
+        const fallbackScript = document.createElement('script');
+        fallbackScript.src = "{{ asset('assets/plugins/twilio/twilio.min.js') }}";
+        document.head.appendChild(fallbackScript);
     }
     </script>
     <style>
