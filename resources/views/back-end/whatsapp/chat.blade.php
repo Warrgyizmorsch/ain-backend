@@ -65,13 +65,10 @@
                 </div>
             </div>
             <div class="wab-header-actions">
-                <button class="wab-icon-btn" data-bs-toggle="modal" data-bs-target="#newWaChatModal" title="New Chat">
+                <button type="button" class="wab-icon-btn" data-bs-toggle="modal" data-bs-target="#newWaChatModal" title="New Chat">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="11"/><line x1="8" y1="11" x2="8" y2="11"/><line x1="16" y1="11" x2="16" y2="11"/></svg>
                 </button>
-                <button class="wab-icon-btn" id="wabImportContactsBtn" data-bs-toggle="modal" data-bs-target="#waImportContactsModal" title="Import Contacts from File">
-                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                </button>
-                <button class="wab-icon-btn" id="wabToggleSidebar" title="Collapse">
+                <button type="button" class="wab-icon-btn" id="wabToggleSidebar" onclick="wabToggleSidebar(event)" title="Toggle Sidebar">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
                 </button>
             </div>
@@ -92,18 +89,7 @@
             <button class="wab-tab" data-tab="groups">Groups</button>
         </div>
 
-        @if(!empty($enabledPanelKeys))
-            <div class="wab-panel-tabs">
-                @foreach($enabledPanelKeys as $panelKey)
-                    @php $panel = $panelDefinitions[$panelKey] ?? null; @endphp
-                    @if($panel)
-                        <a class="wab-panel-chip {{ $selectedPanel === $panelKey ? 'is-active' : '' }}" href="{{ route('whatsapp.chat', array_filter(['phone' => $selectedPhone, 'panel' => $panelKey])) }}" title="{{ $panel['label'] }}">
-                            {{ $panel['short'] }}
-                        </a>
-                    @endif
-                @endforeach
-            </div>
-        @endif
+
 
         {{-- Contact List --}}
         @php
@@ -125,7 +111,7 @@
                 $cLabelIds = $allContactLabelMap->get($cPhone, []);
                 $cLabels = $cLabelIds ? $labels->whereIn('id', $cLabelIds) : collect();
             @endphp
-            <div class="wab-contact-item {{ $c['active'] ? 'is-active' : '' }}" data-name="{{ strtolower($c['name']) }}" data-contact-id="{{ $c['id'] }}" data-url="{{ isset($c['phone']) ? route('whatsapp.chat', ['phone' => $c['phone']]) : '' }}" data-phone="{{ $cPhone }}" data-color="{{ $c['color'] }}">
+            <div class="wab-contact-item {{ $c['active'] ? 'is-active' : '' }}" data-name="{{ strtolower($c['name']) }}" data-contact-id="{{ $c['id'] }}" data-url="{{ isset($c['phone']) ? route('whatsapp.chat', ['phone' => $c['phone']]) : '' }}" data-phone="{{ $cPhone }}" data-color="{{ $c['color'] }}" data-badge="{{ $c['badge'] ?? 0 }}" data-is-group="{{ !empty($c['is_group']) ? '1' : '0' }}">
                 <div class="wab-avatar" style="background:{{ $c['color'] }}1a;color:{{ $c['color'] }}">
                     {{ strtoupper(substr($c['name'],0,1)) }}
                     <span class="wab-status-badge wab-status--{{ $c['status'] }}"></span>
@@ -203,7 +189,7 @@
         {{-- Conv Header --}}
         <div class="wab-conv-header {{ !$selectedPhone ? 'd-none' : '' }}">
             <div class="wab-conv-header-left">
-                <button class="wab-icon-btn wab-mobile-back" id="wabMobileBack">
+                <button type="button" class="wab-icon-btn wab-mobile-back" id="wabMobileBack">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
                 </button>
                 <div class="wab-avatar wab-avatar--conv wab-profile-trigger" id="wabOpenProfilePanel" style="background:{{ $selectedColor }}1a;color:{{ $selectedColor }}" title="Contact info" role="button">{{ strtoupper(substr($selectedName,0,1)) }}</div>
@@ -1609,7 +1595,44 @@ document.addEventListener('DOMContentLoaded', function() {
 }
 
 .wab-page.sidebar-collapsed {
-    grid-template-columns: 72px 1fr;
+    grid-template-columns: 72px 1fr !important;
+}
+
+.sidebar-collapsed .wab-sidebar-header-left,
+.sidebar-collapsed .wab-sidebar-title,
+.sidebar-collapsed .wab-search-wrap,
+.sidebar-collapsed .wab-tabs,
+.sidebar-collapsed .wab-contact-info,
+.sidebar-collapsed .wab-contact-tag-chip,
+.sidebar-collapsed .wab-contact-label-tags,
+.sidebar-collapsed .wab-header-actions button:not(#wabToggleSidebar) {
+    display: none !important;
+}
+
+.sidebar-collapsed .wab-sidebar-header {
+    justify-content: center !important;
+    padding: 0 4px !important;
+}
+
+.sidebar-collapsed .wab-header-actions {
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    width: 100% !important;
+}
+
+.sidebar-collapsed #wabToggleSidebar {
+    display: inline-flex !important;
+    margin: 0 auto !important;
+}
+
+.sidebar-collapsed .wab-contact-item {
+    justify-content: center !important;
+    padding: 10px 0 !important;
+}
+
+.sidebar-collapsed .wab-avatar {
+    margin: 0 auto;
 }
 
 /* ════════════════════════════════════════
@@ -1623,6 +1646,7 @@ document.addEventListener('DOMContentLoaded', function() {
     min-width: 0;
     overflow: hidden;
     position: relative;
+    height: 100%;
 }
 
 /* ── Sidebar Header ── */
@@ -1647,19 +1671,11 @@ document.addEventListener('DOMContentLoaded', function() {
 .wab-label-main { font-weight: 700; font-size: 16px; color: var(--wa-text-main); white-space: nowrap; }
 .wab-label-sub  { font-size: 11px; color: var(--wa-text-muted); display: flex; align-items: center; gap: 5px; white-space: nowrap; }
 
-.sidebar-collapsed .wab-sidebar-title,
-.sidebar-collapsed .wab-search-wrap,
-.sidebar-collapsed .wab-tabs,
-.sidebar-collapsed .wab-contact-info,
-.sidebar-collapsed .wab-sidebar-header-left > :not(.wab-avatar) { display: none; }
-
-.sidebar-collapsed .wab-sidebar-header {
-    justify-content: center;
-    padding: 0 8px;
+.wab-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
 }
-.sidebar-collapsed .wab-header-actions { flex-direction: column; gap: 6px; }
-.sidebar-collapsed .wab-contact-item { justify-content: center; padding: 10px 0; }
-.sidebar-collapsed .wab-avatar--header { display: none; }
 
 /* ── Avatar ── */
 .wab-avatar {
@@ -1773,10 +1789,29 @@ document.addEventListener('DOMContentLoaded', function() {
     color: var(--wa-text-muted); cursor: pointer;
     transition: background .15s, color .15s;
 }
-.wab-tab.active, .wab-tab:hover {
-    background: rgba(37,211,102,.12);
-    color: var(--wa-green-dark);
-    font-weight: 600;
+.wab-tab.active {
+    background: #e7fce3;
+    color: #008069;
+    font-weight: 700;
+}
+.wab-tab:hover:not(.active) {
+    background: rgba(11,20,26,.05);
+    color: var(--wa-text-main);
+}
+.wab-conv-toggle-sidebar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 6px;
+    color: var(--wa-icon);
+    cursor: pointer;
+    border-radius: 50%;
+    width: 36px;
+    height: 36px;
+    transition: background-color .15s;
+}
+.wab-conv-toggle-sidebar:hover {
+    background: rgba(11,20,26,.08);
 }
 
 /* ── Contact List ── */
@@ -3878,10 +3913,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const chatPreloader = document.getElementById('wabChatPreloader');
     const contactListLoader = document.getElementById('wabContactListLoader');
 
-    /* ── Toggle sidebar collapse (desktop) ── */
-    toggleBtn?.addEventListener('click', () => {
-        page.classList.toggle('sidebar-collapsed');
-    });
+
 
     /* ── Mobile back ── */
     mobileBack?.addEventListener('click', () => {
@@ -4656,11 +4688,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
         insertBeforeTyping(row);
         initVoiceCards(row);
-        lastMessageId = Math.max(lastMessageId, Number(message.id || 0));
-        body.dataset.lastMessageId = String(lastMessageId);
-        if (firstMessageId === 0) {
-            firstMessageId = Number(message.id || 0);
-            body.dataset.firstMessageId = String(firstMessageId);
+        const numericId = Number(message.id);
+        if (!Number.isNaN(numericId) && numericId > 0) {
+            lastMessageId = Math.max(lastMessageId, numericId);
+            body.dataset.lastMessageId = String(lastMessageId);
+            if (firstMessageId === 0) {
+                firstMessageId = numericId;
+                body.dataset.firstMessageId = String(firstMessageId);
+            }
         }
         body.scrollTop = body.scrollHeight;
     }
@@ -4739,14 +4774,16 @@ document.addEventListener('DOMContentLoaded', function() {
     function updateBadge(item, badgeCount) {
         const right = item.querySelector('.wab-contact-row-right');
         let badge = item.querySelector('.wab-badge');
+        const count = Number(badgeCount || 0);
+        item.dataset.badge = String(count);
 
-        if (badgeCount > 0) {
+        if (count > 0) {
             if (!badge && right) {
                 badge = document.createElement('span');
                 badge.className = 'wab-badge';
                 right.prepend(badge);
             }
-            if (badge) badge.textContent = badgeCount;
+            if (badge) badge.textContent = count;
         } else {
             badge?.remove();
         }
@@ -4765,6 +4802,8 @@ document.addEventListener('DOMContentLoaded', function() {
             item.dataset.contactId = contact.id || '';
             item.dataset.phone = contact.phone;
             item.dataset.color = color;
+            item.dataset.badge = String(contact.badge || 0);
+            item.dataset.isGroup = contact.is_group ? '1' : '0';
             item.dataset.url = contactUrl(contact.phone);
             item.innerHTML = `
                 <div class="wab-avatar" style="background:${color}1a;color:${color}">
@@ -4787,6 +4826,10 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         item.dataset.name = String(contact.name || '').toLowerCase();
+        item.dataset.badge = String(contact.badge || 0);
+        if (contact.is_group !== undefined) {
+            item.dataset.isGroup = contact.is_group ? '1' : '0';
+        }
         item.dataset.url = contactUrl(contact.phone);
         item.classList.toggle('is-active', contact.phone === selectedPhone);
         item.querySelector('.wab-contact-name').textContent = contact.name || contact.phone;
@@ -4803,9 +4846,64 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    let currentTabFilter = 'all';
+
+    function filterContactList() {
+        const list = document.getElementById('wabContactList');
+        if (!list) return;
+
+        const term = (searchInput?.value || '').trim().toLowerCase();
+        const items = list.querySelectorAll('.wab-contact-item');
+        let visibleCount = 0;
+
+        items.forEach(item => {
+            const name = (item.dataset.name || item.querySelector('.wab-contact-name')?.textContent || '').toLowerCase();
+            const phone = (item.dataset.phone || '').toLowerCase();
+            const badge = Number(item.dataset.badge || item.querySelector('.wab-badge')?.textContent || 0);
+            const isGroup = item.dataset.isGroup === '1' || name.includes('group') || (item.querySelector('.wab-contact-tag-chip')?.textContent || '').toLowerCase().includes('group');
+
+            const matchesSearch = !term || name.includes(term) || phone.includes(term);
+            let matchesTab = true;
+
+            if (currentTabFilter === 'unread') {
+                matchesTab = badge > 0;
+            } else if (currentTabFilter === 'groups') {
+                matchesTab = isGroup;
+            }
+
+            if (matchesSearch && matchesTab) {
+                item.style.display = '';
+                visibleCount++;
+            } else {
+                item.style.display = 'none';
+            }
+        });
+
+        let emptyEl = list.querySelector('.wab-tab-empty-msg');
+        if (visibleCount === 0) {
+            if (!emptyEl) {
+                emptyEl = document.createElement('div');
+                emptyEl.className = 'wab-tab-empty-msg';
+                emptyEl.style.cssText = 'text-align:center;padding:28px 16px;color:#8696a0;font-size:13px;font-weight:500;';
+                list.appendChild(emptyEl);
+            }
+            emptyEl.style.display = 'block';
+            if (currentTabFilter === 'unread') {
+                emptyEl.textContent = 'No unread chats found.';
+            } else if (currentTabFilter === 'groups') {
+                emptyEl.textContent = 'No group chats found.';
+            } else {
+                emptyEl.textContent = 'No conversations found.';
+            }
+        } else if (emptyEl) {
+            emptyEl.style.display = 'none';
+        }
+    }
+
     function updateContacts(contacts) {
         if (!Array.isArray(contacts)) return;
         contacts.slice().reverse().forEach(renderContact);
+        filterContactList();
     }
 
     function setRemoteTyping(isTyping) {
@@ -4851,7 +4949,8 @@ document.addEventListener('DOMContentLoaded', function() {
         isPolling = true;
 
         try {
-            const url = `${messagesUrl}?phone=${encodeURIComponent(selectedPhone)}&after_id=${encodeURIComponent(lastMessageId)}`;
+            const safeAfterId = Number.isInteger(Number(lastMessageId)) && Number(lastMessageId) > 0 ? Number(lastMessageId) : 0;
+            const url = `${messagesUrl}?phone=${encodeURIComponent(selectedPhone)}&after_id=${safeAfterId}`;
             const response = await fetch(url, { headers: { 'Accept': 'application/json' } });
             if (!response.ok) return;
 
@@ -5052,7 +5151,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 } else {
                     renderMessage(msg);
                 }
-                lastMessageId = Math.max(lastMessageId, Number(msg.id || 0));
+                const realMsgId = Number(msg.id);
+                if (!Number.isNaN(realMsgId) && realMsgId > 0) {
+                    lastMessageId = Math.max(lastMessageId, realMsgId);
+                    if (body) body.dataset.lastMessageId = String(lastMessageId);
+                }
             }
 
             if (data.contacts) updateContacts(data.contacts);
@@ -5176,7 +5279,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 } else {
                     renderMessage(data.message);
                 }
-                lastMessageId = Math.max(lastMessageId, Number(data.message.id || 0));
+                const realMsgId = Number(data.message.id);
+                if (!Number.isNaN(realMsgId) && realMsgId > 0) {
+                    lastMessageId = Math.max(lastMessageId, realMsgId);
+                    if (body) body.dataset.lastMessageId = String(lastMessageId);
+                }
             }
 
             if (data.contacts) updateContacts(data.contacts);
@@ -5407,7 +5514,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 } else {
                     renderMessage(msg);
                 }
-                lastMessageId = Math.max(lastMessageId, Number(msg.id || 0));
+                const realMsgId = Number(msg.id);
+                if (!Number.isNaN(realMsgId) && realMsgId > 0) {
+                    lastMessageId = Math.max(lastMessageId, realMsgId);
+                    if (body) body.dataset.lastMessageId = String(lastMessageId);
+                }
             });
 
             if (data.contacts) updateContacts(data.contacts);
@@ -5483,6 +5594,34 @@ document.addEventListener('DOMContentLoaded', function() {
             window.location.href = '{{ route('whatsapp.chat') }}';
         @endif
     });
+
+    function toggleSidebarCollapse(e) {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        const pageEl = document.getElementById('wabPage');
+        const sidebarEl = document.getElementById('wabSidebar');
+
+        if (window.innerWidth <= 768) {
+            sidebarEl?.classList.toggle('mobile-hidden');
+        } else {
+            pageEl?.classList.toggle('sidebar-collapsed');
+            sidebarEl?.classList.toggle('is-collapsed');
+        }
+    }
+    window.wabToggleSidebar = toggleSidebarCollapse;
+
+    document.querySelectorAll('.wab-tab').forEach(tabBtn => {
+        tabBtn.addEventListener('click', () => {
+            document.querySelectorAll('.wab-tab').forEach(b => b.classList.remove('active'));
+            tabBtn.classList.add('active');
+            currentTabFilter = tabBtn.dataset.tab || 'all';
+            filterContactList();
+        });
+    });
+
+    searchInput?.addEventListener('input', filterContactList);
 
     async function refreshContactsSidebar() {
         if (contactSearchQuery !== '') return;
