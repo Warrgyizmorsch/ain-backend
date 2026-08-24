@@ -28,6 +28,7 @@ class MessageStatusUpdated implements ShouldBroadcast
         Log::info('Broadcasting MessageStatusUpdated on: chat.' . $channelPhone);
         return [
             new PrivateChannel('chat.' . $channelPhone),
+            new PrivateChannel('whatsapp.chat'),
         ];
     }
 

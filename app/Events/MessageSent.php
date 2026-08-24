@@ -31,8 +31,10 @@ class MessageSent implements ShouldBroadcast // ⬅️ This is required
      */
     public function broadcastOn(): array
     {
+        $channelPhone = preg_replace('/\D+/', '', $this->message->phone);
         return [
-            new PrivateChannel('chat.' . preg_replace('/\D+/', '', $this->message->phone)),
+            new PrivateChannel('chat.' . $channelPhone),
+            new PrivateChannel('whatsapp.chat'),
         ];
     }
      public function broadcastAs()

@@ -16,3 +16,7 @@ use Illuminate\Support\Facades\Broadcast;
 Broadcast::channel('chat.{phone}', function ($user, $phone) {
     return true; // 🔐 TEMPORARILY allow anyone
 });
+
+Broadcast::channel('whatsapp.chat', function ($user) {
+    return true;
+});

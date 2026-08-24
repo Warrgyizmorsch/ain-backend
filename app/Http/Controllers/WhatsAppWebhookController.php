@@ -33,6 +33,20 @@ public function receive(Request $request)
         if ($status !== 'received') {
             $message = WhatsappMessage::where('wa_message_id', $waMessageId)->first();
 
+            if (! $message && $request->has('To')) {
+                $rawTo = preg_replace('/\D+/', '', str_replace('whatsapp:', '', (string) $request->input('To')));
+                if ($rawTo) {
+                    $last10 = strlen($rawTo) >= 10 ? substr($rawTo, -10) : $rawTo;
+                    $message = WhatsappMessage::where('direction', 'outbound')
+                        ->where(function ($q) use ($rawTo, $last10) {
+                            $q->where('phone', 'like', "%{$rawTo}%")
+                              ->orWhere('phone', 'like', "%{$last10}%");
+                        })
+                        ->latest('id')
+                        ->first();
+                }
+            }
+
             if ($message) {
                 $currentStatus = strtolower((string) $message->status);
                 $terminalStatuses = ['failed', 'undelivered'];
@@ -48,6 +62,9 @@ public function receive(Request $request)
                 }
 
                 $message->status = $status;
+                if ($waMessageId && (empty($message->wa_message_id) || str_starts_with((string)$message->wa_message_id, 'wa_'))) {
+                    $message->wa_message_id = $waMessageId;
+                }
                 $message->save();
 
                 event(new MessageStatusUpdated($message));

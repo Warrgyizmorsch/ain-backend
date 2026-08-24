@@ -391,6 +391,7 @@ class WhatsappController extends Controller
             'has_more_older' => $hasMoreOlder,
             'first_id' => optional($messages->first())->id ?? 0,
             'last_id' => optional($messages->last())->id ?? 0,
+            'contacts' => $this->getContacts($phone),
         ];
 
         // Customer details for dynamic header switching
@@ -983,9 +984,10 @@ class WhatsappController extends Controller
             ->where('direction', 'outbound')
             ->latest('id')
             ->limit(100)
-            ->get(['id', 'status'])
+            ->get(['id', 'wa_message_id', 'status'])
             ->map(fn (WhatsappMessage $message) => [
                 'id' => $message->id,
+                'wa_message_id' => $message->wa_message_id,
                 'status' => $message->status,
             ])
             ->values()

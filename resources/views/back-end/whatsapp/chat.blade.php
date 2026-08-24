@@ -4337,17 +4337,33 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function updateMessageStatus(statusUpdate) {
-        if (!statusUpdate?.id) return;
+        if (!statusUpdate) return;
+        const msgId = statusUpdate.id;
+        const waMsgId = statusUpdate.wa_message_id;
 
-        const row = document.querySelector(`[data-message-id="${statusUpdate.id}"]`);
-        const currentTick = row?.querySelector('.wab-tick');
+        let row = null;
+        if (msgId) row = document.querySelector(`[data-message-id="${msgId}"]`);
+        if (!row && waMsgId) row = document.querySelector(`[data-wa-message-id="${waMsgId}"]`);
 
-        if (!row || !currentTick) return;
+        if (!row) return;
 
+        // Ensure row has waMessageId if now available
+        if (waMsgId && !row.dataset.waMessageId) {
+            row.dataset.waMessageId = waMsgId;
+        }
+
+        const currentTick = row.querySelector('.wab-tick');
         const normalized = normalizeMessageStatus(statusUpdate.status);
-        if (currentTick.dataset.status === normalized) return;
 
-        currentTick.outerHTML = tickMarkup(normalized);
+        if (currentTick) {
+            if (currentTick.dataset.status === normalized) return;
+            currentTick.outerHTML = tickMarkup(normalized);
+        } else {
+            const meta = row.querySelector('.wab-msg-meta');
+            if (meta && row.classList.contains('wab-outgoing')) {
+                meta.insertAdjacentHTML('beforeend', tickMarkup(normalized));
+            }
+        }
     }
 
     function mediaTypeClass(type) {
@@ -4538,6 +4554,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const row = document.createElement('div');
             row.className = `wab-msg-row ${message.direction === 'inbound' ? 'wab-incoming' : 'wab-outgoing'}`;
             row.dataset.messageId = message.id;
+            if (message.wa_message_id) row.dataset.waMessageId = message.wa_message_id;
             row.innerHTML = `
                 <div class="wab-msg-bubble ${hasMedia ? `wab-bubble--media ${mediaClass ? `wab-bubble--${mediaClass}` : ''}` : ''}">
                     ${messageContentMarkup(message)}
@@ -4574,6 +4591,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const row = document.createElement('div');
         row.className = `wab-msg-row ${message.direction === 'inbound' ? 'wab-incoming' : 'wab-outgoing'}`;
         row.dataset.messageId = message.id;
+        if (message.wa_message_id) row.dataset.waMessageId = message.wa_message_id;
         row.innerHTML = `
             <div class="wab-msg-bubble ${hasMedia ? `wab-bubble--media ${mediaClass ? `wab-bubble--${mediaClass}` : ''}` : ''}">
                 ${messageContentMarkup(message)}
@@ -4727,7 +4745,10 @@ document.addEventListener('DOMContentLoaded', function() {
         const letter = item.querySelector('.wab-avatar-letter');
         if (letter) letter.textContent = initials(contact.name);
         updateBadge(item, Number(contact.badge || 0));
-        list.prepend(item);
+        
+        if (list.firstChild !== item) {
+            list.prepend(item);
+        }
     }
 
     function updateContacts(contacts) {
@@ -4980,7 +5001,7 @@ document.addEventListener('DOMContentLoaded', function() {
             recordedAudio.play();
             audioWave?.classList.add('is-playing');
             audioPlay.querySelector('.wab-audio-play-icon')?.setAttribute('hidden', 'hidden');
-            audioPlay.querySelector('.wab-audio-pause-icon')?.removeAttribute('hidden');
+            audioPlay.querySelector('.wab-audio-pause-icon')?.setAttribute('hidden', 'hidden');
             setAudioTime(recordedAudioDuration);
             return;
         }
@@ -5269,6 +5290,21 @@ document.addEventListener('DOMContentLoaded', function() {
         @endif
     });
 
+    async function refreshContactsSidebar() {
+        if (contactSearchQuery !== '') return;
+        try {
+            const url = `${contactListUrl}?page=1&active_phone=${encodeURIComponent(selectedPhone || '')}`;
+            const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+            if (!res.ok) return;
+            const data = await res.json();
+            if (data && Array.isArray(data.contacts)) {
+                updateContacts(data.contacts);
+            }
+        } catch (e) {
+            console.warn('Unable to refresh contacts list.', e);
+        }
+    }
+
     /* ── Auto scroll on load & Scroll-up pagination ── */
     if (body) {
         body.scrollTop = body.scrollHeight;
@@ -5282,25 +5318,68 @@ document.addEventListener('DOMContentLoaded', function() {
     if (selectedPhone) {
         markSelectedChatRead();
         pollMessages();
+    } else {
+        refreshContactsSidebar();
     }
 
+    // Active conversation polling (every 1.5s for fast delivery ticks & messages)
     setInterval(() => {
-        if (selectedPhone) pollMessages();
-    }, 2000);
-
-    if (window.Echo?.private && selectedPhoneChannel) {
-        window.Echo.private(`chat.${selectedPhoneChannel}`)
-            .listen('.MessageSent', pollMessages)
-            .listen('.MessageStatusUpdated', pollMessages);
-    }
-    document.addEventListener('visibilitychange', () => {
-        if (!document.hidden && selectedPhone) {
-            markSelectedChatRead();
+        if (selectedPhone) {
             pollMessages();
+        } else {
+            refreshContactsSidebar();
+        }
+    }, 1500);
+
+    // Sidebar contacts sync (every 3s to catch new messages from any other number in real-time)
+    setInterval(() => {
+        if (selectedPhone) {
+            refreshContactsSidebar();
+        }
+    }, 3000);
+
+    // WebSocket Real-time Listening
+    if (window.Echo?.private) {
+        // 1. Current Active Conversation Channel
+        if (selectedPhoneChannel) {
+            window.Echo.private(`chat.${selectedPhoneChannel}`)
+                .listen('.MessageSent', (e) => {
+                    if (e?.message) renderMessage(e.message);
+                    pollMessages();
+                })
+                .listen('.MessageStatusUpdated', (e) => {
+                    if (e?.message) updateMessageStatus(e.message);
+                });
+        }
+
+        // 2. Global WhatsApp Channel for all numbers (Cross-chat live updates)
+        window.Echo.private('whatsapp.chat')
+            .listen('.MessageSent', (e) => {
+                const incomingPhone = e?.message?.phone ? e.message.phone.replace(/\D+/g, '') : '';
+                if (selectedPhone && incomingPhone && incomingPhone === selectedPhoneChannel) {
+                    if (e?.message) renderMessage(e.message);
+                    pollMessages();
+                } else {
+                    refreshContactsSidebar();
+                }
+            })
+            .listen('.MessageStatusUpdated', (e) => {
+                if (e?.message) updateMessageStatus(e.message);
+            });
+    }
+
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) {
+            if (selectedPhone) {
+                markSelectedChatRead();
+                pollMessages();
+            }
+            refreshContactsSidebar();
         }
     });
     window.addEventListener('focus', () => {
         if (selectedPhone) pollMessages();
+        refreshContactsSidebar();
     });
 
 })();
