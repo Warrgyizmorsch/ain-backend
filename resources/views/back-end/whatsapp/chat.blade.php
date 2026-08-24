@@ -2502,6 +2502,13 @@ document.addEventListener('DOMContentLoaded', function() {
     background: #f7f8fa;
     border-top: 1px solid #d1d7db;
 }
+.wab-upload-thumb-wrap {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+}
 .wab-upload-thumb {
     width: 58px;
     height: 58px;
@@ -2515,8 +2522,40 @@ document.addEventListener('DOMContentLoaded', function() {
     cursor: pointer;
     position: relative;
     flex: 0 0 auto;
+    padding: 0;
+    transition: transform .15s, border-color .15s;
 }
-.wab-upload-thumb.is-active { border: 3px solid #25d366; }
+.wab-upload-thumb-wrap.is-active .wab-upload-thumb {
+    border: 3px solid #25d366;
+    box-shadow: 0 0 0 2px rgba(37, 211, 102, 0.25);
+}
+.wab-upload-thumb-del {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #ea4335;
+    color: #ffffff;
+    border: 2px solid #ffffff;
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.25);
+    z-index: 10;
+    transition: transform .12s, background-color .12s;
+    padding: 0;
+}
+.wab-upload-thumb-del:hover {
+    background: #c5221f;
+    transform: scale(1.18);
+}
+.wab-upload-thumb-del svg {
+    width: 10px;
+    height: 10px;
+    stroke-width: 3;
+}
 .wab-upload-thumb img,
 .wab-upload-thumb video {
     width: 100%;
@@ -4297,6 +4336,10 @@ document.addEventListener('DOMContentLoaded', function() {
     function normalizeMessageStatus(status) {
         const value = String(status || 'sent').toLowerCase();
 
+        if (['pending', 'queued', 'sending', 'sending_media', 'uploading', 'draft'].includes(value)) {
+            return 'pending';
+        }
+
         if (['read', 'seen', 'viewed', 'read_by_user', 'blue'].includes(value)) {
             return 'read';
         }
@@ -4318,6 +4361,15 @@ document.addEventListener('DOMContentLoaded', function() {
             ? '#53bdeb'
             : (['failed', 'undelivered'].includes(normalized) ? '#d93025' : '#8696a0');
         const label = normalized.charAt(0).toUpperCase() + normalized.slice(1);
+
+        if (normalized === 'pending') {
+            return `<span class="wab-tick wab-tick--pending" data-status="pending" title="Sending…">
+                <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
+                    <circle cx="8" cy="8" r="6.6" stroke="#8696a0" stroke-width="1.6"/>
+                    <polyline points="8 4.2 8 8 10.8 8" stroke="#8696a0" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </span>`;
+        }
 
         if (['failed', 'undelivered'].includes(normalized)) {
             return `<span class="wab-tick wab-tick--${normalized}" data-status="${normalized}" title="${label}">
@@ -4940,13 +4992,35 @@ document.addEventListener('DOMContentLoaded', function() {
     async function sendRecordedAudio() {
         if (!recordedAudioBlob || !selectedPhone) return false;
 
+        const now = new Date();
+        const nowTime = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+        const tempId = 'temp_audio_' + Date.now();
+        const audioBlobToUpload = recordedAudioBlob;
+        const audioExt = recordedAudioExtension;
+        const localAudioUrl = recordedAudioUrl || URL.createObjectURL(audioBlobToUpload);
+
+        // 1. Optimistic instant render with clock icon (🕒)
+        const optimisticAudio = {
+            id: tempId,
+            phone: selectedPhone,
+            message: '',
+            direction: 'outbound',
+            status: 'pending', // 🕒 Clock icon
+            time: nowTime,
+            created_at: now.toISOString(),
+            media_url: localAudioUrl,
+            media_type: 'audio',
+            media_name: `voice-note-${Date.now()}.${audioExt}`,
+            media_size: audioBlobToUpload.size,
+        };
+
+        renderMessage(optimisticAudio);
+        resetAudioRecording();
+
         const formData = new FormData();
         formData.append('phone', selectedPhone);
         formData.append('caption', '');
-        formData.append('files[]', recordedAudioBlob, `voice-note-${Date.now()}.${recordedAudioExtension}`);
-
-        if (sendBtn) sendBtn.disabled = true;
-        if (micBtn) micBtn.disabled = true;
+        formData.append('files[]', audioBlobToUpload, `voice-note-${Date.now()}.${audioExt}`);
 
         try {
             const response = await fetch(mediaUploadUrl, {
@@ -4959,26 +5033,36 @@ document.addEventListener('DOMContentLoaded', function() {
                 body: formData,
             });
 
-            const data = await response.json();
+            const data = await response.json().catch(() => ({}));
+            const tempRow = document.querySelector(`[data-message-id="${tempId}"]`);
 
             if (!response.ok) {
-                (data.messages || (data.message ? [data.message] : [])).forEach(renderMessage);
-                updateContacts(data.contacts);
+                if (tempRow) updateMessageStatus({ id: tempId, status: 'failed' });
+                if (data.contacts) updateContacts(data.contacts);
                 throw new Error(data.error || data.message || 'Audio send failed');
             }
 
-            (data.messages || (data.message ? [data.message] : [])).forEach(renderMessage);
-            updateContacts(data.contacts);
-            resetAudioRecording();
-            pollMessages();
+            const returnedMsgs = Array.isArray(data.messages) ? data.messages : (data.message ? [data.message] : []);
+            if (returnedMsgs.length > 0) {
+                const msg = returnedMsgs[0];
+                if (tempRow) {
+                    tempRow.dataset.messageId = msg.id;
+                    if (msg.wa_message_id) tempRow.dataset.waMessageId = msg.wa_message_id;
+                    updateMessageStatus(msg);
+                } else {
+                    renderMessage(msg);
+                }
+                lastMessageId = Math.max(lastMessageId, Number(msg.id || 0));
+            }
+
+            if (data.contacts) updateContacts(data.contacts);
             return true;
         } catch (error) {
             console.warn('Unable to send audio recording.', error);
+            const tempRow = document.querySelector(`[data-message-id="${tempId}"]`);
+            if (tempRow) updateMessageStatus({ id: tempId, status: 'failed' });
             alert(error.message || 'Audio send nahi ho paya. Please dobara try karo.');
             return false;
-        } finally {
-            if (sendBtn) sendBtn.disabled = false;
-            if (micBtn) micBtn.disabled = false;
         }
     }
 
@@ -5028,13 +5112,40 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
+        // 1. Instant 0ms Optimistic UI: Render bubble immediately with WhatsApp Clock / Watch icon (🕒)
+        const tempId = 'temp_' + Date.now();
+        const now = new Date();
+        const nowTime = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+
+        const optimisticMsg = {
+            id: tempId,
+            phone: selectedPhone,
+            message: text,
+            direction: 'outbound',
+            status: 'pending', // 🕒 Clock icon
+            time: nowTime,
+            created_at: now.toISOString(),
+        };
+
+        renderMessage(optimisticMsg);
+
+        // Instantly update sidebar contact preview & move to top
+        renderContact({
+            phone: selectedPhone,
+            msg: text,
+            time: nowTime,
+            badge: 0,
+        });
+
+        // Clear input immediately so user can immediately type the next message
         const originalText = text;
         const formData = new FormData(sendForm);
         formData.set('message', text);
         input.value = '';
-        input.disabled = true;
-        if (sendBtn) sendBtn.disabled = true;
+        input.focus();
+        setRemoteTyping(false);
 
+        // 2. Perform network request in background
         try {
             const response = await fetch(sendForm.action, {
                 method: 'POST',
@@ -5047,26 +5158,34 @@ document.addEventListener('DOMContentLoaded', function() {
             });
 
             const data = await response.json().catch(() => ({}));
+            const tempRow = document.querySelector(`[data-message-id="${tempId}"]`);
 
             if (!response.ok) {
-                if (data.message) renderMessage(data.message);
-                updateContacts(data.contacts);
-                throw new Error(data.error || 'Send failed');
+                if (tempRow) {
+                    updateMessageStatus({ id: tempId, status: 'failed' });
+                }
+                if (data.contacts) updateContacts(data.contacts);
+                throw new Error(data.error || data.message || 'Send failed');
             }
 
             if (data.message) {
-                renderMessage(data.message);
+                if (tempRow) {
+                    tempRow.dataset.messageId = data.message.id;
+                    if (data.message.wa_message_id) tempRow.dataset.waMessageId = data.message.wa_message_id;
+                    updateMessageStatus(data.message);
+                } else {
+                    renderMessage(data.message);
+                }
+                lastMessageId = Math.max(lastMessageId, Number(data.message.id || 0));
             }
-            updateContacts(data.contacts);
-            pollMessages();
+
+            if (data.contacts) updateContacts(data.contacts);
         } catch (error) {
-            console.warn('Unable to send WhatsApp message without refresh.', error);
-            alert(error.message || 'Message send nahi ho paya. Please settings/provider check karo.');
-        } finally {
-            input.disabled = false;
-            if (sendBtn) sendBtn.disabled = false;
-            input.focus();
-            setRemoteTyping(false);
+            console.warn('Unable to send WhatsApp message.', error);
+            const tempRow = document.querySelector(`[data-message-id="${tempId}"]`);
+            if (tempRow) {
+                updateMessageStatus({ id: tempId, status: 'failed' });
+            }
         }
     }
 
@@ -5121,6 +5240,31 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    function removeUploadFile(index) {
+        if (index < 0 || index >= selectedUploadFiles.length) return;
+
+        if (selectedUploadUrls[index]) {
+            URL.revokeObjectURL(selectedUploadUrls[index]);
+        }
+
+        selectedUploadFiles.splice(index, 1);
+        selectedUploadUrls.splice(index, 1);
+
+        if (selectedUploadFiles.length === 0) {
+            closeUploadReview();
+            return;
+        }
+
+        if (activeUploadIndex >= selectedUploadFiles.length) {
+            activeUploadIndex = selectedUploadFiles.length - 1;
+        } else if (activeUploadIndex === index) {
+            activeUploadIndex = Math.min(index, selectedUploadFiles.length - 1);
+        }
+
+        renderUploadTray();
+        renderUploadPreview(activeUploadIndex);
+    }
+
     function renderUploadTray() {
         if (!uploadTray) return;
 
@@ -5128,16 +5272,29 @@ document.addEventListener('DOMContentLoaded', function() {
             const url = selectedUploadUrls[index];
             const type = getUploadType(file);
             const ext = escapeHtml(fileExtension(file.name).toUpperCase());
+            let thumbContent = '';
 
             if (type === 'image') {
-                return `<button type="button" class="wab-upload-thumb ${index === activeUploadIndex ? 'is-active' : ''}" data-upload-index="${index}"><img src="${url}" alt="${escapeHtml(file.name)}"></button>`;
+                thumbContent = `<img src="${url}" alt="${escapeHtml(file.name)}">`;
+            } else if (type === 'video') {
+                thumbContent = `<video muted><source src="${url}"></video>`;
+            } else {
+                thumbContent = `<span>${ext}</span>`;
             }
 
-            if (type === 'video') {
-                return `<button type="button" class="wab-upload-thumb ${index === activeUploadIndex ? 'is-active' : ''}" data-upload-index="${index}"><video muted><source src="${url}"></video></button>`;
-            }
-
-            return `<button type="button" class="wab-upload-thumb ${index === activeUploadIndex ? 'is-active' : ''}" data-upload-index="${index}"><span>${ext}</span></button>`;
+            return `
+                <div class="wab-upload-thumb-wrap ${index === activeUploadIndex ? 'is-active' : ''}">
+                    <button type="button" class="wab-upload-thumb" data-upload-index="${index}">
+                        ${thumbContent}
+                    </button>
+                    <button type="button" class="wab-upload-thumb-del" data-remove-index="${index}" title="Remove this file">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                    </button>
+                </div>
+            `;
         }).join('') + (selectedUploadFiles.length > 1 ? `<span class="wab-upload-count">${selectedUploadFiles.length}</span>` : '');
     }
 
@@ -5183,18 +5340,42 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!uploadFiles.length || !selectedPhone) return;
 
         const caption = uploadCaption?.value.trim() || '';
+        const now = new Date();
+        const nowTime = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+
+        // 1. Instant Optimistic Render for each file in chat window
+        const tempIds = [];
+        uploadFiles.forEach((file, idx) => {
+            const tempId = 'temp_upload_' + Date.now() + '_' + idx;
+            tempIds.push(tempId);
+            const type = getUploadType(file);
+            const localBlobUrl = URL.createObjectURL(file);
+
+            const optimisticMedia = {
+                id: tempId,
+                phone: selectedPhone,
+                message: idx === 0 ? caption : '',
+                direction: 'outbound',
+                status: 'pending', // 🕒 Clock / Watch icon
+                time: nowTime,
+                created_at: now.toISOString(),
+                media_url: localBlobUrl,
+                media_type: type,
+                media_name: file.name,
+                media_size: file.size,
+            };
+
+            renderMessage(optimisticMedia);
+        });
+
+        // Close upload review instantly so UI is not blocked
+        closeUploadReview();
+        if (input) input.value = '';
+
         const formData = new FormData();
         formData.append('phone', selectedPhone);
         uploadFiles.forEach(file => formData.append('files[]', file));
         if (caption) formData.append('caption', caption);
-
-        if (attachBtn) {
-            attachBtn.disabled = true;
-            attachBtn.classList.add('is-loading');
-        }
-        if (sendBtn) sendBtn.disabled = true;
-        if (input) input.disabled = true;
-        if (uploadSend) uploadSend.disabled = true;
 
         try {
             const response = await fetch(mediaUploadUrl, {
@@ -5207,33 +5388,33 @@ document.addEventListener('DOMContentLoaded', function() {
                 body: formData,
             });
 
+            const data = await response.json().catch(() => ({}));
+
             if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                (errorData.messages || (errorData.message ? [errorData.message] : [])).forEach(renderMessage);
-                updateContacts(errorData.contacts);
-                throw new Error(errorData.error || errorData.message || 'Media upload failed');
+                tempIds.forEach(tId => updateMessageStatus({ id: tId, status: 'failed' }));
+                if (data.contacts) updateContacts(data.contacts);
+                throw new Error(data.error || data.message || 'Media upload failed');
             }
 
-            const data = await response.json();
-            (data.messages || (data.message ? [data.message] : [])).forEach(renderMessage);
-            updateContacts(data.contacts);
-            if (input) input.value = '';
-            closeUploadReview();
-            pollMessages();
+            const returnedMsgs = Array.isArray(data.messages) ? data.messages : (data.message ? [data.message] : []);
+            returnedMsgs.forEach((msg, idx) => {
+                const tId = tempIds[idx];
+                const tempRow = tId ? document.querySelector(`[data-message-id="${tId}"]`) : null;
+                if (tempRow) {
+                    tempRow.dataset.messageId = msg.id;
+                    if (msg.wa_message_id) tempRow.dataset.waMessageId = msg.wa_message_id;
+                    updateMessageStatus(msg);
+                } else {
+                    renderMessage(msg);
+                }
+                lastMessageId = Math.max(lastMessageId, Number(msg.id || 0));
+            });
+
+            if (data.contacts) updateContacts(data.contacts);
         } catch (error) {
             console.warn('Unable to send WhatsApp media.', error);
+            tempIds.forEach(tId => updateMessageStatus({ id: tId, status: 'failed' }));
             alert(error.message || 'Unable to send media. Please try again.');
-        } finally {
-            if (attachBtn) {
-                attachBtn.disabled = false;
-                attachBtn.classList.remove('is-loading');
-            }
-            if (sendBtn) sendBtn.disabled = false;
-            if (uploadSend) uploadSend.disabled = false;
-            if (input) {
-                input.disabled = false;
-                input.focus();
-            }
         }
     }
 
@@ -5261,8 +5442,21 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     uploadClose?.addEventListener('click', closeUploadReview);
     uploadTray?.addEventListener('click', e => {
-        const index = Number(e.target.closest('[data-upload-index]')?.dataset.uploadIndex);
-        if (!Number.isNaN(index)) renderUploadPreview(index);
+        const delBtn = e.target.closest('.wab-upload-thumb-del');
+        if (delBtn) {
+            e.stopPropagation();
+            const removeIdx = Number(delBtn.dataset.removeIndex);
+            if (!Number.isNaN(removeIdx)) {
+                removeUploadFile(removeIdx);
+            }
+            return;
+        }
+
+        const thumbBtn = e.target.closest('[data-upload-index]');
+        if (thumbBtn) {
+            const index = Number(thumbBtn.dataset.uploadIndex);
+            if (!Number.isNaN(index)) renderUploadPreview(index);
+        }
     });
     uploadSend?.addEventListener('click', () => uploadSelectedMedia(selectedUploadFiles));
     uploadCaption?.addEventListener('keydown', e => {
