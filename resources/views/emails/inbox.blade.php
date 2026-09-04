@@ -1156,28 +1156,23 @@
                 {{-- Labels / Tags --}}
                 <div class="duralux-section-label">
                     <span>Tags & Labels</span>
+                    <a href="{{ route('labels.index') }}" target="_blank" title="Manage Labels" class="text-muted"><i class="fa fa-cog"></i></a>
                 </div>
                 <ul class="duralux-nav-list">
                     <li class="duralux-nav-item">
-                        <a href="javascript:void(0);" class="duralux-nav-link" onclick="filterTag('Order', this)">
-                            <span><span class="duralux-dot" style="background: #f59e0b;"></span> Orders</span>
+                        <a href="javascript:void(0);" class="duralux-nav-link {{ empty($selectedLabelId) ? 'active' : '' }}" onclick="filterLabel(null, this)">
+                            <span><i class="fa fa-tags nav-icon text-muted"></i> All Labels</span>
                         </a>
                     </li>
-                    <li class="duralux-nav-item">
-                        <a href="javascript:void(0);" class="duralux-nav-link" onclick="filterTag('Support', this)">
-                            <span><span class="duralux-dot" style="background: #0ea5e9;"></span> Support</span>
-                        </a>
-                    </li>
-                    <li class="duralux-nav-item">
-                        <a href="javascript:void(0);" class="duralux-nav-link" onclick="filterTag('Urgent', this)">
-                            <span><span class="duralux-dot" style="background: #e11d48;"></span> Urgent</span>
-                        </a>
-                    </li>
-                    <li class="duralux-nav-item">
-                        <a href="javascript:void(0);" class="duralux-nav-link" onclick="filterTag('Payment', this)">
-                            <span><span class="duralux-dot" style="background: #10b981;"></span> Payments</span>
-                        </a>
-                    </li>
+                    @forelse(($allLabels ?? []) as $label)
+                        <li class="duralux-nav-item">
+                            <a href="javascript:void(0);" class="duralux-nav-link {{ (int) ($selectedLabelId ?? 0) === (int) $label->id ? 'active' : '' }}" onclick="filterLabel({{ $label->id }}, this)">
+                                <span class="text-truncate" title="{{ $label->name }}"><span class="duralux-dot" style="background: {{ $label->color }};"></span> {{ $label->name }}</span>
+                            </a>
+                        </li>
+                    @empty
+                        <li class="px-3 py-2 text-muted fs-9">No master labels configured.</li>
+                    @endforelse
                 </ul>
             </div>
         </div>
@@ -1514,6 +1509,7 @@
 <script>
 let currentFolder = @json($folder ?? 'inbox');
 let currentAccountId = '{{ request("account_id") }}';
+let currentLabelId = @json($selectedLabelId ?? null);
 let emailFolderHtmlCache = @json($folderHtmlCache ?? []);
 let activeThreadId = null;
 let activeEmailData = null;
@@ -1810,6 +1806,7 @@ function discardCompose() {
 
 function filterFolder(folder, el) {
     currentFolder = folder;
+    currentLabelId = null;
     document.querySelectorAll('.duralux-sidebar .duralux-nav-link').forEach(link => link.classList.remove('active'));
     if (el) el.classList.add('active');
     closeEmailThread();
@@ -1817,7 +1814,7 @@ function filterFolder(folder, el) {
     const searchInput = document.getElementById('emailSearchInput');
     const searchValue = searchInput ? searchInput.value.trim() : '';
 
-    if (!searchValue && emailFolderHtmlCache && emailFolderHtmlCache[folder]) {
+    if (!searchValue && !currentLabelId && emailFolderHtmlCache && emailFolderHtmlCache[folder]) {
         renderEmailRows(emailFolderHtmlCache[folder]);
         updateEmailBrowserUrl('');
     }
@@ -1826,6 +1823,7 @@ function filterFolder(folder, el) {
 
 function filterAccount(accountId, el) {
     currentAccountId = accountId;
+    currentLabelId = null;
     lastEmailFingerprint = null;
     emailFolderHtmlCache = {};
     document.querySelectorAll('.duralux-sidebar .duralux-nav-link').forEach(link => link.classList.remove('active'));
@@ -1834,11 +1832,11 @@ function filterAccount(accountId, el) {
     reloadEmailList(true);
 }
 
-function filterTag(tag, el) {
+function filterLabel(labelId, el) {
+    currentLabelId = labelId || null;
     document.querySelectorAll('.duralux-sidebar .duralux-nav-link').forEach(link => link.classList.remove('active'));
     if (el) el.classList.add('active');
-    const searchInput = document.getElementById('emailSearchInput');
-    if (searchInput) searchInput.value = tag;
+    closeEmailThread();
     reloadEmailList(true);
 }
 
@@ -1879,6 +1877,7 @@ function loadMoreEmails() {
     const url = new URL('{{ route("emails.index") }}', window.location.origin);
     url.searchParams.set('folder', currentFolder);
     if (currentAccountId) url.searchParams.set('account_id', currentAccountId);
+    if (currentLabelId) url.searchParams.set('label_id', currentLabelId);
     const searchInput = document.getElementById('emailSearchInput');
     const searchVal = searchInput ? searchInput.value : '';
     if (searchVal) url.searchParams.set('search', searchVal);
@@ -1931,6 +1930,8 @@ function updateEmailBrowserUrl(searchVal) {
     browserUrl.searchParams.set('folder', currentFolder);
     if (currentAccountId) browserUrl.searchParams.set('account_id', currentAccountId);
     else browserUrl.searchParams.delete('account_id');
+    if (currentLabelId) browserUrl.searchParams.set('label_id', currentLabelId);
+    else browserUrl.searchParams.delete('label_id');
     if (searchVal) browserUrl.searchParams.set('search', searchVal);
     else browserUrl.searchParams.delete('search');
     history.replaceState(history.state, '', browserUrl);
@@ -1955,6 +1956,7 @@ function reloadEmailList(showLoader = true) {
     url.searchParams.set('folder', currentFolder);
     url.searchParams.set('partial', '1');
     if (currentAccountId) url.searchParams.set('account_id', currentAccountId);
+    if (currentLabelId) url.searchParams.set('label_id', currentLabelId);
     if (searchVal) url.searchParams.set('search', searchVal);
 
     // Fast instant AJAX list reload
@@ -1971,7 +1973,7 @@ function reloadEmailList(showLoader = true) {
     })
     .then(html => {
         renderEmailRows(html);
-        if (!searchVal) emailFolderHtmlCache[currentFolder] = html;
+        if (!searchVal && !currentLabelId) emailFolderHtmlCache[currentFolder] = html;
         updateEmailBrowserUrl(searchVal);
     })
     .catch(error => {

@@ -37,6 +37,7 @@ class EmailController extends Controller
         $search = $request->get('search');
         $selectedThreadId = $request->get('thread_id');
         $accountId = $request->get('account_id');
+        $selectedLabelId = $request->integer('label_id') ?: null;
 
         // Query based on folder
         $query = EmailMessage::query();
@@ -90,6 +91,17 @@ class EmailController extends Controller
                   ->orWhere('from_name', 'like', "%{$search}%")
                   ->orWhere('to_email', 'like', "%{$search}%")
                   ->orWhere('body_plain', 'like', "%{$search}%");
+            });
+        }
+
+        // Filter by labels created in Label Master. Labels belong to an email
+        // conversation, so every message in the matching thread is included.
+        if ($selectedLabelId) {
+            $query->whereExists(function ($labelQuery) use ($selectedLabelId) {
+                $labelQuery->selectRaw('1')
+                    ->from('email_thread_labels')
+                    ->whereColumn('email_thread_labels.thread_id', 'email_messages.thread_id')
+                    ->where('email_thread_labels.label_id', $selectedLabelId);
             });
         }
 
@@ -219,6 +231,7 @@ class EmailController extends Controller
             'configurations',
             'currentAccount',
             'accountId',
+            'selectedLabelId',
             'unreadCount',
             'folderHtmlCache',
             'allLabels',
