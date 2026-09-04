@@ -20,7 +20,8 @@
 
 <body 
     id="kt_body"
-    class="header-fixed header-tablet-and-mobile-fixed aside-enabled aside-fixed"
+    class="header-fixed header-tablet-and-mobile-fixed aside-enabled aside-fixed @yield('body-layout-classes', 'toolbar-enabled toolbar-fixed')"
+    style="@yield('body-layout-style', '--kt-toolbar-height:55px; --kt-toolbar-height-tablet-and-mobile:55px')"
 >
     <div class="d-flex flex-column flex-root">
         <div class="page d-flex flex-row flex-column-fluid">

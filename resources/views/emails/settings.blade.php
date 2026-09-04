@@ -1,5 +1,10 @@
 @extends('layouts.app')
 
+{{-- This page has its own compact heading, so only it opts out of the
+     theme toolbar offset. All other admin screens keep the standard layout. --}}
+@section('body-layout-classes', 'email-settings-layout')
+@section('body-layout-style', '')
+
 @section('content')
 <style>
     .email-settings-page { max-width: 1600px; margin: 0 auto; }
