@@ -85,16 +85,20 @@ class RoleOneMenuSeeder extends Seeder
         // =============================================================
         // 1.1 MASTERS MENU (Menu ID 3) - Add Label Master
         // =============================================================
-        DB::table('menu')->updateOrInsert(
-            ['parent_id' => 3, 'routes' => 'labels'],
-            [
-                'menu_name' => 'Label Master',
-                'sort_order' => 15,
-                'show_menu' => 'Y',
-                'icon_class' => 'fa fa-tags',
-                'updated_at' => now()
-            ]
-        );
+        // Masters is a standalone main menu, immediately above Setting.
+        DB::table('menu')->where('id', 3)->update([
+            'parent_id' => null,
+            'menu_name' => 'Masters',
+            'icon_class' => 'fa fa-diamond',
+            'show_menu' => 'Y',
+            'routes' => 'master',
+            'sort_order' => 98,
+            'updated_at' => now(),
+        ]);
+
+        // Masters uses direct submenus. Remove the older child-menu duplicate
+        // so all existing Master entries and Label Master render together.
+        DB::table('menu')->where('parent_id', 3)->where('routes', 'labels')->delete();
 
         DB::table('submenus')->updateOrInsert(
             ['menus_id' => 3, 'routes' => 'labels'],
