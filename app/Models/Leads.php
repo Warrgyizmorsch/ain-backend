@@ -45,6 +45,24 @@ class Leads extends Model
         'coupon_original_amount',
     ];
 
+    protected static function booted()
+    {
+        static::saved(function ($lead) {
+            if (!empty($lead->email) || !empty($lead->mobile)) {
+                try {
+                    app(\App\Services\LabelSyncService::class)->syncOnContactCreatedOrUpdated(
+                        $lead->email,
+                        $lead->countrycode,
+                        $lead->mobile,
+                        auth()->id()
+                    );
+                } catch (\Throwable $e) {
+                    \Log::warning('Label auto-sync error on Lead save: ' . $e->getMessage());
+                }
+            }
+        });
+    }
+
     public function call()
     {
         return $this->hasMany(Calls::class, 'lead_id', 'id' )->orderBy('created_at', 'desc');

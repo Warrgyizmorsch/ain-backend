@@ -23,18 +23,40 @@
                 @php
                     $menuIds = [];
                     $submenuIds = [];
-                    $menus = $menus ?? collect();
-                    $premission = $premission ?? collect();
+                    $menus = (isset($menus) && $menus->isNotEmpty()) ? $menus : \App\Models\menu::with(['children.submenus', 'submenus'])->get();
+                    $premission = (isset($premission) && $premission->isNotEmpty()) ? $premission : \Illuminate\Support\Facades\DB::table('permission')->get();
                     $currentPath = trim(request()->path(), '/');
-                    $isActiveRoute = function ($route) use ($currentPath) {
+                    $currentRequestUri = trim(request()->getRequestUri(), '/');
+                    $isActiveRoute = function ($route) use ($currentPath, $currentRequestUri) {
                         $route = trim((string) $route, '/');
 
                         if ($route === '') {
                             return $currentPath === '';
                         }
 
+                        if (str_contains($route, '?')) {
+                            return $currentRequestUri === $route || str_starts_with($currentRequestUri, $route . '&');
+                        }
+
                         return $currentPath === $route || str_starts_with($currentPath, $route . '/');
                     };
+
+                    if (auth()->check()) {
+                        $userRoleId = (int) auth()->user()->role_id;
+                        foreach($premission as $perm) {
+                            if ((int)$perm->role_id === $userRoleId) {
+                                $menuIds = json_decode($perm->menu_id, true) ?? [];
+                                $submenuIds = json_decode($perm->submenu_id, true) ?? [];
+                            }
+                        }
+                    }
+
+                    $menuIdsStr = array_map('strval', $menuIds);
+                    $submenuIdsStr = array_map('strval', $submenuIds);
+
+                    $menus = $menus->sortBy(function ($menu) {
+                        return (int) $menu->sort_order;
+                    });
                 @endphp
 
                 <div class="menu-item">
@@ -43,36 +65,20 @@
                     </div>
                 </div>
 
-                @foreach($premission as $permission)
-                    @if(auth()->check() && auth()->user()->role_id == $permission->role_id)
-                        @php
-                            $menuIds = json_decode($permission->menu_id, true) ?? [];
-                            $submenuIds = json_decode($permission->submenu_id, true) ?? [];
-                        @endphp
-                    @endif
-                @endforeach
-
-                @php
-                    $menuOrder = array_flip(array_map('strval', $menuIds));
-                    $menus = $menus->sortBy(function ($menu) use ($menuOrder) {
-                        return $menuOrder[(string) $menu->id] ?? (100000 + (int) $menu->sort_order);
-                    });
-                @endphp
-
                 @foreach ($menus as $menu)
-                    @if ($menu->parent_id !== null && in_array($menu->parent_id, $menuIds))
+                    @if ($menu->parent_id !== null && in_array((string)$menu->parent_id, $menuIdsStr))
                         @continue
                     @endif
-                    @if ($menu->show_menu == 'Y' && in_array($menu->id, $menuIds))
+                    @if ($menu->show_menu == 'Y' && in_array((string)$menu->id, $menuIdsStr))
                         @if ($menu->children->count() > 0)
                             @php
                                 $isParentActive = false;
                                 $visibleGroups = [];
                                 
                                 foreach ($menu->children as $childMenu) {
-                                    if ($childMenu->show_menu == 'Y' && in_array($childMenu->id, $menuIds)) {
-                                        $visibleSubmenus = $childMenu->submenus->filter(function ($submenu) use ($submenuIds) {
-                                            return $submenu->show == 'Y' && in_array($submenu->id, $submenuIds);
+                                    if ($childMenu->show_menu == 'Y' && in_array((string)$childMenu->id, $menuIdsStr)) {
+                                        $visibleSubmenus = $childMenu->submenus->filter(function ($submenu) use ($submenuIdsStr) {
+                                            return $submenu->show == 'Y' && in_array((string)$submenu->id, $submenuIdsStr);
                                         });
                                         if ($visibleSubmenus->isNotEmpty() || !empty($childMenu->routes)) {
                                             $hasActiveChild = $visibleSubmenus->contains(function ($submenu) use ($isActiveRoute) {
@@ -95,7 +101,7 @@
                                 <div data-kt-menu-trigger="click" class="menu-item menu-accordion {{ $isParentActive ? 'here show' : '' }}">
                                     <span class="menu-link {{ $isParentActive ? 'active' : '' }}">
                                         <span class="menu-icon">
-                                            <li class="{{ $menu['icon_class'] }}"></li>
+                                            <i class="{{ $menu['icon_class'] ?: 'fa fa-circle-o' }}"></i>
                                         </span>
                                         <span class="menu-title">{{ $menu['menu_name'] }}</span>
                                         <span class="menu-arrow"></span>
@@ -107,7 +113,7 @@
                                                 <div data-kt-menu-trigger="click" class="menu-item menu-accordion {{ $group['active'] ? 'here show' : '' }}">
                                                     <span class="menu-link {{ $group['active'] ? 'active' : '' }}">
                                                         <span class="menu-icon">
-                                                            <li class="{{ $group['menu']->icon_class }}"></li>
+                                                            <i class="{{ $group['menu']->icon_class ?: 'fa fa-circle-o' }}"></i>
                                                         </span>
                                                         <span class="menu-title">{{ $group['menu']->menu_name }}</span>
                                                         <span class="menu-arrow"></span>
@@ -128,7 +134,7 @@
                                                 <div class="menu-item">
                                                     <a class="menu-link {{ $group['active'] ? 'active' : '' }}" href="{{ url($group['menu']->routes) }}">
                                                         <span class="menu-icon">
-                                                            <li class="{{ $group['menu']->icon_class }}"></li>
+                                                            <i class="{{ $group['menu']->icon_class ?: 'fa fa-circle-o' }}"></i>
                                                         </span>
                                                         <span class="menu-title">{{ $group['menu']->menu_name }}</span>
                                                     </a>
@@ -140,8 +146,8 @@
                             @endif
                         @elseif ($menu->submenus->where('show', 'Y')->count() > 0)
                             @php
-                                $visibleSubmenus = $menu->submenus->filter(function ($submenu) use ($submenuIds) {
-                                    if ($submenu->show != 'Y' || !in_array($submenu->id, $submenuIds)) {
+                                $visibleSubmenus = $menu->submenus->filter(function ($submenu) use ($submenuIdsStr) {
+                                    if ($submenu->show != 'Y' || !in_array((string)$submenu->id, $submenuIdsStr)) {
                                         return false;
                                     }
                                     if (auth()->check() && auth()->user()->role_id == 9) {
@@ -176,7 +182,7 @@
                                 <div data-kt-menu-trigger="click" class="menu-item menu-accordion {{ $isParentActive ? 'here show' : '' }}">
                                     <span class="menu-link {{ $isParentActive ? 'active' : '' }}">
                                         <span class="menu-icon">
-                                            <li class="{{ $menu['icon_class'] }}"></li>
+                                            <i class="{{ $menu['icon_class'] ?: 'fa fa-circle-o' }}"></i>
                                         </span>
                                         <span class="menu-title">{{ $menu['menu_name'] }}</span>
                                         <span class="menu-arrow"></span>
@@ -241,7 +247,7 @@
                             <div class="menu-item">
                                 <a class="menu-link {{ $isMenuActive ? 'active' : '' }}" href="{{ url($menu['routes']) }}">
                                     <span class="menu-icon">
-                                        <li class="{{ $menu['icon_class'] }}"></li>
+                                        <i class="{{ $menu['icon_class'] ?: 'fa fa-circle-o' }}"></i>
                                     </span>
                                     <span class="menu-title">{{ $menu['menu_name'] }}</span>
                                     @if(trim($menu['routes'], '/') == 'revoke-payments')

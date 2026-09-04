@@ -44,12 +44,12 @@ class AuthenticatedSessionController extends Controller
             return $this->redirectAfterLogin($user);
         }
 
-        if ($ban = $this->activeSystemBan($request->ip())) {
-            return redirect()->route('login')
-                ->with('warning', $this->systemBanMessage($ban));
-        }
-
         $user = $request->authenticate();
+
+        if ($ban = $this->activeAccountBan($user->id)) {
+            return redirect()->route('login')
+                ->with('warning', $this->accountBanMessage($ban));
+        }
 
         if ((int) $user->role_id === 1) {
             try {
@@ -97,11 +97,6 @@ class AuthenticatedSessionController extends Controller
                 ->with('warning', 'Takeover session expired.');
         }
 
-        if ($ban = $this->activeSystemBan($request->ip())) {
-            return redirect()->route('login')
-                ->with('warning', $this->systemBanMessage($ban));
-        }
-
         DB::table('sessions')->where('user_id', $userId)->delete();
 
         $user = User::find($userId);
@@ -111,6 +106,11 @@ class AuthenticatedSessionController extends Controller
 
             return redirect()->route('login')
                 ->with('warning', 'Takeover login failed.');
+        }
+
+        if ($ban = $this->activeAccountBan($user->id)) {
+            return redirect()->route('login')
+                ->with('warning', $this->accountBanMessage($ban));
         }
 
         if ((int) $user->role_id !== 1) {
@@ -138,18 +138,19 @@ class AuthenticatedSessionController extends Controller
 
     public function showOtpForm(): View|RedirectResponse
     {
-        if ($ban = $this->activeSystemBan(request()->ip())) {
-            Session::forget(['pending_login_otp_id', 'pending_login_remember']);
-
-            return redirect()->route('login')
-                ->with('warning', $this->systemBanMessage($ban));
-        }
-
         $notification = $this->pendingOtpNotification();
 
         if (!$notification) {
             return redirect()->route('login')
                 ->with('warning', 'Please login again to request admin OTP approval.');
+        }
+
+
+        if ($ban = $this->activeAccountBan($notification->user_id)) {
+            Session::forget(['pending_login_otp_id', 'pending_login_remember']);
+
+            return redirect()->route('login')
+                ->with('warning', $this->accountBanMessage($ban));
         }
 
         return view('auth.login-otp', compact('notification'));
@@ -168,11 +169,11 @@ class AuthenticatedSessionController extends Controller
                 ->with('warning', 'OTP request expired. Please login again.');
         }
 
-        if ($ban = $this->activeSystemBan($request->ip())) {
+        if ($ban = $this->activeAccountBan($notification->user_id)) {
             Session::forget(['pending_login_otp_id', 'pending_login_remember']);
 
             return redirect()->route('login')
-                ->with('warning', $this->systemBanMessage($ban));
+                ->with('warning', $this->accountBanMessage($ban));
         }
 
         if (!hash_equals($notification->otp_code, (string) $request->otp_code)) {
@@ -184,7 +185,7 @@ class AuthenticatedSessionController extends Controller
             ]);
 
             if ($failedAttempts > 3) {
-                $this->banSystem($notification->ip_address ?: $request->ip(), $notification->user_id, false, 'Wrong OTP attempts limit crossed.');
+                $this->banAccount($notification->user_id, $notification->ip_address ?: $request->ip(), false, 'Wrong OTP attempts limit crossed.');
 
                 $notification->update([
                     'status' => 'blocked',
@@ -194,7 +195,7 @@ class AuthenticatedSessionController extends Controller
                 Session::forget(['pending_login_otp_id', 'pending_login_remember']);
 
                 return redirect()->route('login')
-                    ->with('warning', 'Wrong OTP attempts limit crossed. This system is banned for 24 hours.');
+                    ->with('warning', 'Wrong OTP attempts limit crossed. This account is banned for 24 hours.');
             }
 
             $remainingAttempts = max(0, 3 - $failedAttempts);
@@ -242,7 +243,7 @@ class AuthenticatedSessionController extends Controller
                     ->orWhere('banned_until', '>', now());
             })
             ->get()
-            ->keyBy('ip_address');
+            ->keyBy('user_id');
 
         return view('auth.login-otp-notifications', compact('notifications', 'users', 'bans'));
     }
@@ -282,13 +283,13 @@ class AuthenticatedSessionController extends Controller
         abort_unless(auth()->check() && (int) auth()->user()->role_id === 1, 403);
 
         $request->validate([
-            'ip_address' => ['required', 'string', 'max:45'],
-            'user_id' => ['nullable', 'integer'],
+            'user_id' => ['required', 'integer', 'exists:users,id'],
+            'ip_address' => ['nullable', 'string', 'max:45'],
         ]);
 
-        $this->banSystem($request->ip_address, $request->user_id, true, 'Manual admin ban.');
+        $this->banAccount((int) $request->user_id, $request->ip_address, true, 'Manual admin ban.');
 
-        return back()->with('success', 'System banned for 24 hours.');
+        return back()->with('success', 'Account banned for 24 hours.');
     }
 
     public function unbanOtpSystem(Request $request): RedirectResponse
@@ -296,17 +297,17 @@ class AuthenticatedSessionController extends Controller
         abort_unless(auth()->check() && (int) auth()->user()->role_id === 1, 403);
 
         $request->validate([
-            'ip_address' => ['required', 'string', 'max:45'],
+            'user_id' => ['required', 'integer', 'exists:users,id'],
         ]);
 
-        LoginOtpSystemBan::where('ip_address', $request->ip_address)
+        LoginOtpSystemBan::where('user_id', $request->user_id)
             ->whereNull('unbanned_at')
             ->update([
                 'unbanned_at' => now(),
                 'unbanned_by' => auth()->id(),
             ]);
 
-        return back()->with('success', 'System unbanned successfully.');
+        return back()->with('success', 'Account unbanned successfully.');
     }
 
     private function createPendingOtpNotification(Request $request, User $user): LoginOtpNotification
@@ -373,13 +374,13 @@ class AuthenticatedSessionController extends Controller
         return $notification;
     }
 
-    private function activeSystemBan(?string $ipAddress): ?LoginOtpSystemBan
+    private function activeAccountBan(?int $userId): ?LoginOtpSystemBan
     {
-        if (!$ipAddress) {
+        if (!$userId) {
             return null;
         }
 
-        return LoginOtpSystemBan::where('ip_address', $ipAddress)
+        return LoginOtpSystemBan::where('user_id', $userId)
             ->whereNull('unbanned_at')
             ->where(function ($query) {
                 $query->whereNull('banned_until')
@@ -389,19 +390,20 @@ class AuthenticatedSessionController extends Controller
             ->first();
     }
 
-    private function banSystem(?string $ipAddress, ?int $userId, bool $isManual, string $reason): ?LoginOtpSystemBan
+    private function banAccount(?int $userId, ?string $ipAddress, bool $isManual, string $reason): ?LoginOtpSystemBan
     {
-        if (!$ipAddress) {
+        if (!$userId) {
             return null;
         }
 
         $ban = LoginOtpSystemBan::firstOrNew([
-            'ip_address' => $ipAddress,
+            'user_id' => $userId,
             'unbanned_at' => null,
         ]);
 
         $ban->fill([
-            'user_id' => $userId,
+            // Retained only as audit information; it is never used to block login.
+            'ip_address' => $ipAddress ?: 'unknown',
             'banned_until' => now()->addDay(),
             'is_manual' => $isManual,
             'attempts_count' => ((int) $ban->attempts_count) + 1,
@@ -415,13 +417,13 @@ class AuthenticatedSessionController extends Controller
         return $ban;
     }
 
-    private function systemBanMessage(LoginOtpSystemBan $ban): string
+    private function accountBanMessage(LoginOtpSystemBan $ban): string
     {
         $until = $ban->banned_until
             ? $ban->banned_until->format('d M Y h:i A')
             : 'further notice';
 
-        return 'This system is banned for OTP login until ' . $until . '. Please contact admin.';
+        return 'This account is banned for OTP login until ' . $until . '. Please contact admin.';
     }
 
     private function pendingOtpNotification(): ?LoginOtpNotification

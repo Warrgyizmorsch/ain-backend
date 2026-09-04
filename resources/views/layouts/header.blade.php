@@ -64,6 +64,63 @@
 			<div class="d-flex align-items-stretch flex-shrink-0">
 				<div class="d-flex align-items-center ms-1 ms-lg-3" id="kt_header_user_menu_toggle">
 					<div class="d-flex align-items-center ms-3 me-4">
+						<!--begin::Quick Action '+' Button-->
+						<div class="dropdown me-3">
+							<button type="button" class="btn btn-sm btn-primary d-flex align-items-center gap-1 shadow-sm px-3 py-2 fw-bold" data-bs-toggle="dropdown" aria-expanded="false" title="Quick Actions">
+								<i class="fa fa-plus fs-6 text-white"></i>
+								<span class="d-none d-md-inline ms-1">New</span>
+							</button>
+							<div class="dropdown-menu dropdown-menu-end shadow-lg py-3 rounded-3" style="min-width: 230px; z-index: 1050;">
+								<div class="px-4 py-2 text-uppercase fs-8 text-muted fw-bold border-bottom mb-2">Quick Actions</div>
+								<a href="{{ url('emails') }}?compose=1" class="dropdown-item d-flex align-items-center gap-3 py-2 px-4">
+									<span class="btn btn-icon btn-light-primary btn-sm rounded-circle"><i class="fa fa-envelope fs-6"></i></span>
+									<div>
+										<div class="fw-bold text-gray-800 fs-7">Compose Email</div>
+										<div class="text-muted fs-8">Send new email message</div>
+									</div>
+								</a>
+								<a href="javascript:void(0);" onclick="typeof openRingfyDialer === 'function' ? openRingfyDialer() : null;" class="dropdown-item d-flex align-items-center gap-3 py-2 px-4">
+									<span class="btn btn-icon btn-light-success btn-sm rounded-circle"><i class="fa fa-phone fs-6"></i></span>
+									<div>
+										<div class="fw-bold text-gray-800 fs-7">Make a Call</div>
+										<div class="text-muted fs-8">Open Softphone dialpad</div>
+									</div>
+								</a>
+								<a href="{{ url('lead') }}" class="dropdown-item d-flex align-items-center gap-3 py-2 px-4">
+									<span class="btn btn-icon btn-light-info btn-sm rounded-circle"><i class="fa fa-user-plus fs-6"></i></span>
+									<div>
+										<div class="fw-bold text-gray-800 fs-7">Add Lead</div>
+										<div class="text-muted fs-8">Create new sales lead</div>
+									</div>
+								</a>
+								<a href="{{ url('orders') }}" class="dropdown-item d-flex align-items-center gap-3 py-2 px-4">
+									<span class="btn btn-icon btn-light-warning btn-sm rounded-circle"><i class="fa fa-shopping-cart fs-6"></i></span>
+									<div>
+										<div class="fw-bold text-gray-800 fs-7">Orders</div>
+										<div class="text-muted fs-8">Manage orders</div>
+									</div>
+								</a>
+							</div>
+						</div>
+						<!--end::Quick Action '+' Button-->
+
+						<!--begin::Email Inbox Header Button-->
+						<a href="{{ url('emails') }}" class="btn btn-icon btn-light-info position-relative me-3" title="Email Inbox">
+							<i class="fa fa-envelope fs-4"></i>
+							@if(($globalUnreadEmailCount ?? 0) > 0)
+								<span class="position-absolute top-0 start-100 translate-middle badge badge-circle badge-primary fw-bold fs-9">
+									{{ $globalUnreadEmailCount }}
+								</span>
+							@endif
+						</a>
+						<!--end::Email Inbox Header Button-->
+
+						<!--begin::Softphone Call Header Button-->
+						<button type="button" class="btn btn-icon btn-light-success me-3" onclick="typeof openRingfyDialer === 'function' ? openRingfyDialer() : null;" title="Softphone Dialer / Make Call">
+							<i class="fa fa-phone fs-4"></i>
+						</button>
+						<!--end::Softphone Call Header Button-->
+
 						@if(auth()->check() && auth()->user()->role_id == 1)
 							<div class="dropdown me-3">
 								<button type="button" class="btn btn-icon btn-light-primary position-relative" data-bs-toggle="dropdown" aria-expanded="false" title="Login OTP notifications">

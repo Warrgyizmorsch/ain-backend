@@ -233,6 +233,12 @@ Route::middleware(['auth'])->group(function () {
     Route::Put('/subwriter/{id}', [MasterController::class, 'update_subwriter'])->name('subwriter.update');
     Route::Put('/subwriter/delete/{id}', [MasterController::class, 'delete_subwriter'])->name('subwriter.delete');
 
+    // Label Master Management
+    Route::get('/labels', [MasterController::class, 'labels'])->name('labels.index');
+    Route::post('/labels', [MasterController::class, 'store_label'])->name('labels.store');
+    Route::put('/labels/{id}', [MasterController::class, 'update_label'])->name('labels.update');
+    Route::delete('/labels/{id}', [MasterController::class, 'delete_label'])->name('labels.delete');
+
     // End Master Managment
 
 

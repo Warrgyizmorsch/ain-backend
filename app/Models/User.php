@@ -61,6 +61,24 @@ class User extends Authenticatable
     protected $attributes = [
         'role_id' => 2,
     ];
+
+    protected static function booted()
+    {
+        static::saved(function ($user) {
+            if (!empty($user->email) || !empty($user->mobile_no)) {
+                try {
+                    app(\App\Services\LabelSyncService::class)->syncOnContactCreatedOrUpdated(
+                        $user->email,
+                        $user->countrycode,
+                        $user->mobile_no,
+                        auth()->id()
+                    );
+                } catch (\Throwable $e) {
+                    \Log::warning('Label auto-sync error on User save: ' . $e->getMessage());
+                }
+            }
+        });
+    }
     
      public function writerWork()
     {

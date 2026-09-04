@@ -663,6 +663,13 @@ class WhatsappController extends Controller
             ]);
         }
 
+        // Cross-channel sync: automatically apply these labels to associated Email threads
+        try {
+            app(\App\Services\LabelSyncService::class)->syncWhatsAppToEmail($phone, $labelIds, Auth::id());
+        } catch (\Throwable $e) {
+            \Log::warning('Failed to sync WhatsApp labels to Email: ' . $e->getMessage());
+        }
+
         return redirect()->route('whatsapp.chat', ['phone' => $phone])->with('success', 'Chat labels saved.');
     }
 
@@ -698,7 +705,7 @@ class WhatsappController extends Controller
         return redirect()->route('whatsapp.chat', ['phone' => $phone]);
     }
 
-    public function sendMessage(Request $request): RedirectResponse|JsonResponse
+    public function sendMessage(Request $request): RedirectResponse|\Illuminate\Http\JsonResponse
     {
         $validated = $request->validate([
             'phone' => ['required', 'string', 'max:30'],
@@ -899,8 +906,9 @@ class WhatsappController extends Controller
             ->first();
 
         $labelIds = WhatsappChatContactLabel::query()
-            ->where('phone', $phone)
+            ->whereIn('phone', $variants)
             ->pluck('label_id')
+            ->unique()
             ->all();
 
         $labels = !empty($labelIds)

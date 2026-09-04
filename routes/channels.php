@@ -20,3 +20,7 @@ Broadcast::channel('chat.{phone}', function ($user, $phone) {
 Broadcast::channel('whatsapp.chat', function ($user) {
     return true;
 });
+
+Broadcast::channel('emails.account.{accountId}', function ($user, $accountId) {
+    return $user !== null;
+});

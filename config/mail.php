@@ -1,6 +1,7 @@
 <?php
 
 return [
+    'inbound_webhook_secret' => env('MAIL_INBOUND_WEBHOOK_SECRET'),
 
     /*
     |--------------------------------------------------------------------------

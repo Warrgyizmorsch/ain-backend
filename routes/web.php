@@ -73,14 +73,37 @@ Route::post('/sendsms', [ChatController::class, 'send'])->name('send-whatsapp');
 Route::get('/chat/{phone?}', [ChatController::class, 'showChat'])->name('chat');
 Route::post('/writer-login', [UserController::class, 'Login']);
 
-Route::prefix('admin/wallet')->group(function () {
-    Route::get('/bulk-credit', [WalletController::class, 'showAdminCreditForm'])
-        ->name('admin.wallet.bulk-credit.form');
-
-    Route::post('/bulk-credit', [WalletController::class, 'adminBulkCredit'])
-        ->name('admin.wallet.bulk-credit.store');
+// Email Integration Routes (WhatsApp-like Inbox, Composer, Drafts, Sync)
+Route::prefix('emails')->name('emails.')->middleware(['auth', 'check.permission'])->group(function () {
+    Route::get('/', [\App\Http\Controllers\EmailController::class, 'index'])->name('index');
+    Route::middleware('checkrole:1')->group(function () {
+        Route::get('/settings', [\App\Http\Controllers\EmailController::class, 'settings'])->name('settings');
+        Route::post('/settings/store', [\App\Http\Controllers\EmailController::class, 'storeConfiguration'])->name('settings.store');
+        Route::post('/settings/{id}/update', [\App\Http\Controllers\EmailController::class, 'updateConfiguration'])->name('settings.update');
+        Route::post('/settings/{id}/clone', [\App\Http\Controllers\EmailController::class, 'cloneConfiguration'])->name('settings.clone');
+        Route::delete('/settings/{id}/delete', [\App\Http\Controllers\EmailController::class, 'deleteConfiguration'])->name('settings.delete');
+        Route::post('/settings/{id}/test', [\App\Http\Controllers\EmailController::class, 'testConnection'])->name('settings.test');
+    });
+    Route::get('/thread/{threadId}', [\App\Http\Controllers\EmailController::class, 'getThread'])->name('thread');
+    Route::post('/send', [\App\Http\Controllers\EmailController::class, 'send'])->name('send');
+    Route::post('/draft', [\App\Http\Controllers\EmailController::class, 'saveDraft'])->name('draft');
+    Route::post('/toggle-star', [\App\Http\Controllers\EmailController::class, 'toggleStar'])->name('star');
+    Route::post('/mark-read', [\App\Http\Controllers\EmailController::class, 'markAsRead'])->name('mark-read');
+    Route::post('/delete', [\App\Http\Controllers\EmailController::class, 'deleteMessage'])->name('delete');
+    Route::post('/sync', [\App\Http\Controllers\EmailController::class, 'sync'])->name('sync');
+    Route::get('/updates', [\App\Http\Controllers\EmailController::class, 'updates'])->name('updates');
+    Route::get('/csrf-token', [\App\Http\Controllers\EmailController::class, 'csrfToken'])->name('csrf-token');
+    Route::get('/attachment/{id}/download', [\App\Http\Controllers\EmailController::class, 'downloadAttachment'])->name('attachment.download');
+    Route::get('/{id}', [\App\Http\Controllers\EmailController::class, 'show'])->name('show');
+    Route::post('/{id}/star', [\App\Http\Controllers\EmailController::class, 'toggleStarById'])->name('star.id');
+    Route::delete('/{id}', [\App\Http\Controllers\EmailController::class, 'deleteById'])->name('delete.id');
+    Route::post('/{id}/reply', [\App\Http\Controllers\EmailController::class, 'replyToMessage'])->name('reply.id');
+    Route::post('/labels/save', [\App\Http\Controllers\EmailController::class, 'saveThreadLabels'])->name('labels.save');
+    Route::get('/contacts/suggest', [\App\Http\Controllers\EmailController::class, 'suggestRecipients'])->name('contacts.suggest');
 });
-
+Route::post('/webhook/emails/inbound', [\App\Http\Controllers\EmailController::class, 'webhook'])
+    ->middleware('throttle:60,1')
+    ->name('emails.webhook');
 Route::get('/fetch-team-members', function () {
     try {
         $roleId = request()->get('role_id');

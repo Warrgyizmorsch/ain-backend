@@ -1043,4 +1043,71 @@ class MasterController extends Controller
 
         return redirect()->back()->with('success', "All orders payment amounts synced successfully! Updated {$updatedCount} of {$totalOrders} orders.");
     }
+
+    /**
+     * Label Master List
+     */
+    public function labels()
+    {
+        $labels = \App\Models\WhatsappChatLabel::query()
+            ->orderBy('id', 'desc')
+            ->get();
+
+        return view('master.labels', compact('labels'));
+    }
+
+    /**
+     * Store Label
+     */
+    public function store_label(Request $request)
+    {
+        $request->validate([
+            'name' => 'required|string|max:100',
+            'color' => 'required|string|max:30',
+        ]);
+
+        \App\Models\WhatsappChatLabel::create([
+            'name' => trim($request->input('name')),
+            'color' => $request->input('color'),
+            'created_by' => auth()->id(),
+        ]);
+
+        return redirect()->back()->with('success', 'Label created successfully!');
+    }
+
+    /**
+     * Update Label
+     */
+    public function update_label(Request $request, $id)
+    {
+        $label = \App\Models\WhatsappChatLabel::findOrFail($id);
+
+        $request->validate([
+            'name' => 'required|string|max:100',
+            'color' => 'required|string|max:30',
+        ]);
+
+        $label->update([
+            'name' => trim($request->input('name')),
+            'color' => $request->input('color'),
+        ]);
+
+        return redirect()->back()->with('success', 'Label updated successfully!');
+    }
+
+    /**
+     * Delete Label
+     */
+    public function delete_label($id)
+    {
+        $label = \App\Models\WhatsappChatLabel::findOrFail($id);
+        
+        // Clean assignments
+        \App\Models\WhatsappChatContactLabel::where('label_id', $label->id)->delete();
+        \App\Models\EmailThreadLabel::where('label_id', $label->id)->delete();
+        
+        $label->delete();
+
+        return redirect()->back()->with('success', 'Label deleted successfully!');
+    }
 }

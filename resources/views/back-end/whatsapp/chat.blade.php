@@ -111,7 +111,7 @@
                 $cLabelIds = $allContactLabelMap->get($cPhone, []);
                 $cLabels = $cLabelIds ? $labels->whereIn('id', $cLabelIds) : collect();
             @endphp
-            <div class="wab-contact-item {{ $c['active'] ? 'is-active' : '' }}" data-name="{{ strtolower($c['name']) }}" data-contact-id="{{ $c['id'] }}" data-url="{{ isset($c['phone']) ? route('whatsapp.chat', ['phone' => $c['phone']]) : '' }}" data-phone="{{ $cPhone }}" data-color="{{ $c['color'] }}" data-badge="{{ $c['badge'] ?? 0 }}" data-is-group="{{ !empty($c['is_group']) ? '1' : '0' }}">
+            <div class="wab-contact-item {{ $c['active'] ? 'is-active' : '' }}" id="wab-contact-card-{{ preg_replace('/\D+/', '', $cPhone) }}" data-name="{{ strtolower($c['name']) }}" data-contact-id="{{ $c['id'] }}" data-url="{{ isset($c['phone']) ? route('whatsapp.chat', ['phone' => $c['phone']]) : '' }}" data-phone="{{ $cPhone }}" data-color="{{ $c['color'] }}" data-badge="{{ $c['badge'] ?? 0 }}" data-is-group="{{ !empty($c['is_group']) ? '1' : '0' }}">
                 <div class="wab-avatar" style="background:{{ $c['color'] }}1a;color:{{ $c['color'] }}">
                     {{ strtoupper(substr($c['name'],0,1)) }}
                     <span class="wab-status-badge wab-status--{{ $c['status'] }}"></span>
@@ -123,25 +123,29 @@
                     </div>
                     <div class="wab-contact-row-bottom">
                         <span class="wab-contact-preview">{{ $c['msg'] }}</span>
-                        <div class="wab-contact-row-right">
+                        <div class="wab-contact-row-right d-flex align-items-center gap-1">
                             @if($c['badge'])
                                 <span class="wab-badge">{{ $c['badge'] }}</span>
                             @endif
-                            @if($cLabels->isNotEmpty())
-                                <div class="wab-contact-label-dots">
-                                    @foreach($cLabels->take(3) as $lbl)
-                                        <span class="wab-label-dot" style="background:{{ $lbl->color }}" title="{{ $lbl->name }}"></span>
-                                    @endforeach
-                                </div>
-                            @endif
+                            <button type="button" class="wab-quick-tag-btn" onclick="event.stopPropagation(); openQuickLabelModal('{{ $cPhone }}', '{{ addslashes($c['name']) }}', {{ json_encode($cLabelIds) }})" title="Assign Labels">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+                            </button>
                         </div>
                     </div>
+                    {{-- 3 to 4 Labels Outside on the Contact Item --}}
                     @if($cLabels->isNotEmpty())
-                        <div class="wab-contact-label-tags">
-                            @foreach($cLabels->take(2) as $lbl)
-                                <span class="wab-contact-tag-chip" style="background:{{ $lbl->color }}1a;color:{{ $lbl->color }};border:1px solid {{ $lbl->color }}40">{{ $lbl->name }}</span>
+                        <div class="wab-contact-label-tags d-flex flex-wrap gap-1 mt-1 pt-1" id="wab-contact-tags-{{ preg_replace('/\D+/', '', $cPhone) }}">
+                            @foreach($cLabels->take(4) as $lbl)
+                                <span class="wab-contact-tag-chip" style="background:{{ $lbl->color }}1f;color:{{ $lbl->color }};border:1px solid {{ $lbl->color }}4d; font-size: 11px; padding: 1.5px 6px; border-radius: 4px; font-weight: 600; display: inline-flex; align-items: center; gap: 3px;">
+                                    <span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:{{ $lbl->color }};"></span>{{ $lbl->name }}
+                                </span>
                             @endforeach
+                            @if($cLabels->count() > 4)
+                                <span class="badge bg-light text-muted border fs-9 px-1.5 py-0.5" style="font-size: 10px;">+{{ $cLabels->count() - 4 }}</span>
+                            @endif
                         </div>
+                    @else
+                        <div class="wab-contact-label-tags d-flex flex-wrap gap-1 mt-1 pt-1" id="wab-contact-tags-{{ preg_replace('/\D+/', '', $cPhone) }}"></div>
                     @endif
                 </div>
             </div>
@@ -208,51 +212,55 @@
                     @endif
                 </div>
             </div>
-            <div class="wab-conv-actions">
-                @if($selectedPhone)
+            <div class="wab-conv-actions" id="wabConvActions">
+                <div id="wabChatActionButtons" class="d-flex align-items-center gap-2 {{ !$selectedPhone ? 'd-none' : '' }}">
                     {{-- Check Leads Button --}}
-                    <button type="button" class="wab-label-btn" style="background:#e3f2fd;color:#1565c0;border:1px solid #bbdefb" data-bs-toggle="modal" data-bs-target="#waCheckLeadsModal" title="Check all Leads for this customer">
+                    <button type="button" class="wab-label-btn" style="background:#e3f2fd;color:#1565c0;border:1px solid #bbdefb" data-bs-toggle="modal" data-bs-target="#waCheckLeadsModal" id="waHeaderCheckLeadsBtn" title="Check all Leads for this customer">
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
                         Check Leads
                     </button>
 
                     {{-- Check Orders Button --}}
-                    <button type="button" class="wab-label-btn" style="background:#f3e5f5;color:#6a1b9a;border:1px solid #e1bee7" data-bs-toggle="modal" data-bs-target="#waCheckOrdersModal" title="Check all Orders for this customer">
+                    <button type="button" class="wab-label-btn" style="background:#f3e5f5;color:#6a1b9a;border:1px solid #e1bee7" data-bs-toggle="modal" data-bs-target="#waCheckOrdersModal" id="waHeaderCheckOrdersBtn" title="Check all Orders for this customer">
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg>
                         Check Orders
                     </button>
 
-                    @if(isset($existingLead) && $existingLead)
-                        <a href="{{ route('leadedit', $existingLead->id) }}" target="_blank" class="wab-label-btn" style="background:#e8f5e9;color:#2e7d32;border:1px solid #c8e6c9" title="View CRM Lead #{{ $existingLead->order_id ?? $existingLead->id }}">
-                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7.5" r="4"></circle><polyline points="17 11 19 13 23 9"></polyline></svg>
-                            Lead #{{ $existingLead->order_id ?? $existingLead->id }}
-                        </a>
-                    @else
-                        <button type="button" class="wab-label-btn" style="background:#00a884;color:#fff;border:none" data-bs-toggle="modal" data-bs-target="#waCreateLeadModal" title="Create Lead with this WhatsApp Customer">
-                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>
-                            Create Lead
-                        </button>
-                    @endif
+                    {{-- Dynamic Lead Action Button (Lead #ID or Create Lead) --}}
+                    <div id="waHeaderLeadBtnWrap" class="d-inline-flex">
+                        @if(isset($existingLead) && $existingLead)
+                            <a href="{{ route('leadedit', $existingLead->id) }}" target="_blank" class="wab-label-btn" style="background:#e8f5e9;color:#2e7d32;border:1px solid #c8e6c9" title="View CRM Lead #{{ $existingLead->order_id ?? $existingLead->id }}">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7.5" r="4"></circle><polyline points="17 11 19 13 23 9"></polyline></svg>
+                                Lead #{{ $existingLead->order_id ?? $existingLead->id }}
+                            </a>
+                        @else
+                            <button type="button" class="wab-label-btn" style="background:#00a884;color:#fff;border:none" data-bs-toggle="modal" data-bs-target="#waCreateLeadModal" title="Create Lead with this WhatsApp Customer">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>
+                                Create Lead
+                            </button>
+                        @endif
+                    </div>
 
-                    <button class="wab-label-btn" data-bs-toggle="modal" data-bs-target="#waAssignLabelsModal" title="Label chat">
+                    {{-- Label Chat Button --}}
+                    <button type="button" class="wab-label-btn" data-bs-toggle="modal" data-bs-target="#waAssignLabelsModal" id="waHeaderLabelChatBtn" title="Label chat">
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
                         Label chat
                     </button>
-                @endif
+                </div>
+
                 <button class="wab-icon-btn" id="wabOpenProfileBtn2" title="Contact Info">
                     <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
                 </button>
-                @if($selectedPhone)
-                    <div class="wab-chat-more">
-                        <button class="wab-icon-btn" id="wabChatMoreBtn" title="More options">
-                            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
-                        </button>
-                        <div class="wab-chat-menu" id="wabChatMenu">
-                            <button type="button" id="wabMarkUnreadBtn">Mark as unread</button>
-                            <a href="{{ route('whatsapp.chat') }}" id="wabCloseChatBtn">Close chat</a>
-                        </div>
+
+                <div class="wab-chat-more {{ !$selectedPhone ? 'd-none' : '' }}" id="wabChatMoreWrapper">
+                    <button class="wab-icon-btn" id="wabChatMoreBtn" title="More options">
+                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+                    </button>
+                    <div class="wab-chat-menu" id="wabChatMenu">
+                        <button type="button" id="wabMarkUnreadBtn">Mark as unread</button>
+                        <a href="{{ route('whatsapp.chat') }}" id="wabCloseChatBtn">Close chat</a>
                     </div>
-                @endif
+                </div>
             </div>
         </div>
 
@@ -783,6 +791,54 @@
 </div>
 
 {{-- ══════════════════════════════════════════════════
+     ASSIGN LABELS MODAL (Multiple Label Tagging + Cross Sync)
+══════════════════════════════════════════════════ --}}
+<div class="modal fade" id="waAssignLabelsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content wab-modal-content">
+            <form method="POST" action="{{ route('whatsapp.chat.contact-labels.save') }}" id="waAssignLabelsForm">
+                @csrf
+                <input type="hidden" name="phone" id="waAssignPhoneInput" value="{{ $selectedPhone }}">
+                <div class="modal-header wab-modal-header" style="background: linear-gradient(135deg, #3454d1, #1e3a8a);">
+                    <div class="wab-modal-icon" style="background: rgba(255,255,255,0.2);">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+                    </div>
+                    <div>
+                        <h5 class="modal-title wab-modal-title text-white">Assign Labels</h5>
+                        <div class="text-white opacity-75 fs-8" id="waAssignContactSubtitle">Auto-synced with Email inbox</div>
+                    </div>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body wab-modal-body p-3">
+                    <div class="d-flex align-items-center justify-content-between mb-2 px-1">
+                        <span class="fs-8 text-muted fw-bold text-uppercase">Select Labels</span>
+                        <a href="{{ route('labels.index') }}" target="_blank" class="fs-9 text-primary fw-semibold"><i class="fa fa-cog"></i> Master</a>
+                    </div>
+                    <div class="d-flex flex-column gap-1">
+                        @forelse($labels as $label)
+                            <label class="form-check form-check-custom form-check-solid d-flex align-items-center gap-2 p-2 rounded hover-bg-light cursor-pointer mb-0">
+                                <input class="form-check-input wa-contact-label-modal-chk" type="checkbox" name="labels[{{ $label->id }}]" value="1" id="wa-chk-label-{{ $label->id }}" data-label-id="{{ $label->id }}" data-name="{{ $label->name }}" data-color="{{ $label->color }}" onchange="autoApplyWhatsAppModalLabels()" {{ in_array($label->id, $selectedContactLabels) ? 'checked' : '' }}>
+                                <span class="badge px-2.5 py-1 fs-8 fw-bold" style="background-color: {{ $label->color }}; color: #ffffff;">
+                                    {{ $label->name }}
+                                </span>
+                            </label>
+                        @empty
+                            <div class="text-center py-4 text-muted fs-8">
+                                No labels found. <a href="{{ route('labels.index') }}" target="_blank">Create in Label Master</a>
+                            </div>
+                        @endforelse
+                    </div>
+                </div>
+                <div class="modal-footer wab-modal-footer p-2">
+                    <button type="button" class="wab-btn wab-btn--ghost" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="wab-btn wab-btn--primary">Save &amp; Sync</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{{-- ══════════════════════════════════════════════════
      CREATE LEAD MODAL FROM WHATSAPP CONTACT
 ══════════════════════════════════════════════════ --}}
 <div class="modal fade" id="waCreateLeadModal" tabindex="-1" aria-hidden="true">
@@ -1122,13 +1178,19 @@
 </div>
 
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    const selectedCustomerPhone = @json($selectedPhone ?? '');
+window.selectedCustomerPhone = @json($selectedPhone ?? '');
+window.leadsLoadedPhone = null;
+window.ordersLoadedPhone = null;
+window.resetLeadsOrdersPhone = function(phone) {
+    window.selectedCustomerPhone = phone;
+    window.leadsLoadedPhone = null;
+    window.ordersLoadedPhone = null;
+};
 
+document.addEventListener('DOMContentLoaded', function() {
     // ──────────────────────────────────────────────
     // 1. AJAX On-Demand Leads Loader
     // ──────────────────────────────────────────────
-    let leadsLoadedPhone = null;
     let leadsCurrentPage = 1;
     let leadsTotal = 0;
     let leadsLoadedCount = 0;
@@ -1146,7 +1208,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const leadsScrollBody = document.getElementById('waLeadsScrollBody');
 
     function fetchLeads(page = 1) {
-        if (!selectedCustomerPhone || leadsIsLoading) return;
+        const phone = window.selectedCustomerPhone;
+        if (!phone || leadsIsLoading) return;
         leadsIsLoading = true;
 
         if (page === 1) {
@@ -1160,7 +1223,7 @@ document.addEventListener('DOMContentLoaded', function() {
             loadMoreLeadsBtn.disabled = true;
         }
 
-        fetch(`{{ route('whatsapp.chat.customer-leads') }}?phone=${encodeURIComponent(selectedCustomerPhone)}&page=${page}&limit=10`)
+        fetch(`{{ route('whatsapp.chat.customer-leads') }}?phone=${encodeURIComponent(phone)}&page=${page}&limit=10`)
             .then(res => res.json())
             .then(data => {
                 leadsIsLoading = false;
@@ -1205,22 +1268,13 @@ document.addEventListener('DOMContentLoaded', function() {
                             </td>
                             <td class="text-center" style="border:1px solid #cbd5e1 !important">${lead.pages}</td>
                             <td style="border:1px solid #cbd5e1 !important">
-                                <div class="d-flex flex-column gap-1">
-                                    <div class="d-flex justify-content-between align-items-center">
-                                        <span class="text-muted fs-9">Total:</span>
-                                        <strong class="text-dark fs-9">£${lead.price_formatted}</strong>
-                                    </div>
-                                    <div class="d-flex justify-content-between align-items-center">
-                                        <span class="text-muted fs-9">Status:</span>
-                                        <span class="badge badge-light-warning fw-bold fs-9 py-0 px-1">${lead.status}</span>
-                                    </div>
-                                </div>
+                                <strong class="text-dark fs-9">£${lead.price_formatted}</strong>
                             </td>
                             <td class="text-center" style="border:1px solid #cbd5e1 !important">
                                 <span class="badge ${lead.status_class} py-1 px-2">${lead.status}</span>
                             </td>
                             <td style="border:1px solid #cbd5e1 !important">
-                                ${lead.deadline}
+                                <div>${lead.deadline}</div>
                                 ${lead.delivery_time ? `<div class="text-muted fs-9">${lead.delivery_time}</div>` : ''}
                             </td>
                             <td class="text-end" style="border:1px solid #cbd5e1 !important">
@@ -1254,8 +1308,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (leadsModal) {
         leadsModal.addEventListener('show.bs.modal', function() {
-            if (leadsLoadedPhone !== selectedCustomerPhone) {
-                leadsLoadedPhone = selectedCustomerPhone;
+            if (window.leadsLoadedPhone !== window.selectedCustomerPhone) {
+                window.leadsLoadedPhone = window.selectedCustomerPhone;
                 fetchLeads(1);
             }
         });
@@ -1282,7 +1336,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // ──────────────────────────────────────────────
     // 2. AJAX On-Demand Orders Loader
     // ──────────────────────────────────────────────
-    let ordersLoadedPhone = null;
     let ordersCurrentPage = 1;
     let ordersTotal = 0;
     let ordersLoadedCount = 0;
@@ -1300,7 +1353,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const ordersScrollBody = document.getElementById('waOrdersScrollBody');
 
     function fetchOrders(page = 1) {
-        if (!selectedCustomerPhone || ordersIsLoading) return;
+        const phone = window.selectedCustomerPhone;
+        if (!phone || ordersIsLoading) return;
         ordersIsLoading = true;
 
         if (page === 1) {
@@ -1314,7 +1368,7 @@ document.addEventListener('DOMContentLoaded', function() {
             loadMoreOrdersBtn.disabled = true;
         }
 
-        fetch(`{{ route('whatsapp.chat.customer-orders') }}?phone=${encodeURIComponent(selectedCustomerPhone)}&page=${page}&limit=10`)
+        fetch(`{{ route('whatsapp.chat.customer-orders') }}?phone=${encodeURIComponent(phone)}&page=${page}&limit=10`)
             .then(res => res.json())
             .then(data => {
                 ordersIsLoading = false;
@@ -1413,8 +1467,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (ordersModal) {
         ordersModal.addEventListener('show.bs.modal', function() {
-            if (ordersLoadedPhone !== selectedCustomerPhone) {
-                ordersLoadedPhone = selectedCustomerPhone;
+            if (window.ordersLoadedPhone !== window.selectedCustomerPhone) {
+                window.ordersLoadedPhone = window.selectedCustomerPhone;
                 fetchOrders(1);
             }
         });
@@ -1571,7 +1625,7 @@ document.addEventListener('DOMContentLoaded', function() {
     --wa-shadow:      0 2px 24px rgba(17,27,33,.12);
     --wa-radius:      10px;
     --wa-font:        'Inter', system-ui, -apple-system, sans-serif;
-    --sidebar-w:      340px;
+    --sidebar-w:      390px;
     --header-h:       64px;
     --footer-h:       66px;
 }
@@ -1853,9 +1907,9 @@ document.addEventListener('DOMContentLoaded', function() {
     gap: 8px;
 }
 .wab-contact-row-bottom { margin-top: 3px; }
-.wab-contact-name    { font-size: 14px; font-weight: 600; color: var(--wa-text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 170px; }
+.wab-contact-name    { font-size: 14px; font-weight: 600; color: var(--wa-text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 210px; }
 .wab-contact-time    { font-size: 11px; color: var(--wa-text-sub); white-space: nowrap; }
-.wab-contact-preview { font-size: 12.5px; color: var(--wa-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 170px; }
+.wab-contact-preview { font-size: 12.5px; color: var(--wa-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 210px; }
 .wab-badge {
     min-width: 18px; height: 18px;
     border-radius: 9px;
@@ -1866,6 +1920,26 @@ document.addEventListener('DOMContentLoaded', function() {
     padding: 0 4px;
     flex-shrink: 0;
     animation: badge-pop .2s ease;
+}
+.wab-quick-tag-btn {
+    width: 22px;
+    height: 22px;
+    border-radius: 5px;
+    border: 1px solid var(--wa-border);
+    background: #ffffff;
+    color: var(--wa-text-muted);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all .15s ease;
+    flex-shrink: 0;
+}
+.wab-quick-tag-btn:hover {
+    background: #e0f2fe;
+    color: #0284c7;
+    border-color: #bae6fd;
+    transform: scale(1.1);
 }
 @keyframes badge-pop { 0% { transform: scale(0); } 80% { transform: scale(1.15); } 100% { transform: scale(1); } }
 
@@ -3975,6 +4049,16 @@ document.addEventListener('DOMContentLoaded', function() {
         selectedPhone = phone;
         selectedPhoneChannel = phone.replace(/\D+/g, '');
         defaultTypingLabel = phone;
+        window.selectedCustomerPhone = phone;
+        if (typeof window.resetLeadsOrdersPhone === 'function') {
+            window.resetLeadsOrdersPhone(phone);
+        }
+
+        // Show header action buttons container immediately
+        const actionBtns = document.getElementById('wabChatActionButtons');
+        if (actionBtns) actionBtns.classList.remove('d-none');
+        const chatMore = document.getElementById('wabChatMoreWrapper');
+        if (chatMore) chatMore.classList.remove('d-none');
 
         // Update active class in sidebar
         document.querySelectorAll('.wab-contact-item').forEach(i => {
@@ -4081,8 +4165,14 @@ document.addEventListener('DOMContentLoaded', function() {
             avatar.style.color = color;
         }
 
+        // Ensure action buttons are visible
+        const actionBtns = document.getElementById('wabChatActionButtons');
+        if (actionBtns) actionBtns.classList.remove('d-none');
+        const chatMore = document.getElementById('wabChatMoreWrapper');
+        if (chatMore) chatMore.classList.remove('d-none');
+
         // Labels row in header
-        const labelRow = document.querySelector('.wab-chat-label-row');
+        let labelRow = document.querySelector('.wab-chat-label-row');
         const userInfo = document.querySelector('.wab-conv-user-info');
         const labels = Array.isArray(customer.labels) ? customer.labels : [];
         if (labels.length > 0) {
@@ -4099,31 +4189,57 @@ document.addEventListener('DOMContentLoaded', function() {
             labelRow.remove();
         }
 
-        // Action Buttons (Lead Button)
-        const actions = document.querySelector('.wab-conv-actions');
-        if (actions) {
-            let leadBtn = actions.querySelector('a[href*="/lead/edit"], button[data-bs-target="#waCreateLeadModal"]');
+        // Update Lead Button inside #waHeaderLeadBtnWrap
+        const leadWrap = document.getElementById('waHeaderLeadBtnWrap');
+        if (leadWrap) {
             if (customer.lead) {
                 const leadId = customer.lead.order_id || customer.lead.id;
                 const leadUrl = customer.lead.edit_url;
-                if (leadBtn) {
-                    leadBtn.outerHTML = `
-                        <a href="${leadUrl}" target="_blank" class="wab-label-btn" style="background:#e8f5e9;color:#2e7d32;border:1px solid #c8e6c9" title="View CRM Lead #${leadId}">
-                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7.5" r="4"></circle><polyline points="17 11 19 13 23 9"></polyline></svg>
-                            Lead #${leadId}
-                        </a>
-                    `;
-                }
+                leadWrap.innerHTML = `
+                    <a href="${leadUrl}" target="_blank" class="wab-label-btn" style="background:#e8f5e9;color:#2e7d32;border:1px solid #c8e6c9" title="View CRM Lead #${leadId}">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7.5" r="4"></circle><polyline points="17 11 19 13 23 9"></polyline></svg>
+                        Lead #${leadId}
+                    </a>
+                `;
             } else {
-                if (leadBtn) {
-                    leadBtn.outerHTML = `
-                        <button type="button" class="wab-label-btn" style="background:#00a884;color:#fff;border:none" data-bs-toggle="modal" data-bs-target="#waCreateLeadModal" title="Create Lead with this WhatsApp Customer">
-                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>
-                            Create Lead
-                        </button>
-                    `;
-                }
+                leadWrap.innerHTML = `
+                    <button type="button" class="wab-label-btn" style="background:#00a884;color:#fff;border:none" data-bs-toggle="modal" data-bs-target="#waCreateLeadModal" title="Create Lead with this WhatsApp Customer">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>
+                        Create Lead
+                    </button>
+                `;
             }
+        }
+
+        // Update modal info & pre-fills
+        const assignPhoneInput = document.getElementById('waAssignPhoneInput');
+        if (assignPhoneInput) assignPhoneInput.value = phone;
+        const assignSubtitle = document.getElementById('waAssignContactSubtitle');
+        if (assignSubtitle) assignSubtitle.textContent = `for ${resolvedName} (${phone})`;
+
+        // Check active label checkboxes in Label modal
+        const labelIdSet = new Set(labels.map(l => parseInt(l.id)));
+        document.querySelectorAll('.wa-contact-label-modal-chk').forEach(chk => {
+            chk.checked = labelIdSet.has(parseInt(chk.dataset.labelId || chk.value));
+        });
+
+        // Update Check Leads / Orders modal subtitles
+        const leadsModalSub = document.querySelector('#waCheckLeadsModal .opacity-75');
+        if (leadsModalSub) leadsModalSub.innerHTML = `Customer: <strong>${escapeHtml(resolvedName)}</strong> (${phone})`;
+        const ordersModalSub = document.querySelector('#waCheckOrdersModal .opacity-75');
+        if (ordersModalSub) ordersModalSub.innerHTML = `Customer: <strong>${escapeHtml(resolvedName)}</strong> (${phone})`;
+
+        // Update Create Lead modal inputs
+        const createLeadModal = document.getElementById('waCreateLeadModal');
+        if (createLeadModal) {
+            const returnPhone = createLeadModal.querySelector('input[name="return_phone"]');
+            if (returnPhone) returnPhone.value = phone;
+            const mobileInput = createLeadModal.querySelector('input[name="mobile"]');
+            if (mobileInput) mobileInput.value = phone.replace(/\D+/g, '').slice(-10);
+            const nameInput = createLeadModal.querySelector('input[name="user_name"]');
+            if (nameInput) nameInput.value = customer.name || fallbackName || '';
+            const emailInput = createLeadModal.querySelector('input[name="email"]');
+            if (emailInput && customer.user?.email) emailInput.value = customer.user.email;
         }
     }
 
@@ -4264,27 +4380,39 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function createContactItemElement(c) {
         if (!c?.phone) return null;
+        const cleanPhone = String(c.phone).replace(/\D+/g, '');
         const existing = document.querySelector(`.wab-contact-item[data-phone="${c.phone}"]`);
         if (existing) return null;
 
         const div = document.createElement('div');
         div.className = `wab-contact-item ${c.active || c.phone === selectedPhone ? 'is-active' : ''}`;
+        div.id = `wab-contact-card-${cleanPhone}`;
         div.dataset.name = (c.name || '').toLowerCase();
         div.dataset.contactId = c.id || '';
         div.dataset.url = contactUrl(c.phone);
         div.dataset.phone = c.phone || '';
         div.dataset.color = c.color || '#25d366';
+        div.dataset.badge = String(c.badge || 0);
+        div.dataset.isGroup = c.is_group ? '1' : '0';
 
         const labels = Array.isArray(c.labels) ? c.labels : [];
-        let dotsHtml = '';
-        let tagsHtml = '';
+        const labelIds = Array.isArray(c.label_ids) ? c.label_ids : labels.map(l => l.id);
+
+        let tagsHtml = `<div class="wab-contact-label-tags d-flex flex-wrap gap-1 mt-1 pt-1" id="wab-contact-tags-${cleanPhone}">`;
         if (labels.length > 0) {
-            dotsHtml = `<div class="wab-contact-label-dots">${labels.slice(0, 3).map(l => `<span class="wab-label-dot" style="background:${l.color}" title="${escapeHtml(l.name)}"></span>`).join('')}</div>`;
-            tagsHtml = `<div class="wab-contact-label-tags">${labels.slice(0, 2).map(l => `<span class="wab-contact-tag-chip" style="background:${l.color}1a;color:${l.color};border:1px solid ${l.color}40">${escapeHtml(l.name)}</span>`).join('')}</div>`;
+            tagsHtml += labels.slice(0, 4).map(lbl => `
+                <span class="wab-contact-tag-chip" style="background:${lbl.color}1f;color:${lbl.color};border:1px solid ${lbl.color}4d; font-size: 11px; padding: 1.5px 6px; border-radius: 4px; font-weight: 600; display: inline-flex; align-items: center; gap: 3px;">
+                    <span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:${lbl.color};"></span>${escapeHtml(lbl.name)}
+                </span>
+            `).join('');
+            if (labels.length > 4) {
+                tagsHtml += `<span class="badge bg-light text-muted border fs-9 px-1.5 py-0.5" style="font-size: 10px;">+${labels.length - 4}</span>`;
+            }
         }
+        tagsHtml += `</div>`;
 
         div.innerHTML = `
-            <div class="wab-avatar" style="background:${c.color}1a;color:${c.color}">
+            <div class="wab-avatar" style="background:${c.color || '#25d366'}1a;color:${c.color || '#25d366'}">
                 ${escapeHtml(initials(c.name))}
                 <span class="wab-status-badge wab-status--${c.status || 'offline'}"></span>
             </div>
@@ -4295,9 +4423,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 </div>
                 <div class="wab-contact-row-bottom">
                     <span class="wab-contact-preview">${escapeHtml(c.msg || '')}</span>
-                    <div class="wab-contact-row-right">
+                    <div class="wab-contact-row-right d-flex align-items-center gap-1">
                         ${c.badge ? `<span class="wab-badge">${c.badge}</span>` : ''}
-                        ${dotsHtml}
+                        <button type="button" class="wab-quick-tag-btn" onclick="event.stopPropagation(); openQuickLabelModal('${escapeHtml(c.phone)}', '${escapeHtml(c.name || c.phone).replace(/'/g, "\\'")}', ${JSON.stringify(labelIds)})" title="Assign Labels">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+                        </button>
                     </div>
                 </div>
                 ${tagsHtml}
@@ -4792,13 +4922,17 @@ document.addEventListener('DOMContentLoaded', function() {
     function renderContact(contact) {
         const list = document.getElementById('wabContactList');
         if (!list || !contact?.phone) return;
+        const cleanPhone = String(contact.phone).replace(/\D+/g, '');
 
         let item = Array.from(list.querySelectorAll('.wab-contact-item')).find(row => row.dataset.phone === contact.phone);
         const color = contact.color || '#25d366';
+        const labels = Array.isArray(contact.labels) ? contact.labels : [];
+        const labelIds = Array.isArray(contact.label_ids) ? contact.label_ids : labels.map(l => l.id);
 
         if (!item) {
             item = document.createElement('div');
             item.className = 'wab-contact-item';
+            item.id = `wab-contact-card-${cleanPhone}`;
             item.dataset.contactId = contact.id || '';
             item.dataset.phone = contact.phone;
             item.dataset.color = color;
@@ -4817,8 +4951,13 @@ document.addEventListener('DOMContentLoaded', function() {
                     </div>
                     <div class="wab-contact-row-bottom">
                         <span class="wab-contact-preview"></span>
-                        <div class="wab-contact-row-right"></div>
+                        <div class="wab-contact-row-right d-flex align-items-center gap-1">
+                            <button type="button" class="wab-quick-tag-btn" onclick="event.stopPropagation(); openQuickLabelModal('${escapeHtml(contact.phone)}', '${escapeHtml(contact.name || contact.phone).replace(/'/g, "\\'")}', ${JSON.stringify(labelIds)})" title="Assign Labels">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+                            </button>
+                        </div>
                     </div>
+                    <div class="wab-contact-label-tags d-flex flex-wrap gap-1 mt-1 pt-1" id="wab-contact-tags-${cleanPhone}"></div>
                 </div>
             `;
             bindContactClick(item);
@@ -4840,6 +4979,28 @@ document.addEventListener('DOMContentLoaded', function() {
         const letter = item.querySelector('.wab-avatar-letter');
         if (letter) letter.textContent = initials(contact.name);
         updateBadge(item, Number(contact.badge || 0));
+
+        // Update tag button onclick if contact has label info
+        const tagBtn = item.querySelector('.wab-quick-tag-btn');
+        if (tagBtn && contact.name) {
+            tagBtn.setAttribute('onclick', `event.stopPropagation(); openQuickLabelModal('${escapeHtml(contact.phone)}', '${escapeHtml(contact.name).replace(/'/g, "\\'")}', ${JSON.stringify(labelIds)})`);
+        }
+
+        // Update label chips if provided in payload
+        if (labels.length > 0) {
+            const tagsWrap = item.querySelector('.wab-contact-label-tags');
+            if (tagsWrap) {
+                let chipsHtml = labels.slice(0, 4).map(lbl => `
+                    <span class="wab-contact-tag-chip" style="background:${lbl.color}1f;color:${lbl.color};border:1px solid ${lbl.color}4d; font-size: 11px; padding: 1.5px 6px; border-radius: 4px; font-weight: 600; display: inline-flex; align-items: center; gap: 3px;">
+                        <span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:${lbl.color};"></span>${escapeHtml(lbl.name)}
+                    </span>
+                `).join('');
+                if (labels.length > 4) {
+                    chipsHtml += `<span class="badge bg-light text-muted border fs-9 px-1.5 py-0.5" style="font-size: 10px;">+${labels.length - 4}</span>`;
+                }
+                tagsWrap.innerHTML = chipsHtml;
+            }
+        }
         
         if (list.firstChild !== item) {
             list.prepend(item);
@@ -6085,6 +6246,163 @@ document.addEventListener('DOMContentLoaded', function() {
     setStep(1);
 
 })();
+
+function openQuickLabelModal(phone, contactName, labelIds) {
+    const phoneInput = document.getElementById('waAssignPhoneInput');
+    const subtitle = document.getElementById('waAssignContactSubtitle');
+    if (phoneInput) phoneInput.value = phone;
+    if (subtitle) subtitle.textContent = `for ${contactName || phone} (${phone})`;
+
+    const idSet = new Set((labelIds || []).map(id => parseInt(id)));
+    document.querySelectorAll('.wa-contact-label-modal-chk').forEach(chk => {
+        chk.checked = idSet.has(parseInt(chk.dataset.labelId || chk.value));
+    });
+
+    const modalEl = document.getElementById('waAssignLabelsModal');
+    if (modalEl) {
+        const bsModal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+        bsModal.show();
+    }
+}
+
+function autoApplyWhatsAppModalLabels() {
+    const phone = document.getElementById('waAssignPhoneInput')?.value;
+    if (!phone) return;
+
+    const checkedBoxes = Array.from(document.querySelectorAll('.wa-contact-label-modal-chk:checked'));
+    const labelIds = checkedBoxes.map(chk => parseInt(chk.dataset.labelId || chk.value));
+    const labelsData = checkedBoxes.map(chk => ({
+        id: parseInt(chk.dataset.labelId || chk.value),
+        name: chk.dataset.name,
+        color: chk.dataset.color
+    }));
+
+    const cleanPhone = phone.replace(/\D+/g, '');
+
+    // 0ms Real-Time Instant Update on Sidebar contact card
+    const tagsContainer = document.getElementById(`wab-contact-tags-${cleanPhone}`);
+    if (tagsContainer) {
+        if (labelsData.length === 0) {
+            tagsContainer.innerHTML = '';
+        } else {
+            const chips = labelsData.slice(0, 4).map(l => `
+                <span class="wab-contact-tag-chip" style="background:${l.color}1f;color:${l.color};border:1px solid ${l.color}4d; font-size: 11px; padding: 1.5px 6px; border-radius: 4px; font-weight: 600; display: inline-flex; align-items: center; gap: 3px;">
+                    <span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:${l.color};"></span>${l.name}
+                </span>
+            `).join('');
+            const extra = labelsData.length > 4 ? `<span class="badge bg-light text-muted border fs-9 px-1.5 py-0.5" style="font-size: 10px;">+${labelsData.length - 4}</span>` : '';
+            tagsContainer.innerHTML = chips + extra;
+        }
+    }
+
+    // Also update quick tag button onclick with updated label IDs
+    const contactCard = document.getElementById(`wab-contact-card-${cleanPhone}`);
+    if (contactCard) {
+        const btn = contactCard.querySelector('.wab-quick-tag-btn');
+        if (btn) {
+            const cName = contactCard.dataset.name || phone;
+            btn.setAttribute('onclick', `event.stopPropagation(); openQuickLabelModal('${phone}', '${cName.replace(/'/g, "\\'")}', ${JSON.stringify(labelIds)})`);
+        }
+    }
+
+    // Background AJAX Sync
+    const assignForm = document.getElementById('waAssignLabelsForm');
+    if (!assignForm) return;
+    const formData = new FormData(assignForm);
+
+    fetch(assignForm.action, {
+        method: 'POST',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'Accept': 'application/json'
+        },
+        body: formData
+    }).catch(err => console.error('Real-time label sync error', err));
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const assignForm = document.getElementById('waAssignLabelsForm');
+    if (!assignForm) return;
+
+    assignForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const phone = document.getElementById('waAssignPhoneInput')?.value;
+        if (!phone) return;
+
+        const checkedBoxes = Array.from(document.querySelectorAll('.wa-contact-label-modal-chk:checked'));
+        const labelIds = checkedBoxes.map(chk => parseInt(chk.dataset.labelId || chk.value));
+        const labelsData = checkedBoxes.map(chk => ({
+            id: parseInt(chk.dataset.labelId || chk.value),
+            name: chk.dataset.name,
+            color: chk.dataset.color
+        }));
+
+        const cleanPhone = phone.replace(/\D+/g, '');
+        const submitBtn = assignForm.querySelector('button[type="submit"]');
+        const origBtnText = submitBtn ? submitBtn.innerHTML : 'Save';
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Saving…';
+        }
+
+        const formData = new FormData(assignForm);
+
+        fetch(assignForm.action, {
+            method: 'POST',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'application/json'
+            },
+            body: formData
+        })
+        .then(res => res.json())
+        .then(data => {
+            // Update sidebar contact tags
+            const tagsContainer = document.getElementById(`wab-contact-tags-${cleanPhone}`);
+            if (tagsContainer) {
+                if (labelsData.length === 0) {
+                    tagsContainer.innerHTML = '';
+                } else {
+                    const chips = labelsData.slice(0, 4).map(l => `
+                        <span class="wab-contact-tag-chip" style="background:${l.color}1f;color:${l.color};border:1px solid ${l.color}4d; font-size: 11px; padding: 1.5px 6px; border-radius: 4px; font-weight: 600; display: inline-flex; align-items: center; gap: 3px;">
+                            <span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:${l.color};"></span>${l.name}
+                        </span>
+                    `).join('');
+                    const extra = labelsData.length > 4 ? `<span class="badge bg-light text-muted border fs-9 px-1.5 py-0.5" style="font-size: 10px;">+${labelsData.length - 4}</span>` : '';
+                    tagsContainer.innerHTML = chips + extra;
+                }
+            }
+
+            // Update Quick tag button onclick with new IDs
+            const contactCard = document.getElementById(`wab-contact-card-${cleanPhone}`);
+            if (contactCard) {
+                const btn = contactCard.querySelector('.wab-quick-tag-btn');
+                if (btn) {
+                    const cName = contactCard.dataset.name || phone;
+                    btn.setAttribute('onclick', `event.stopPropagation(); openQuickLabelModal('${phone}', '${cName.replace(/'/g, "\\'")}', ${JSON.stringify(labelIds)})`);
+                }
+            }
+
+            // Close modal
+            const modalEl = document.getElementById('waAssignLabelsModal');
+            if (modalEl) {
+                const bsModal = bootstrap.Modal.getInstance(modalEl);
+                if (bsModal) bsModal.hide();
+            }
+        })
+        .catch(err => {
+            console.error('Failed to save labels', err);
+            // Fallback submit regular form
+            assignForm.submit();
+        })
+        .finally(() => {
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = origBtnText;
+            }
+        });
+    });
+});
 </script>
 
 @endsection

@@ -14,6 +14,13 @@ class VerifyCsrfToken extends Middleware
     protected $except = [
         'whatsapp/settings',
         'whatsapp/chat/*',
+        'emails/labels/*',
+        'emails/contacts/*',
+        'emails/toggle-star',
+        'emails/mark-read',
+        'emails/delete',
+        'emails/sync',
         'api/*',
+        'webhook/emails/inbound',
     ];
 }

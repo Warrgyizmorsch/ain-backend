@@ -52,7 +52,7 @@
                     <tbody>
                         @forelse($notifications as $notification)
                             @php
-                                $systemBan = $bans[$notification->ip_address] ?? null;
+                                $systemBan = $bans[$notification->user_id] ?? null;
                                 $isSystemBanned = $systemBan && $systemBan->isActive();
                             @endphp
                             <tr>
@@ -112,11 +112,12 @@
                                 <td>{{ optional($notification->created_at)->format('d M Y h:i A') }}</td>
                                 <td class="pe-6">{{ optional($notification->expires_at)->format('d M Y h:i A') }}</td>
                                 <td class="pe-6">
-                                    @if($notification->ip_address)
+                                    @if($notification->user_id)
                                         @if($isSystemBanned)
                                             <form method="POST" action="{{ route('admin.login-otp-system-unban') }}">
                                                 @csrf
                                                 <input type="hidden" name="ip_address" value="{{ $notification->ip_address }}">
+                                                <input type="hidden" name="user_id" value="{{ $notification->user_id }}">
                                                 <button type="submit" class="btn btn-sm btn-light-success">Unban</button>
                                             </form>
                                         @else
