@@ -19,11 +19,28 @@ class RoleOneMenuSeeder extends Seeder
         // =============================================================
         // 1. SETTING MENU (Menu ID 2)
         // =============================================================
+        // Dashboard must be the first direct menu for Super Admin.
+        DB::table('menu')->where('id', 1)->update([
+            'menu_name' => 'Dashboard',
+            'icon_class' => 'fa fa-dashboard',
+            'show_menu' => 'Y',
+            'routes' => 'dashboard',
+            'sort_order' => 1,
+            'updated_at' => now(),
+        ]);
+
         DB::table('menu')->where('id', 2)->update([
             'menu_name' => 'Setting',
             'icon_class' => 'fa fa-gear',
             'show_menu' => 'Y',
             'routes' => 'menus',
+            'sort_order' => 99,
+            'updated_at' => now(),
+        ]);
+
+        // Setting must remain immediately above Other.
+        DB::table('menu')->where('id', 44)->update([
+            'sort_order' => 100,
             'updated_at' => now(),
         ]);
 
@@ -31,9 +48,9 @@ class RoleOneMenuSeeder extends Seeder
             ['name' => 'Menu', 'routes' => 'menus', 'sort_order' => 1],
             ['name' => 'submenus', 'routes' => 'submenu', 'sort_order' => 2],
             ['name' => 'User Right', 'routes' => 'userright', 'sort_order' => 3],
-            ['name' => 'WhatsApp Plugin', 'routes' => 'whatsapp/settings', 'sort_order' => 4],
-            ['name' => 'Call Plugin', 'routes' => 'admin/plugins', 'sort_order' => 5],
-            ['name' => 'Email Plugin', 'routes' => 'emails/settings', 'sort_order' => 6],
+            ['name' => 'WhatsApp Settings', 'routes' => 'whatsapp/settings', 'sort_order' => 4],
+            ['name' => 'Twilio Calling', 'routes' => 'admin/plugins', 'sort_order' => 5],
+            ['name' => 'Email Settings', 'routes' => 'emails/settings', 'sort_order' => 6],
         ];
 
         // Clean up Label Master from Setting (parent_id = 2 / menus_id = 2)
@@ -113,11 +130,11 @@ class RoleOneMenuSeeder extends Seeder
         // =============================================================
         DB::table('menu')->where('id', 24)->update([
             'menu_name' => 'WhatsApp',
-            'icon_class' => 'fa fa-whatsapp',
+            'icon_class' => 'fab fa-whatsapp',
             'show_menu' => 'Y',
             'parent_id' => null,
             'routes' => 'whatsapp/chat',
-            'sort_order' => 22,
+            'sort_order' => 2,
             'updated_at' => now(),
         ]);
 
@@ -138,7 +155,7 @@ class RoleOneMenuSeeder extends Seeder
                 'icon_class' => 'fa fa-envelope',
                 'show_menu' => 'Y',
                 'routes' => 'emails',
-                'sort_order' => 23,
+                'sort_order' => 3,
                 'parent_id' => null,
                 'created_at' => now(),
                 'updated_at' => now(),
@@ -151,7 +168,7 @@ class RoleOneMenuSeeder extends Seeder
                 'show_menu' => 'Y',
                 'parent_id' => null,
                 'routes' => 'emails',
-                'sort_order' => 23,
+                'sort_order' => 3,
                 'updated_at' => now(),
             ]);
         }
@@ -192,10 +209,52 @@ class RoleOneMenuSeeder extends Seeder
 
         EmailConfiguration::syncEmailSubmenus();
 
+        // syncEmailSubmenus also supports older installations; enforce this
+        // seeder's final admin-sidebar labels and ordering after that sync.
+        DB::table('menu')->where('id', $emailMenuId)->update([
+            'sort_order' => 3,
+            'updated_at' => now(),
+        ]);
+        DB::table('menu')
+            ->where('parent_id', 2)
+            ->where('routes', 'emails/settings')
+            ->update([
+                'menu_name' => 'Email Settings',
+                'sort_order' => 6,
+                'updated_at' => now(),
+            ]);
+        DB::table('submenus')
+            ->where('menus_id', 2)
+            ->where('routes', 'emails/settings')
+            ->update([
+                'sub_menu_name' => 'Email Settings',
+                'sort_order' => 6,
+                'updated_at' => now(),
+            ]);
+
+        // Reserve the first three top-level positions exclusively for
+        // Dashboard, WhatsApp and Emails. Keep every other menu after them.
+        DB::table('menu')
+            ->whereNull('parent_id')
+            ->whereNotIn('id', [1, 24, $emailMenuId])
+            ->where('sort_order', '<', 4)
+            ->update([
+                'sort_order' => 4,
+                'updated_at' => now(),
+            ]);
+
         // =============================================================
         // 5. UPDATE PERMISSIONS FOR ALL ROLES
         // =============================================================
-        $allMenuIds = DB::table('menu')->pluck('id')->map(fn($id) => (string) $id)->toArray();
+        // These legacy direct links are intentionally excluded from Super Admin.
+        // Their relevant functionality remains available through the existing
+        // grouped menus (for example Masters/Writer inside Other).
+        $adminHiddenTopLevelMenuIds = [14, 17, 23]; // College, Qc Sheet, Ticket Sheet
+        $allMenuIds = DB::table('menu')
+            ->whereNotIn('id', $adminHiddenTopLevelMenuIds)
+            ->pluck('id')
+            ->map(fn($id) => (string) $id)
+            ->toArray();
         $allSubmenuIds = DB::table('submenus')->pluck('id')->map(fn($id) => (string) $id)->toArray();
 
         // Role 1 (Super Admin)
