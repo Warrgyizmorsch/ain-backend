@@ -1,10 +1,34 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="container-fluid py-6">
+<style>
+    .email-settings-page { max-width: 1600px; margin: 0 auto; }
+    .email-settings-header { background: #fff; border: 1px solid #eef1f6; border-radius: 14px; padding: 22px 24px; box-shadow: 0 5px 20px rgba(31, 44, 71, .05); }
+    .email-settings-actions { display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
+    .email-settings-actions .btn { min-height: 40px; white-space: nowrap; }
+    .email-direct-card { border: 1px solid #ddecf7 !important; border-radius: 14px; overflow: hidden; }
+    .email-direct-url { display: inline-flex; max-width: 100%; overflow-wrap: anywhere; }
+    .email-config-card { border: 1px solid #eef1f6 !important; border-radius: 14px; overflow: hidden; }
+    .email-config-card .card-header { min-height: 76px; }
+    .email-config-table th { white-space: nowrap; font-size: 11px; letter-spacing: .04em; }
+    .email-config-table td { vertical-align: middle; }
+    .email-account-actions { display: flex; justify-content: flex-end; gap: 7px; flex-wrap: nowrap; }
+    .email-account-actions .btn { width: 38px; height: 38px; border-radius: 9px; }
+    @media (max-width: 991.98px) {
+        .email-settings-actions { justify-content: flex-start; margin-top: 18px; }
+        .email-settings-actions .btn { flex: 1 1 210px; }
+        .email-direct-card .card-body { padding: 20px !important; }
+    }
+    @media (max-width: 575.98px) {
+        .email-settings-header { padding: 18px; }
+        .email-settings-actions .btn { width: 100%; flex-basis: 100%; }
+        .email-direct-actions { width: 100%; display: grid !important; grid-template-columns: 1fr 1fr; }
+    }
+</style>
+<div class="container-fluid py-6 email-settings-page">
     {{-- Breadcrumb & Title --}}
-    <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between mb-7 gap-3">
-        <div>
+    <div class="email-settings-header d-flex flex-column flex-lg-row align-items-lg-center justify-content-between mb-6 gap-3">
+        <div class="pe-lg-5">
             <h1 class="text-dark fw-bolder fs-2 mb-1">Email Integration & Multi-Account Configurations</h1>
             <ul class="breadcrumb breadcrumb-separatorless fw-semibold fs-7 my-1">
                 <li class="breadcrumb-item text-muted"><a href="{{ route('dashboard') }}" class="text-muted text-hover-primary">Dashboard</a></li>
@@ -14,24 +38,21 @@
                 <li class="breadcrumb-item text-dark">Configurations & Plugins</li>
             </ul>
         </div>
-        <div class="d-flex align-items-center gap-2 flex-wrap">
+        <div class="email-settings-actions">
+            <button type="button" class="btn btn-sm btn-primary fw-bold" data-bs-toggle="modal" data-bs-target="#createEmailConfigModal">
+                <i class="fa fa-plus me-1"></i> Add Email Configuration
+            </button>
             <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-danger fw-bold" title="Create the 16-digit password used in SMTP and IMAP password fields">
                 <i class="fa fa-key me-1"></i> Generate Gmail App Password
             </a>
             <button type="button" class="btn btn-sm btn-light-danger fw-bold border border-danger-subtle" data-bs-toggle="modal" data-bs-target="#gmailGuideModal">
                 <i class="fa fa-google me-1 text-danger"></i> Gmail App Password Guide
             </button>
-            <a href="{{ route('emails.index') }}" class="btn btn-sm btn-primary fw-bold" target="_blank">
-                <i class="fa fa-external-link me-1"></i> Open Email App
-            </a>
-            <button type="button" class="btn btn-sm btn-light-primary fw-bold" data-bs-toggle="modal" data-bs-target="#createEmailConfigModal">
-                <i class="fa fa-plus me-1"></i> Add Email Configuration
-            </button>
         </div>
     </div>
 
     {{-- Email Web App Quick Link & Integration Card --}}
-    <div class="card shadow-sm border-0 mb-7 bg-light-primary">
+    <div class="card shadow-sm border-0 mb-6 bg-light-primary email-direct-card">
         <div class="card-body p-5">
             <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-4">
                 <div class="d-flex align-items-center gap-4">
@@ -42,11 +63,11 @@
                         <h4 class="fw-bolder text-gray-900 mb-1">Email Web App Direct Link</h4>
                         <div class="text-muted fs-7">
                             Direct Web App URL for browser, desktop wrapper, or app integration:
-                            <code class="fw-bold text-primary bg-white px-2 py-1 rounded border ms-1" id="emailAppDirectUrl">{{ url('/emails') }}</code>
+                            <code class="fw-bold text-primary bg-white px-2 py-1 rounded border ms-md-1 mt-1 mt-md-0 email-direct-url" id="emailAppDirectUrl">{{ url('/emails') }}</code>
                         </div>
                     </div>
                 </div>
-                <div class="d-flex align-items-center gap-2">
+                <div class="d-flex align-items-center gap-2 email-direct-actions">
                     <button type="button" class="btn btn-sm btn-white text-primary fw-bold border" onclick="copyEmailAppUrl(this)" title="Copy Link to Clipboard">
                         <i class="fa fa-copy me-1"></i> <span id="copyUrlBtnText">Copy App Link</span>
                     </button>
@@ -59,7 +80,7 @@
     </div>
 
     {{-- Configurations Table Card --}}
-    <div class="card shadow-sm border-0 mb-8">
+    <div class="card shadow-sm border-0 mb-8 email-config-card">
         <div class="card-header border-0 pt-6">
             <div class="card-title">
                 <h3 class="fw-bolder m-0">Configured Email Accounts & Channels ({{ $configurations->count() }})</h3>
@@ -84,7 +105,7 @@
                 </div>
             @else
                 <div class="table-responsive">
-                    <table class="table align-middle table-row-dashed fs-6 gy-5">
+                    <table class="table align-middle table-row-dashed fs-6 gy-5 email-config-table">
                         <thead>
                             <tr class="text-start text-muted fw-bolder fs-7 text-uppercase gs-0">
                                 <th>Channel Name</th>
@@ -133,10 +154,10 @@
                                         @endif
                                     </td>
                                     <td class="text-end">
-                                        <div class="d-flex justify-content-end gap-2">
+                                        <div class="email-account-actions">
                                             {{-- Open Mailbox Direct --}}
                                             <a href="{{ route('emails.index', ['account_id' => $config->id]) }}" target="_blank" class="btn btn-icon btn-light-success btn-sm" title="Open this Account in Email App">
-                                                <i class="fa fa-external-link"></i>
+                                                <i class="fa fa-inbox"></i>
                                             </a>
 
                                             {{-- Test Connection --}}
