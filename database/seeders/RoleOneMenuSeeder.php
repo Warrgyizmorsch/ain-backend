@@ -236,6 +236,32 @@ class RoleOneMenuSeeder extends Seeder
                 'updated_at' => now(),
             ]);
 
+        // Keep the existing Break Time Report page available from the
+        // Reports group for Super Admin. Other roles are not granted this
+        // submenu by this seeder.
+        $reportsMenuId = DB::table('menu')
+            ->where(function ($query) {
+                $query->where('routes', 'reports')
+                    ->orWhere('menu_name', 'Reports');
+            })
+            ->whereNull('parent_id')
+            ->value('id');
+
+        if ($reportsMenuId) {
+            DB::table('submenus')->updateOrInsert(
+                [
+                    'menus_id' => $reportsMenuId,
+                    'routes' => 'break-time-report',
+                ],
+                [
+                    'sub_menu_name' => 'Break Time Report',
+                    'sort_order' => 12,
+                    'show' => 'Y',
+                    'updated_at' => now(),
+                ]
+            );
+        }
+
         // Reserve the first three top-level positions exclusively for
         // Dashboard, WhatsApp and Emails. Keep every other menu after them.
         DB::table('menu')
