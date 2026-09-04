@@ -15,6 +15,9 @@
             </ul>
         </div>
         <div class="d-flex align-items-center gap-2 flex-wrap">
+            <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-danger fw-bold" title="Create the 16-digit password used in SMTP and IMAP password fields">
+                <i class="fa fa-key me-1"></i> Generate Gmail App Password
+            </a>
             <button type="button" class="btn btn-sm btn-light-danger fw-bold border border-danger-subtle" data-bs-toggle="modal" data-bs-target="#gmailGuideModal">
                 <i class="fa fa-google me-1 text-danger"></i> Gmail App Password Guide
             </button>
