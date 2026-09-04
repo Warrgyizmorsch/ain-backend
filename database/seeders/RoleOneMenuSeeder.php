@@ -22,7 +22,7 @@ class RoleOneMenuSeeder extends Seeder
         // Dashboard must be the first direct menu for Super Admin.
         DB::table('menu')->where('id', 1)->update([
             'menu_name' => 'Dashboard',
-            'icon_class' => 'fa fa-dashboard',
+            'icon_class' => 'fas fa-tachometer-alt',
             'show_menu' => 'Y',
             'routes' => 'dashboard',
             'sort_order' => 1,
@@ -89,7 +89,7 @@ class RoleOneMenuSeeder extends Seeder
         DB::table('menu')->where('id', 3)->update([
             'parent_id' => null,
             'menu_name' => 'Masters',
-            'icon_class' => 'fa fa-diamond',
+            'icon_class' => 'fas fa-gem',
             'show_menu' => 'Y',
             'routes' => 'master',
             'sort_order' => 98,
