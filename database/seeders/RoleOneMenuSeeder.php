@@ -262,6 +262,36 @@ class RoleOneMenuSeeder extends Seeder
             );
         }
 
+        // This legacy report remains routable when needed, but it must not
+        // appear in the sidebar menu.
+        $hiddenWriterReportSubmenuIds = DB::table('submenus')
+            ->where('routes', 'writer-additional-word-count-report')
+            ->pluck('id')
+            ->map(fn($id) => (string) $id)
+            ->toArray();
+
+        DB::table('submenus')
+            ->whereIn('id', $hiddenWriterReportSubmenuIds)
+            ->delete();
+
+        if ($hiddenWriterReportSubmenuIds) {
+            DB::table('permission')->select('id', 'submenu_id')->get()->each(
+                function ($permission) use ($hiddenWriterReportSubmenuIds) {
+                    $submenuIds = json_decode($permission->submenu_id ?: '[]', true);
+                    $submenuIds = is_array($submenuIds) ? $submenuIds : [];
+                    $submenuIds = array_values(array_filter(
+                        $submenuIds,
+                        fn($id) => !in_array((string) $id, $hiddenWriterReportSubmenuIds, true)
+                    ));
+
+                    DB::table('permission')->where('id', $permission->id)->update([
+                        'submenu_id' => json_encode($submenuIds),
+                        'updated_at' => now(),
+                    ]);
+                }
+            );
+        }
+
         // Reserve the first three top-level positions exclusively for
         // Dashboard, WhatsApp and Emails. Keep every other menu after them.
         DB::table('menu')
