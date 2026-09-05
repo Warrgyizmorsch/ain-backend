@@ -162,9 +162,18 @@
                             </tr>
                         </thead>
                         <tbody id="lead-rows">
-                            @foreach ($leads as $index => $lead)
-                            @include('back-end.leads.partials.row', ['lead' => $lead])
-                            @endforeach
+                            @if(count($leads))
+                                @foreach ($leads as $index => $lead)
+                                    @include('back-end.leads.partials.row', ['lead' => $lead])
+                                @endforeach
+                            @else
+                                <tr>
+                                    <td colspan="11" class="text-center text-muted py-5">
+                                        <i class="fa fa-folder-open-o fs-3 text-gray-400 d-block mb-2"></i>
+                                        No leads found matching your criteria.
+                                    </td>
+                                </tr>
+                            @endif
                         </tbody>
                     </table>
                     <div id="load-more-wrapper" class="text-center mt-4" @if(($status_counts['All'] ?? 0) <= count($leads)) style="display:none;" @endif>

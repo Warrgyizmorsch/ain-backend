@@ -2,13 +2,12 @@
     let offset = {{count($leads)}};
     const leadPageSize = 30;
     let activeLeadFilters = null;
-    const leadBasePath = @json(rtrim(request()->getBaseUrl(), '/'));
-    const leadLoadMorePath = @json(route('lead.loadMore', [], false));
-    const leadFilterPath = @json(route('lead.filter', [], false));
+    const leadLoadMorePath = @json(route('lead.loadMore'));
+    const leadFilterPath = @json(route('lead.filter'));
     const leadCsrfToken = $('meta[name="csrf-token"]').attr('content');
 
     function leadUrl(path) {
-        return leadBasePath + (String(path).startsWith('/') ? path : '/' + path);
+        return path;
     }
 
     function updateLoadMoreVisibility(hasMore) {
@@ -56,7 +55,7 @@
         };
 
         $.ajax({
-            url: activeLeadFilters ? leadUrl(leadFilterPath) : leadUrl(leadLoadMorePath),
+            url: activeLeadFilters ? leadFilterPath : leadLoadMorePath,
             type: activeLeadFilters ? 'POST' : 'GET',
             headers: activeLeadFilters ? {
                 'X-CSRF-TOKEN': leadCsrfToken
@@ -120,16 +119,18 @@
         activeLeadFilters = filters;
 
         $.ajax({
-            url: leadUrl(leadFilterPath),
+            url: leadFilterPath,
             method: 'post',
             headers: {
                 'X-CSRF-TOKEN': leadCsrfToken
             },
             data: filters,
             success: function(res) {
-                if (res.html !== undefined) {
+                if (res.html && res.html.trim() !== '') {
                     $('#lead-rows').html(res.html);
                     refreshLeadSrNumbers();
+                } else {
+                    $('#lead-rows').html('<tr><td colspan="11" class="text-center text-muted py-5"><i class="fa fa-folder-open-o fs-3 text-gray-400 d-block mb-2"></i>No leads found matching your criteria.</td></tr>');
                 }
                 if (window.initLeadStars) {
                     window.initLeadStars(document.getElementById('lead-rows'));
@@ -155,16 +156,18 @@
         $('#preloader').show();
         activeLeadFilters = filters;
         $.ajax({
-            url: leadUrl(leadFilterPath),
+            url: leadFilterPath,
             method: 'post',
             headers: {
                 'X-CSRF-TOKEN': leadCsrfToken
             },
             data: filters,
             success: function(res) {
-                if (res.html !== undefined) {
+                if (res.html && res.html.trim() !== '') {
                     $('#lead-rows').html(res.html);
                     refreshLeadSrNumbers();
+                } else {
+                    $('#lead-rows').html('<tr><td colspan="11" class="text-center text-muted py-5"><i class="fa fa-folder-open-o fs-3 text-gray-400 d-block mb-2"></i>No leads found matching your criteria.</td></tr>');
                 }
                 if (window.initLeadStars) {
                     window.initLeadStars(document.getElementById('lead-rows'));
@@ -177,8 +180,6 @@
             },
             complete: function() {
                 $('#preloader').hide();
-                document.documentElement.classList.remove('lead-filter-restoring');
-            }
         });
     }
 

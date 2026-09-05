@@ -704,7 +704,7 @@ class WhatsappController extends Controller
             'total' => $total,
             'has_more' => ($page * $limit) < $total,
             'page' => $page,
-            'all_orders_url' => route('order') . '?search=' . urlencode($cleanPhone),
+            'all_orders_url' => route('orders.index') . '?search=' . urlencode($cleanPhone),
         ]);
     }
 

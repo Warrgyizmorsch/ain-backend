@@ -1806,31 +1806,77 @@ class LeadsController extends Controller
         return view('leads.user-data', compact('data'));
     }
 
-    public function indexLead()
+    public function indexLead(Request $request)
     {
-        $latestHotDate = Leads::where('lead_status', 'Hot')
-            ->max('created_at');
-        // 1. Leads fetch (Top 30)
-        // $leads = Leads::with('user', 'source')
-        $leads = Leads::with($this->leadListRelations())
+        $hasSearchFilter = $request->filled('search') || $request->filled('order') || $request->filled('user') || $request->filled('uid') || $request->filled('status');
+
+        $query = Leads::with($this->leadListRelations())
             ->select($this->leadListColumns())
             ->where('status', 0)
             ->where('is_converted', 0)
-            ->where('duplicate_lead', 0)
-            ->orderByRaw("
-        CASE 
-            WHEN lead_status IS NULL 
-                 AND created_at > ? THEN 0
+            ->where('duplicate_lead', 0);
 
-            WHEN lead_status = 'Hot' THEN 1
-            WHEN lead_status = 'Warm' THEN 2
-            WHEN lead_status = 'Cold' THEN 3
-            ELSE 4
-        END
-    ", [$latestHotDate])
+        if ($hasSearchFilter) {
+            if ($request->filled('uid')) {
+                $query->where('emp_id', $request->input('uid'));
+            } else {
+                $searchTerm = trim($request->input('search') ?? $request->input('order') ?? $request->input('user') ?? '');
+                if ($searchTerm !== '') {
+                    $cleanDigits = preg_replace('/\D+/', '', $searchTerm);
+                    $last10 = strlen($cleanDigits) >= 10 ? substr($cleanDigits, -10) : $cleanDigits;
+
+                    $query->where(function ($q) use ($searchTerm, $last10) {
+                        $q->where('order_id', 'like', '%' . $searchTerm . '%')
+                            ->orWhere('project_title', 'like', '%' . $searchTerm . '%')
+                            ->orWhere('email', 'like', '%' . $searchTerm . '%')
+                            ->orWhere('user_name', 'like', '%' . $searchTerm . '%')
+                            ->orWhere('mobile', 'like', '%' . $searchTerm . '%');
+
+                        if (!empty($last10)) {
+                            $q->orWhere('mobile', 'like', '%' . $last10 . '%')
+                              ->orWhere('mobile2', 'like', '%' . $last10 . '%');
+                        }
+
+                        $q->orWhereHas('user', function ($uq) use ($searchTerm, $last10) {
+                            $uq->where('name', 'like', '%' . $searchTerm . '%')
+                              ->orWhere('email', 'like', '%' . $searchTerm . '%')
+                              ->orWhere('mobile_no', 'like', '%' . $searchTerm . '%')
+                              ->orWhere('mobile_no2', 'like', '%' . $searchTerm . '%');
+
+                            if (!empty($last10)) {
+                                $uq->orWhere('mobile_no', 'like', '%' . $last10 . '%')
+                                   ->orWhere('mobile_no2', 'like', '%' . $last10 . '%');
+                            }
+                        });
+                    });
+                }
+            }
+
+            if ($request->filled('status') && $request->status !== 'All') {
+                if (in_array($request->status, ['Hot', 'Warm', 'Cold'])) {
+                    $query->where('lead_status', $request->status);
+                } else {
+                    $query->where('l_status', $request->status);
+                }
+            }
+
+            $leads = $query->orderBy('id', 'desc')->take(30)->get();
+        } else {
+            $latestHotDate = Leads::where('lead_status', 'Hot')->max('created_at');
+            $leads = $query->orderByRaw("
+                CASE 
+                    WHEN lead_status IS NULL 
+                         AND created_at > ? THEN 0
+                    WHEN lead_status = 'Hot' THEN 1
+                    WHEN lead_status = 'Warm' THEN 2
+                    WHEN lead_status = 'Cold' THEN 3
+                    ELSE 4
+                END
+            ", [$latestHotDate])
             ->orderBy('created_at', 'desc')
             ->take(30)
             ->get();
+        }
 
         $this->attachLeadUserCounts($leads);
 

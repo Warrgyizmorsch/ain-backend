@@ -1182,7 +1182,7 @@
                     <div class="text-white opacity-75 fs-8">Customer: <strong>{{ $selectedContact['name'] ?? 'User' }}</strong> ({{ $selectedPhone }})</div>
                 </div>
                 <div class="ms-auto d-flex align-items-center gap-2">
-                    <a href="{{ route('order') }}" target="_blank" id="waOrdersModalViewAllBtn" class="btn btn-sm btn-light py-1 px-3 fs-8 fw-bold" title="Open Orders page for this customer">
+                    <a href="{{ route('orders.index') }}" target="_blank" id="waOrdersModalViewAllBtn" class="btn btn-sm btn-light py-1 px-3 fs-8 fw-bold" title="Open Orders page for this customer">
                         <i class="fa fa-external-link me-1"></i>View All Orders
                     </a>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
