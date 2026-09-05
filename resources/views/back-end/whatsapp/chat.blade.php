@@ -214,30 +214,31 @@
             </div>
             <div class="wab-conv-actions" id="wabConvActions">
                 <div id="wabChatActionButtons" class="d-flex align-items-center gap-2 {{ !$selectedPhone ? 'd-none' : '' }}">
-                    {{-- Check Leads Button --}}
-                    <button type="button" class="wab-label-btn" style="background:#e3f2fd;color:#1565c0;border:1px solid #bbdefb" data-bs-toggle="modal" data-bs-target="#waCheckLeadsModal" id="waHeaderCheckLeadsBtn" title="Check all Leads for this customer">
+                    {{-- Check Leads Button (Only show if leads_count > 0) --}}
+                    <button type="button" class="wab-label-btn {{ ($customerSummary['leads_count'] ?? 0) > 0 ? '' : 'd-none' }}" style="background:#e3f2fd;color:#1565c0;border:1px solid #bbdefb" data-bs-toggle="modal" data-bs-target="#waCheckLeadsModal" id="waHeaderCheckLeadsBtn" title="Check all Leads for this customer">
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
-                        Check Leads
+                        <span id="waHeaderCheckLeadsText">Check Leads @if(($customerSummary['leads_count'] ?? 0) > 0) ({{ $customerSummary['leads_count'] }}) @endif</span>
                     </button>
 
-                    {{-- Check Orders Button --}}
-                    <button type="button" class="wab-label-btn" style="background:#f3e5f5;color:#6a1b9a;border:1px solid #e1bee7" data-bs-toggle="modal" data-bs-target="#waCheckOrdersModal" id="waHeaderCheckOrdersBtn" title="Check all Orders for this customer">
+                    {{-- Check Orders Button (Only show if orders_count > 0) --}}
+                    <button type="button" class="wab-label-btn {{ ($customerSummary['orders_count'] ?? 0) > 0 ? '' : 'd-none' }}" style="background:#f3e5f5;color:#6a1b9a;border:1px solid #e1bee7" data-bs-toggle="modal" data-bs-target="#waCheckOrdersModal" id="waHeaderCheckOrdersBtn" title="Check all Orders for this customer">
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg>
-                        Check Orders
+                        <span id="waHeaderCheckOrdersText">Check Orders @if(($customerSummary['orders_count'] ?? 0) > 0) ({{ $customerSummary['orders_count'] }}) @endif</span>
                     </button>
 
-                    {{-- Dynamic Lead Action Button (Lead #ID or Create Lead) --}}
+                    {{-- Create Lead Button (+ button opening CRM New Lead Modal) --}}
+                    <button type="button" class="wab-label-btn" style="background:#00a884;color:#fff;border:none;font-weight:700" data-bs-toggle="modal" data-bs-target="#kt_modal_create_appaa_newLeads" id="waHeaderCreateLeadBtn" title="Create New Lead in CRM">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>
+                        + Lead
+                    </button>
+
+                    {{-- Dynamic Lead Quick Link (if existing unconverted lead) --}}
                     <div id="waHeaderLeadBtnWrap" class="d-inline-flex">
-                        @if(isset($existingLead) && $existingLead)
+                        @if(isset($existingLead) && $existingLead && ($existingLead->is_converted ?? 0) != 1)
                             <a href="{{ route('lead.edit', $existingLead->id) }}" target="_blank" class="wab-label-btn" style="background:#e8f5e9;color:#2e7d32;border:1px solid #c8e6c9" title="View CRM Lead #{{ $existingLead->order_id ?? $existingLead->id }}">
                                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7.5" r="4"></circle><polyline points="17 11 19 13 23 9"></polyline></svg>
                                 Lead #{{ $existingLead->order_id ?? $existingLead->id }}
                             </a>
-                        @else
-                            <button type="button" class="wab-label-btn" style="background:#00a884;color:#fff;border:none" data-bs-toggle="modal" data-bs-target="#waCreateLeadModal" title="Create Lead with this WhatsApp Customer">
-                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>
-                                Create Lead
-                            </button>
                         @endif
                     </div>
 
@@ -837,6 +838,11 @@
         </div>
     </div>
 </div>
+
+{{-- ══════════════════════════════════════════════════
+     CRM CREATE LEAD MODAL (Identical to /leads modal)
+══════════════════════════════════════════════════ --}}
+@include('leads.section.new-leads', ['service' => $servicesList ?? [], 'papers' => $papersList ?? []])
 
 {{-- ══════════════════════════════════════════════════
      CREATE LEAD MODAL FROM WHATSAPP CONTACT
@@ -4459,10 +4465,35 @@ document.addEventListener('DOMContentLoaded', function() {
             labelRow.remove();
         }
 
-        // Update Lead Button inside #waHeaderLeadBtnWrap
+        // Update Check Leads / Orders buttons visibility based on counts
+        const leadsBtn = document.getElementById('waHeaderCheckLeadsBtn');
+        const leadsText = document.getElementById('waHeaderCheckLeadsText');
+        const leadsCount = parseInt(customer.leads_count || 0);
+        if (leadsBtn) {
+            if (leadsCount > 0) {
+                leadsBtn.classList.remove('d-none');
+                if (leadsText) leadsText.textContent = `Check Leads (${leadsCount})`;
+            } else {
+                leadsBtn.classList.add('d-none');
+            }
+        }
+
+        const ordersBtn = document.getElementById('waHeaderCheckOrdersBtn');
+        const ordersText = document.getElementById('waHeaderCheckOrdersText');
+        const ordersCount = parseInt(customer.orders_count || 0);
+        if (ordersBtn) {
+            if (ordersCount > 0) {
+                ordersBtn.classList.remove('d-none');
+                if (ordersText) ordersText.textContent = `Check Orders (${ordersCount})`;
+            } else {
+                ordersBtn.classList.add('d-none');
+            }
+        }
+
+        // Update Lead Quick Link inside #waHeaderLeadBtnWrap (only if unconverted lead)
         const leadWrap = document.getElementById('waHeaderLeadBtnWrap');
         if (leadWrap) {
-            if (customer.lead) {
+            if (customer.lead && (customer.lead.is_converted != 1)) {
                 const leadId = customer.lead.order_id || customer.lead.id;
                 const leadUrl = customer.lead.edit_url;
                 leadWrap.innerHTML = `
@@ -4472,12 +4503,54 @@ document.addEventListener('DOMContentLoaded', function() {
                     </a>
                 `;
             } else {
-                leadWrap.innerHTML = `
-                    <button type="button" class="wab-label-btn" style="background:#00a884;color:#fff;border:none" data-bs-toggle="modal" data-bs-target="#waCreateLeadModal" title="Create Lead with this WhatsApp Customer">
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>
-                        Create Lead
-                    </button>
-                `;
+                leadWrap.innerHTML = '';
+            }
+        }
+
+        // Prefill CRM New Lead Modal (#kt_modal_create_appaa_newLeads)
+        const crmNewLeadModal = document.getElementById('kt_modal_create_appaa_newLeads');
+        if (crmNewLeadModal) {
+            const nameInp = crmNewLeadModal.querySelector('input[name="user_name"]');
+            const emailInp = crmNewLeadModal.querySelector('input[name="email"]');
+            const idInp = crmNewLeadModal.querySelector('input[name="id"]');
+            const ccInp = crmNewLeadModal.querySelector('input[name="countrycode"]');
+            const mobInp = crmNewLeadModal.querySelector('input[name="mobile"]');
+
+            if (customer.user) {
+                if (nameInp) nameInp.value = customer.user.name || '';
+                if (emailInp) emailInp.value = customer.user.email || '';
+                if (idInp) idInp.value = customer.user.id || '';
+                if (ccInp) ccInp.value = customer.user.countrycode || '';
+                if (mobInp) mobInp.value = customer.user.mobile_no || '';
+            } else {
+                if (nameInp) nameInp.value = resolvedName !== phone ? resolvedName : '';
+                if (emailInp) emailInp.value = '';
+                if (idInp) idInp.value = '';
+
+                let cc = '';
+                let mob = phone;
+                const cleanP = phone.replace(/\D/g, '');
+                if (cleanP.startsWith('91') && cleanP.length >= 12) {
+                    cc = '91';
+                    mob = cleanP.substring(2);
+                } else if (cleanP.startsWith('44') && cleanP.length >= 11) {
+                    cc = '44';
+                    mob = cleanP.substring(2);
+                } else if (cleanP.startsWith('1') && cleanP.length >= 11) {
+                    cc = '1';
+                    mob = cleanP.substring(1);
+                } else if (cleanP.startsWith('971') && cleanP.length >= 11) {
+                    cc = '971';
+                    mob = cleanP.substring(3);
+                } else if (cleanP.startsWith('61') && cleanP.length >= 11) {
+                    cc = '61';
+                    mob = cleanP.substring(2);
+                } else {
+                    mob = cleanP.length > 10 ? cleanP.slice(-10) : cleanP;
+                    cc = cleanP.length > 10 ? cleanP.slice(0, -10) : '';
+                }
+                if (ccInp) ccInp.value = cc;
+                if (mobInp) mobInp.value = mob;
             }
         }
 

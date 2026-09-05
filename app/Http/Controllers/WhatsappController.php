@@ -1093,15 +1093,74 @@ class WhatsappController extends Controller
     private function getCustomerSummary(string $phone): array
     {
         $variants = $this->getPhoneVariants($phone);
+        $cleanPhone = preg_replace('/\D+/', '', $phone);
+        $last10 = strlen($cleanPhone) >= 10 ? substr($cleanPhone, -10) : $cleanPhone;
 
-        $existingUser = User::query()
-            ->whereIn('mobile_no', $variants)
-            ->first();
+        $users = User::query()
+            ->where(function ($q) use ($variants, $cleanPhone, $last10) {
+                $q->whereIn('mobile_no', $variants);
+                if (!empty($cleanPhone)) {
+                    $q->orWhere('mobile_no', 'like', "%{$cleanPhone}%");
+                }
+                if (!empty($last10)) {
+                    $q->orWhere('mobile_no', 'like', "%{$last10}");
+                }
+            })
+            ->get(['id', 'email', 'name', 'mobile_no', 'countrycode']);
 
-        $existingLead = Leads::query()
-            ->whereIn('mobile', $variants)
-            ->latest('id')
-            ->first();
+        $existingUser = $users->first();
+        $userIds = $users->pluck('id')->filter()->all();
+        $userEmails = $users->pluck('email')->filter()->all();
+
+        $matchingLeads = Leads::query()
+            ->where(function ($q) use ($phone, $cleanPhone, $last10, $variants, $userIds, $userEmails) {
+                $q->whereIn('mobile', $variants)
+                  ->orWhere('mobile', $phone)
+                  ->orWhere('mobile', $cleanPhone);
+                if (!empty($last10)) {
+                    $q->orWhere('mobile', 'like', "%{$last10}");
+                }
+                if (!empty($variants)) {
+                    $q->orWhereIn('mobile2', $variants);
+                }
+                if (!empty($userIds)) {
+                    $q->orWhereIn('emp_id', $userIds);
+                }
+                if (!empty($userEmails)) {
+                    $q->orWhereIn('email', $userEmails);
+                }
+            })
+            ->get(['id', 'order_id', 'emp_id', 'is_converted', 'user_name', 'email', 'countrycode', 'mobile', 'l_status']);
+
+        $existingLead = $matchingLeads->sortByDesc('id')->first();
+        $unconvertedLeadsCount = $matchingLeads->where('is_converted', '!=', 1)->count();
+
+        $leadEmpIds = $matchingLeads->pluck('emp_id')->filter()->all();
+        $allUids = array_unique(array_filter(array_merge($userIds, $leadEmpIds)));
+
+        $ordersCount = 0;
+        if (!empty($allUids)) {
+            $ordersCount = Order::query()
+                ->whereNotNull('orders.uid')
+                ->where('orders.uid', '!=', 0)
+                ->where('orders.uid', '!=', '')
+                ->whereIn('orders.uid', $allUids)
+                ->where(function ($q) {
+                    $q->where(function ($sub) {
+                        $sub->whereNotNull('orders.l_converted_by')
+                            ->where('orders.l_converted_by', '!=', '');
+                    })->orWhere(function ($sub) {
+                        $sub->whereNotNull('orders.amount')
+                            ->where('orders.amount', '>', 0);
+                    })->orWhere(function ($sub) {
+                        $sub->whereNotNull('orders.projectstatus')
+                            ->whereNotIn('orders.projectstatus', ['', 'Pending']);
+                    })->orWhereHas('lead', function ($lq) {
+                        $lq->where('is_converted', 1);
+                    });
+                })
+                ->count();
+        }
 
         $labelIds = WhatsappChatContactLabel::query()
             ->whereIn('phone', $variants)
@@ -1116,6 +1175,8 @@ class WhatsappController extends Controller
         return [
             'name' => $existingUser?->name ?? ($existingLead?->user_name ?? $phone),
             'phone' => $phone,
+            'leads_count' => $unconvertedLeadsCount,
+            'orders_count' => $ordersCount,
             'lead' => $existingLead ? [
                 'id' => $existingLead->id,
                 'order_id' => $existingLead->order_id ?? (string) $existingLead->id,
