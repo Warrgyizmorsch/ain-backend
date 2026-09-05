@@ -77,14 +77,40 @@
                                                 </a>
                                                 @endif
                                             </td>
-                                            <td>{{ $lead->order_id }}</td>
-                                            
-                                            <td style="width:50px">@if ($lead->user != '') 
-                                                                        {{ $lead->user->name }} </br>
-                                                                         {{ $lead->user->email }}
-                                                                    @endif
+                                            <td>
+                                                <div class="d-inline-flex align-items-center">
+                                                    <span>{{ $lead->order_id }}</span>
+                                                    @if(!empty($lead->order_id))
+                                                        <button type="button" class="btn btn-icon btn-sm btn-active-light-primary ms-1 p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Order ID" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $lead->order_id }}', 'Order ID copied!');">
+                                                            <i class="fa fa-clone fs-8 text-muted"></i>
+                                                        </button>
+                                                    @endif
+                                                </div>
                                             </td>
-                                            <td>@if ($lead->user !='') {{ $lead->user->mobile_no }} @endif</td>
+                                            
+                                            <td style="width:150px">
+                                                @if ($lead->user != '') 
+                                                    <div class="fw-bold">{{ $lead->user->name }}</div>
+                                                    @if(!empty($lead->user->email))
+                                                        <div class="d-inline-flex align-items-center my-1">
+                                                            <span class="text-gray-600 fs-8">{{ $lead->user->email }}</span>
+                                                            <button type="button" class="btn btn-icon btn-sm btn-active-light-primary ms-1 p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Email" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $lead->user->email }}', 'Email copied!');">
+                                                                <i class="fa fa-clone fs-8 text-muted"></i>
+                                                            </button>
+                                                        </div>
+                                                    @endif
+                                                @endif
+                                            </td>
+                                            <td>
+                                                @if ($lead->user != '' && !empty($lead->user->mobile_no))
+                                                    <div class="d-inline-flex align-items-center">
+                                                        <span class="badge badge-light-danger fs-7 fw-bold">{{ $lead->user->mobile_no }}</span>
+                                                        <button type="button" class="btn btn-icon btn-sm btn-active-light-danger ms-1 p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Mobile" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $lead->user->mobile_no }}', 'Mobile number copied!');">
+                                                            <i class="fa fa-clone fs-8 text-danger"></i>
+                                                        </button>
+                                                    </div>
+                                                @endif
+                                            </td>
 
                                             <td style="width:50px">{{ \Carbon\Carbon::parse($lead->create_at)->format('d M Y') }}</td>
                                             

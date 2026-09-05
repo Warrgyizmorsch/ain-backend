@@ -229,7 +229,7 @@
                     {{-- Dynamic Lead Action Button (Lead #ID or Create Lead) --}}
                     <div id="waHeaderLeadBtnWrap" class="d-inline-flex">
                         @if(isset($existingLead) && $existingLead)
-                            <a href="{{ route('leadedit', $existingLead->id) }}" target="_blank" class="wab-label-btn" style="background:#e8f5e9;color:#2e7d32;border:1px solid #c8e6c9" title="View CRM Lead #{{ $existingLead->order_id ?? $existingLead->id }}">
+                            <a href="{{ route('lead.edit', $existingLead->id) }}" target="_blank" class="wab-label-btn" style="background:#e8f5e9;color:#2e7d32;border:1px solid #c8e6c9" title="View CRM Lead #{{ $existingLead->order_id ?? $existingLead->id }}">
                                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7.5" r="4"></circle><polyline points="17 11 19 13 23 9"></polyline></svg>
                                 Lead #{{ $existingLead->order_id ?? $existingLead->id }}
                             </a>
@@ -844,31 +844,40 @@
 <div class="modal fade" id="waCreateLeadModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered mw-850px">
         <div class="modal-content wab-modal-content">
-            <form method="POST" action="{{ route('whatsapp.chat.create-lead') }}">
+            <form method="POST" action="{{ route('whatsapp.chat.create-lead') }}" id="waCreateLeadForm">
                 @csrf
-                <input type="hidden" name="return_phone" value="{{ $selectedPhone }}">
+                <input type="hidden" name="return_phone" id="waCreateLeadReturnPhone" value="{{ $selectedPhone }}">
+                <input type="hidden" name="id" id="waCreateLeadUserId" value="{{ $existingUser->id ?? '' }}">
                 
                 <div class="modal-header wab-modal-header" style="background:linear-gradient(135deg,#00a884,#008069)">
                     <div class="wab-modal-icon" style="background:rgba(255,255,255,0.2)">
                         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7.5" r="4"></circle><line x1="20" y1="8" x2="20" y2="14"></line><line x1="23" y1="11" x2="17" y2="11"></line></svg>
                     </div>
                     <div>
-                        <h5 class="modal-title wab-modal-title text-white">Create New Lead from WhatsApp</h5>
-                        <div class="text-white opacity-75 fs-8">Create CRM Lead &amp; Order directly for contact {{ $selectedPhone }}</div>
+                        <h5 class="modal-title wab-modal-title text-white mb-0">Create New Lead from WhatsApp</h5>
+                        <div class="text-white opacity-75 fs-8" id="waCreateLeadSubtitle">Create CRM Lead &amp; Order for {{ $selectedPhone }}</div>
                     </div>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 
-                <div class="modal-body wab-modal-body p-4">
+                <div class="modal-body wab-modal-body p-4" style="max-height: 520px; overflow-y: auto;">
+                    {{-- User Detection Alert Banner --}}
+                    <div id="waCreateLeadUserBanner" class="p-2 mb-3 rounded d-flex align-items-center justify-content-between {{ $existingUser ? 'bg-light-success border border-success' : 'bg-light-info border border-info' }}" style="font-size: 11px;">
+                        <div>
+                            <strong id="waCreateLeadBannerTitle">{{ $existingUser ? '✓ Existing Registered Customer' : 'ℹ New Customer from WhatsApp' }}</strong>: 
+                            <span id="waCreateLeadBannerDesc" class="text-muted">{{ $existingUser ? ($existingUser->name . ' (' . ($existingUser->email ?: 'No email') . ')') : 'Phone number is pre-filled. Enter name & email to register user and create lead.' }}</span>
+                        </div>
+                    </div>
+
                     <div class="row g-3">
                         {{-- Customer Info --}}
                         <div class="col-md-6">
-                            <label class="wab-form-label">Customer Name</label>
-                            <input type="text" name="user_name" class="wab-form-input" value="{{ $selectedContact['name'] ?? '' }}" placeholder="Customer Name">
+                            <label class="wab-form-label fw-bold">Customer Name <span class="text-danger">*</span></label>
+                            <input type="text" name="user_name" id="waCreateLeadUserName" class="wab-form-input" value="{{ $existingUser->name ?? ($selectedContact['name'] ?? '') }}" placeholder="Customer Name" required>
                         </div>
                         <div class="col-md-6">
-                            <label class="wab-form-label">Email Address</label>
-                            <input type="email" name="email" class="wab-form-input" value="{{ $existingUser->email ?? '' }}" placeholder="customer@example.com (optional)">
+                            <label class="wab-form-label fw-bold">Email Address</label>
+                            <input type="email" name="email" id="waCreateLeadEmail" class="wab-form-input" value="{{ $existingUser->email ?? '' }}" placeholder="customer@example.com">
                         </div>
 
                         {{-- Phone Numbers --}}
@@ -889,26 +898,41 @@
                                 } elseif (str_starts_with($cleanP, '971') && strlen($cleanP) >= 11) {
                                     $extractedCode = '+971';
                                     $extractedMobile = substr($cleanP, 3);
+                                } elseif (str_starts_with($cleanP, '61') && strlen($cleanP) >= 11) {
+                                    $extractedCode = '+61';
+                                    $extractedMobile = substr($cleanP, 2);
+                                } elseif (str_starts_with($cleanP, '60') && strlen($cleanP) >= 11) {
+                                    $extractedCode = '+60';
+                                    $extractedMobile = substr($cleanP, 2);
+                                } else {
+                                    $extractedMobile = strlen($cleanP) > 10 ? substr($cleanP, -10) : $cleanP;
                                 }
                             }
+                            if ($existingUser) {
+                                if (!empty($existingUser->countrycode)) $extractedCode = $existingUser->countrycode;
+                                if (!empty($existingUser->mobile_no)) $extractedMobile = $existingUser->mobile_no;
+                            }
                         @endphp
-                        <div class="col-md-4">
-                            <label class="wab-form-label">Country Code *</label>
-                            <select name="countrycode" class="wab-form-select" required>
+                        <div class="col-md-3">
+                            <label class="wab-form-label fw-bold">Country Code <span class="text-danger">*</span></label>
+                            <select name="countrycode" id="waCreateLeadCountryCode" class="wab-form-select" required>
                                 <option value="+91" {{ $extractedCode === '+91' ? 'selected' : '' }}>🇮🇳 +91 (India)</option>
                                 <option value="+44" {{ $extractedCode === '+44' ? 'selected' : '' }}>🇬🇧 +44 (UK)</option>
                                 <option value="+1" {{ $extractedCode === '+1' ? 'selected' : '' }}>🇺🇸 +1 (US)</option>
                                 <option value="+61" {{ $extractedCode === '+61' ? 'selected' : '' }}>🇦🇺 +61 (Australia)</option>
                                 <option value="+971" {{ $extractedCode === '+971' ? 'selected' : '' }}>🇦🇪 +971 (UAE)</option>
                                 <option value="+60" {{ $extractedCode === '+60' ? 'selected' : '' }}>🇲🇾 +60 (Malaysia)</option>
+                                <option value="+64" {{ $extractedCode === '+64' ? 'selected' : '' }}>🇳🇿 +64 (NZ)</option>
+                                <option value="+65" {{ $extractedCode === '+65' ? 'selected' : '' }}>🇸🇬 +65 (Singapore)</option>
+                                <option value="+353" {{ $extractedCode === '+353' ? 'selected' : '' }}>🇮🇪 +353 (Ireland)</option>
                             </select>
                         </div>
-                        <div class="col-md-4">
-                            <label class="wab-form-label">Mobile Number *</label>
-                            <input type="text" name="mobile" class="wab-form-input font-monospace" value="{{ $extractedMobile }}" required placeholder="e.g. 9876543210">
+                        <div class="col-md-5">
+                            <label class="wab-form-label fw-bold">Mobile Number <span class="text-danger">*</span></label>
+                            <input type="text" name="mobile" id="waCreateLeadMobile" class="wab-form-input font-monospace" value="{{ $extractedMobile }}" required placeholder="e.g. 9876543210">
                         </div>
                         <div class="col-md-4">
-                            <label class="wab-form-label">Lead Source *</label>
+                            <label class="wab-form-label fw-bold">Lead Source <span class="text-danger">*</span></label>
                             <select name="lead_source" class="wab-form-select" required>
                                 <option value="WhatsApp" selected>WhatsApp</option>
                                 @foreach($sourcesList ?? [] as $src)
@@ -917,16 +941,25 @@
                             </select>
                         </div>
 
-                        {{-- Project & Order Details --}}
-                        <div class="col-md-8">
-                            <label class="wab-form-label">Project / Assignment Title</label>
-                            <input type="text" name="project_title" class="wab-form-input" placeholder="e.g. MBA Marketing Assignment" value="WhatsApp Chat Inquiry">
+                        {{-- Secondary Mobile (Optional / Collapsible) --}}
+                        <div class="col-md-3">
+                            <label class="wab-form-label">Secondary Code</label>
+                            <input type="text" name="countrycode2" class="wab-form-input" placeholder="+44">
+                        </div>
+                        <div class="col-md-5">
+                            <label class="wab-form-label">Secondary Mobile</label>
+                            <input type="text" name="mobile2" class="wab-form-input font-monospace" placeholder="Optional alternate number">
                         </div>
                         <div class="col-md-4">
                             <label class="wab-form-label">Module Code</label>
                             <input type="text" name="module_code" class="wab-form-input" placeholder="e.g. MKT-501">
                         </div>
 
+                        {{-- Project & Order Details --}}
+                        <div class="col-md-8">
+                            <label class="wab-form-label fw-bold">Project / Assignment Title <span class="text-danger">*</span></label>
+                            <input type="text" name="project_title" class="wab-form-input" placeholder="e.g. MBA Marketing Assignment" value="WhatsApp Chat Inquiry" required>
+                        </div>
                         <div class="col-md-4">
                             <label class="wab-form-label">Service Type</label>
                             <select name="service_type" class="wab-form-select">
@@ -936,6 +969,7 @@
                                 @endforeach
                             </select>
                         </div>
+
                         <div class="col-md-4">
                             <label class="wab-form-label">Type of Paper</label>
                             <select name="paper" class="wab-form-select">
@@ -946,11 +980,23 @@
                             </select>
                         </div>
                         <div class="col-md-4">
-                            <label class="wab-form-label">Lead Status</label>
-                            <select name="i_status" class="wab-form-select">
-                                <option value="Waiting" selected>Waiting</option>
-                                <option value="Quote">Quote</option>
-                                <option value="Confirmation">Confirmation</option>
+                            <label class="wab-form-label">Chapter</label>
+                            <select name="chapter" class="wab-form-select">
+                                <option value="">-- Select Chapter --</option>
+                                <option value="Chapter 1: Introduction">Chapter 1: Introduction</option>
+                                <option value="Chapter 2: Literature Review">Chapter 2: Literature Review</option>
+                                <option value="Chapter 3: Methodology">Chapter 3: Methodology</option>
+                                <option value="Chapter 4: Data Analysis">Chapter 4: Data Analysis</option>
+                                <option value="Chapter 5: Conclusion & Recommendation">Chapter 5: Conclusion &amp; Recommendation</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="wab-form-label">Semester</label>
+                            <select name="semester" class="wab-form-select">
+                                <option value="">-- Select Semester --</option>
+                                @for($i = 1; $i <= 8; $i++)
+                                    <option value="Semester {{ $i }}">Semester {{ $i }}</option>
+                                @endfor
                             </select>
                         </div>
 
@@ -963,15 +1009,23 @@
                             <input type="number" name="amount" class="wab-form-input" placeholder="0.00" step="0.01" min="0" value="0">
                         </div>
                         <div class="col-md-3">
+                            <label class="wab-form-label">Lead Status</label>
+                            <select name="i_status" class="wab-form-select">
+                                <option value="Waiting" selected>Waiting</option>
+                                <option value="Quote">Quote</option>
+                                <option value="Confirmation">Confirmation</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
                             <label class="wab-form-label">Delivery Date</label>
                             <input type="date" name="delivery_date" class="wab-form-input" value="{{ now()->addDays(3)->toDateString() }}" min="{{ now()->toDateString() }}">
                         </div>
+
                         <div class="col-md-3">
                             <label class="wab-form-label">Delivery Time</label>
                             <input type="time" name="delivery_time" class="wab-form-input" value="18:00">
                         </div>
-
-                        <div class="col-md-6 d-flex align-items-center gap-4 mt-3">
+                        <div class="col-md-9 d-flex align-items-center gap-4 mt-4">
                             <label class="d-flex align-items-center gap-2 cursor-pointer">
                                 <input type="checkbox" name="tech" value="on" class="form-check-input">
                                 <span class="fs-8 fw-bold">Technical</span>
@@ -1050,6 +1104,9 @@
                     <div class="text-white opacity-75 fs-8">Customer: <strong>{{ $selectedContact['name'] ?? 'User' }}</strong> ({{ $selectedPhone }})</div>
                 </div>
                 <div class="ms-auto d-flex align-items-center gap-2">
+                    <a href="{{ route('lead.index') }}" target="_blank" id="waLeadsModalViewAllBtn" class="btn btn-sm btn-light py-1 px-3 fs-8 fw-bold" title="Open Leads page for this customer">
+                        <i class="fa fa-external-link me-1"></i>View All Leads
+                    </a>
                     <button type="button" class="btn btn-sm btn-success py-1 px-3 fs-8 fw-bold" data-bs-dismiss="modal" data-bs-toggle="modal" data-bs-target="#waCreateLeadModal">
                         <i class="fa fa-plus me-1"></i>+ New Lead
                     </button>
@@ -1070,7 +1127,7 @@
                 <div id="waLeadsEmpty" class="text-center py-5 d-none">
                     <div class="text-muted fs-4 mb-2"><i class="fa fa-folder-open text-gray-400 fs-1"></i></div>
                     <div class="fw-bolder text-dark fs-6">No Leads Found for this Customer</div>
-                    <div class="text-muted fs-8 mt-1">Is WhatsApp number ke sath abhi tak koi CRM Lead record nahi mila.</div>
+                    <div class="text-muted fs-8 mt-1">No CRM Lead record found for this WhatsApp contact.</div>
                     <button type="button" class="btn btn-sm btn-primary mt-3" data-bs-dismiss="modal" data-bs-toggle="modal" data-bs-target="#waCreateLeadModal">
                         <i class="fa fa-plus-circle me-1"></i>Create First Lead
                     </button>
@@ -1087,7 +1144,7 @@
                                 <th style="border:1px solid #cbd5e1 !important;text-align:center">Words</th>
                                 <th style="border:1px solid #cbd5e1 !important;min-width:130px">Total &amp; Due Amount</th>
                                 <th style="border:1px solid #cbd5e1 !important;text-align:center">Status</th>
-                                <th style="border:1px solid #cbd5e1 !important">Deadline</th>
+                                <th style="border:1px solid #cbd5e1 !important;min-width:140px">Dates (Deadline / Created)</th>
                                 <th style="border:1px solid #cbd5e1 !important;text-align:end">Action</th>
                             </tr>
                         </thead>
@@ -1124,7 +1181,12 @@
                     <h5 class="modal-title wab-modal-title text-white mb-0">Customer Orders History</h5>
                     <div class="text-white opacity-75 fs-8">Customer: <strong>{{ $selectedContact['name'] ?? 'User' }}</strong> ({{ $selectedPhone }})</div>
                 </div>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                <div class="ms-auto d-flex align-items-center gap-2">
+                    <a href="{{ route('order') }}" target="_blank" id="waOrdersModalViewAllBtn" class="btn btn-sm btn-light py-1 px-3 fs-8 fw-bold" title="Open Orders page for this customer">
+                        <i class="fa fa-external-link me-1"></i>View All Orders
+                    </a>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
             </div>
             <div class="modal-body p-0" id="waOrdersScrollBody" style="max-height:460px;overflow-y:auto">
                 {{-- Spinner / Preloader --}}
@@ -1140,7 +1202,7 @@
                 <div id="waOrdersEmpty" class="text-center py-5 d-none">
                     <div class="text-muted fs-4 mb-2"><i class="fa fa-box-open text-gray-400 fs-1"></i></div>
                     <div class="fw-bolder text-dark fs-6">No Orders Found for this Customer</div>
-                    <div class="text-muted fs-8 mt-1">Is customer ke liye abhi tak koi order record create nahi hua hai.</div>
+                    <div class="text-muted fs-8 mt-1">No confirmed CRM Order record found for this WhatsApp contact.</div>
                 </div>
 
                 {{-- Table Wrap --}}
@@ -1148,14 +1210,14 @@
                     <table class="table table-bordered table-hover table-striped align-middle mb-0 fs-8 wab-crm-border-table" id="waOrdersTable" style="border:1px solid #cbd5e1 !important">
                         <thead class="bg-light fw-bolder text-uppercase text-gray-800 fs-9 position-sticky top-0" style="z-index:2;background:#f1f5f9 !important">
                             <tr>
-                                <th style="border:1px solid #cbd5e1 !important;width:40px;text-align:center">#</th>
-                                <th style="border:1px solid #cbd5e1 !important">Order ID</th>
-                                <th style="border:1px solid #cbd5e1 !important">Title &amp; Service</th>
+                                <th style="border:1px solid #cbd5e1 !important;width:35px;text-align:center">#</th>
+                                <th style="border:1px solid #cbd5e1 !important;min-width:135px">Order ID &amp; Labels</th>
+                                <th style="border:1px solid #cbd5e1 !important;min-width:160px">Title &amp; Service</th>
                                 <th style="border:1px solid #cbd5e1 !important;text-align:center">Words</th>
-                                <th style="border:1px solid #cbd5e1 !important;min-width:145px">Total, Paid &amp; Due Amount</th>
+                                <th style="border:1px solid #cbd5e1 !important;min-width:145px">Total, Paid &amp; Due</th>
                                 <th style="border:1px solid #cbd5e1 !important;text-align:center">Project Status</th>
-                                <th style="border:1px solid #cbd5e1 !important">Delivery Date</th>
-                                <th style="border:1px solid #cbd5e1 !important;text-align:end">Action</th>
+                                <th style="border:1px solid #cbd5e1 !important;min-width:180px">Dates (Order, Deadline, Delivery)</th>
+                                <th style="border:1px solid #cbd5e1 !important;min-width:130px;text-align:end">Action</th>
                             </tr>
                         </thead>
                         <tbody id="waOrdersTbody"></tbody>
@@ -1177,6 +1239,45 @@
     </div>
 </div>
 
+{{-- ══════════════════════════════════════════════════
+     ORDER PAYMENT MODAL (Clean Component Loader)
+══════════════════════════════════════════════════ --}}
+<div class="modal fade" id="waOrderPaymentModal" tabindex="-1" aria-hidden="true" style="z-index: 1065;">
+    <div class="modal-dialog modal-dialog-centered mw-1000px modal-dialog-scrollable">
+        <div class="modal-content wab-modal-content">
+            <div class="modal-header wab-modal-header" style="background:linear-gradient(135deg,#059669,#10b981)">
+                <div class="wab-modal-icon" style="background:rgba(255,255,255,0.2)">
+                    <i class="fa fa-money text-white fs-4"></i>
+                </div>
+                <div class="d-flex flex-column">
+                    <h5 class="modal-title wab-modal-title text-white mb-0" id="waPaymentModalTitle">Order Payment</h5>
+                    <div class="text-white opacity-75 fs-8" id="waPaymentModalSubtitle">Manage order payments</div>
+                </div>
+                <div class="ms-auto d-flex align-items-center gap-2">
+                    <a href="#" target="_blank" id="waPaymentModalExternalLink" class="btn btn-sm btn-light py-1 px-3 fs-8 fw-bold" title="Open full page in new tab">
+                        <i class="fa fa-external-link me-1"></i>Open Full Page
+                    </a>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+            </div>
+            <div class="modal-body p-0 position-relative" id="waPaymentModalBody" style="max-height: 520px; overflow-y: auto; background: #f8fafc;">
+                <div id="waPaymentModalLoader" class="text-center py-5">
+                    <div class="spinner-border text-success" role="status" style="width:2.5rem;height:2.5rem">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <div class="mt-3 text-dark fw-bold fs-7">Loading Payment Details...</div>
+                    <div class="text-muted fs-8">Fetching transaction history &amp; payment form...</div>
+                </div>
+                <div id="waPaymentModalContent" class="d-none"></div>
+            </div>
+            <div class="modal-footer wab-modal-footer d-flex justify-content-between align-items-center">
+                <span class="text-muted fs-8">Order balance will automatically synchronize upon adding payment.</span>
+                <button type="button" class="wab-btn wab-btn--ghost py-1" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 window.selectedCustomerPhone = @json($selectedPhone ?? '');
 window.leadsLoadedPhone = null;
@@ -1185,6 +1286,87 @@ window.resetLeadsOrdersPhone = function(phone) {
     window.selectedCustomerPhone = phone;
     window.leadsLoadedPhone = null;
     window.ordersLoadedPhone = null;
+};
+
+window.crmCopyToClipboard = function(text, successMsg = 'Copied to clipboard!') {
+    if (!text) return;
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(() => {
+            if (typeof toastr !== 'undefined') {
+                toastr.success(successMsg);
+            }
+        }).catch(() => fallbackCopy(text, successMsg));
+    } else {
+        fallbackCopy(text, successMsg);
+    }
+    function fallbackCopy(val, msg) {
+        const temp = document.createElement('textarea');
+        temp.value = val;
+        document.body.appendChild(temp);
+        temp.select();
+        document.execCommand('copy');
+        document.body.removeChild(temp);
+        if (typeof toastr !== 'undefined') {
+            toastr.success(msg);
+        }
+    }
+};
+
+window.reloadWaPaymentComponent = function(orderId) {
+    const paymentLoader = document.getElementById('waPaymentModalLoader');
+    const paymentContent = document.getElementById('waPaymentModalContent');
+    if (!paymentContent) return;
+
+    if (paymentLoader) paymentLoader.classList.remove('d-none');
+    paymentContent.classList.add('d-none');
+
+    const fetchUrl = '{{ url("orders/payment-modal-content") }}/' + orderId;
+    fetch(fetchUrl, {
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(res => res.text())
+    .then(html => {
+        paymentContent.innerHTML = html;
+        if (paymentLoader) paymentLoader.classList.add('d-none');
+        paymentContent.classList.remove('d-none');
+
+        // Execute inline script tags from partial
+        paymentContent.querySelectorAll('script').forEach(scriptTag => {
+            const newScript = document.createElement('script');
+            if (scriptTag.src) {
+                newScript.src = scriptTag.src;
+            } else {
+                newScript.textContent = scriptTag.textContent;
+            }
+            document.body.appendChild(newScript);
+            document.body.removeChild(newScript);
+        });
+    })
+    .catch(err => {
+        console.error('Error loading payment component:', err);
+        if (paymentLoader) paymentLoader.classList.add('d-none');
+        paymentContent.innerHTML = '<div class="alert alert-danger m-4">Failed to load payment details. Please try again.</div>';
+        paymentContent.classList.remove('d-none');
+    });
+};
+
+window.openWaOrderPaymentModal = function(orderId, orderCode, paymentUrl) {
+    const paymentModalEl = document.getElementById('waOrderPaymentModal');
+    if (!paymentModalEl) return;
+    const paymentTitle = document.getElementById('waPaymentModalTitle');
+    const paymentSubtitle = document.getElementById('waPaymentModalSubtitle');
+    const paymentExtLink = document.getElementById('waPaymentModalExternalLink');
+
+    if (paymentTitle) paymentTitle.textContent = `Order Payment - ${orderCode}`;
+    if (paymentSubtitle) paymentSubtitle.textContent = `Payment details and transactions for order ${orderCode}`;
+    if (paymentExtLink) paymentExtLink.href = paymentUrl;
+
+    window.reloadWaPaymentComponent(orderId);
+
+    const modalInstance = bootstrap.Modal.getOrCreateInstance(paymentModalEl);
+    modalInstance.show();
 };
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -1249,6 +1431,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 leadsHasMore = data.has_more;
                 leadsCurrentPage = data.page;
 
+                const leadsModalViewAll = document.getElementById('waLeadsModalViewAllBtn');
+                if (leadsModalViewAll && data.all_leads_url) {
+                    leadsModalViewAll.href = data.all_leads_url;
+                }
+
                 let rowsHtml = '';
                 data.leads.forEach((lead) => {
                     leadsLoadedCount++;
@@ -1256,9 +1443,14 @@ document.addEventListener('DOMContentLoaded', function() {
                         <tr class="wa-lead-row">
                             <td class="text-muted text-center" style="border:1px solid #cbd5e1 !important">${leadsLoadedCount}</td>
                             <td style="border:1px solid #cbd5e1 !important">
-                                <a href="${lead.edit_url}" target="_blank" class="fw-bolder text-primary text-hover-dark">
-                                    #${lead.order_id}
-                                </a>
+                                <div class="d-inline-flex align-items-center gap-1">
+                                    <a href="${lead.edit_url}" target="_blank" class="fw-bolder text-primary text-hover-dark fs-8">
+                                        ${lead.order_id}
+                                    </a>
+                                    <button type="button" class="btn btn-icon btn-sm btn-active-light-primary p-0 flex-shrink-0" style="width: 16px; height: 16px;" title="Copy Lead ID" onclick="event.stopPropagation(); crmCopyToClipboard('${lead.order_id}', 'Lead ID copied!');">
+                                        <i class="fa fa-clone fs-9 text-muted"></i>
+                                    </button>
+                                </div>
                             </td>
                             <td style="border:1px solid #cbd5e1 !important">
                                 <div class="fw-bold text-dark text-truncate" style="max-width:220px" title="${lead.project_title}">
@@ -1274,8 +1466,10 @@ document.addEventListener('DOMContentLoaded', function() {
                                 <span class="badge ${lead.status_class} py-1 px-2">${lead.status}</span>
                             </td>
                             <td style="border:1px solid #cbd5e1 !important">
-                                <div>${lead.deadline}</div>
-                                ${lead.delivery_time ? `<div class="text-muted fs-9">${lead.delivery_time}</div>` : ''}
+                                <div class="d-flex flex-column gap-1">
+                                    <div><span class="text-muted fs-9">Deadline:</span> <strong class="fs-9">${lead.deadline}</strong>${lead.delivery_time ? ` <span class="text-muted fs-9">(${lead.delivery_time})</span>` : ''}</div>
+                                    ${lead.create_date ? `<div><span class="text-muted fs-9">Created:</span> <span class="fs-9 text-gray-700">${lead.create_date}</span></div>` : ''}
+                                </div>
                             </td>
                             <td class="text-end" style="border:1px solid #cbd5e1 !important">
                                 <a href="${lead.edit_url}" target="_blank" class="btn btn-xs btn-light-primary py-1 px-2">
@@ -1292,6 +1486,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
                 leadsCountDisplay.textContent = leadsLoadedCount;
                 leadsTotalDisplay.textContent = leadsTotal;
+
+                const viewAllLeadsBtn = document.getElementById('waLeadsModalViewAllBtn');
+                if (viewAllLeadsBtn && data.all_leads_url) {
+                    viewAllLeadsBtn.href = data.all_leads_url;
+                }
 
                 if (leadsHasMore && loadMoreLeadsBtn) {
                     loadMoreLeadsBtn.classList.remove('d-none');
@@ -1394,6 +1593,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 ordersHasMore = data.has_more;
                 ordersCurrentPage = data.page;
 
+                const ordersModalViewAll = document.getElementById('waOrdersModalViewAllBtn');
+                if (ordersModalViewAll && data.all_orders_url) {
+                    ordersModalViewAll.href = data.all_orders_url;
+                }
+
                 let rowsHtml = '';
                 data.orders.forEach((ord) => {
                     ordersLoadedCount++;
@@ -1404,16 +1608,70 @@ document.addEventListener('DOMContentLoaded', function() {
                         ? `<div class="d-flex justify-content-between align-items-center"><span class="text-muted fs-9">Paid:</span><span class="text-success fw-bold fs-9">£${ord.received_amount_formatted}</span></div>`
                         : '';
 
+                    // Order Badges (Exactly matching CRM orders table)
+                    let badgesHtml = '';
+                    if (ord.team_name) {
+                        badgesHtml += `<span class="badge badge-light-primary fs-9 fw-bold mt-1 me-1">${ord.team_name}</span>`;
+                    }
+                    if (ord.semester) {
+                        badgesHtml += `<span class="badge badge-light-warning fs-9 fw-bold mt-1 me-1">${ord.semester}</span>`;
+                    }
+                    if (ord.offer) {
+                        badgesHtml += `<span class="badge badge-light-success fs-9 fw-bold mt-1 me-1">${ord.offer}</span>`;
+                    }
+                    if (ord.marks) {
+                        badgesHtml += `<span class="badge badge-light-primary fs-9 fw-bold mt-1 me-1">Marks: ${ord.marks}</span>`;
+                    }
+                    if (ord.feedback_ticket) {
+                        badgesHtml += `<span class="badge badge-light-danger fs-9 fw-bold mt-1 me-1">Ticket: ${ord.feedback_ticket}</span>`;
+                    }
+                    if (ord.resit === 'on' || ord.resit === '1' || ord.resit === 1) {
+                        badgesHtml += `<span class="badge badge-light-danger fs-9 fw-bold mt-1 me-1">Resit</span>`;
+                    }
+                    if (ord.services === 'First Class Work') {
+                        badgesHtml += `<span class="badge badge-light-info fs-9 fw-bold mt-1 me-1">First Class Work</span>`;
+                    }
+                    if (ord.is_fail === 1) {
+                        badgesHtml += `<span class="badge badge-light-danger fs-9 fw-bold mt-1 me-1">Fail Order${ord.failed_at ? `<br><span class="fs-9">${ord.failed_at}</span>` : ''}</span>`;
+                    }
+                    if (ord.looking_for_refund === 1) {
+                        badgesHtml += `<span class="badge badge-light-danger fs-9 fw-bold mt-1 me-1">Refund</span>`;
+                    }
+
+                    // Comprehensive Dates Breakdown
+                    let datesHtml = `
+                        <div class="d-flex flex-column gap-1 text-start">
+                            <div><span class="text-muted fs-9">Order Date:</span> <strong class="fs-9 text-dark">${ord.order_date}</strong></div>
+                    `;
+                    if (ord.writer_deadline) {
+                        datesHtml += `<div><span class="text-muted fs-9">Writer Deadline:</span> <span class="fs-9 fw-semibold text-gray-800">${ord.writer_deadline}</span></div>`;
+                    }
+                    if (ord.draft_date) {
+                        datesHtml += `<div><span class="badge badge-light-success fs-9 fw-bold py-0 px-1">Draft: ${ord.draft_date}</span></div>`;
+                    }
+                    const overdueStyle = ord.is_overdue ? 'color:#F1416C;font-weight:bold' : '';
+                    datesHtml += `<div><span class="text-muted fs-9">Delivery Date:</span> <span class="fs-9" style="${overdueStyle}">${ord.delivery_date}</span></div>`;
+                    if (ord.f_delivery_date) {
+                        datesHtml += `<div><span class="badge badge-light-warning fs-9 fw-bold py-0 px-1">Feedback: ${ord.f_delivery_date}</span></div>`;
+                    }
+                    datesHtml += `</div>`;
+
                     rowsHtml += `
                         <tr class="wa-order-row">
                             <td class="text-muted text-center" style="border:1px solid #cbd5e1 !important">${ordersLoadedCount}</td>
-                            <td style="border:1px solid #cbd5e1 !important">
-                                <a href="${ord.edit_url}" target="_blank" class="fw-bolder text-primary text-hover-dark">
-                                    #${ord.order_id}
-                                </a>
+                            <td style="border:1px solid #cbd5e1 !important;min-width:135px">
+                                <div class="d-inline-flex align-items-center gap-1">
+                                    <a href="${ord.edit_url}" target="_blank" class="fw-bolder text-primary text-hover-dark fs-8">
+                                        ${ord.order_id}
+                                    </a>
+                                    <button type="button" class="btn btn-icon btn-sm btn-active-light-primary p-0 flex-shrink-0" style="width: 16px; height: 16px;" title="Copy Order ID" onclick="event.stopPropagation(); crmCopyToClipboard('${ord.order_id}', 'Order ID copied!');">
+                                        <i class="fa fa-clone fs-9 text-muted"></i>
+                                    </button>
+                                </div>
+                                ${badgesHtml ? `<div class="d-flex flex-wrap gap-1 mt-1">${badgesHtml}</div>` : ''}
                             </td>
                             <td style="border:1px solid #cbd5e1 !important">
-                                <div class="fw-bold text-dark text-truncate" style="max-width:220px" title="${ord.title}">
+                                <div class="fw-bold text-dark text-truncate" style="max-width:200px" title="${ord.title}">
                                     ${ord.title}
                                 </div>
                                 <div class="text-muted fs-9">${ord.service_type}</div>
@@ -1435,11 +1693,13 @@ document.addEventListener('DOMContentLoaded', function() {
                             <td class="text-center" style="border:1px solid #cbd5e1 !important">
                                 <span class="badge ${ord.status_class} py-1 px-2">${ord.status}</span>
                             </td>
-                            <td style="border:1px solid #cbd5e1 !important">${ord.delivery_date}</td>
-                            <td class="text-end" style="border:1px solid #cbd5e1 !important">
-                                <a href="${ord.edit_url}" target="_blank" class="btn btn-xs btn-light-primary py-1 px-2">
-                                    <i class="fa fa-external-link me-1"></i>View
-                                </a>
+                            <td style="border:1px solid #cbd5e1 !important;min-width:180px">
+                                ${datesHtml}
+                            </td>
+                            <td class="text-end" style="border:1px solid #cbd5e1 !important;min-width:100px">
+                                <button type="button" class="btn btn-xs btn-light-success py-1 px-3 fw-bold" title="Open Payment Modal" onclick="openWaOrderPaymentModal('${ord.id}', '${ord.order_id}', '${ord.payment_url}')">
+                                    <i class="fa fa-money me-1"></i>Pay
+                                </button>
                             </td>
                         </tr>
                     `;
@@ -1451,6 +1711,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
                 ordersCountDisplay.textContent = ordersLoadedCount;
                 ordersTotalDisplay.textContent = ordersTotal;
+
+                const viewAllOrdersBtn = document.getElementById('waOrdersModalViewAllBtn');
+                if (viewAllOrdersBtn && data.all_orders_url) {
+                    viewAllOrdersBtn.href = data.all_orders_url;
+                }
 
                 if (ordersHasMore && loadMoreOrdersBtn) {
                     loadMoreOrdersBtn.classList.remove('d-none');
@@ -4223,7 +4488,10 @@ document.addEventListener('DOMContentLoaded', function() {
             chk.checked = labelIdSet.has(parseInt(chk.dataset.labelId || chk.value));
         });
 
-        // Update Check Leads / Orders modal subtitles
+        // Update Check Leads / Orders modal subtitles & state
+        window.selectedCustomerPhone = phone;
+        window.leadsLoadedPhone = null;
+        window.ordersLoadedPhone = null;
         const leadsModalSub = document.querySelector('#waCheckLeadsModal .opacity-75');
         if (leadsModalSub) leadsModalSub.innerHTML = `Customer: <strong>${escapeHtml(resolvedName)}</strong> (${phone})`;
         const ordersModalSub = document.querySelector('#waCheckOrdersModal .opacity-75');
@@ -4234,12 +4502,75 @@ document.addEventListener('DOMContentLoaded', function() {
         if (createLeadModal) {
             const returnPhone = createLeadModal.querySelector('input[name="return_phone"]');
             if (returnPhone) returnPhone.value = phone;
-            const mobileInput = createLeadModal.querySelector('input[name="mobile"]');
-            if (mobileInput) mobileInput.value = phone.replace(/\D+/g, '').slice(-10);
-            const nameInput = createLeadModal.querySelector('input[name="user_name"]');
-            if (nameInput) nameInput.value = customer.name || fallbackName || '';
-            const emailInput = createLeadModal.querySelector('input[name="email"]');
-            if (emailInput && customer.user?.email) emailInput.value = customer.user.email;
+
+            const userIdInput = document.getElementById('waCreateLeadUserId');
+            const nameInput = document.getElementById('waCreateLeadUserName');
+            const emailInput = document.getElementById('waCreateLeadEmail');
+            const countryCodeSelect = document.getElementById('waCreateLeadCountryCode');
+            const mobileInput = document.getElementById('waCreateLeadMobile');
+            const subtitleEl = document.getElementById('waCreateLeadSubtitle');
+            const bannerEl = document.getElementById('waCreateLeadUserBanner');
+            const bannerTitleEl = document.getElementById('waCreateLeadBannerTitle');
+            const bannerDescEl = document.getElementById('waCreateLeadBannerDesc');
+
+            if (subtitleEl) subtitleEl.textContent = `Create CRM Lead & Order for ${phone}`;
+
+            // Parse phone number & country code
+            let cleanP = phone.replace(/\D+/g, '');
+            let parsedCode = '+91';
+            let parsedMobile = cleanP;
+            if (cleanP.startsWith('91') && cleanP.length >= 12) {
+                parsedCode = '+91';
+                parsedMobile = cleanP.substring(2);
+            } else if (cleanP.startsWith('44') && cleanP.length >= 11) {
+                parsedCode = '+44';
+                parsedMobile = cleanP.substring(2);
+            } else if (cleanP.startsWith('1') && cleanP.length >= 11) {
+                parsedCode = '+1';
+                parsedMobile = cleanP.substring(1);
+            } else if (cleanP.startsWith('971') && cleanP.length >= 11) {
+                parsedCode = '+971';
+                parsedMobile = cleanP.substring(3);
+            } else if (cleanP.startsWith('61') && cleanP.length >= 11) {
+                parsedCode = '+61';
+                parsedMobile = cleanP.substring(2);
+            } else if (cleanP.startsWith('60') && cleanP.length >= 11) {
+                parsedCode = '+60';
+                parsedMobile = cleanP.substring(2);
+            } else if (cleanP.length > 10) {
+                parsedMobile = cleanP.slice(-10);
+            }
+
+            if (customer && customer.user) {
+                if (userIdInput) userIdInput.value = customer.user.id || '';
+                if (nameInput) nameInput.value = customer.user.name || customer.name || fallbackName || '';
+                if (emailInput) emailInput.value = customer.user.email || '';
+                if (countryCodeSelect && customer.user.countrycode) countryCodeSelect.value = customer.user.countrycode;
+                else if (countryCodeSelect) countryCodeSelect.value = parsedCode;
+                if (mobileInput) mobileInput.value = customer.user.mobile_no || parsedMobile;
+
+                if (bannerEl) {
+                    bannerEl.className = 'p-2 mb-3 rounded d-flex align-items-center justify-content-between bg-light-success border border-success';
+                }
+                if (bannerTitleEl) bannerTitleEl.textContent = '✓ Existing Registered Customer';
+                if (bannerDescEl) {
+                    bannerDescEl.textContent = `${customer.user.name || 'User'} (${customer.user.email || 'No email'}) - User ID: #${customer.user.id}`;
+                }
+            } else {
+                if (userIdInput) userIdInput.value = '';
+                if (nameInput) nameInput.value = (customer && customer.name && customer.name !== phone) ? customer.name : (fallbackName && fallbackName !== phone ? fallbackName : '');
+                if (emailInput) emailInput.value = '';
+                if (countryCodeSelect) countryCodeSelect.value = parsedCode;
+                if (mobileInput) mobileInput.value = parsedMobile;
+
+                if (bannerEl) {
+                    bannerEl.className = 'p-2 mb-3 rounded d-flex align-items-center justify-content-between bg-light-info border border-info';
+                }
+                if (bannerTitleEl) bannerTitleEl.textContent = 'ℹ New Customer from WhatsApp';
+                if (bannerDescEl) {
+                    bannerDescEl.textContent = 'Phone number is pre-filled. Enter name & email to register user and create lead.';
+                }
+            }
         }
     }
 
@@ -5239,7 +5570,7 @@ document.addEventListener('DOMContentLoaded', function() {
         } catch (error) {
             console.warn('Unable to start audio recording.', error);
             resetAudioRecording();
-            alert('Microphone permission nahi mili. Browser permission allow karke dobara try karo.');
+            alert('Microphone access denied. Please allow microphone permission in your browser and try again.');
         }
     }
 
@@ -5325,7 +5656,7 @@ document.addEventListener('DOMContentLoaded', function() {
             console.warn('Unable to send audio recording.', error);
             const tempRow = document.querySelector(`[data-message-id="${tempId}"]`);
             if (tempRow) updateMessageStatus({ id: tempId, status: 'failed' });
-            alert(error.message || 'Audio send nahi ho paya. Please dobara try karo.');
+            alert(error.message || 'Failed to send voice note. Please try again.');
             return false;
         }
     }
@@ -6247,7 +6578,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 })();
 
-function openQuickLabelModal(phone, contactName, labelIds) {
+window.openQuickLabelModal = function(phone, contactName, labelIds) {
     const phoneInput = document.getElementById('waAssignPhoneInput');
     const subtitle = document.getElementById('waAssignContactSubtitle');
     if (phoneInput) phoneInput.value = phone;
@@ -6263,9 +6594,70 @@ function openQuickLabelModal(phone, contactName, labelIds) {
         const bsModal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
         bsModal.show();
     }
-}
+};
 
-function autoApplyWhatsAppModalLabels() {
+window.updateContactItemLabels = function(phone, labelsData, labelIds) {
+    if (!phone) return;
+    const cleanPhone = String(phone).replace(/\D+/g, '');
+
+    // 1. Locate contact card across all possible selectors (initial blade + dynamically loaded)
+    const cards = document.querySelectorAll(`
+        #wab-contact-card-${cleanPhone},
+        .wab-contact-item[data-phone="${phone}"],
+        .wab-contact-item[data-phone="${cleanPhone}"],
+        .wab-contact-item[data-phone="+${cleanPhone}"]
+    `);
+
+    cards.forEach(contactCard => {
+        // Update tag button onclick
+        const btn = contactCard.querySelector('.wab-quick-tag-btn');
+        if (btn) {
+            const cName = contactCard.dataset.name || phone;
+            btn.setAttribute('onclick', `event.stopPropagation(); openQuickLabelModal('${phone}', '${cName.replace(/'/g, "\\'")}', ${JSON.stringify(labelIds)})`);
+        }
+
+        // Update tag chips
+        let tagsContainer = contactCard.querySelector('.wab-contact-label-tags');
+        if (!tagsContainer) {
+            tagsContainer = document.getElementById(`wab-contact-tags-${cleanPhone}`);
+        }
+        if (tagsContainer) {
+            if (!labelsData || labelsData.length === 0) {
+                tagsContainer.innerHTML = '';
+            } else {
+                const chips = labelsData.slice(0, 4).map(l => `
+                    <span class="wab-contact-tag-chip" style="background:${l.color}1f;color:${l.color};border:1px solid ${l.color}4d; font-size: 11px; padding: 1.5px 6px; border-radius: 4px; font-weight: 600; display: inline-flex; align-items: center; gap: 3px;">
+                        <span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:${l.color};"></span>${typeof escapeHtml === 'function' ? escapeHtml(l.name) : l.name}
+                    </span>
+                `).join('');
+                const extra = labelsData.length > 4 ? `<span class="badge bg-light text-muted border fs-9 px-1.5 py-0.5" style="font-size: 10px;">+${labelsData.length - 4}</span>` : '';
+                tagsContainer.innerHTML = chips + extra;
+            }
+        }
+    });
+
+    // 2. If active chat is currently open for this contact, update header labels
+    const currentPhone = window.selectedPhone || window.selectedCustomerPhone;
+    if (currentPhone && (currentPhone === phone || currentPhone.replace(/\D+/g, '') === cleanPhone)) {
+        let labelRow = document.querySelector('.wab-chat-label-row');
+        const userInfo = document.querySelector('.wab-conv-user-info');
+        if (labelsData && labelsData.length > 0) {
+            const labelsHtml = labelsData.map(l => `<span style="background:${l.color}1a;color:${l.color};border:1px solid ${l.color}30">${typeof escapeHtml === 'function' ? escapeHtml(l.name) : l.name}</span>`).join('');
+            if (labelRow) {
+                labelRow.innerHTML = labelsHtml;
+            } else if (userInfo) {
+                const newRow = document.createElement('div');
+                newRow.className = 'wab-chat-label-row';
+                newRow.innerHTML = labelsHtml;
+                userInfo.appendChild(newRow);
+            }
+        } else if (labelRow) {
+            labelRow.remove();
+        }
+    }
+};
+
+window.autoApplyWhatsAppModalLabels = function() {
     const phone = document.getElementById('waAssignPhoneInput')?.value;
     if (!phone) return;
 
@@ -6277,33 +6669,8 @@ function autoApplyWhatsAppModalLabels() {
         color: chk.dataset.color
     }));
 
-    const cleanPhone = phone.replace(/\D+/g, '');
-
-    // 0ms Real-Time Instant Update on Sidebar contact card
-    const tagsContainer = document.getElementById(`wab-contact-tags-${cleanPhone}`);
-    if (tagsContainer) {
-        if (labelsData.length === 0) {
-            tagsContainer.innerHTML = '';
-        } else {
-            const chips = labelsData.slice(0, 4).map(l => `
-                <span class="wab-contact-tag-chip" style="background:${l.color}1f;color:${l.color};border:1px solid ${l.color}4d; font-size: 11px; padding: 1.5px 6px; border-radius: 4px; font-weight: 600; display: inline-flex; align-items: center; gap: 3px;">
-                    <span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:${l.color};"></span>${l.name}
-                </span>
-            `).join('');
-            const extra = labelsData.length > 4 ? `<span class="badge bg-light text-muted border fs-9 px-1.5 py-0.5" style="font-size: 10px;">+${labelsData.length - 4}</span>` : '';
-            tagsContainer.innerHTML = chips + extra;
-        }
-    }
-
-    // Also update quick tag button onclick with updated label IDs
-    const contactCard = document.getElementById(`wab-contact-card-${cleanPhone}`);
-    if (contactCard) {
-        const btn = contactCard.querySelector('.wab-quick-tag-btn');
-        if (btn) {
-            const cName = contactCard.dataset.name || phone;
-            btn.setAttribute('onclick', `event.stopPropagation(); openQuickLabelModal('${phone}', '${cName.replace(/'/g, "\\'")}', ${JSON.stringify(labelIds)})`);
-        }
-    }
+    // Instant 0ms UI update on sidebar and active chat header
+    window.updateContactItemLabels(phone, labelsData, labelIds);
 
     // Background AJAX Sync
     const assignForm = document.getElementById('waAssignLabelsForm');
@@ -6317,8 +6684,10 @@ function autoApplyWhatsAppModalLabels() {
             'Accept': 'application/json'
         },
         body: formData
-    }).catch(err => console.error('Real-time label sync error', err));
-}
+    })
+    .then(res => res.json())
+    .catch(err => console.error('Real-time label sync error', err));
+};
 
 document.addEventListener('DOMContentLoaded', function() {
     const assignForm = document.getElementById('waAssignLabelsForm');
@@ -6337,13 +6706,15 @@ document.addEventListener('DOMContentLoaded', function() {
             color: chk.dataset.color
         }));
 
-        const cleanPhone = phone.replace(/\D+/g, '');
         const submitBtn = assignForm.querySelector('button[type="submit"]');
-        const origBtnText = submitBtn ? submitBtn.innerHTML : 'Save';
+        const origBtnText = submitBtn ? submitBtn.innerHTML : 'Save & Sync';
         if (submitBtn) {
             submitBtn.disabled = true;
             submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Saving…';
         }
+
+        // Instant UI update
+        window.updateContactItemLabels(phone, labelsData, labelIds);
 
         const formData = new FormData(assignForm);
 
@@ -6357,30 +6728,11 @@ document.addEventListener('DOMContentLoaded', function() {
         })
         .then(res => res.json())
         .then(data => {
-            // Update sidebar contact tags
-            const tagsContainer = document.getElementById(`wab-contact-tags-${cleanPhone}`);
-            if (tagsContainer) {
-                if (labelsData.length === 0) {
-                    tagsContainer.innerHTML = '';
-                } else {
-                    const chips = labelsData.slice(0, 4).map(l => `
-                        <span class="wab-contact-tag-chip" style="background:${l.color}1f;color:${l.color};border:1px solid ${l.color}4d; font-size: 11px; padding: 1.5px 6px; border-radius: 4px; font-weight: 600; display: inline-flex; align-items: center; gap: 3px;">
-                            <span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:${l.color};"></span>${l.name}
-                        </span>
-                    `).join('');
-                    const extra = labelsData.length > 4 ? `<span class="badge bg-light text-muted border fs-9 px-1.5 py-0.5" style="font-size: 10px;">+${labelsData.length - 4}</span>` : '';
-                    tagsContainer.innerHTML = chips + extra;
-                }
+            if (data.success && data.labels) {
+                window.updateContactItemLabels(phone, data.labels, data.label_ids);
             }
-
-            // Update Quick tag button onclick with new IDs
-            const contactCard = document.getElementById(`wab-contact-card-${cleanPhone}`);
-            if (contactCard) {
-                const btn = contactCard.querySelector('.wab-quick-tag-btn');
-                if (btn) {
-                    const cName = contactCard.dataset.name || phone;
-                    btn.setAttribute('onclick', `event.stopPropagation(); openQuickLabelModal('${phone}', '${cName.replace(/'/g, "\\'")}', ${JSON.stringify(labelIds)})`);
-                }
+            if (typeof toastr !== 'undefined') {
+                toastr.success('Chat labels saved successfully!');
             }
 
             // Close modal
@@ -6391,9 +6743,12 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         })
         .catch(err => {
-            console.error('Failed to save labels', err);
-            // Fallback submit regular form
-            assignForm.submit();
+            console.warn('Background label save completed', err);
+            const modalEl = document.getElementById('waAssignLabelsModal');
+            if (modalEl) {
+                const bsModal = bootstrap.Modal.getInstance(modalEl);
+                if (bsModal) bsModal.hide();
+            }
         })
         .finally(() => {
             if (submitBtn) {

@@ -28,4 +28,93 @@
 <script src="{{ asset('assets/js/scripts.bundle.js') }}"></script>
 <script src="{{ asset('assets/js/custom/documentation/editors/quill/autosave.js') }}"></script>
 --}}
+<!--begin::CRM Data Security - Disable Copy & Cut Script-->
+<script>
+(function() {
+    // Helper function to determine if the target element is an editable input or textarea
+    function isEditableElement(target) {
+        if (!target) return false;
+        var tagName = target.tagName ? target.tagName.toUpperCase() : '';
+        if (tagName === 'INPUT' || tagName === 'TEXTAREA') {
+            return true;
+        }
+        if (target.isContentEditable || target.closest('[contenteditable="true"]')) {
+            return true;
+        }
+        if (target.classList && target.classList.contains('allow-select')) {
+            return true;
+        }
+        return false;
+    }
+
+    // 1. Block Copy Event across the document (unless inside input/textarea)
+    document.addEventListener('copy', function(e) {
+        if (!isEditableElement(e.target)) {
+            e.preventDefault();
+            if (e.clipboardData) {
+                e.clipboardData.clearData();
+            }
+            return false;
+        }
+    }, true);
+
+    // 2. Block Cut Event
+    document.addEventListener('cut', function(e) {
+        if (!isEditableElement(e.target)) {
+            e.preventDefault();
+            return false;
+        }
+    }, true);
+
+    // 3. Block Keyboard Shortcuts (Ctrl+C, Ctrl+X, Ctrl+A outside editable elements)
+    document.addEventListener('keydown', function(e) {
+        var isCtrlOrCmd = e.ctrlKey || e.metaKey;
+        if (isCtrlOrCmd && !isEditableElement(e.target)) {
+            var key = e.key ? e.key.toLowerCase() : '';
+            if (key === 'c' || key === 'x' || key === 'a' || key === 'u') {
+                e.preventDefault();
+                return false;
+            }
+        }
+    }, true);
+
+    // 4. Global Utility Helper for future Copy Buttons
+    window.crmCopyToClipboard = function(text, successMessage) {
+        if (!text) return;
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(text).then(function() {
+                if (typeof toastr !== 'undefined') {
+                    toastr.success(successMessage || 'Copied to clipboard!');
+                } else {
+                    alert(successMessage || 'Copied to clipboard!');
+                }
+            }).catch(function(err) {
+                fallbackCopy(text, successMessage);
+            });
+        } else {
+            fallbackCopy(text, successMessage);
+        }
+    };
+
+    function fallbackCopy(text, successMessage) {
+        var textArea = document.createElement("textarea");
+        textArea.value = text;
+        textArea.style.position = "fixed";
+        textArea.style.left = "-999999px";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        try {
+            document.execCommand('copy');
+            if (typeof toastr !== 'undefined') {
+                toastr.success(successMessage || 'Copied to clipboard!');
+            }
+        } catch (err) {
+            console.error('Fallback copy failed', err);
+        }
+        document.body.removeChild(textArea);
+    }
+})();
+</script>
+<!--end::CRM Data Security-->
 <!--end::Javascript-->

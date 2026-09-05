@@ -86,41 +86,30 @@
             </div>
         </td>
         
-        {{-- <td class="text-center">
-        <span>{{ $order->order_id }}</span><br>
-        @if($order->team?->team_name)
-        <span class="badge badge-light-primary fs-7 fw-bold mb-1">{{ $order->team->team_name }}</span><br>
-        @endif
-        @if($order->feedback_ticket)
-        <span class="badge badge-light-danger fs-7 fw-bold">{{ $order->feedback_ticket }}</span><br>
-        @endif
-
-        @if ($order->resit == 'on')
-        <span class="badge badge-light-danger fs-7 fw-bold">Resit</span><br>
-        @endif
-
-        @if($order->services == 'First Class Work')
-        <span class="badge badge-light-info fs-7 fw-bold">First Class Work</span><br>
-        @endif
-
-        @if($order->is_fail == 1)
-        <span class="badge badge-light-danger fs-7 fw-bold">Fail Order<br>{{ \Carbon\Carbon::parse($order->failed_at)->format('d M Y H:i:s A') }}</span>
-        @endif
-        </td> --}}
-
         <td id="order-cell-{{ $order->id }}" class="text-center {{ ($order->is_read == 1) ? 'bold-row' : '' }}" style="{{ $orderIdStyle }}">
            @if($isFrontendOrder)
-                <span class="badge badge-light-primary fs-7 fw-bold">
-                    {{ $order->order_id }}
-                </span><br>
+                <div class="d-inline-flex align-items-center justify-content-center">
+                    <span class="badge badge-light-primary fs-7 fw-bold">
+                        {{ $order->order_id }}
+                    </span>
+                    @if(!empty($order->order_id))
+                        <button type="button" class="btn btn-icon btn-sm btn-active-light-primary ms-1 p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Order ID" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $order->order_id }}', 'Order ID copied!');">
+                            <i class="fa fa-clone fs-8 text-muted"></i>
+                        </button>
+                    @endif
+                </div><br>
             @else
-                <span class="fw-bold text-gray-800">
-                    {{ $order->order_id }}
-                </span><br>
+                <div class="d-inline-flex align-items-center justify-content-center">
+                    <span class="fw-bold text-gray-800">
+                        {{ $order->order_id }}
+                    </span>
+                    @if(!empty($order->order_id))
+                        <button type="button" class="btn btn-icon btn-sm btn-active-light-primary ms-1 p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Order ID" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $order->order_id }}', 'Order ID copied!');">
+                            <i class="fa fa-clone fs-8 text-muted"></i>
+                        </button>
+                    @endif
+                </div><br>
             @endif
-            {{-- @if($order->team?->team_name)
-            <span class="badge badge-light-primary fs-7 fw-bold mb-1">{{ $order->team->team_name }}</span><br>
-            @endif --}}
             @if($order->team?->team_name)
 
             @if($roleId == 1)
@@ -192,18 +181,9 @@
             @endif
         </td>
 
-        {{-- <td class="text-center">
-        @if($order->user)
-            {{ $order->user->name }}<br>
-        <span class="badge badge-light-danger fs-7 fw-bold">+{{ $order->user->countrycode }} {{ $order->user->mobile_no }}</span><br>
-        <span class="fs-7 fw-bold">{{ $order->user->email }}</span>
-        @else
-        <span class="badge badge-light-danger fs-7 fw-bold">User Was Deleted</span>
-        @endif
-        </td> --}}
         <td class="text-center">
             @if($order->user)
-            {{ $order->user->name }}
+            <div class="fw-bold">{{ $order->user->name }}</div>
 
             @if(!empty($order->user->client_review))
             <span class="duplicate-info-wrapper">
@@ -221,7 +201,6 @@
             </span>
             @endif
 
-            <br>
             @php
                 $count = optional($order->user)->orders_count ?? 0;
                 if($count > 10) { 
@@ -236,11 +215,31 @@
                 } 
             @endphp
 
-            <span class="badge {{ $class }} fw-bold fs-8" style="width: fit-content;">
-                {{ $label }}
-            </span>
-            <span class="badge badge-light-danger fs-7 fw-bold">+{{ $order->user->countrycode }} {{ $order->user->mobile_no }}</span><br>
-            <span class="fs-7 fw-bold">{{ $order->user->email }}</span><br>
+            <div class="d-inline-flex align-items-center justify-content-center gap-1 my-1">
+                <span class="badge {{ $class }} fw-bold fs-8" style="width: fit-content;">
+                    {{ $label }}
+                </span>
+                @php
+                    $rawMobile = $order->user->mobile_no;
+                    $displayMobile = ($order->user->countrycode ? ('+' . $order->user->countrycode . ' ') : '') . $order->user->mobile_no;
+                @endphp
+                @if(!empty($rawMobile))
+                    <span class="badge badge-light-danger fs-7 fw-bold">{{ $displayMobile }}</span>
+                    <button type="button" class="btn btn-icon btn-sm btn-active-light-danger p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Mobile" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $rawMobile }}', 'Mobile number copied!');">
+                        <i class="fa fa-clone fs-8 text-danger"></i>
+                    </button>
+                @endif
+            </div><br>
+
+            @if(!empty($order->user->email))
+                <div class="d-inline-flex align-items-center justify-content-center my-1">
+                    <span class="fs-7 fw-bold text-break">{{ $order->user->email }}</span>
+                    <button type="button" class="btn btn-icon btn-sm btn-active-light-primary ms-1 p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Email" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $order->user->email }}', 'Email copied!');">
+                        <i class="fa fa-clone fs-8 text-muted"></i>
+                    </button>
+                </div><br>
+            @endif
+
             <span data-user-group-badges="{{ $order->user->id }}">@foreach($order->user->groups as $group)<span class="badge badge-light-primary fs-8 me-1">{{ $group->name }}</span>@endforeach</span>
 
             <div class="d-flex justify-content-center align-items-center gap-2 mt-2">

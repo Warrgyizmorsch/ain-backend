@@ -115,12 +115,20 @@ class WhatsappController extends Controller
 
         // Load contact-label assignments for loaded sidebar contacts
         $allPhones = collect($contacts)->pluck('phone')->filter()->values()->all();
-        $allContactLabelMap = !empty($allPhones)
+        $allContactVariants = [];
+        foreach ($allPhones as $p) {
+            foreach ($this->getPhoneVariants($p) as $v) {
+                $allContactVariants[$v] = $p;
+            }
+        }
+        $allContactLabelMap = !empty($allContactVariants)
             ? WhatsappChatContactLabel::query()
-                ->whereIn('phone', $allPhones)
+                ->whereIn('phone', array_keys($allContactVariants))
                 ->get()
-                ->groupBy('phone')
-                ->map(fn($rows) => $rows->pluck('label_id')->all())
+                ->groupBy(function ($item) use ($allContactVariants) {
+                    return $allContactVariants[$item->phone] ?? $item->phone;
+                })
+                ->map(fn($rows) => $rows->pluck('label_id')->unique()->values()->all())
             : collect();
 
         $messages = $selectedPhone
@@ -412,14 +420,42 @@ class WhatsappController extends Controller
             return response()->json(['success' => false, 'leads' => [], 'total' => 0, 'has_more' => false]);
         }
 
+        $variants = $this->getPhoneVariants($phone);
         $cleanPhone = preg_replace('/\D+/', '', $phone);
         $last10 = strlen($cleanPhone) >= 10 ? substr($cleanPhone, -10) : $cleanPhone;
 
+        $users = User::query()
+            ->where(function ($q) use ($variants, $cleanPhone, $last10) {
+                $q->whereIn('mobile_no', $variants);
+                if (!empty($cleanPhone)) {
+                    $q->orWhere('mobile_no', 'like', "%{$cleanPhone}%");
+                }
+                if (!empty($last10)) {
+                    $q->orWhere('mobile_no', 'like', "%{$last10}");
+                }
+            })
+            ->get(['id', 'email', 'name', 'mobile_no']);
+
+        $userIds = $users->pluck('id')->filter()->all();
+        $userEmails = $users->pluck('email')->filter()->all();
+
         $query = Leads::query()
-            ->where(function ($q) use ($phone, $cleanPhone, $last10) {
-                $q->where('mobile', $phone)
-                  ->orWhere('mobile', $cleanPhone)
-                  ->orWhere('mobile', 'like', "%{$last10}");
+            ->where(function ($q) use ($phone, $cleanPhone, $last10, $variants, $userIds, $userEmails) {
+                $q->whereIn('mobile', $variants)
+                  ->orWhere('mobile', $phone)
+                  ->orWhere('mobile', $cleanPhone);
+                if (!empty($last10)) {
+                    $q->orWhere('mobile', 'like', "%{$last10}");
+                }
+                if (!empty($variants)) {
+                    $q->orWhereIn('mobile2', $variants);
+                }
+                if (!empty($userIds)) {
+                    $q->orWhereIn('emp_id', $userIds);
+                }
+                if (!empty($userEmails)) {
+                    $q->orWhereIn('email', $userEmails);
+                }
             })
             ->orderByDesc('id');
 
@@ -436,6 +472,10 @@ class WhatsappController extends Controller
                 default => 'badge-secondary',
             };
 
+            $createDateStr = !empty($lead->create_date) && strtotime($lead->create_date)
+                ? date('d M Y', strtotime($lead->create_date))
+                : (!empty($lead->create_at) && strtotime($lead->create_at) ? date('d M Y', strtotime($lead->create_at)) : (!empty($lead->created_at) ? $lead->created_at->format('d M Y') : '—'));
+
             return [
                 'id' => $lead->id,
                 'order_id' => $lead->order_id ?? (string) $lead->id,
@@ -446,9 +486,10 @@ class WhatsappController extends Controller
                 'price_formatted' => number_format((float)($lead->price ?: 0), 2),
                 'status' => $lead->l_status ?: 'Waiting',
                 'status_class' => $statusClass,
+                'create_date' => $createDateStr,
                 'deadline' => !empty($lead->deadline) && strtotime($lead->deadline) ? date('d M Y', strtotime($lead->deadline)) : '—',
                 'delivery_time' => $lead->delivery_time ?: '',
-                'edit_url' => route('leadedit', $lead->id),
+                'edit_url' => route('lead.edit', $lead->id),
             ];
         });
 
@@ -458,6 +499,7 @@ class WhatsappController extends Controller
             'total' => $total,
             'has_more' => ($page * $limit) < $total,
             'page' => $page,
+            'all_leads_url' => route('lead.index') . '?search=' . urlencode($cleanPhone),
         ]);
     }
 
@@ -471,43 +513,85 @@ class WhatsappController extends Controller
             return response()->json(['success' => false, 'orders' => [], 'total' => 0, 'has_more' => false]);
         }
 
+        $variants = $this->getPhoneVariants($phone);
         $cleanPhone = preg_replace('/\D+/', '', $phone);
         $last10 = strlen($cleanPhone) >= 10 ? substr($cleanPhone, -10) : $cleanPhone;
 
-        $existingUser = User::query()
-            ->where(function ($q) use ($phone, $cleanPhone, $last10) {
-                $q->where('mobile_no', $phone)
-                  ->orWhere('mobile_no', $cleanPhone)
-                  ->orWhere('mobile_no', 'like', "%{$last10}");
+        $users = User::query()
+            ->where(function ($q) use ($variants, $cleanPhone, $last10) {
+                $q->whereIn('mobile_no', $variants);
+                if (!empty($cleanPhone)) {
+                    $q->orWhere('mobile_no', 'like', "%{$cleanPhone}%");
+                }
+                if (!empty($last10)) {
+                    $q->orWhere('mobile_no', 'like', "%{$last10}");
+                }
             })
-            ->first();
+            ->get(['id', 'email', 'name', 'mobile_no']);
+
+        $userIds = $users->pluck('id')->filter()->all();
+        $userEmails = $users->pluck('email')->filter()->all();
 
         $matchingLeads = Leads::query()
-            ->where(function ($q) use ($phone, $cleanPhone, $last10) {
-                $q->where('mobile', $phone)
-                  ->orWhere('mobile', $cleanPhone)
-                  ->orWhere('mobile', 'like', "%{$last10}");
+            ->where(function ($q) use ($phone, $cleanPhone, $last10, $variants, $userIds, $userEmails) {
+                $q->whereIn('mobile', $variants)
+                  ->orWhere('mobile', $phone)
+                  ->orWhere('mobile', $cleanPhone);
+                if (!empty($last10)) {
+                    $q->orWhere('mobile', 'like', "%{$last10}");
+                }
+                if (!empty($variants)) {
+                    $q->orWhereIn('mobile2', $variants);
+                }
+                if (!empty($userIds)) {
+                    $q->orWhereIn('emp_id', $userIds);
+                }
+                if (!empty($userEmails)) {
+                    $q->orWhereIn('email', $userEmails);
+                }
             })
-            ->get(['emp_id', 'order_id']);
+            ->get(['id', 'order_id', 'emp_id']);
 
-        $userIds = $existingUser ? [$existingUser->id] : [];
         $leadEmpIds = $matchingLeads->pluck('emp_id')->filter()->all();
         $allUids = array_unique(array_filter(array_merge($userIds, $leadEmpIds)));
         $leadOrderIds = $matchingLeads->pluck('order_id')->filter()->all();
+        $leadIds = $matchingLeads->pluck('id')->filter()->all();
 
         $query = Order::query()
-            ->where(function ($q) use ($allUids, $leadOrderIds) {
+            ->with(['team'])
+            ->where(function ($q) use ($allUids, $leadOrderIds, $leadIds) {
+                $hasCondition = false;
                 if (!empty($allUids)) {
                     $q->whereIn('uid', $allUids);
+                    $hasCondition = true;
                 }
                 if (!empty($leadOrderIds)) {
-                    $q->orWhereIn('order_id', $leadOrderIds);
+                    if ($hasCondition) {
+                        $q->orWhereIn('order_id', $leadOrderIds);
+                    } else {
+                        $q->whereIn('order_id', $leadOrderIds);
+                        $hasCondition = true;
+                    }
                 }
+                if (!empty($leadIds)) {
+                    if ($hasCondition) {
+                        $q->orWhereIn('lead_id', $leadIds);
+                    } else {
+                        $q->whereIn('lead_id', $leadIds);
+                    }
+                }
+            })
+            ->where(function ($q) {
+                $q->where(function ($noLead) {
+                    $noLead->whereDoesntHave('lead')->whereDoesntHave('frontendLead');
+                })
+                ->orWhereHas('lead', fn ($lq) => $lq->where('is_converted', 1))
+                ->orWhereHas('frontendLead', fn ($flq) => $flq->where('is_converted', 1));
             })
             ->orderByDesc('id');
 
-        $total = (!empty($allUids) || !empty($leadOrderIds)) ? $query->count() : 0;
-        $orders = (!empty($allUids) || !empty($leadOrderIds)) ? $query->skip(($page - 1) * $limit)->take($limit)->get() : collect();
+        $total = (!empty($allUids) || !empty($leadOrderIds) || !empty($leadIds)) ? $query->count() : 0;
+        $orders = (!empty($allUids) || !empty($leadOrderIds) || !empty($leadIds)) ? $query->skip(($page - 1) * $limit)->take($limit)->get() : collect();
 
         $formatted = $orders->map(function ($ord) {
             $statusClass = match(strtolower($ord->projectstatus ?? '')) {
@@ -520,6 +604,64 @@ class WhatsappController extends Controller
             $basePriceAmt = is_numeric($ord->amount) ? (float)$ord->amount : 0;
             $recvPriceAmt = is_numeric($ord->received_amount) ? (float)$ord->received_amount : 0;
             $calcDueAmt = max(0, $basePriceAmt - $recvPriceAmt);
+
+            $deadlineDate = null;
+            if (!empty($ord->delivery_date)) {
+                $dateTimeString = $ord->delivery_date;
+                if (!empty($ord->delivery_time)) {
+                    $dateTimeString .= ' ' . $ord->delivery_time;
+                }
+                try {
+                    $deadlineDate = Carbon::parse($dateTimeString);
+                } catch (\Exception $e) {
+                    $deadlineDate = null;
+                }
+            }
+            $isOverdue = $deadlineDate && $deadlineDate->isPast() && !in_array(strtolower($ord->projectstatus ?? ''), ['delivered', 'completed']);
+
+            $orderDateStr = !empty($ord->order_date) && strtotime($ord->order_date)
+                ? Carbon::parse($ord->order_date)->format('d M Y')
+                : (!empty($ord->created_at) ? $ord->created_at->format('d M Y') : '—');
+
+            $writerDeadlineStr = !empty($ord->writer_deadline) && strtotime($ord->writer_deadline)
+                ? Carbon::parse($ord->writer_deadline)->format('d M Y')
+                : null;
+
+            $draftDateStr = null;
+            if ($ord->draftrequired == 'Y' || !empty($ord->draft_date)) {
+                if (!empty($ord->draft_date) && strtotime($ord->draft_date)) {
+                    $draftDateStr = Carbon::parse($ord->draft_date)->format('d M Y');
+                    if (!empty($ord->draft_time)) {
+                        try {
+                            $draftDateStr .= ' (' . Carbon::parse($ord->draft_time)->format('H:i') . ')';
+                        } catch (\Exception $e) {
+                            $draftDateStr .= ' (' . $ord->draft_time . ')';
+                        }
+                    }
+                }
+            }
+
+            $deliveryDateFormatted = '—';
+            if ($deadlineDate) {
+                $deliveryDateFormatted = $deadlineDate->format('d M Y');
+                if (!empty($ord->delivery_time)) {
+                    try {
+                        $deliveryDateFormatted .= ' (' . Carbon::parse($ord->delivery_time)->format('H:i') . ')';
+                    } catch (\Exception $e) {
+                        $deliveryDateFormatted .= ' (' . $ord->delivery_time . ')';
+                    }
+                }
+            } elseif (!empty($ord->delivery_date) && strtotime($ord->delivery_date)) {
+                $deliveryDateFormatted = date('d M Y', strtotime($ord->delivery_date));
+            }
+
+            $feedbackDateStr = !empty($ord->f_delivery_date) && strtotime($ord->f_delivery_date)
+                ? Carbon::parse($ord->f_delivery_date)->format('d M Y')
+                : null;
+
+            $failedDateStr = !empty($ord->failed_at) && strtotime($ord->failed_at)
+                ? Carbon::parse($ord->failed_at)->format('d M Y H:i A')
+                : null;
 
             return [
                 'id' => $ord->id,
@@ -535,8 +677,24 @@ class WhatsappController extends Controller
                 'due_amount_formatted' => number_format($calcDueAmt, 2),
                 'status' => $ord->projectstatus ?: 'Pending',
                 'status_class' => $statusClass,
-                'delivery_date' => !empty($ord->delivery_date) && strtotime($ord->delivery_date) ? date('d M Y', strtotime($ord->delivery_date)) : '—',
+                'order_date' => $orderDateStr,
+                'writer_deadline' => $writerDeadlineStr,
+                'draft_date' => $draftDateStr,
+                'delivery_date' => $deliveryDateFormatted,
+                'f_delivery_date' => $feedbackDateStr,
+                'is_overdue' => $isOverdue,
+                'is_fail' => (int) ($ord->is_fail ?? 0),
+                'failed_at' => $failedDateStr,
+                'feedback_ticket' => $ord->feedback_ticket ?? null,
+                'resit' => $ord->resit ?? null,
+                'services' => $ord->services ?? null,
+                'semester' => $ord->semester ?? null,
+                'offer' => $ord->offer ?? null,
+                'marks' => $ord->marks ?? null,
+                'team_name' => $ord->team?->team_name ?? null,
+                'looking_for_refund' => (int) ($ord->looking_for_refund ?? 0),
                 'edit_url' => route('edit', $ord->id),
+                'payment_url' => route('orders.payment.form', $ord->id),
             ];
         });
 
@@ -546,6 +704,7 @@ class WhatsappController extends Controller
             'total' => $total,
             'has_more' => ($page * $limit) < $total,
             'page' => $page,
+            'all_orders_url' => route('order') . '?search=' . urlencode($cleanPhone),
         ]);
     }
 
@@ -638,22 +797,27 @@ class WhatsappController extends Controller
             ->with('success', 'WhatsApp label created.');
     }
 
-    public function saveContactLabels(Request $request): RedirectResponse
+    public function saveContactLabels(Request $request)
     {
         $validated = $request->validate([
             'phone' => ['required', 'string', 'max:30'],
-            'labels' => ['nullable', 'array'],
+            'labels' => ['nullable'],
         ]);
 
         $phone = $validated['phone'];
-        $labelIds = collect($request->input('labels', []))
-            ->filter()
-            ->keys()
-            ->map(fn ($id) => (int) $id)
-            ->values()
-            ->all();
+        $rawLabels = $request->input('labels', []);
+        $labelIds = [];
+        if (is_array($rawLabels)) {
+            $isAssoc = array_keys($rawLabels) !== range(0, count($rawLabels) - 1);
+            if ($isAssoc) {
+                $labelIds = collect($rawLabels)->filter()->keys()->map(fn ($id) => (int) $id)->values()->all();
+            } else {
+                $labelIds = collect($rawLabels)->map(fn ($id) => (int) $id)->values()->all();
+            }
+        }
 
-        WhatsappChatContactLabel::query()->where('phone', $phone)->delete();
+        $variants = $this->getPhoneVariants($phone);
+        WhatsappChatContactLabel::query()->whereIn('phone', $variants)->delete();
 
         foreach ($labelIds as $labelId) {
             WhatsappChatContactLabel::query()->create([
@@ -668,6 +832,17 @@ class WhatsappController extends Controller
             app(\App\Services\LabelSyncService::class)->syncWhatsAppToEmail($phone, $labelIds, Auth::id());
         } catch (\Throwable $e) {
             \Log::warning('Failed to sync WhatsApp labels to Email: ' . $e->getMessage());
+        }
+
+        if ($request->expectsJson() || $request->ajax() || $request->wantsJson()) {
+            $assignedLabels = WhatsappChatLabel::query()->whereIn('id', $labelIds)->get(['id', 'name', 'color']);
+            return response()->json([
+                'success' => true,
+                'message' => 'Chat labels saved successfully.',
+                'phone' => $phone,
+                'label_ids' => $labelIds,
+                'labels' => $assignedLabels,
+            ]);
         }
 
         return redirect()->route('whatsapp.chat', ['phone' => $phone])->with('success', 'Chat labels saved.');
@@ -849,12 +1024,14 @@ class WhatsappController extends Controller
             : [];
 
         // Fetch labels for these contacts
-        $labelsMap = !empty($phones)
+        $labelsMap = !empty($allVariants)
             ? WhatsappChatContactLabel::query()
-                ->whereIn('phone', $phones)
+                ->whereIn('phone', array_keys($allVariants))
                 ->get()
-                ->groupBy('phone')
-                ->map(fn($rows) => $rows->pluck('label_id')->all())
+                ->groupBy(function ($item) use ($allVariants) {
+                    return $allVariants[$item->phone] ?? $item->phone;
+                })
+                ->map(fn($rows) => $rows->pluck('label_id')->unique()->values()->all())
                 ->all()
             : [];
 
@@ -921,13 +1098,19 @@ class WhatsappController extends Controller
             'lead' => $existingLead ? [
                 'id' => $existingLead->id,
                 'order_id' => $existingLead->order_id ?? (string) $existingLead->id,
-                'edit_url' => route('leadedit', $existingLead->id),
+                'edit_url' => route('lead.edit', $existingLead->id),
                 'status' => $existingLead->l_status ?: 'Waiting',
+                'user_name' => $existingLead->user_name,
+                'email' => $existingLead->email,
+                'countrycode' => $existingLead->countrycode,
+                'mobile' => $existingLead->mobile,
             ] : null,
             'user' => $existingUser ? [
                 'id' => $existingUser->id,
                 'name' => $existingUser->name,
                 'email' => $existingUser->email,
+                'countrycode' => $existingUser->countrycode,
+                'mobile_no' => $existingUser->mobile_no,
             ] : null,
             'labels' => $labels,
             'lead_model' => $existingLead,

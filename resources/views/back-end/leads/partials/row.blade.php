@@ -243,11 +243,18 @@
         @endif
     </td>
     <td class="text-center" style="{{ $orderIdStyle }}">
-        @if ($lead['frontendorder'] == '1')
-        <span class="badge badge-light-primary fs-7 fw-bold">{{ $lead->order_id }}</span>
-        @else
-        {{ $lead->order_id }}
-        @endif
+        <div class="d-inline-flex align-items-center justify-content-center">
+            @if ($lead['frontendorder'] == '1')
+                <span class="badge badge-light-primary fs-7 fw-bold">{{ $lead->order_id }}</span>
+            @else
+                <span>{{ $lead->order_id }}</span>
+            @endif
+            @if(!empty($lead->order_id))
+                <button type="button" class="btn btn-icon btn-sm btn-active-light-primary ms-1 p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Order ID" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $lead->order_id }}', 'Order ID copied!');">
+                    <i class="fa fa-clone fs-8 text-muted"></i>
+                </button>
+            @endif
+        </div>
         <br>
         @php
             $creatorUser = $lead->creator ?? (is_numeric($lead->created_by) ? \App\Models\User::find($lead->created_by) : null);
@@ -299,7 +306,7 @@
                 : 0;
         @endphp
 
-        {{ $lead->user->name ?? 'No Name' }}<br>
+        <div class="fw-bold">{{ $lead->user->name ?? 'No Name' }}</div>
         @if($lead->user)<span data-user-group-badges="{{ $lead->user->id }}">@foreach($lead->user->groups as $group)<span class="badge badge-light-primary fs-8 me-1">{{ $group->name }}</span>@endforeach</span><br>@endif
 
         <span class="badge badge-light-primary fs-8 fw-bold ms-1">
@@ -329,7 +336,30 @@
         </span><br>
 
     @endif
-        <span class="badge badge-light-danger fs-7 fw-bold">{{ $lead->user->mobile_no ?? '' }}</span></br>
+
+        @php
+            $leadUserMobile = $lead->user->mobile_no ?? null;
+            $leadUserEmail = $lead->user->email ?? $lead->email ?? null;
+        @endphp
+
+        @if(!empty($leadUserMobile))
+            <div class="d-inline-flex align-items-center justify-content-center gap-1 my-1">
+                <span class="badge badge-light-danger fs-7 fw-bold">{{ $leadUserMobile }}</span>
+                <button type="button" class="btn btn-icon btn-sm btn-active-light-danger p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Mobile" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $leadUserMobile }}', 'Mobile number copied!');">
+                    <i class="fa fa-clone fs-8 text-danger"></i>
+                </button>
+            </div><br>
+        @endif
+
+        @if(!empty($leadUserEmail))
+            <div class="d-inline-flex align-items-center justify-content-center my-1">
+                <span class="fs-7 fw-bold text-gray-700 text-break">{{ $leadUserEmail }}</span>
+                <button type="button" class="btn btn-icon btn-sm btn-active-light-primary ms-1 p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Email" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $leadUserEmail }}', 'Email copied!');">
+                    <i class="fa fa-clone fs-8 text-muted"></i>
+                </button>
+            </div><br>
+        @endif
+
         @if(!empty($lead->user))
         <div class="d-flex justify-content-center align-items-center gap-2 mt-2">
             <button type="button" class="btn btn-icon btn-sm btn-light-info"

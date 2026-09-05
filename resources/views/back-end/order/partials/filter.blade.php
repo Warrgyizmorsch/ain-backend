@@ -1052,6 +1052,28 @@ resetFilters();
             resetFilters();
         });
 
+        // Check URL parameters first (e.g. ?search=... or ?uid=... or ?phone=...)
+        const urlParams = new URLSearchParams(window.location.search);
+        const searchParam = urlParams.get('search') || urlParams.get('order') || urlParams.get('search_order') || urlParams.get('phone');
+        const uidParam = urlParams.get('uid');
+        const userParam = urlParams.get('user');
+        const statusParam = urlParams.get('status');
+
+        if (searchParam || uidParam || userParam || statusParam) {
+            localStorage.removeItem(filterStorageKey);
+
+            if (searchParam) $('#search').val(searchParam);
+            if (uidParam) $('#selectedValue').val(uidParam);
+            if (userParam) $('#searchInput').val(userParam);
+            if (statusParam) $('#status').val(statusParam).trigger('change');
+
+            $('#filterBody').show();
+            $('#toggleFilterBtn').text('Hide Filters').removeClass('btn-primary').addClass('btn-danger');
+
+            applyFilters();
+            return;
+        }
+
         // let savedFilters = localStorage.getItem('order_filters');
         let savedFilters = localStorage.getItem(filterStorageKey);
         if (savedFilters) {

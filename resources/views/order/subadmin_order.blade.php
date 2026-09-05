@@ -110,7 +110,14 @@
 										{{ $loop->index + 1 }}
 										</td>
 										<td class="text-center">
-											{{ $order->order_id }}
+											<div class="d-inline-flex align-items-center justify-content-center">
+												<span>{{ $order->order_id }}</span>
+												@if(!empty($order->order_id))
+													<button type="button" class="btn btn-icon btn-sm btn-active-light-primary ms-1 p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Order ID" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $order->order_id }}', 'Order ID copied!');">
+														<i class="fa fa-clone fs-8 text-muted"></i>
+													</button>
+												@endif
+											</div>
 											@if($order->team?->team_name)
 											<span class="badge badge-light-primary fs-7 fw-bold ">{{ $order->team->team_name }}</span>
 											@endif
@@ -126,10 +133,26 @@
 											@endif
 
                                         </td>
-										<td  class="text-center">
+										<td class="text-center">
 										@if($order->user != null && ($order->user->name != '' || $order->user->name == null))
-											{{ $order->user->name }} <br>	
-											<span class="badge badge-light-danger fs-7 fw-bold">{{ $order->user->mobile_no}}</span>
+											<div class="fw-bold">{{ $order->user->name }}</div>
+											@if(!empty($order->user->email))
+												<div class="d-inline-flex align-items-center my-1">
+													<span class="text-gray-600 fs-8 text-break">{{ $order->user->email }}</span>
+													<button type="button" class="btn btn-icon btn-sm btn-active-light-primary ms-1 p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Email" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $order->user->email }}', 'Email copied!');">
+														<i class="fa fa-clone fs-8 text-muted"></i>
+													</button>
+												</div>
+												<br>
+											@endif
+											@if(!empty($order->user->mobile_no))
+												<div class="d-inline-flex align-items-center my-1">
+													<span class="badge badge-light-danger fs-7 fw-bold">{{ $order->user->mobile_no}}</span>
+													<button type="button" class="btn btn-icon btn-sm btn-active-light-danger ms-1 p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Mobile" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $order->user->mobile_no }}', 'Mobile number copied!');">
+														<i class="fa fa-clone fs-8 text-danger"></i>
+													</button>
+												</div>
+											@endif
 										@else
 											N/A
 										@endif

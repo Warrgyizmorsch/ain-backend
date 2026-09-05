@@ -447,6 +447,7 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/filter', [OrderController::class, 'filter'])->name('orders.filter');
         Route::get('/comment-drawer/{id}', [OrderController::class, 'loadCommentDrawer'])->name('orders.comment.drawer');;
         Route::get('/payment/{orderId}/{paymentId?}', [OrderController::class, 'showPaymentForm'])->name('orders.payment.form');
+        Route::get('/payment-modal-content/{orderId}/{paymentId?}', [OrderController::class, 'paymentModalContent'])->name('orders.payment.modal.content');
         Route::post('/payment/store/{orderId}', [OrderController::class, 'storePayment'])->name('orders.payment.form.store');
         Route::put('/payment/update/{orderId}/{paymentId}', [OrderController::class, 'updatePayment'])->name('orders.payment.form.update');
         Route::get('/urgent-orders', [OrderController::class, 'urgentOrders']);

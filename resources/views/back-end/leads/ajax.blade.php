@@ -183,6 +183,47 @@
     }
 
     $(document).ready(function() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const searchParam = urlParams.get('search') || urlParams.get('order') || urlParams.get('search_order') || urlParams.get('phone') || urlParams.get('user');
+        const uidParam = urlParams.get('uid');
+        const statusParam = urlParams.get('status') || urlParams.get('lead_status_tab');
+
+        if (searchParam || uidParam || statusParam) {
+            localStorage.removeItem('lead_filters');
+
+            if (searchParam) {
+                $('#search_order').val(searchParam);
+                $('#searchInput').val(searchParam);
+            }
+            if (uidParam) {
+                $('#selectedValue').val(uidParam);
+            }
+            if (statusParam) {
+                $('#status_filter').val(statusParam).trigger('change');
+                $('#lead_status_tab').val(statusParam);
+                setActiveLeadTab(statusParam);
+            }
+
+            const urlFilters = {
+                order: searchParam || '',
+                user: searchParam || '',
+                status: statusParam || '',
+                lead_status_tab: statusParam || '',
+                type: '',
+                date_from: '',
+                date_to: '',
+                date_type: '',
+                assign_type: '',
+                selectedValue: uidParam || '',
+                lead_source: '',
+                group_id: ''
+            };
+
+            $('#load-more-wrapper').hide();
+            applyFilters(urlFilters);
+            return;
+        }
+
         let savedLeadFilters = localStorage.getItem('lead_filters');
 
         if (savedLeadFilters) {
@@ -204,7 +245,7 @@
 
             applyFilters(filters);
         }
-});
+    });
 </script>
 <!-- <script>
     async function convert(button, leadId) {

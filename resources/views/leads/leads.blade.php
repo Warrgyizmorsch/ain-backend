@@ -234,11 +234,18 @@
 
                                         <td class="text-center">
 
-                                            @if ($lead['frontendorder'] == '1')
-                                                <span class="badge badge-light-primary fs-7 fw-bold">{{ $lead->order_id }}</span>
-                                            @else
-                                                {{ $lead->order_id }}
-                                            @endif
+                                            <div class="d-inline-flex align-items-center justify-content-center">
+                                                @if ($lead['frontendorder'] == '1')
+                                                    <span class="badge badge-light-primary fs-7 fw-bold">{{ $lead->order_id }}</span>
+                                                @else
+                                                    <span>{{ $lead->order_id }}</span>
+                                                @endif
+                                                @if(!empty($lead->order_id))
+                                                    <button type="button" class="btn btn-icon btn-sm btn-active-light-primary ms-1 p-0" style="width: 20px; height: 20px;" title="Copy Order ID" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $lead->order_id }}', 'Order ID copied!');">
+                                                        <i class="fa fa-clone fs-8 text-muted"></i>
+                                                    </button>
+                                                @endif
+                                            </div>
 
                                             <br>
                                             @if ($lead['resit'] == 'on')
@@ -251,24 +258,38 @@
 
                                         <td>
                                             @if($lead->user && $lead->user->name)
-                                                {{ $lead->user->name }}
+                                                <div class="fw-bold">{{ $lead->user->name }}</div>
                                             @endif
-                                            <br>
 
-                                            <span class="badge badge-light-danger fs-7 fw-bold">
-                                                @if($lead->user && $lead->user->mobile_no)
-                                                    {{ $lead->user->mobile_no }}
-                                                @endif
-                                            </span>
+                                            @php
+                                                $leadEmail = $lead->user->email ?? $lead->email ?? null;
+                                            @endphp
+                                            @if($leadEmail)
+                                                <div class="d-inline-flex align-items-center my-1">
+                                                    <span class="text-gray-600 fs-8 text-break">{{ $leadEmail }}</span>
+                                                    <button type="button" class="btn btn-icon btn-sm btn-active-light-primary ms-1 p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Email" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $leadEmail }}', 'Email copied!');">
+                                                        <i class="fa fa-clone fs-8 text-muted"></i>
+                                                    </button>
+                                                </div>
+                                                <br>
+                                            @endif
 
-                                            <br>
+                                            @if($lead->user && $lead->user->mobile_no)
+                                                <div class="d-inline-flex align-items-center my-1">
+                                                    <span class="badge badge-light-danger fs-7 fw-bold">{{ $lead->user->mobile_no }}</span>
+                                                    <button type="button" class="btn btn-icon btn-sm btn-active-light-danger ms-1 p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Mobile" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $lead->user->mobile_no }}', 'Mobile number copied!');">
+                                                        <i class="fa fa-clone fs-8 text-danger"></i>
+                                                    </button>
+                                                </div>
+                                                <br>
+                                            @endif
 
                                             @if($lead->user && $lead->user->verified == 1)
-                                                <span class="badge badge-light-success fs-7 fw-bold">
+                                                <span class="badge badge-light-success fs-8 fw-bold">
                                                     Verified
                                                 </span>
                                             @else
-                                                <span class="badge badge-light-warning fs-7 fw-bold">
+                                                <span class="badge badge-light-warning fs-8 fw-bold">
                                                     Unverified
                                                 </span>
                                             @endif

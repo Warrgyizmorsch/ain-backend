@@ -3683,9 +3683,31 @@ class OrderController extends Controller
                         ->orWhere('order_id', 'like', $search . '%');
                 });
             } else {
-                $query->where(function ($q) use ($search) {
+                $cleanDigits = preg_replace('/\D+/', '', $search);
+                $last10 = strlen($cleanDigits) >= 10 ? substr($cleanDigits, -10) : $cleanDigits;
+
+                $query->where(function ($q) use ($search, $last10) {
                     $q->where('order_id', 'like', '%' . $search . '%')
-                        ->orWhere('title', 'like', '%' . $search . '%');
+                        ->orWhere('title', 'like', '%' . $search . '%')
+                        ->orWhereHas('user', function ($uq) use ($search, $last10) {
+                            $uq->where('name', 'like', '%' . $search . '%')
+                                ->orWhere('email', 'like', '%' . $search . '%')
+                                ->orWhere('mobile_no', 'like', '%' . $search . '%')
+                                ->orWhere('mobile_no2', 'like', '%' . $search . '%');
+                            if (!empty($last10)) {
+                                $uq->orWhere('mobile_no', 'like', '%' . $last10 . '%')
+                                   ->orWhere('mobile_no2', 'like', '%' . $last10 . '%');
+                            }
+                        })
+                        ->orWhereHas('lead', function ($lq) use ($search, $last10) {
+                            $lq->where('user_name', 'like', '%' . $search . '%')
+                                ->orWhere('mobile', 'like', '%' . $search . '%')
+                                ->orWhere('email', 'like', '%' . $search . '%');
+                            if (!empty($last10)) {
+                                $lq->orWhere('mobile', 'like', '%' . $last10 . '%')
+                                   ->orWhere('mobile2', 'like', '%' . $last10 . '%');
+                            }
+                        });
                 });
             }
         }
@@ -4150,6 +4172,21 @@ class OrderController extends Controller
     return view('back-end.order.payment-page', compact('order', 'editPayment'));
 }
 
+    public function paymentModalContent(Request $request, $orderId, $paymentId = null)
+    {
+        if ($paymentId) {
+            $order = Order::with(['payment', 'additionals', 'user'])->findOrFail($orderId);
+            $editPayment = Payment::where('id', $paymentId)
+                ->where('order_id', $orderId)
+                ->first();
+        } else {
+            $order = Order::with(['payment', 'additionals', 'user'])->findOrFail($orderId);
+            $editPayment = null;
+        }
+
+        return view('back-end.order.partials.payment-modal-component', compact('order', 'editPayment'));
+    }
+
     public function storePayment(Request $request, $orderId)
     {
         // Validation rules
@@ -4161,13 +4198,18 @@ class OrderController extends Controller
         ]);
 
         if ($validator->fails()) {
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json(['success' => false, 'message' => $validator->errors()->first()], 422);
+            }
             return Redirect::back()->withErrors($validator)->withInput();
         }
 
         // Find order
         $order = Order::with('additionals')->find($orderId);
-        // dd($order);
         if (!$order) {
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json(['success' => false, 'message' => 'Order not found.'], 404);
+            }
             return Redirect::back()->with('error', 'Order not found.');
         }
 
@@ -4178,14 +4220,16 @@ class OrderController extends Controller
         $paidAmount       = (float) $request->input('amount');
         $companyAccount   = $request->input('company_accounts');
         $referenceMessage = $request->input('message');
-        // dd($companyAccount);
 
         if ($paidAmount > $remainingAmount) {
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json(['success' => false, 'message' => 'Paid amount exceeds the remaining due amount.'], 422);
+            }
             return Redirect::back()->with('error', 'Paid amount exceeds the remaining due amount.');
         }
 
         // Kya yeh payment "Wallet" se aa raha hai?
-        $fromWallet = ($companyAccount === 'Wallet');   // case exact "Wallet" hona chahiye
+        $fromWallet = ($companyAccount === 'Wallet');
 
         DB::beginTransaction();
 
@@ -4193,24 +4237,23 @@ class OrderController extends Controller
             $walletUser = null;
 
             if ($fromWallet) {
-                // ✅ Yahan ACTUAL User model lao
-                // Option 1: agar relation defined hai -> $order->user
-                // Option 2: direct id se find karo (uid column)
                 $walletUser = User::find($order->uid);
-
-                // Debug ke liye ek baar check kar sakte ho:
-                // dd($order->uid, $walletUser);
 
                 if (!$walletUser) {
                     DB::rollBack();
+                    if ($request->ajax() || $request->wantsJson()) {
+                        return response()->json(['success' => false, 'message' => 'User not linked with this order.'], 422);
+                    }
                     return Redirect::back()->with('error', 'User not linked with this order.');
                 }
 
-                // Ab wallet sahi read hoga
                 $walletBalance = (float) ($walletUser->Wallet ?? 0);
 
                 if ($paidAmount > $walletBalance) {
                     DB::rollBack();
+                    if ($request->ajax() || $request->wantsJson()) {
+                        return response()->json(['success' => false, 'message' => 'Wallet balance is not sufficient for this payment.'], 422);
+                    }
                     return Redirect::back()->with(
                         'error',
                         'Wallet balance is not sufficient for this payment.'
@@ -4239,7 +4282,6 @@ class OrderController extends Controller
                 $currentBalance = (float) ($walletUser->Wallet ?? 0);
                 $newBalance     = $currentBalance - $paidAmount;
 
-                // Safety: negative se bachao
                 if ($newBalance < 0) {
                     $newBalance = 0;
                 }
@@ -4254,7 +4296,6 @@ class OrderController extends Controller
                     'balance_after' => $newBalance,
                 ]);
 
-                // User wallet update
                 $walletUser->Wallet = $newBalance;
                 $walletUser->save();
             }
@@ -4272,11 +4313,22 @@ class OrderController extends Controller
                 'action_by' => auth()->user()->name,
             ]);
 
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Payment added successfully.',
+                    'order_id' => $orderId,
+                ]);
+            }
+
             return redirect()
                 ->route('orders.payment.form', $orderId)
                 ->with('success', 'Payment added successfully.');
         } catch (\Throwable $e) {
             DB::rollBack();
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json(['success' => false, 'message' => 'Something went wrong: ' . $e->getMessage()], 500);
+            }
             return Redirect::back()->with('error', 'Something went wrong: ' . $e->getMessage());
         }
     }
