@@ -572,39 +572,14 @@ class WhatsappController extends Controller
 
         $query = Order::query()
             ->with(['team', 'lead', 'frontendLead'])
-            ->where(function ($q) use ($allUids, $leadOrderIds, $leadIds) {
-                $hasCondition = false;
-                if (!empty($allUids)) {
-                    $q->whereIn('uid', $allUids);
-                    $hasCondition = true;
-                }
-                if (!empty($leadOrderIds)) {
-                    if ($hasCondition) {
-                        $q->orWhereIn('order_id', $leadOrderIds);
-                    } else {
-                        $q->whereIn('order_id', $leadOrderIds);
-                        $hasCondition = true;
-                    }
-                }
-                if (!empty($leadIds)) {
-                    if ($hasCondition) {
-                        $q->orWhereIn('lead_id', $leadIds);
-                    } else {
-                        $q->whereIn('lead_id', $leadIds);
-                    }
-                }
-            })
-            ->where(function ($q) {
-                $q->where(function ($noLead) {
-                    $noLead->whereDoesntHave('lead')->whereDoesntHave('frontendLead');
-                })
-                ->orWhereHas('lead', fn ($lq) => $lq->where('is_converted', 1))
-                ->orWhereHas('frontendLead', fn ($flq) => $flq->where('is_converted', 1));
-            })
+            ->whereNotNull('orders.uid')
+            ->where('orders.uid', '!=', 0)
+            ->where('orders.uid', '!=', '')
+            ->whereIn('orders.uid', $allUids)
             ->orderByDesc('id');
 
-        $total = (!empty($allUids) || !empty($leadOrderIds) || !empty($leadIds)) ? $query->count() : 0;
-        $orders = (!empty($allUids) || !empty($leadOrderIds) || !empty($leadIds)) ? $query->skip(($page - 1) * $limit)->take($limit)->get() : collect();
+        $total = !empty($allUids) ? $query->count() : 0;
+        $orders = !empty($allUids) ? $query->skip(($page - 1) * $limit)->take($limit)->get() : collect();
 
         $formatted = $orders->map(function ($ord) {
             $statusClass = match(strtolower($ord->projectstatus ?? '')) {
@@ -685,8 +660,8 @@ class WhatsappController extends Controller
                 ? Carbon::parse($ord->failed_at)->format('d M Y H:i A')
                 : null;
 
-            $isConverted = !empty($ord->lead_id) || !empty($ord->l_converted_by) || optional($ord->lead)->is_converted == 1 || optional($ord->frontendLead)->is_converted == 1;
             $convertedBy = $ord->l_converted_by ?: (optional($ord->lead)->l_converted_by ?: optional($ord->frontendLead)->l_converted_by);
+            $isConverted = !empty($convertedBy);
 
             return [
                 'id' => $ord->id,
