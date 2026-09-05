@@ -3,18 +3,33 @@
     $orderIdStyle = "";
     $isFrontendOrder = optional($order->lead)->frontendorder == '1'
         || optional($order->frontendLead)->frontendorder == '1';
+
+    $effectiveUser = $order->user ?: (optional($order->lead)->user ?: optional($order->frontendLead)->user);
+    $effectiveTitle = $order->title ?: (optional($order->lead)->project_title ?: optional($order->frontendLead)->project_title);
+    $effectiveOrderDate = $order->order_date ?: (optional($order->lead)->created_at ?: (optional($order->lead)->create_at ?: $order->created_at));
+    $effectiveDeliveryDate = $order->delivery_date ?: (optional($order->lead)->deadline ?: optional($order->frontendLead)->deadline);
+    $effectiveDeliveryTime = $order->delivery_time ?: (optional($order->lead)->delivery_time ?: optional($order->frontendLead)->delivery_time);
+    $effectivePages = $order->pages ?: (optional($order->lead)->pages ?: optional($order->frontendLead)->pages);
+    $effectiveAmount = $order->amount ?: (optional($order->lead)->price ?: optional($order->frontendLead)->price);
+    $effectiveSemester = $order->semester ?: (optional($order->lead)->semester ?: optional($order->frontendLead)->semester);
+    $effectiveChapter = $order->chapter ?: (optional($order->lead)->chapter ?: optional($order->frontendLead)->chapter);
+    $effectiveTech = $order->tech ?: (optional($order->lead)->tech ?: optional($order->frontendLead)->tech);
+    $effectiveResit = $order->resit ?: (optional($order->lead)->resit ?: optional($order->frontendLead)->resit);
+    $effectiveModuleCode = $order->module_code ?: (optional($order->lead)->module_code ?: optional($order->frontendLead)->module_code);
+    $effectiveServices = $order->services ?: (optional($order->lead)->service_type ?: optional($order->frontendLead)->service_type);
+
     if ($order->failed_followup_highlight ?? false) {
         $orderIdStyle = "
             background-color: #ffeaea !important;
             color: #b50000 !important;
             border: 2px solid #ff0000 !important;
         ";
-    } elseif (optional($order->user)->feedback_issue == 1) {
+    } elseif (optional($effectiveUser)->feedback_issue == 1) {
         $orderIdStyle = "color: blue;";
     }
 
     @endphp
-    {{-- <tr id="lead-{{ $order->id }}" @if( optional($order->user)->is_fail == 1 || optional($order->user)->feedback_issue == 1) style="color:blue" @endif id="order_{{ $order->id }}" class="{{ ($order->is_read == 1) ? 'bold-row' : '' }}" > --}}
+    {{-- <tr id="lead-{{ $order->id }}" @if( optional($effectiveUser)->is_fail == 1 || optional($effectiveUser)->feedback_issue == 1) style="color:blue" @endif id="order_{{ $order->id }}" class="{{ ($order->is_read == 1) ? 'bold-row' : '' }}" > --}}
     <tr id="lead-{{ $order->id }}">
         <td class="text-center" style="padding-right: 0px;">
             {{ $index + 1 }}
@@ -24,8 +39,8 @@
         <td class="text-center" style="position: sticky; left: 0; background: white; z-index: 2;">
             <div style="display:grid; grid-template-columns:repeat(4, max-content); justify-content:center; align-items:center; gap:6px;">
 
-                @if($order->user)
-                    <button type="button" class="btn btn-sm btn-light-success fw-bold" title="Manage User Groups" data-user-group-button="{{ $order->user->id }}" data-groups='@json($order->user->groups->pluck("id"))' onclick="openUserGroupModal({{ $order->user->id }}, @js($order->user->name), JSON.parse(this.dataset.groups))">G</button>
+                @if($effectiveUser)
+                    <button type="button" class="btn btn-sm btn-light-success fw-bold" title="Manage User Groups" data-user-group-button="{{ $effectiveUser->id }}" data-groups='@json($effectiveUser->groups->pluck("id"))' onclick="openUserGroupModal({{ $effectiveUser->id }}, @js($effectiveUser->name), JSON.parse(this.dataset.groups))">G</button>
                 @endif
 
                 <!-- Edit Order Button -->
@@ -37,7 +52,7 @@
                 <button type="button"
                     class="btn btn-icon btn-success btn-sm"
                     title="Call customer (Ringfy)"
-                    onclick="openRingfySoftphone(@js($order->id), @js(optional($order->user)->countrycode), @js(optional($order->user)->mobile_no))">
+                    onclick="openRingfySoftphone(@js($order->id), @js(optional($effectiveUser)->countrycode), @js(optional($effectiveUser)->mobile_no))">
                     <i class="fa fa-phone"></i>
                 </button>
 
@@ -133,8 +148,8 @@
             <span class="fs-7 fw-bold">Marks:</span>{{ $order->marks }}<br>
             @endif
 
-            @if($order->semester)
-            <span class="badge badge-light-warning fs-7 fw-bold mb-1">{{ $order->semester }}</span>
+            @if($effectiveSemester)
+            <span class="badge badge-light-warning fs-7 fw-bold mb-1">{{ $effectiveSemester }}</span>
             @endif
 
              @if($order->offer)
@@ -146,11 +161,11 @@
                 {{ $order->feedback_ticket ?: '' }}
             </span>
 
-            @if ($order->resit == 'on')
+            @if ($effectiveResit == 'on' || $effectiveResit == '1')
             <span class="badge badge-light-danger fs-7 fw-bold mb-1">Resit</span><br>
             @endif
 
-            @if($order->services == 'First Class Work')
+            @if($effectiveServices == 'First Class Work')
             <span class="badge badge-light-info fs-7 fw-bold mb-1">First Class Work</span>
             @endif
 
@@ -182,10 +197,10 @@
         </td>
 
         <td class="text-center">
-            @if($order->user)
-            <div class="fw-bold">{{ $order->user->name }}</div>
+            @if($effectiveUser)
+            <div class="fw-bold">{{ $effectiveUser->name }}</div>
 
-            @if(!empty($order->user->client_review))
+            @if(!empty($effectiveUser->client_review))
             <span class="duplicate-info-wrapper">
 
                 <a
@@ -195,14 +210,14 @@
                 </a>
 
                 <div class="duplicate-popup shadow">
-                    <span>{{$order->user->client_review}}</span>
+                    <span>{{$effectiveUser->client_review}}</span>
                 </div>
 
             </span>
             @endif
 
             @php
-                $count = optional($order->user)->orders_count ?? 0;
+                $count = optional($effectiveUser)->orders_count ?? 0;
                 if($count > 10) { 
                     $class = "badge-light-success"; 
                     $label = "Loyal Customer"; 
@@ -220,8 +235,8 @@
                     {{ $label }}
                 </span>
                 @php
-                    $rawMobile = $order->user->mobile_no;
-                    $displayMobile = ($order->user->countrycode ? ('+' . $order->user->countrycode . ' ') : '') . $order->user->mobile_no;
+                    $rawMobile = $effectiveUser->mobile_no;
+                    $displayMobile = ($effectiveUser->countrycode ? ('+' . $effectiveUser->countrycode . ' ') : '') . $effectiveUser->mobile_no;
                 @endphp
                 @if(!empty($rawMobile))
                     <span class="badge badge-light-danger fs-7 fw-bold">{{ $displayMobile }}</span>
@@ -231,19 +246,21 @@
                 @endif
             </div><br>
 
-            @if(!empty($order->user->email))
+            @if(!empty($effectiveUser->email))
                 <div class="d-inline-flex align-items-center justify-content-center my-1">
-                    <span class="fs-7 fw-bold text-break">{{ $order->user->email }}</span>
-                    <button type="button" class="btn btn-icon btn-sm btn-active-light-primary ms-1 p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Email" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $order->user->email }}', 'Email copied!');">
+                    <span class="fs-7 fw-bold text-break">{{ $effectiveUser->email }}</span>
+                    <button type="button" class="btn btn-icon btn-sm btn-active-light-primary ms-1 p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Email" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $effectiveUser->email }}', 'Email copied!');">
                         <i class="fa fa-clone fs-8 text-muted"></i>
                     </button>
                 </div><br>
             @endif
 
-            <span data-user-group-badges="{{ $order->user->id }}">@foreach($order->user->groups as $group)<span class="badge badge-light-primary fs-8 me-1">{{ $group->name }}</span>@endforeach</span>
+            @if($effectiveUser->groups)
+            <span data-user-group-badges="{{ $effectiveUser->id }}">@foreach($effectiveUser->groups as $group)<span class="badge badge-light-primary fs-8 me-1">{{ $group->name }}</span>@endforeach</span>
+            @endif
 
             <div class="d-flex justify-content-center align-items-center gap-2 mt-2">
-                <button type="button" class="btn btn-icon btn-sm btn-light-info" title="Add Review" onclick="openReviewModal({{ $order->user->id }})">
+                <button type="button" class="btn btn-icon btn-sm btn-light-info" title="Add Review" onclick="openReviewModal({{ $effectiveUser->id }})">
                     <span class="fw-bold fs-6">B</span>
                 </button>
 
@@ -251,21 +268,6 @@
                     onclick="openMarksModal({{$order->id }}, '{{ $order->marks ?? '' }}')">
                     <span class="fw-bold fs-6">M</span>
                 </button>
-                {{-- @if(!empty($order->marks))
-                    <button type="button"
-                        class="btn btn-sm btn-light-success fw-bold"
-                        title="Update Marks"
-                        onclick="openMarksModal({{ $order->id }}, '{{ $order->marks }}')">
-                        {{ $order->marks }}
-                    </button>
-                @else
-                    <button type="button"
-                        class="btn btn-icon btn-sm btn-light-primary"
-                        title="Assign Marks"
-                        onclick="openMarksModal({{ $order->id }}, '')">
-                        <span class="fw-bold fs-6">M</span>
-                    </button>
-                @endif --}}
 
                 @if($order->looking_for_refund == 1)
                     <span class="btn btn-icon btn-sm btn-light-danger" title="Looking For Refund">
@@ -279,37 +281,30 @@
             @endif
         </td>
 
-        
-
         <td class="text-center">
-            {{ \Carbon\Carbon::parse($order->order_date)->format('d M Y') }}
+            @if(!empty($effectiveOrderDate) && strtotime($effectiveOrderDate))
+                {{ \Carbon\Carbon::parse($effectiveOrderDate)->format('d M Y') }}
+            @else
+                <span class="badge badge-light-danger fs-7 fw-bold">N/A</span>
+            @endif
         </td>
-
-        {{-- <td class="text-center" style="cursor: pointer;" onclick="updateDeliveryDate({{ $order->id }})">
-        @if($order->delivery_date)
-        {{ \Carbon\Carbon::parse($order->delivery_date)->format('d M Y') }}
-        @else
-        <span class="badge badge-light-danger fs-7 fw-bold">Not Available</span>
-        @endif
-        @if($order->draftrequired == 'Y')
-        <span class="badge badge-light-success fs-7 fw-bold">
-            {{ \Carbon\Carbon::parse($order->draft_date)->format('d M Y') }} ({{ \Carbon\Carbon::parse($order->draft_time)->format('H:i') }})
-        </span>
-        @endif
-        </td> --}}
 
         <td class="text-center" style="cursor: pointer;" onclick="updateDeliveryDate({{ $order->id }})">
             @php
             $deadlineDate = null;
 
-            if ($order->delivery_date) {
-            $dateTimeString = $order->delivery_date;
+            if ($effectiveDeliveryDate) {
+                $dateTimeString = $effectiveDeliveryDate;
 
-            if ($order->delivery_time) {
-            $dateTimeString .= ' ' . $order->delivery_time;
-            }
+                if ($effectiveDeliveryTime) {
+                    $dateTimeString .= ' ' . $effectiveDeliveryTime;
+                }
 
-            $deadlineDate = \Carbon\Carbon::parse($dateTimeString);
+                try {
+                    $deadlineDate = \Carbon\Carbon::parse($dateTimeString);
+                } catch (\Exception $e) {
+                    $deadlineDate = null;
+                }
             }
             $isOverdue = $deadlineDate && $deadlineDate->isPast() && !in_array($order->projectstatus, ['Delivered', 'Completed']);
             @endphp
@@ -348,19 +343,19 @@
         </td>
 
         <td class="text-center" style="width:50px">
-            {!! $order->title ?: '<span class="badge badge-light-danger fs-7 fw-bold">Not Available</span>' !!}
+            {!! $effectiveTitle ?: '<span class="badge badge-light-danger fs-7 fw-bold">Not Available</span>' !!}
             <br>
-            @if($order->semester)
-            Semester: ({{ $order->semester }})
+            @if($effectiveSemester)
+            Semester: ({{ $effectiveSemester }})
             @endif
-            @if($order->chapter)
-            <span class="badge badge-light-danger fs-7 fw-bold">{{ $order->chapter }}</span>
+            @if($effectiveChapter)
+            <span class="badge badge-light-danger fs-7 fw-bold">{{ $effectiveChapter }}</span>
             @endif
-            @if($order->tech == '1')
+            @if($effectiveTech == '1' || $effectiveTech === 'on')
             <span class="badge badge-light-success fs-7 fw-bold">Technical Work</span>
             @endif
-            @if($order->module_code)
-            <span class="badge badge-light-danger fs-7 fw-bold">{{ $order->module_code }}</span>
+            @if($effectiveModuleCode)
+            <span class="badge badge-light-danger fs-7 fw-bold">{{ $effectiveModuleCode }}</span>
             @endif
         </td>
 
@@ -472,17 +467,17 @@
         </td>
 
         {{-- <td class="text-center" style="width:50px">
-            {!! $order->pages ?: '<span class="badge badge-light-danger fs-7 fw-bold">N/A</span>' !!}
+            {!! $effectivePages ?: '<span class="badge badge-light-danger fs-7 fw-bold">N/A</span>' !!}
         </td> --}}
 
         <td class="text-center cursor-pointer" style="width:50px"
             onclick="openAdditionalHistory('{{ $order->order_id }}')">
             @php
-                $extraWords = $order->additionals->sum('additional_word_count');
+                $extraWords = $order->additionals ? $order->additionals->sum('additional_word_count') : 0;
             @endphp
 
-            @if($order->pages)
-                {{ $order->pages }}@if($extraWords > 0)+{{ $extraWords }}@endif
+            @if($effectivePages)
+                {{ $effectivePages }}@if($extraWords > 0)+{{ $extraWords }}@endif
             @elseif($extraWords > 0)
                 {{ $extraWords }}
             @else
@@ -491,13 +486,13 @@
         </td>
 
         {{-- <td class="text-center" style="width:50px">
-            £{!! $order->amount ?: '<span class="badge badge-light-danger fs-7 fw-bold">00.00</span>' !!}
+            £{!! $effectiveAmount ?: '<span class="badge badge-light-danger fs-7 fw-bold">00.00</span>' !!}
         </td> --}}
 
         <td class="text-center cursor-pointer" style="width:50px"
             onclick="openAdditionalHistory('{{ $order->order_id }}')">
             @php
-                $extraPrice = $order->additionals->sum('additional_price');
+                $extraPrice = $order->additionals ? $order->additionals->sum('additional_price') : 0;
             @endphp
 
             @if(!empty($order->coupon_code))
@@ -505,8 +500,8 @@
                 <div class="text-danger small">-£{{ number_format((float)($order->coupon_discount_amount ?? 0), 2) }}</div>
             @endif
 
-            @if($order->amount)
-                £{{ $order->amount }}@if($extraPrice > 0)+{{ $extraPrice }}@endif
+            @if($effectiveAmount)
+                £{{ $effectiveAmount }}@if($extraPrice > 0)+{{ $extraPrice }}@endif
             @elseif($extraPrice > 0)
                 £{{ $extraPrice }}
             @else
@@ -521,11 +516,11 @@
         <td class="text-center" style="width:50px">
             @php
                 $extraPriceAmt = $order->additionals ? (float)$order->additionals->sum('additional_price') : 0;
-                $basePriceAmt  = is_numeric($order->amount) ? (float)$order->amount : 0;
+                $basePriceAmt  = is_numeric($effectiveAmount) ? (float)$effectiveAmount : 0;
                 $recvPriceAmt  = is_numeric($order->received_amount) ? (float)$order->received_amount : 0;
                 $calcDueAmt    = max(0, ($basePriceAmt + $extraPriceAmt) - $recvPriceAmt);
             @endphp
-            @if(is_numeric($order->amount) || $extraPriceAmt > 0)
+            @if(is_numeric($effectiveAmount) || $extraPriceAmt > 0)
             £{{ $calcDueAmt }}
             @else
             <span class="badge badge-light-danger fs-7 fw-bold">N/A</span>

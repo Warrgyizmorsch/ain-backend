@@ -1463,7 +1463,8 @@ document.addEventListener('DOMContentLoaded', function() {
                                 <strong class="text-dark fs-9">£${lead.price_formatted}</strong>
                             </td>
                             <td class="text-center" style="border:1px solid #cbd5e1 !important">
-                                <span class="badge ${lead.status_class} py-1 px-2">${lead.status}</span>
+                                <span class="badge ${lead.status_class} py-1 px-2 fw-bold">${lead.status}</span>
+                                ${lead.is_cancelled && lead.cancel_reason ? `<div class="text-danger fs-9 mt-1" style="max-width:130px;word-break:break-word;" title="${lead.cancel_reason}">Reason: ${lead.cancel_reason}</div>` : ''}
                             </td>
                             <td style="border:1px solid #cbd5e1 !important">
                                 <div class="d-flex flex-column gap-1">
@@ -1633,6 +1634,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                     if (ord.is_fail === 1) {
                         badgesHtml += `<span class="badge badge-light-danger fs-9 fw-bold mt-1 me-1">Fail Order${ord.failed_at ? `<br><span class="fs-9">${ord.failed_at}</span>` : ''}</span>`;
+                    }
+                    if (ord.is_converted) {
+                        const convLabel = ord.converted_by ? `Converted: ${ord.converted_by}` : 'Converted';
+                        badgesHtml += `<span class="badge badge-light-success fs-9 fw-bold mt-1 me-1">${convLabel}</span>`;
                     }
                     if (ord.looking_for_refund === 1) {
                         badgesHtml += `<span class="badge badge-light-danger fs-9 fw-bold mt-1 me-1">Refund</span>`;

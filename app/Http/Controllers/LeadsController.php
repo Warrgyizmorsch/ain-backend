@@ -2084,40 +2084,62 @@ class LeadsController extends Controller
             ->select($this->leadListColumns());
         $query->where('duplicate_lead', 0);
 
-        // Filter by user ID (selectedValue) OR search term (order, user, searchInput, search, project title, email, mobile)
-        if ($request->filled('selectedValue')) {
-            $query->where('emp_id', $request->input('selectedValue'));
-        } else {
-            $searchTerm = trim($request->input('order') ?? $request->input('user') ?? $request->input('searchInput') ?? $request->input('search') ?? '');
-            if ($searchTerm !== '') {
-                $cleanDigits = preg_replace('/\D+/', '', $searchTerm);
-                $last10 = strlen($cleanDigits) >= 10 ? substr($cleanDigits, -10) : $cleanDigits;
+        $selectedUid = $request->input('selectedValue') ?: $request->input('uid');
+        $hasSelectedUser = false;
 
-                $query->where(function ($q) use ($searchTerm, $last10) {
-                    $q->where('order_id', 'like', '%' . $searchTerm . '%')
-                        ->orWhere('project_title', 'like', '%' . $searchTerm . '%')
-                        ->orWhere('email', 'like', '%' . $searchTerm . '%')
-                        ->orWhere('user_name', 'like', '%' . $searchTerm . '%')
-                        ->orWhere('mobile', 'like', '%' . $searchTerm . '%');
+        // Filter by user ID if selectedValue / uid is set
+        if (!empty($selectedUid) && is_numeric($selectedUid) && (int)$selectedUid > 0) {
+            $query->where('emp_id', (int)$selectedUid);
+            $hasSelectedUser = true;
+        }
 
-                    if (!empty($last10)) {
-                        $q->orWhere('mobile', 'like', '%' . $last10 . '%')
-                          ->orWhere('mobile2', 'like', '%' . $last10 . '%');
+        // Gather all search terms (from search, order, search_order, user, searchInput)
+        $searchOrder = trim((string)($request->input('order') ?? $request->input('search_order') ?? ''));
+        $searchUser = trim((string)($request->input('user') ?? $request->input('searchInput') ?? ''));
+        $generalSearch = trim((string)($request->input('search') ?? ''));
+
+        $searchTermsToApply = [];
+        if (!empty($generalSearch)) {
+            $searchTermsToApply[] = $generalSearch;
+        }
+        if (!empty($searchOrder)) {
+            $searchTermsToApply[] = $searchOrder;
+        }
+        // If user was NOT selected by UID, apply the typed user term as text filter
+        if (!$hasSelectedUser && !empty($searchUser)) {
+            $searchTermsToApply[] = $searchUser;
+        }
+
+        $rawSearchTerms = array_unique(array_filter($searchTermsToApply));
+
+        foreach ($rawSearchTerms as $searchTerm) {
+            $cleanDigits = preg_replace('/\D+/', '', $searchTerm);
+            $last10 = strlen($cleanDigits) >= 10 ? substr($cleanDigits, -10) : $cleanDigits;
+
+            $query->where(function ($q) use ($searchTerm, $last10) {
+                $q->where('order_id', 'like', '%' . $searchTerm . '%')
+                    ->orWhere('project_title', 'like', '%' . $searchTerm . '%')
+                    ->orWhere('email', 'like', '%' . $searchTerm . '%')
+                    ->orWhere('user_name', 'like', '%' . $searchTerm . '%')
+                    ->orWhere('mobile', 'like', '%' . $searchTerm . '%');
+
+                if (!empty($last10) && strlen($last10) >= 4) {
+                    $q->orWhere('mobile', 'like', '%' . $last10 . '%')
+                      ->orWhere('mobile2', 'like', '%' . $last10 . '%');
+                }
+
+                $q->orWhereHas('user', function ($uq) use ($searchTerm, $last10) {
+                    $uq->where('name', 'like', '%' . $searchTerm . '%')
+                      ->orWhere('email', 'like', '%' . $searchTerm . '%')
+                      ->orWhere('mobile_no', 'like', '%' . $searchTerm . '%')
+                      ->orWhere('mobile_no2', 'like', '%' . $searchTerm . '%');
+
+                    if (!empty($last10) && strlen($last10) >= 4) {
+                        $uq->orWhere('mobile_no', 'like', '%' . $last10 . '%')
+                           ->orWhere('mobile_no2', 'like', '%' . $last10 . '%');
                     }
-
-                    $q->orWhereHas('user', function ($uq) use ($searchTerm, $last10) {
-                        $uq->where('name', 'like', '%' . $searchTerm . '%')
-                          ->orWhere('email', 'like', '%' . $searchTerm . '%')
-                          ->orWhere('mobile_no', 'like', '%' . $searchTerm . '%')
-                          ->orWhere('mobile_no2', 'like', '%' . $searchTerm . '%');
-
-                        if (!empty($last10)) {
-                            $uq->orWhere('mobile_no', 'like', '%' . $last10 . '%')
-                               ->orWhere('mobile_no2', 'like', '%' . $last10 . '%');
-                        }
-                    });
                 });
-            }
+            });
         }
 
         if ($request->filled('lead_status_tab')) {

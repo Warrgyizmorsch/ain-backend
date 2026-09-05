@@ -82,42 +82,9 @@
         });
     });
 
-    $(document).on('click', '#applyButton', function(e) {
-        e.preventDefault();
+    function applyFilters(filters) {
         $('#preloader').show();
-        const filters = {
-            order: $('#searchInput').val() || $('#search_order').val() || '',
-            user: $('#searchInput').val() || '',
-            status: $('#status_filter').val(),
-            lead_status_tab: $('#lead_status_tab').val(),
-            type: $('#type_filter').val(),
-            date_from: $('#date_from').val(),
-            date_to: $('#date_to').val(),
-            date_type: $('#date_type').val(),
-            assign_type: String($('#assign_type').val() ?? ''),
-            selectedValue: $('#selectedValue').val(),
-            lead_source: $('#lead_source').val(),
-            group_id: $('#lead_group_id').val()
-        };
-
-        const hasFilters = Object.values(filters).some(val => {
-            if (val === null || val === undefined) return false;
-            return String(val).trim() !== "";
-        });
-
-        if (!hasFilters) {
-            Swal.fire({
-                icon: 'warning',
-                title: 'No filters applied!',
-                text: 'Please fill at least one filter to search.',
-            });
-            $('#preloader').hide();
-            return;
-        }
-
-        localStorage.setItem('lead_filters', JSON.stringify(filters));
         activeLeadFilters = filters;
-
         $.ajax({
             url: leadFilterPath,
             method: 'post',
@@ -147,41 +114,99 @@
                 $('#export-btn').show();
             }
         });
+    }
 
+    $(document).on('click', '#applyButton', function(e) {
+        e.preventDefault();
+
+        const searchOrderVal = ($('#search_order').val() || '').trim();
+        const searchUserVal = ($('#searchInput').val() || '').trim();
+        const selectedUidVal = ($('#selectedValue').val() || '').trim();
+
+        const filters = {
+            search: searchOrderVal || searchUserVal || '',
+            order: searchOrderVal,
+            user: searchUserVal,
+            selectedValue: selectedUidVal,
+            status: $('#status_filter').val() || '',
+            lead_status_tab: $('#lead_status_tab').val() || '',
+            type: $('#type_filter').val() || '',
+            date_from: $('#date_from').val() || '',
+            date_to: $('#date_to').val() || '',
+            date_type: $('#date_type').val() || '',
+            assign_type: String($('#assign_type').val() ?? ''),
+            lead_source: $('#lead_source').val() || '',
+            group_id: $('#lead_group_id').val() || ''
+        };
+
+        const hasFilters = Object.values(filters).some(val => {
+            if (val === null || val === undefined) return false;
+            return String(val).trim() !== "";
+        });
+
+        if (!hasFilters) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'No filters applied!',
+                text: 'Please fill at least one filter to search.',
+            });
+            return;
+        }
+
+        localStorage.setItem('lead_filters', JSON.stringify(filters));
+        applyFilters(filters);
     });
 
+    $(document).on('keypress', '#search_order, #searchInput', function(e) {
+        if (e.which === 13) {
+            e.preventDefault();
+            $('#applyButton').click();
+        }
+    });
 
+    let searchUserTimer = null;
+    $(document).on('input', '#searchInput', function () {
+        var searchValue = $(this).val().trim();
+        clearTimeout(searchUserTimer);
 
-    function applyFilters(filters) {
-        $('#preloader').show();
-        activeLeadFilters = filters;
-        $.ajax({
-            url: leadFilterPath,
-            method: 'post',
-            headers: {
-                'X-CSRF-TOKEN': leadCsrfToken
-            },
-            data: filters,
-            success: function(res) {
-                if (res.html && res.html.trim() !== '') {
-                    $('#lead-rows').html(res.html);
-                    refreshLeadSrNumbers();
-                } else {
-                    $('#lead-rows').html('<tr><td colspan="11" class="text-center text-muted py-5"><i class="fa fa-folder-open-o fs-3 text-gray-400 d-block mb-2"></i>No leads found matching your criteria.</td></tr>');
-                }
-                if (window.initLeadStars) {
-                    window.initLeadStars(document.getElementById('lead-rows'));
-                }
-                offset = res.next_offset ?? (res.count || 0);
-                updateLoadMoreVisibility(res.has_more);
-            },
-            error: function() {
-                Swal.fire('Error', 'Failed to restore lead filters.', 'error');
-            },
-            complete: function() {
-                $('#preloader').hide();
+        if (searchValue.length >= 2) {
+            searchUserTimer = setTimeout(function () {
+                $.ajax({
+                    url: "{{ url('/search-user') }}",
+                    type: "GET",
+                    data: { user: searchValue, query: searchValue, term: searchValue },
+                    success: function (response) {
+                        $('#searchDatalist').empty();
+                        if (Array.isArray(response) && response.length > 0) {
+                            $.each(response, function (key, value) {
+                                $('#searchDatalist').append('<option data-id="' + value.id + '" value="' + (value.email || value.name || value.mobile_no) + '">' + (value.name || '') + ' (' + (value.mobile_no || '') + ' - ' + (value.email || '') + ')</option>');
+                            });
+                        }
+                    }
+                });
+            }, 300);
+        } else {
+            $('#searchDatalist').empty();
+            $('#selectedValue').val('');
+        }
+    });
+
+    $(document).on('input change', '#searchInput', function() {
+        var selectedVal = $(this).val().trim();
+        if (!selectedVal) {
+            $('#selectedValue').val('');
+            return;
+        }
+        var selectedOption = $('#searchDatalist option').filter(function () {
+            return $(this).val() === selectedVal;
         });
-    }
+        if (selectedOption.length > 0) {
+            var selectedId = selectedOption.attr('data-id') || selectedOption.data('id');
+            $('#selectedValue').val(selectedId);
+        } else {
+            $('#selectedValue').val('');
+        }
+    });
 
     $(document).ready(function() {
         const urlParams = new URLSearchParams(window.location.search);
@@ -231,6 +256,7 @@
             const filters = JSON.parse(savedLeadFilters);
 
             $('#search_order').val(filters.order);
+            $('#searchInput').val(filters.user);
             $('#status_filter').val(filters.status).trigger('change');
             $('#lead_status_tab').val(filters.lead_status_tab);
             $('#type_filter').val(filters.type).trigger('change');

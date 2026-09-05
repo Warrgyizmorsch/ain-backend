@@ -463,14 +463,24 @@ class WhatsappController extends Controller
         $leads = $query->skip(($page - 1) * $limit)->take($limit)->get();
 
         $formatted = $leads->map(function ($lead) {
-            $statusClass = match(strtolower($lead->l_status ?? '')) {
-                'waiting' => 'badge-warning',
-                'quote' => 'badge-info',
-                'confirmation' => 'badge-primary',
-                'converted' => 'badge-success',
-                'cancelled', 'cancel' => 'badge-danger',
-                default => 'badge-secondary',
-            };
+            $isCancelled = (int)$lead->status === 1 || in_array(strtolower($lead->l_status ?? ''), ['cancel', 'cancelled', 'canceled']);
+            $isConverted = (int)$lead->is_converted === 1 || strtolower($lead->l_status ?? '') === 'converted';
+
+            if ($isCancelled) {
+                $displayStatus = 'Cancelled';
+                $statusClass = 'badge-danger';
+            } elseif ($isConverted) {
+                $displayStatus = 'Converted';
+                $statusClass = 'badge-success';
+            } else {
+                $displayStatus = $lead->l_status ?: 'Waiting';
+                $statusClass = match(strtolower($lead->l_status ?? '')) {
+                    'waiting' => 'badge-warning',
+                    'quote' => 'badge-info',
+                    'confirmation' => 'badge-primary',
+                    default => 'badge-secondary',
+                };
+            }
 
             $createDateStr = !empty($lead->create_date) && strtotime($lead->create_date)
                 ? date('d M Y', strtotime($lead->create_date))
@@ -484,8 +494,11 @@ class WhatsappController extends Controller
                 'pages' => $lead->pages ? number_format($lead->pages) : '—',
                 'price' => is_numeric($lead->price) ? (float)$lead->price : 0,
                 'price_formatted' => number_format((float)($lead->price ?: 0), 2),
-                'status' => $lead->l_status ?: 'Waiting',
+                'status' => $displayStatus,
                 'status_class' => $statusClass,
+                'is_cancelled' => $isCancelled ? 1 : 0,
+                'is_converted' => $isConverted ? 1 : 0,
+                'cancel_reason' => $lead->cancel_reason ?: ($lead->reason ?: ''),
                 'create_date' => $createDateStr,
                 'deadline' => !empty($lead->deadline) && strtotime($lead->deadline) ? date('d M Y', strtotime($lead->deadline)) : '—',
                 'delivery_time' => $lead->delivery_time ?: '',
@@ -558,7 +571,7 @@ class WhatsappController extends Controller
         $leadIds = $matchingLeads->pluck('id')->filter()->all();
 
         $query = Order::query()
-            ->with(['team'])
+            ->with(['team', 'lead', 'frontendLead'])
             ->where(function ($q) use ($allUids, $leadOrderIds, $leadIds) {
                 $hasCondition = false;
                 if (!empty($allUids)) {
@@ -601,15 +614,24 @@ class WhatsappController extends Controller
                 default => 'badge-primary',
             };
 
-            $basePriceAmt = is_numeric($ord->amount) ? (float)$ord->amount : 0;
+            $effectiveTitle = $ord->title ?: (optional($ord->lead)->project_title ?: (optional($ord->frontendLead)->project_title ?: 'N/A'));
+            $effectivePages = $ord->pages ?: (optional($ord->lead)->pages ?: optional($ord->frontendLead)->pages);
+            $effectiveAmount = $ord->amount ?: (optional($ord->lead)->price ?: optional($ord->frontendLead)->price);
+            $effectiveDeliveryDate = $ord->delivery_date ?: (optional($ord->lead)->deadline ?: optional($ord->frontendLead)->deadline);
+            $effectiveDeliveryTime = $ord->delivery_time ?: (optional($ord->lead)->delivery_time ?: optional($ord->frontendLead)->delivery_time);
+            $effectiveOrderDate = $ord->order_date ?: (optional($ord->lead)->created_at ?: (optional($ord->lead)->create_at ?: $ord->created_at));
+            $effectiveSemester = $ord->semester ?: (optional($ord->lead)->semester ?: optional($ord->frontendLead)->semester);
+            $effectiveServices = $ord->services ?: (optional($ord->lead)->service_type ?: optional($ord->frontendLead)->service_type);
+
+            $basePriceAmt = is_numeric($effectiveAmount) ? (float)$effectiveAmount : 0;
             $recvPriceAmt = is_numeric($ord->received_amount) ? (float)$ord->received_amount : 0;
             $calcDueAmt = max(0, $basePriceAmt - $recvPriceAmt);
 
             $deadlineDate = null;
-            if (!empty($ord->delivery_date)) {
-                $dateTimeString = $ord->delivery_date;
-                if (!empty($ord->delivery_time)) {
-                    $dateTimeString .= ' ' . $ord->delivery_time;
+            if (!empty($effectiveDeliveryDate)) {
+                $dateTimeString = $effectiveDeliveryDate;
+                if (!empty($effectiveDeliveryTime)) {
+                    $dateTimeString .= ' ' . $effectiveDeliveryTime;
                 }
                 try {
                     $deadlineDate = Carbon::parse($dateTimeString);
@@ -619,8 +641,8 @@ class WhatsappController extends Controller
             }
             $isOverdue = $deadlineDate && $deadlineDate->isPast() && !in_array(strtolower($ord->projectstatus ?? ''), ['delivered', 'completed']);
 
-            $orderDateStr = !empty($ord->order_date) && strtotime($ord->order_date)
-                ? Carbon::parse($ord->order_date)->format('d M Y')
+            $orderDateStr = !empty($effectiveOrderDate) && strtotime((string)$effectiveOrderDate)
+                ? Carbon::parse($effectiveOrderDate)->format('d M Y')
                 : (!empty($ord->created_at) ? $ord->created_at->format('d M Y') : '—');
 
             $writerDeadlineStr = !empty($ord->writer_deadline) && strtotime($ord->writer_deadline)
@@ -644,15 +666,15 @@ class WhatsappController extends Controller
             $deliveryDateFormatted = '—';
             if ($deadlineDate) {
                 $deliveryDateFormatted = $deadlineDate->format('d M Y');
-                if (!empty($ord->delivery_time)) {
+                if (!empty($effectiveDeliveryTime)) {
                     try {
-                        $deliveryDateFormatted .= ' (' . Carbon::parse($ord->delivery_time)->format('H:i') . ')';
+                        $deliveryDateFormatted .= ' (' . Carbon::parse($effectiveDeliveryTime)->format('H:i') . ')';
                     } catch (\Exception $e) {
-                        $deliveryDateFormatted .= ' (' . $ord->delivery_time . ')';
+                        $deliveryDateFormatted .= ' (' . $effectiveDeliveryTime . ')';
                     }
                 }
-            } elseif (!empty($ord->delivery_date) && strtotime($ord->delivery_date)) {
-                $deliveryDateFormatted = date('d M Y', strtotime($ord->delivery_date));
+            } elseif (!empty($effectiveDeliveryDate) && strtotime((string)$effectiveDeliveryDate)) {
+                $deliveryDateFormatted = date('d M Y', strtotime((string)$effectiveDeliveryDate));
             }
 
             $feedbackDateStr = !empty($ord->f_delivery_date) && strtotime($ord->f_delivery_date)
@@ -663,12 +685,15 @@ class WhatsappController extends Controller
                 ? Carbon::parse($ord->failed_at)->format('d M Y H:i A')
                 : null;
 
+            $isConverted = !empty($ord->lead_id) || !empty($ord->l_converted_by) || optional($ord->lead)->is_converted == 1 || optional($ord->frontendLead)->is_converted == 1;
+            $convertedBy = $ord->l_converted_by ?: (optional($ord->lead)->l_converted_by ?: optional($ord->frontendLead)->l_converted_by);
+
             return [
                 'id' => $ord->id,
                 'order_id' => $ord->order_id ?: (string) $ord->id,
-                'title' => $ord->title ?: 'N/A',
-                'service_type' => $ord->service_type ?: 'General',
-                'pages' => $ord->pages ? number_format($ord->pages) : '—',
+                'title' => $effectiveTitle,
+                'service_type' => $effectiveServices ?: ($ord->service_type ?: 'General'),
+                'pages' => $effectivePages ? number_format((float)$effectivePages) : '—',
                 'total_amount' => $basePriceAmt,
                 'total_amount_formatted' => number_format($basePriceAmt, 2),
                 'received_amount' => $recvPriceAmt,
@@ -687,12 +712,15 @@ class WhatsappController extends Controller
                 'failed_at' => $failedDateStr,
                 'feedback_ticket' => $ord->feedback_ticket ?? null,
                 'resit' => $ord->resit ?? null,
-                'services' => $ord->services ?? null,
-                'semester' => $ord->semester ?? null,
+                'services' => $effectiveServices ?? null,
+                'semester' => $effectiveSemester ?? null,
                 'offer' => $ord->offer ?? null,
                 'marks' => $ord->marks ?? null,
                 'team_name' => $ord->team?->team_name ?? null,
                 'looking_for_refund' => (int) ($ord->looking_for_refund ?? 0),
+                'is_converted' => $isConverted ? 1 : 0,
+                'converted_by' => $convertedBy,
+                'lead_id' => $ord->lead_id ?: (optional($ord->lead)->id ?: optional($ord->frontendLead)->id),
                 'edit_url' => route('edit', $ord->id),
                 'payment_url' => route('orders.payment.form', $ord->id),
             ];

@@ -91,18 +91,30 @@ class OrderController extends Controller
 
     private function orderListRelations(): array
     {
+        $userSelectCallback = function ($q) {
+            $q->select('id', 'name', 'email', 'countrycode', 'mobile_no', 'is_fail', 'feedback_issue', 'client_review')
+                ->with('groups')
+                ->withCount('orders as orders_count');
+        };
+
         return [
-            'user' => function ($q) {
-                $q->select('id', 'name', 'email', 'countrycode', 'mobile_no', 'is_fail', 'feedback_issue', 'client_review')
-                    ->with('groups')
-                    ->withCount('orders as orders_count');
-            },
+            'user' => $userSelectCallback,
             'payment:id,order_id,paid_amount,is_revoked,payee_name,company_accounts',
             'team:id,team_name',
-            'lead:id,created_by,frontendorder,l_status',
-            'lead.creator:id,name',
-            'frontendLead:id,order_id,created_by,frontendorder,l_status',
-            'frontendLead.creator:id,name',
+            'lead' => function ($q) use ($userSelectCallback) {
+                $q->select('id', 'emp_id', 'order_id', 'user_name', 'email', 'countrycode', 'mobile', 'project_title', 'pages', 'price', 'deadline', 'delivery_time', 'module_code', 'typeofpaper', 'chapter', 'semester', 'tech', 'resit', 'service_type', 'created_by', 'frontendorder', 'l_status', 'created_at', 'create_at')
+                    ->with([
+                        'creator:id,name',
+                        'user' => $userSelectCallback,
+                    ]);
+            },
+            'frontendLead' => function ($q) use ($userSelectCallback) {
+                $q->select('id', 'emp_id', 'order_id', 'user_name', 'email', 'countrycode', 'mobile', 'project_title', 'pages', 'price', 'deadline', 'delivery_time', 'module_code', 'typeofpaper', 'chapter', 'semester', 'tech', 'resit', 'service_type', 'created_by', 'frontendorder', 'l_status', 'created_at', 'create_at')
+                    ->with([
+                        'creator:id,name',
+                        'user' => $userSelectCallback,
+                    ]);
+            },
             'feedback' => function ($q) {
                 $q->select('id', 'order_id', 'comment', 'action_comment', 'status', 'created_by', 'created_at')
                     ->with('user:id,name')
@@ -3620,54 +3632,25 @@ class OrderController extends Controller
         $query = Order::with($this->orderListRelations())
             ->select($this->orderListColumns());
 
-        $query->whereNotNull('uid')->where('uid', '!=', 0)->where('uid', '!=', '0');
-
-
-        // ─── Lead Filtering (Performance-Optimized, matching original logic) ─────────
-        // Original logic:
-        //   Include if: (no lead AND no frontendLead) OR (lead.is_converted=1) OR (frontendLead.is_converted=1)
-        //
-        // We replicate this using cached lead ID sets instead of correlated subqueries.
-
-        $convertedLeadIds = Cache::remember('converted_lead_ids', 60, function () {
-            return DB::table('leads')->where('is_converted', 1)->pluck('id');
+        $query->where(function ($q) {
+            $q->whereNotNull('orders.uid')
+              ->orWhereNotNull('orders.lead_id');
         });
 
-        $convertedFrontendOrderIds = Cache::remember('converted_frontend_order_ids', 60, function () {
-            return DB::table('leads')
-                ->where('is_converted', 1)
-                ->whereNotNull('order_id')
-                ->pluck('order_id');
+        // ─── Lead Filtering (Performance-Optimized) ──────────────────────────────────
+        $unconvertedOrderCodes = Cache::remember('unconverted_order_codes_in_orders', 60, function () {
+            return DB::table('orders')
+                ->join('leads', 'orders.order_id', '=', 'leads.order_id')
+                ->where('leads.is_converted', 0)
+                ->pluck('orders.order_id')
+                ->filter()
+                ->values()
+                ->toArray();
         });
 
-        $unconvertedFrontendOrderIds = Cache::remember('unconverted_frontend_order_ids', 60, function () {
-            return DB::table('leads')
-                ->where('is_converted', 0)
-                ->whereNotNull('order_id')
-                ->pluck('order_id');
-        });
-
-        $query->where(function ($q) use ($convertedLeadIds, $convertedFrontendOrderIds, $unconvertedFrontendOrderIds) {
-
-            // ✅ Condition 1: order has a converted lead (via lead_id) → INCLUDE
-            if ($convertedLeadIds->isNotEmpty()) {
-                $q->whereIn('orders.lead_id', $convertedLeadIds);
-            }
-
-            // ✅ Condition 2: order has a converted frontendLead (via order_id) → INCLUDE
-            if ($convertedFrontendOrderIds->isNotEmpty()) {
-                $q->orWhereIn('orders.order_id', $convertedFrontendOrderIds);
-            }
-
-            // ✅ Condition 3: order has NO lead at all → INCLUDE
-            //    (lead_id is null, AND order_id doesn't match any unconverted frontendLead)
-            $q->orWhere(function ($noLead) use ($unconvertedFrontendOrderIds) {
-                $noLead->whereNull('lead_id');
-                if ($unconvertedFrontendOrderIds->isNotEmpty()) {
-                    $noLead->whereNotIn('orders.order_id', $unconvertedFrontendOrderIds);
-                }
-            });
-        });
+        if (!empty($unconvertedOrderCodes)) {
+            $query->whereNotIn('orders.order_id', $unconvertedOrderCodes);
+        }
         // ──────────────────────────────────────────────────────────────────────────────
 
 
@@ -3707,21 +3690,57 @@ class OrderController extends Controller
                                 $lq->orWhere('mobile', 'like', '%' . $last10 . '%')
                                    ->orWhere('mobile2', 'like', '%' . $last10 . '%');
                             }
+                            $lq->orWhereHas('user', function ($luq) use ($search, $last10) {
+                                $luq->where('name', 'like', '%' . $search . '%')
+                                    ->orWhere('email', 'like', '%' . $search . '%')
+                                    ->orWhere('mobile_no', 'like', '%' . $search . '%')
+                                    ->orWhere('mobile_no2', 'like', '%' . $search . '%');
+                                if (!empty($last10)) {
+                                    $luq->orWhere('mobile_no', 'like', '%' . $last10 . '%')
+                                       ->orWhere('mobile_no2', 'like', '%' . $last10 . '%');
+                                }
+                            });
                         });
                 });
             }
         }
 
-        if ($request->filled('uid')) {
-            $query->where('orders.uid', $request->uid);
+        $selectedUid = $request->input('uid') ?: $request->input('selectedValue');
+
+        if (!empty($selectedUid) && is_numeric($selectedUid) && (int)$selectedUid > 0) {
+            $uid = (int) $selectedUid;
+            $query->where(function ($q) use ($uid) {
+                $q->where('orders.uid', $uid)
+                  ->orWhereHas('lead', fn($lq) => $lq->where('emp_id', $uid))
+                  ->orWhereHas('frontendLead', fn($flq) => $flq->where('emp_id', $uid));
+            });
         } elseif ($request->filled('user')) {
-            $userTerm = trim($request->user);
+            $userTerm = trim((string)$request->user);
+            $cleanDigits = preg_replace('/\D+/', '', $userTerm);
+            $last10 = strlen($cleanDigits) >= 10 ? substr($cleanDigits, -10) : $cleanDigits;
+
             $userIds = User::where('name', 'like', '%' . $userTerm . '%')
                 ->orWhere('email', 'like', '%' . $userTerm . '%')
                 ->orWhere('mobile_no', 'like', '%' . $userTerm . '%')
+                ->when(!empty($last10) && strlen($last10) >= 4, fn($q) => $q->orWhere('mobile_no', 'like', '%' . $last10 . '%'))
                 ->pluck('id')->toArray();
 
-            $query->whereIn('orders.uid', $userIds);
+            $query->where(function ($q) use ($userIds, $userTerm, $last10) {
+                if (!empty($userIds)) {
+                    $q->whereIn('orders.uid', $userIds)
+                      ->orWhereHas('lead', fn($lq) => $lq->whereIn('emp_id', $userIds))
+                      ->orWhereHas('frontendLead', fn($flq) => $flq->whereIn('emp_id', $userIds));
+                }
+                $q->orWhereHas('lead', function ($lq) use ($userTerm, $last10) {
+                    $lq->where('user_name', 'like', '%' . $userTerm . '%')
+                       ->orWhere('email', 'like', '%' . $userTerm . '%')
+                       ->orWhere('mobile', 'like', '%' . $userTerm . '%');
+                    if (!empty($last10) && strlen($last10) >= 4) {
+                        $lq->orWhere('mobile', 'like', '%' . $last10 . '%')
+                           ->orWhere('mobile2', 'like', '%' . $last10 . '%');
+                    }
+                });
+            });
         }
 
         $query->when($request->filled('group_id'), fn($q) => $q->whereHas('user.groups', fn($g) => $g->where('group_masters.id', $request->group_id)));
@@ -3882,25 +3901,8 @@ class OrderController extends Controller
 
         $now = now();
         $overdueCount = Cache::remember('order_overdue_count', 60, function () use ($now) {
-            $convertedLeadIds = Cache::get('converted_lead_ids') ?? DB::table('leads')->where('is_converted', 1)->pluck('id');
-            $convertedFrontendOrderIds = Cache::get('converted_frontend_order_ids') ?? DB::table('leads')->where('is_converted', 1)->whereNotNull('order_id')->pluck('order_id');
-            $unconvertedFrontendOrderIds = Cache::get('unconverted_frontend_order_ids') ?? DB::table('leads')->where('is_converted', 0)->whereNotNull('order_id')->pluck('order_id');
-
-            return Order::whereNotNull('uid')->where('uid', '!=', 0)->where('uid', '!=', '0')
-                ->where(function ($q) use ($convertedLeadIds, $convertedFrontendOrderIds, $unconvertedFrontendOrderIds) {
-                    if ($convertedLeadIds->isNotEmpty()) {
-                        $q->whereIn('lead_id', $convertedLeadIds);
-                    }
-                    if ($convertedFrontendOrderIds->isNotEmpty()) {
-                        $q->orWhereIn('order_id', $convertedFrontendOrderIds);
-                    }
-                    $q->orWhere(function ($noLead) use ($unconvertedFrontendOrderIds) {
-                        $noLead->whereNull('lead_id');
-                        if ($unconvertedFrontendOrderIds->isNotEmpty()) {
-                            $noLead->whereNotIn('order_id', $unconvertedFrontendOrderIds);
-                        }
-                    });
-                })
+            return DB::table('orders')
+                ->whereNotNull('uid')
                 ->whereNotIn('projectstatus', ['Delivered', 'Completed', 'Cancelled', 'Feedback', 'Feedback Delivered'])
                 ->whereNotNull('delivery_date')
                 ->where(function ($q) use ($now) {
@@ -3914,9 +3916,16 @@ class OrderController extends Controller
                 ->count();
         });
 
-        $teamFilterQuery = $this->buildOrderFilterQuery($request);
-        $alphaCount = (clone $teamFilterQuery)->where('orders.team_id', 1)->count();
-        $gigaCount  = (clone $teamFilterQuery)->where('orders.team_id', 2)->count();
+        $teamCounts = Cache::remember('order_team_counts', 60, function () {
+            return DB::table('orders')
+                ->whereNotNull('uid')
+                ->whereIn('team_id', [1, 2])
+                ->groupBy('team_id')
+                ->select('team_id', DB::raw('COUNT(*) as total'))
+                ->pluck('total', 'team_id');
+        });
+        $alphaCount = $teamCounts[1] ?? 0;
+        $gigaCount  = $teamCounts[2] ?? 0;
 
         $teams = Team::select('id', 'team_name')->get();
         return view('back-end.order.index', compact('orders', 'totals', 'overdueCount', 'data', 'alphaCount', 'gigaCount', 'teams'));
@@ -3971,7 +3980,7 @@ class OrderController extends Controller
         $filters = $request->all();
 
         // Check if all filters are empty, return a message if so
-        if (empty($filters['search']) && empty($filters['uid']) && empty($filters['group_id']) && empty($filters['status']) && empty($filters['writer']) && empty($filters['dateStatus']) && empty($filters['fromDate']) && empty($filters['toDate']) && empty($filters['from_date']) && empty($filters['to_date']) && empty($filters['WriterTL']) && empty($filters['SubWriter']) && empty($filters['college']) && empty($filters['extra']) && empty($filters['module_code']) &&  empty($filters['paper_type']) && empty($filters['semester']) && empty($filters['month']) && empty($filters['payment']) && empty($filters['deadline_status']) && empty($filters['offer']) && empty($filters['duec']) && empty($filters['marks_filter']) && empty($filters['team_id']) && empty($filters['today_deadline_filter']) && empty($filters['yesterday_deadline_filter']) && empty($filters['today_writer_deadline_filter'])) {
+        if (empty($filters['search']) && empty($filters['uid']) && empty($filters['user']) && empty($filters['selectedValue']) && empty($filters['group_id']) && empty($filters['status']) && empty($filters['writer']) && empty($filters['dateStatus']) && empty($filters['fromDate']) && empty($filters['toDate']) && empty($filters['from_date']) && empty($filters['to_date']) && empty($filters['WriterTL']) && empty($filters['SubWriter']) && empty($filters['college']) && empty($filters['extra']) && empty($filters['module_code']) &&  empty($filters['paper_type']) && empty($filters['semester']) && empty($filters['month']) && empty($filters['payment']) && empty($filters['deadline_status']) && empty($filters['offer']) && empty($filters['duec']) && empty($filters['marks_filter']) && empty($filters['team_id']) && empty($filters['today_deadline_filter']) && empty($filters['yesterday_deadline_filter']) && empty($filters['today_writer_deadline_filter'])) {
             return response()->json(['message' => 'No filters applied'], 200);
         }
 

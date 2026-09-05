@@ -512,8 +512,10 @@ hasMore = true;
 disableScrollHandler();
 
 filters = {
-search: $('#search').val(),
-uid: $('#selectedValue').val(), group_id: $('#group_id').val(),
+search: ($('#search').val() || '').trim(),
+uid: ($('#selectedValue').val() || '').trim(),
+user: ($('#searchInput').val() || '').trim(),
+group_id: $('#group_id').val(),
 status: $('#status').val(),
 writer: $('#writer').val(),
 dateStatus: $('#date_status').val(),
