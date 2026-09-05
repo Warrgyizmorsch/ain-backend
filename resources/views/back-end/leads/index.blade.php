@@ -188,7 +188,9 @@
     @include('back-end.leads.partials.next-leads-list-modal', ['nextLeads' => collect(), 'creators' => $employees ?? collect()])
 </div>
 @include('back-end.leads.partials.preloader')
-@include('back-end.leads.partials.models', ['lead' => $lead])
+@if(isset($lead) || (isset($leads) && count($leads)))
+    @include('back-end.leads.partials.models', ['lead' => $lead ?? $leads->first()])
+@endif
 
 @push('scripts')
     @include('back-end.leads.ajax')

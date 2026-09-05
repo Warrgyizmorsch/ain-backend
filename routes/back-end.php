@@ -36,6 +36,7 @@ use App\Http\Controllers\PluginController;
 
 Route::middleware(['auth'])->group(function () {
 
+    Route::get('/csrf-token', fn() => response()->json(['csrf_token' => csrf_token()]))->name('csrf.token');
     Route::get('/dashboard', [HomeController::class, 'dashboard'])->name('dashboard');
     Route::get('/chatbot', [ChatbotController::class, 'index'])->name('chatbot.index');
     Route::get('/admin/login-otp-notifications', [AuthenticatedSessionController::class, 'loginOtpNotifications'])
@@ -82,6 +83,7 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/chat/contacts', [WhatsappController::class, 'contactList'])->name('chat.contacts');
         Route::post('/chat/mark-read', [WhatsappController::class, 'markRead'])->name('chat.mark-read');
         Route::post('/chat/mark-unread', [WhatsappController::class, 'markUnread'])->name('chat.mark-unread');
+        Route::post('/chat/toggle-archive', [WhatsappController::class, 'toggleArchive'])->name('chat.toggle-archive');
         Route::post('/chat/panel-settings', [WhatsappController::class, 'saveChatPanelSettings'])->name('chat.panel-settings');
         Route::post('/chat/labels', [WhatsappController::class, 'storeChatLabel'])->name('chat.labels.store');
         Route::post('/chat/contact-labels', [WhatsappController::class, 'saveContactLabels'])->name('chat.contact-labels.save');
@@ -90,6 +92,7 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/chat/create-lead', [WhatsappController::class, 'createLeadFromChat'])->name('chat.create-lead');
         Route::get('/chat/customer-leads', [WhatsappController::class, 'customerLeads'])->name('chat.customer-leads');
         Route::get('/chat/customer-orders', [WhatsappController::class, 'customerOrders'])->name('chat.customer-orders');
+        Route::get('/chat/customer-data', [WhatsappController::class, 'customerData'])->name('chat.customer-data');
     });
 
     Route::prefix('career')->group(function () {

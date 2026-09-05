@@ -87,9 +87,33 @@
             <button class="wab-tab active" data-tab="all">All</button>
             <button class="wab-tab" data-tab="unread">Unread</button>
             <button class="wab-tab" data-tab="groups">Groups</button>
+            <button class="wab-tab" data-tab="archived">Archived</button>
         </div>
 
-
+        {{-- Label Filter Slider Carousel --}}
+        @if(isset($labels) && $labels->isNotEmpty())
+        <div class="wab-label-filter-bar" id="wabLabelFilterBar">
+            <button type="button" class="wab-label-nav-btn wab-label-nav-prev" id="wabLabelNavPrev" title="Previous labels" aria-label="Previous labels">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"></polyline></svg>
+            </button>
+            <div class="wab-label-track-wrap" id="wabLabelTrackWrap">
+                <div class="wab-label-track" id="wabLabelTrack">
+                    <button type="button" class="wab-label-chip active" data-label-id="all" id="wabLabelChipAll">
+                        All
+                    </button>
+                    @foreach($labels as $lbl)
+                        <button type="button" class="wab-label-chip" data-label-id="{{ $lbl->id }}" data-color="{{ $lbl->color }}" style="--chip-color: {{ $lbl->color }};" title="{{ $lbl->name }}">
+                            <span class="wab-label-chip-dot" style="background: {{ $lbl->color }};"></span>
+                            <span class="wab-label-chip-name">{{ $lbl->name }}</span>
+                        </button>
+                    @endforeach
+                </div>
+            </div>
+            <button type="button" class="wab-label-nav-btn wab-label-nav-next" id="wabLabelNavNext" title="Next labels" aria-label="Next labels">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>
+            </button>
+        </div>
+        @endif
 
         {{-- Contact List --}}
         @php
@@ -110,8 +134,9 @@
                 $cPhone = $c['phone'] ?? '';
                 $cLabelIds = $allContactLabelMap->get($cPhone, []);
                 $cLabels = $cLabelIds ? $labels->whereIn('id', $cLabelIds) : collect();
+                $cIsArchived = !empty($c['is_archived']);
             @endphp
-            <div class="wab-contact-item {{ $c['active'] ? 'is-active' : '' }}" id="wab-contact-card-{{ preg_replace('/\D+/', '', $cPhone) }}" data-name="{{ strtolower($c['name']) }}" data-contact-id="{{ $c['id'] }}" data-url="{{ isset($c['phone']) ? route('whatsapp.chat', ['phone' => $c['phone']]) : '' }}" data-phone="{{ $cPhone }}" data-color="{{ $c['color'] }}" data-badge="{{ $c['badge'] ?? 0 }}" data-is-group="{{ !empty($c['is_group']) ? '1' : '0' }}">
+            <div class="wab-contact-item {{ $c['active'] ? 'is-active' : '' }}" id="wab-contact-card-{{ preg_replace('/\D+/', '', $cPhone) }}" data-name="{{ strtolower($c['name']) }}" data-contact-id="{{ $c['id'] }}" data-url="{{ isset($c['phone']) ? route('whatsapp.chat', ['phone' => $c['phone']]) : '' }}" data-phone="{{ $cPhone }}" data-color="{{ $c['color'] }}" data-badge="{{ $c['badge'] ?? 0 }}" data-is-group="{{ !empty($c['is_group']) ? '1' : '0' }}" data-is-archived="{{ $cIsArchived ? '1' : '0' }}" data-label-ids="{{ json_encode(array_values(array_map('strval', $cLabelIds ?? []))) }}">
                 <div class="wab-avatar" style="background:{{ $c['color'] }}1a;color:{{ $c['color'] }}">
                     {{ strtoupper(substr($c['name'],0,1)) }}
                     <span class="wab-status-badge wab-status--{{ $c['status'] }}"></span>
@@ -130,6 +155,31 @@
                             <button type="button" class="wab-quick-tag-btn" onclick="event.stopPropagation(); openQuickLabelModal('{{ $cPhone }}', '{{ addslashes($c['name']) }}', {{ json_encode($cLabelIds) }})" title="Assign Labels">
                                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
                             </button>
+                            <div class="dropdown" onclick="event.stopPropagation();">
+                                <button type="button" class="wab-quick-more-btn" data-bs-toggle="dropdown" aria-expanded="false" title="Chat options">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end shadow-sm border py-1" style="min-width: 160px; font-size: 13px; z-index: 1050;">
+                                    <li>
+                                        <a class="dropdown-item d-flex align-items-center gap-2 py-2" href="javascript:void(0)" onclick="window.toggleChatArchive('{{ $cPhone }}')">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></svg>
+                                            <span class="wab-archive-item-text">{{ $cIsArchived ? 'Unarchive chat' : 'Archive chat' }}</span>
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a class="dropdown-item d-flex align-items-center gap-2 py-2" href="javascript:void(0)" onclick="window.toggleChatUnread('{{ $cPhone }}')">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4" fill="currentColor"/></svg>
+                                            <span class="wab-unread-item-text">{{ ($c['badge'] ?? 0) > 0 ? 'Mark as read' : 'Mark as unread' }}</span>
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a class="dropdown-item d-flex align-items-center gap-2 py-2" href="javascript:void(0)" onclick="openQuickLabelModal('{{ $cPhone }}', '{{ addslashes($c['name']) }}', {{ json_encode($cLabelIds) }})">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+                                            <span>Edit labels</span>
+                                        </a>
+                                    </li>
+                                </ul>
+                            </div>
                         </div>
                     </div>
                     {{-- 3 to 4 Labels Outside on the Contact Item --}}
@@ -214,36 +264,26 @@
             </div>
             <div class="wab-conv-actions" id="wabConvActions">
                 <div id="wabChatActionButtons" class="d-flex align-items-center gap-2 {{ !$selectedPhone ? 'd-none' : '' }}">
-                    {{-- Check Leads Button (Only show if leads_count > 0) --}}
-                    <button type="button" class="wab-label-btn {{ ($customerSummary['leads_count'] ?? 0) > 0 ? '' : 'd-none' }}" style="background:#e3f2fd;color:#1565c0;border:1px solid #bbdefb" data-bs-toggle="modal" data-bs-target="#waCheckLeadsModal" id="waHeaderCheckLeadsBtn" title="Check all Leads for this customer">
+                    {{-- Leads Button (Only show if unconverted leads_count > 0) --}}
+                    <button type="button" class="wab-label-btn {{ ($customerSummary['leads_count'] ?? 0) > 0 ? '' : 'd-none' }}" style="background:#fff3e0;color:#e65100;border:1px solid #ffe0b2;border-radius:5px;" data-bs-toggle="modal" data-bs-target="#waCheckLeadsModal" id="waHeaderCheckLeadsBtn" title="Check Leads for this customer">
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
-                        <span id="waHeaderCheckLeadsText">Check Leads @if(($customerSummary['leads_count'] ?? 0) > 0) ({{ $customerSummary['leads_count'] }}) @endif</span>
+                        <span id="waHeaderCheckLeadsText">Leads @if(($customerSummary['leads_count'] ?? 0) > 0) ({{ $customerSummary['leads_count'] }}) @endif</span>
                     </button>
 
-                    {{-- Check Orders Button (Only show if orders_count > 0) --}}
-                    <button type="button" class="wab-label-btn {{ ($customerSummary['orders_count'] ?? 0) > 0 ? '' : 'd-none' }}" style="background:#f3e5f5;color:#6a1b9a;border:1px solid #e1bee7" data-bs-toggle="modal" data-bs-target="#waCheckOrdersModal" id="waHeaderCheckOrdersBtn" title="Check all Orders for this customer">
+                    {{-- Orders Button (Only show if converted orders_count > 0) --}}
+                    <button type="button" class="wab-label-btn {{ ($customerSummary['orders_count'] ?? 0) > 0 ? '' : 'd-none' }}" style="background:#f3e5f5;color:#6a1b9a;border:1px solid #e1bee7;border-radius:5px;" data-bs-toggle="modal" data-bs-target="#waCheckOrdersModal" id="waHeaderCheckOrdersBtn" title="Check Orders for this customer">
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg>
-                        <span id="waHeaderCheckOrdersText">Check Orders @if(($customerSummary['orders_count'] ?? 0) > 0) ({{ $customerSummary['orders_count'] }}) @endif</span>
+                        <span id="waHeaderCheckOrdersText">Orders @if(($customerSummary['orders_count'] ?? 0) > 0) ({{ $customerSummary['orders_count'] }}) @endif</span>
                     </button>
 
-                    {{-- Create Lead Button (+ button opening CRM New Lead Modal) --}}
-                    <button type="button" class="wab-label-btn" style="background:#00a884;color:#fff;border:none;font-weight:700" data-bs-toggle="modal" data-bs-target="#kt_modal_create_appaa_newLeads" id="waHeaderCreateLeadBtn" title="Create New Lead in CRM">
+                    {{-- Create Lead Button (+ button opening Lead CRM Modal) --}}
+                    <button type="button" class="wab-label-btn" style="background:#00a884;color:#fff;border:none;font-weight:700;border-radius:5px;" data-bs-toggle="modal" data-bs-target="#kt_modal_create_appaa_newLeads" id="waHeaderCreateLeadBtn" title="Create New Lead">
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>
                         + Lead
                     </button>
 
-                    {{-- Dynamic Lead Quick Link (if existing unconverted lead) --}}
-                    <div id="waHeaderLeadBtnWrap" class="d-inline-flex">
-                        @if(isset($existingLead) && $existingLead && ($existingLead->is_converted ?? 0) != 1)
-                            <a href="{{ route('lead.edit', $existingLead->id) }}" target="_blank" class="wab-label-btn" style="background:#e8f5e9;color:#2e7d32;border:1px solid #c8e6c9" title="View CRM Lead #{{ $existingLead->order_id ?? $existingLead->id }}">
-                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7.5" r="4"></circle><polyline points="17 11 19 13 23 9"></polyline></svg>
-                                Lead #{{ $existingLead->order_id ?? $existingLead->id }}
-                            </a>
-                        @endif
-                    </div>
-
                     {{-- Label Chat Button --}}
-                    <button type="button" class="wab-label-btn" data-bs-toggle="modal" data-bs-target="#waAssignLabelsModal" id="waHeaderLabelChatBtn" title="Label chat">
+                    <button type="button" class="wab-label-btn" style="border-radius:5px;" data-bs-toggle="modal" data-bs-target="#waAssignLabelsModal" id="waHeaderLabelChatBtn" title="Label chat">
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
                         Label chat
                     </button>
@@ -259,6 +299,7 @@
                     </button>
                     <div class="wab-chat-menu" id="wabChatMenu">
                         <button type="button" id="wabMarkUnreadBtn">Mark as unread</button>
+                        <button type="button" id="wabArchiveChatBtn">Archive chat</button>
                         <a href="{{ route('whatsapp.chat') }}" id="wabCloseChatBtn">Close chat</a>
                     </div>
                 </div>
@@ -840,9 +881,9 @@
 </div>
 
 {{-- ══════════════════════════════════════════════════
-     CRM CREATE LEAD MODAL (Identical to /leads modal)
+     CRM CREATE LEAD MODAL (Identical to /lead create modal)
 ══════════════════════════════════════════════════ --}}
-@include('leads.section.new-leads', ['service' => $servicesList ?? [], 'papers' => $papersList ?? []])
+@include('back-end.leads.partials.create', ['service' => $servicesList ?? [], 'papers' => $papersList ?? [], 'sources' => $sourcesList ?? []])
 
 {{-- ══════════════════════════════════════════════════
      CREATE LEAD MODAL FROM WHATSAPP CONTACT
@@ -1110,7 +1151,7 @@
                     <div class="text-white opacity-75 fs-8">Customer: <strong>{{ $selectedContact['name'] ?? 'User' }}</strong> ({{ $selectedPhone }})</div>
                 </div>
                 <div class="ms-auto d-flex align-items-center gap-2">
-                    <a href="{{ route('lead.index') }}" target="_blank" id="waLeadsModalViewAllBtn" class="btn btn-sm btn-light py-1 px-3 fs-8 fw-bold" title="Open Leads page for this customer">
+                    <a href="{{ route('leads') }}" target="_blank" id="waLeadsModalViewAllBtn" class="btn btn-sm btn-light py-1 px-3 fs-8 fw-bold" title="Open Leads page for this customer">
                         <i class="fa fa-external-link me-1"></i>View All Leads
                     </a>
                     <button type="button" class="btn btn-sm btn-success py-1 px-3 fs-8 fw-bold" data-bs-dismiss="modal" data-bs-toggle="modal" data-bs-target="#waCreateLeadModal">
@@ -1286,12 +1327,105 @@
 
 <script>
 window.selectedCustomerPhone = @json($selectedPhone ?? '');
+window.currentCustomerUser = @json($existingUser ?? null);
+window.currentCustomerRefer = @json($customerSummary['refer_user'] ?? null);
+window.currentCustomerName = @json($selectedName ?? '');
 window.leadsLoadedPhone = null;
 window.ordersLoadedPhone = null;
 window.resetLeadsOrdersPhone = function(phone) {
     window.selectedCustomerPhone = phone;
     window.leadsLoadedPhone = null;
     window.ordersLoadedPhone = null;
+};
+
+window.syncCrmNewLeadModal = function(phone, resolvedName, userObj, referUserObj) {
+    const crmNewLeadModal = document.getElementById('kt_modal_create_appaa_newLeads');
+    if (!crmNewLeadModal) return;
+
+    const nameInp = crmNewLeadModal.querySelector('input[name="user_name"]');
+    const emailInp = crmNewLeadModal.querySelector('input[name="email"]');
+    const idInp = crmNewLeadModal.querySelector('input[name="id"]');
+    const ccInp = crmNewLeadModal.querySelector('input[name="countrycode"]');
+    const mobInp = crmNewLeadModal.querySelector('input[name="mobile"]');
+    const referIdInp = crmNewLeadModal.querySelector('#refer_id');
+    const referSearchInp = crmNewLeadModal.querySelector('#refer_search');
+    const mobileUserResult = crmNewLeadModal.querySelector('#mobile_user_result');
+
+    if (mobileUserResult) mobileUserResult.style.display = 'none';
+
+    // Parse Country Code and Mobile Number
+    let defaultCc = '';
+    let defaultMob = phone ? String(phone) : '';
+    const cleanP = (phone ? String(phone) : '').replace(/\D/g, '');
+    if (cleanP.startsWith('91') && cleanP.length >= 12) {
+        defaultCc = '91';
+        defaultMob = cleanP.substring(2);
+    } else if (cleanP.startsWith('44') && cleanP.length >= 11) {
+        defaultCc = '44';
+        defaultMob = cleanP.substring(2);
+    } else if (cleanP.startsWith('1') && cleanP.length >= 11) {
+        defaultCc = '1';
+        defaultMob = cleanP.substring(1);
+    } else if (cleanP.startsWith('971') && cleanP.length >= 11) {
+        defaultCc = '971';
+        defaultMob = cleanP.substring(3);
+    } else if (cleanP.startsWith('61') && cleanP.length >= 11) {
+        defaultCc = '61';
+        defaultMob = cleanP.substring(2);
+    } else {
+        defaultMob = cleanP.length > 10 ? cleanP.slice(-10) : cleanP;
+        defaultCc = cleanP.length > 10 ? cleanP.slice(0, -10) : '';
+    }
+
+    const hasUser = userObj && (userObj.id || userObj.mobile_no || userObj.email);
+    const isSystemUser = userObj && userObj.name === 'System';
+    const isSystemResolved = !resolvedName || resolvedName === 'System' || resolvedName === phone;
+
+    let candidateName = '';
+    if (hasUser && userObj.name && userObj.name !== 'System' && !userObj.name.startsWith('user')) {
+        candidateName = userObj.name;
+    } else if (!isSystemResolved) {
+        candidateName = resolvedName;
+    }
+
+    let candidateEmail = '';
+    if (hasUser && userObj.email && !userObj.email.startsWith('user') && !userObj.email.includes('example.com')) {
+        candidateEmail = userObj.email;
+    }
+
+    if (nameInp) {
+        nameInp.value = candidateName;
+        nameInp.readOnly = false; // Always allow editing name
+    }
+    if (emailInp) {
+        emailInp.value = candidateEmail;
+        emailInp.readOnly = false; // Always allow editing email
+    }
+    if (idInp) {
+        idInp.value = (hasUser && userObj.id) ? userObj.id : '';
+    }
+    if (ccInp) {
+        ccInp.value = (hasUser && userObj.countrycode) ? userObj.countrycode : defaultCc;
+        ccInp.readOnly = false;
+    }
+    if (mobInp) {
+        mobInp.value = (hasUser && userObj.mobile_no) ? userObj.mobile_no : defaultMob;
+        mobInp.readOnly = false;
+    }
+
+    if (referUserObj && (referUserObj.id || referUserObj.name)) {
+        if (referIdInp) referIdInp.value = referUserObj.id || '';
+        if (referSearchInp) {
+            referSearchInp.value = `${referUserObj.name || ''} - ${referUserObj.mobile_no || ''} - ${referUserObj.email || ''}`;
+            referSearchInp.readOnly = true;
+        }
+    } else {
+        if (referIdInp) referIdInp.value = '';
+        if (referSearchInp) {
+            referSearchInp.value = '';
+            referSearchInp.readOnly = false;
+        }
+    }
 };
 
 window.crmCopyToClipboard = function(text, successMsg = 'Copied to clipboard!') {
@@ -1375,7 +1509,193 @@ window.openWaOrderPaymentModal = function(orderId, orderCode, paymentUrl) {
     modalInstance.show();
 };
 
+window.getFreshCsrfToken = async function() {
+    try {
+        const res = await fetch('{{ route("csrf.token") }}', {
+            headers: { 'Accept': 'application/json' }
+        });
+        if (res.ok) {
+            const data = await res.json();
+            if (data && data.csrf_token) {
+                const meta = document.querySelector('meta[name="csrf-token"]');
+                if (meta) meta.setAttribute('content', data.csrf_token);
+                document.querySelectorAll('input[name="_token"]').forEach(inp => {
+                    inp.value = data.csrf_token;
+                });
+                return data.csrf_token;
+            }
+        }
+    } catch (e) {
+        console.warn('Failed to refresh CSRF token:', e);
+    }
+    return document.querySelector('meta[name="csrf-token"]')?.content || '';
+};
+
 document.addEventListener('DOMContentLoaded', function() {
+    // Initial sync of CRM Create Lead modal on page load
+    if (typeof window.syncCrmNewLeadModal === 'function' && window.selectedCustomerPhone) {
+        window.syncCrmNewLeadModal(
+            window.selectedCustomerPhone,
+            window.currentCustomerName,
+            window.currentCustomerUser,
+            window.currentCustomerRefer
+        );
+    }
+
+    const crmModalEl = document.getElementById('kt_modal_create_appaa_newLeads');
+    if (crmModalEl) {
+        crmModalEl.addEventListener('show.bs.modal', function() {
+            // Silently ensure fresh CSRF token when opening modal
+            window.getFreshCsrfToken();
+
+            if (typeof window.syncCrmNewLeadModal === 'function') {
+                window.syncCrmNewLeadModal(
+                    window.selectedCustomerPhone,
+                    window.currentCustomerName,
+                    window.currentCustomerUser,
+                    window.currentCustomerRefer
+                );
+            }
+        });
+
+        // Real-time AJAX Submission for CRM Create Lead Modal with Auto-healing CSRF
+        const crmLeadForm = crmModalEl.querySelector('form');
+        if (crmLeadForm) {
+            crmLeadForm.addEventListener('submit', async function(e) {
+                e.preventDefault();
+
+                const submitBtn = crmLeadForm.querySelector('button[type="submit"]') || document.getElementById('kt_modal_new_target_submit');
+                const origHtml = submitBtn ? submitBtn.innerHTML : 'Submit';
+
+                if (submitBtn) {
+                    submitBtn.disabled = true;
+                    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Submitting...';
+                }
+
+                try {
+                    let csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+                    if (!csrfToken) {
+                        csrfToken = await window.getFreshCsrfToken();
+                    }
+
+                    const formData = new FormData(crmLeadForm);
+                    if (csrfToken) {
+                        formData.set('_token', csrfToken);
+                    }
+                    const targetPhone = window.selectedCustomerPhone || ((formData.get('countrycode') || '') + (formData.get('mobile') || '')).replace(/\D+/g, '');
+
+                    const sendAjax = async (tokenToUse) => {
+                        formData.set('_token', tokenToUse);
+                        return fetch(crmLeadForm.action, {
+                            method: 'POST',
+                            headers: {
+                                'X-Requested-With': 'XMLHttpRequest',
+                                'Accept': 'application/json',
+                                'X-CSRF-TOKEN': tokenToUse
+                            },
+                            body: formData
+                        });
+                    };
+
+                    let res = await sendAjax(csrfToken);
+
+                    // Auto-healing: If session rotated/expired (419), silently fetch fresh token and retry immediately
+                    if (res.status === 419) {
+                        const freshToken = await window.getFreshCsrfToken();
+                        if (freshToken) {
+                            res = await sendAjax(freshToken);
+                        }
+                    }
+
+                    const isJson = res.headers.get('content-type')?.includes('application/json');
+                    const data = isJson ? await res.json() : null;
+
+                    if (!res.ok) {
+                        if (res.status === 419) {
+                            throw new Error('CSRF Session expired. Please refresh the page and try again.');
+                        }
+                        if (res.status === 422 && data && data.errors) {
+                            const firstErr = Object.values(data.errors).flat()[0];
+                            throw new Error(firstErr || 'Validation failed. Please check form fields.');
+                        }
+                        throw new Error(data?.message || `Server error (${res.status})`);
+                    }
+
+                    if (typeof toastr !== 'undefined') {
+                        toastr.success((data && data.message) ? data.message : 'Lead & Order Created Successfully!');
+                    }
+
+                    // Hide Modal
+                    const bsModal = bootstrap.Modal.getInstance(crmModalEl);
+                    if (bsModal) bsModal.hide();
+
+                    // Invalidate leads loaded cache so next open fetches fresh leads
+                    window.leadsLoadedPhone = null;
+                    window.ordersLoadedPhone = null;
+
+                    // Instant 0ms UI update for Leads button
+                    const leadsBtn = document.getElementById('waHeaderCheckLeadsBtn');
+                    const leadsText = document.getElementById('waHeaderCheckLeadsText');
+                    if (leadsBtn) {
+                        leadsBtn.classList.remove('d-none');
+                        if (leadsText) {
+                            const curMatch = leadsText.textContent.match(/\((\d+)\)/);
+                            const curCount = curMatch ? parseInt(curMatch[1]) : 0;
+                            leadsText.textContent = `Leads (${curCount + 1})`;
+                        }
+                    }
+
+                    // Real-time Background Sync: Fetch fresh customer data to accurately verify Leads & Orders count
+                    if (targetPhone) {
+                        fetch(`{{ route('whatsapp.chat.customer-data') }}?phone=${encodeURIComponent(targetPhone)}`)
+                            .then(r => r.json())
+                            .then(freshCustomer => {
+                                if (freshCustomer.success) {
+                                    window.currentCustomerUser = freshCustomer.user || window.currentCustomerUser;
+                                    window.currentCustomerRefer = freshCustomer.refer_user || window.currentCustomerRefer;
+
+                                    const freshLeadsCount = parseInt(freshCustomer.leads_count || 0);
+                                    if (leadsBtn) {
+                                        if (freshLeadsCount > 0) {
+                                            leadsBtn.classList.remove('d-none');
+                                            if (leadsText) leadsText.textContent = `Leads (${freshLeadsCount})`;
+                                        } else {
+                                            leadsBtn.classList.add('d-none');
+                                        }
+                                    }
+
+                                    const ordersBtn = document.getElementById('waHeaderCheckOrdersBtn');
+                                    const ordersText = document.getElementById('waHeaderCheckOrdersText');
+                                    const freshOrdersCount = parseInt(freshCustomer.orders_count || 0);
+                                    if (ordersBtn) {
+                                        if (freshOrdersCount > 0) {
+                                            ordersBtn.classList.remove('d-none');
+                                            if (ordersText) ordersText.textContent = `Orders (${freshOrdersCount})`;
+                                        } else {
+                                            ordersBtn.classList.add('d-none');
+                                        }
+                                    }
+                                }
+                            })
+                            .catch(err => console.warn('Customer data sync warning', err));
+                    }
+                } catch (err) {
+                    console.error('Lead create error', err);
+                    if (typeof toastr !== 'undefined') {
+                        toastr.error(err.message || 'Failed to create lead.');
+                    } else {
+                        alert(err.message || 'Failed to create lead.');
+                    }
+                } finally {
+                    if (submitBtn) {
+                        submitBtn.disabled = false;
+                        submitBtn.innerHTML = origHtml;
+                    }
+                }
+            });
+        }
+    }
+
     // ──────────────────────────────────────────────
     // 1. AJAX On-Demand Leads Loader
     // ──────────────────────────────────────────────
@@ -2128,6 +2448,126 @@ document.addEventListener('DOMContentLoaded', function() {
     background: rgba(11,20,26,.05);
     color: var(--wa-text-main);
 }
+
+/* ── Label Filter Slider Bar ── */
+.wab-label-filter-bar {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 10px;
+    background: #f8fafc;
+    border-bottom: 1px solid var(--wa-border);
+    position: relative;
+    user-select: none;
+    flex-shrink: 0;
+}
+
+.wab-label-nav-btn {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: 1px solid #e2e8f0;
+    background: #ffffff;
+    color: #64748b;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: all .15s ease;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    padding: 0;
+    z-index: 2;
+}
+
+.wab-label-nav-btn:hover:not(:disabled) {
+    background: #008069;
+    color: #ffffff;
+    border-color: #008069;
+}
+
+.wab-label-nav-btn:disabled {
+    opacity: 0.35;
+    cursor: default;
+    pointer-events: none;
+}
+
+.wab-label-track-wrap {
+    flex: 1;
+    overflow-x: hidden;
+    scroll-behavior: smooth;
+    display: flex;
+}
+
+.wab-label-track {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    width: 100%;
+    transition: transform .25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.wab-label-chip {
+    flex: 0 0 calc((100% - 12px) / 3); /* Exactly 3 items visible at a time */
+    min-width: 0;
+    height: 26px;
+    border-radius: 6px;
+    border: 1px solid #e2e8f0;
+    background: #ffffff;
+    color: #475569;
+    font-size: 11px;
+    font-weight: 600;
+    font-family: var(--wa-font);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 0 5px;
+    cursor: pointer;
+    transition: all .18s ease;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
+}
+
+.wab-label-chip .wab-label-chip-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.wab-label-chip-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.wab-label-chip:hover:not(.active) {
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+    color: #1e293b;
+}
+
+/* Active State */
+.wab-label-chip.active {
+    background: var(--chip-color, #008069) !important;
+    color: #ffffff !important;
+    border-color: var(--chip-color, #008069) !important;
+    font-weight: 700;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.15);
+}
+
+.wab-label-chip.active .wab-label-chip-dot {
+    background: #ffffff !important;
+}
+
+.wab-label-chip[data-label-id="all"].active {
+    background: #008069 !important;
+    border-color: #008069 !important;
+    color: #ffffff !important;
+}
+
 .wab-conv-toggle-sidebar {
     display: inline-flex;
     align-items: center;
@@ -2211,11 +2651,27 @@ document.addEventListener('DOMContentLoaded', function() {
     transition: all .15s ease;
     flex-shrink: 0;
 }
-.wab-quick-tag-btn:hover {
-    background: #e0f2fe;
-    color: #0284c7;
-    border-color: #bae6fd;
-    transform: scale(1.1);
+.wab-quick-more-btn {
+    width: 22px;
+    height: 22px;
+    border-radius: 5px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--wa-text-muted);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all .15s ease;
+    flex-shrink: 0;
+    padding: 0;
+}
+.wab-contact-item:hover .wab-quick-more-btn,
+.wab-quick-more-btn.show,
+.wab-quick-more-btn:hover {
+    border-color: var(--wa-border);
+    background: #ffffff;
+    color: var(--wa-text-main);
 }
 @keyframes badge-pop { 0% { transform: scale(0); } 80% { transform: scale(1.15); } 100% { transform: scale(1); } }
 
@@ -3229,7 +3685,7 @@ document.addEventListener('DOMContentLoaded', function() {
     align-items: center;
     gap: 7px;
     border: 0;
-    border-radius: 18px;
+    border-radius: 5px;
     padding: 0 12px;
     background: rgba(84,101,111,.12);
     color: var(--wa-text-main);
@@ -3249,7 +3705,7 @@ document.addEventListener('DOMContentLoaded', function() {
     align-items: center;
     max-width: 140px;
     padding: 2px 8px;
-    border-radius: 999px;
+    border-radius: 5px;
     font-size: 10.5px;
     font-weight: 700;
 }
@@ -4283,27 +4739,173 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    markUnreadBtn?.addEventListener('click', async () => {
+    markUnreadBtn?.addEventListener('click', (e) => {
+        e.preventDefault();
+        chatMenu?.classList.remove('is-open');
         if (!selectedPhone) return;
+        window.toggleChatUnread(selectedPhone);
+    });
+
+    const headerArchiveBtn = document.getElementById('wabArchiveChatBtn');
+    headerArchiveBtn?.addEventListener('click', (e) => {
+        e.preventDefault();
+        chatMenu?.classList.remove('is-open');
+        if (!selectedPhone) return;
+        window.toggleChatArchive(selectedPhone);
+    });
+
+    window.toggleChatArchive = async function(phone) {
+        if (!phone) return;
+        const cleanPhone = phone.replace(/\D+/g, '');
+        const item = document.querySelector(`.wab-contact-item[data-phone="${phone}"]`) || document.querySelector(`#wab-contact-card-${cleanPhone}`);
+        const headerArchive = document.getElementById('wabArchiveChatBtn');
+
+        const prevIsArchived = item ? (item.dataset.isArchived === '1') : false;
+        const willArchive = !prevIsArchived;
+
+        // 1. Instant 0ms Optimistic UI Update (Hatho hath UI update)
+        if (item) {
+            item.dataset.isArchived = willArchive ? '1' : '0';
+            const archiveText = item.querySelector('.wab-archive-item-text');
+            if (archiveText) archiveText.textContent = willArchive ? 'Unarchive chat' : 'Archive chat';
+
+            if (currentTabFilter !== 'archived' && willArchive) {
+                item.style.transition = 'all 0.2s ease';
+                item.style.opacity = '0';
+                item.style.transform = 'translateX(-20px)';
+                setTimeout(() => {
+                    item.style.display = 'none';
+                    item.style.opacity = '1';
+                    item.style.transform = 'none';
+                    applyLocalFilter();
+                }, 200);
+            } else if (currentTabFilter === 'archived' && !willArchive) {
+                item.style.transition = 'all 0.2s ease';
+                item.style.opacity = '0';
+                item.style.transform = 'translateX(-20px)';
+                setTimeout(() => {
+                    item.style.display = 'none';
+                    item.style.opacity = '1';
+                    item.style.transform = 'none';
+                    applyLocalFilter();
+                }, 200);
+            }
+        }
+
+        if (headerArchive && (selectedPhone === phone || cleanPhone === selectedPhoneChannel)) {
+            headerArchive.textContent = willArchive ? 'Unarchive chat' : 'Archive chat';
+        }
+
+        if (typeof toastr !== 'undefined') {
+            toastr.info(willArchive ? 'Archiving chat…' : 'Unarchiving chat…', '', { timeOut: 1000 });
+        }
+
+        // 2. Perform Server Request in background
         try {
-            const response = await fetch(markUnreadUrl, {
+            const res = await fetch(@json(route('whatsapp.chat.toggle-archive')), {
                 method: 'POST',
                 headers: {
                     'X-CSRF-TOKEN': csrfToken,
                     'Content-Type': 'application/json',
                     'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
                 },
-                body: JSON.stringify({ phone: selectedPhone }),
+                body: JSON.stringify({ phone: phone })
             });
-            if (response.ok) {
-                const data = await response.json();
-                updateContacts(data.contacts);
-                window.location.href = @json(route('whatsapp.chat'));
+            const data = await res.json();
+            if (data.success) {
+                if (typeof toastr !== 'undefined') {
+                    toastr.success(data.message || (willArchive ? 'Chat archived' : 'Chat unarchived'));
+                }
+            } else {
+                throw new Error(data.message || 'Action failed');
             }
-        } catch (error) {
-            console.warn('Unable to mark WhatsApp chat unread.', error);
+        } catch (e) {
+            console.error('Error toggling archive:', e);
+            // 3. Rollback on Failure & show error
+            if (item) {
+                item.dataset.isArchived = prevIsArchived ? '1' : '0';
+                item.style.display = '';
+                item.style.opacity = '1';
+                item.style.transform = 'none';
+                const archiveText = item.querySelector('.wab-archive-item-text');
+                if (archiveText) archiveText.textContent = prevIsArchived ? 'Unarchive chat' : 'Archive chat';
+                applyLocalFilter();
+            }
+            if (headerArchive && (selectedPhone === phone || cleanPhone === selectedPhoneChannel)) {
+                headerArchive.textContent = prevIsArchived ? 'Unarchive chat' : 'Archive chat';
+            }
+            if (typeof toastr !== 'undefined') {
+                toastr.error('Failed to update archive. Please try again.');
+            }
         }
-    });
+    };
+
+    window.toggleChatUnread = async function(phone) {
+        if (!phone) return;
+        const cleanPhone = phone.replace(/\D+/g, '');
+        const item = document.querySelector(`.wab-contact-item[data-phone="${phone}"]`) || document.querySelector(`#wab-contact-card-${cleanPhone}`);
+        const currentBadge = item ? Number(item.dataset.badge || 0) : 0;
+        const willMarkUnread = currentBadge <= 0;
+
+        const endpoint = willMarkUnread ? markUnreadUrl : markReadUrl;
+
+        // 1. Instant 0ms Optimistic UI Update
+        if (item) {
+            const newBadge = willMarkUnread ? 1 : 0;
+            item.dataset.badge = String(newBadge);
+            updateBadge(item, newBadge);
+            const unreadText = item.querySelector('.wab-unread-item-text');
+            if (unreadText) unreadText.textContent = willMarkUnread ? 'Mark as read' : 'Mark as unread';
+
+            if (currentTabFilter === 'unread' && !willMarkUnread) {
+                item.style.transition = 'all 0.2s ease';
+                item.style.opacity = '0';
+                setTimeout(() => {
+                    item.style.display = 'none';
+                    item.style.opacity = '1';
+                    applyLocalFilter();
+                }, 200);
+            }
+        }
+
+        // 2. Perform Server Request
+        try {
+            const res = await fetch(endpoint, {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': csrfToken,
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: JSON.stringify({ phone: phone })
+            });
+            const data = await res.json();
+            if (data.success) {
+                if (typeof toastr !== 'undefined') {
+                    toastr.success(willMarkUnread ? 'Marked as unread' : 'Marked as read');
+                }
+            } else {
+                throw new Error(data.message || 'Action failed');
+            }
+        } catch (e) {
+            console.error('Error toggling unread:', e);
+            // 3. Rollback on Failure
+            if (item) {
+                item.dataset.badge = String(currentBadge);
+                updateBadge(item, currentBadge);
+                item.style.display = '';
+                item.style.opacity = '1';
+                const unreadText = item.querySelector('.wab-unread-item-text');
+                if (unreadText) unreadText.textContent = currentBadge > 0 ? 'Mark as read' : 'Mark as unread';
+                applyLocalFilter();
+            }
+            if (typeof toastr !== 'undefined') {
+                toastr.error('Failed to update unread status. Please try again.');
+            }
+        }
+    };
 
     /* ── In-Memory Cache (SWR - 0ms instant contact switching) ── */
     const chatCache = new Map();
@@ -4431,7 +5033,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function updateHeaderCustomerDetails(customer, fallbackName, phone, color) {
         const nameEl = document.querySelector('.wab-conv-name');
-        const resolvedName = customer.name || fallbackName || phone;
+        let resolvedName = customer.name || fallbackName || phone;
+        if (resolvedName === 'System' && fallbackName && fallbackName !== 'System') {
+            resolvedName = fallbackName;
+        } else if (resolvedName === 'System') {
+            resolvedName = phone;
+        }
         if (nameEl) nameEl.textContent = resolvedName;
 
         const avatar = document.getElementById('wabOpenProfilePanel');
@@ -4465,93 +5072,38 @@ document.addEventListener('DOMContentLoaded', function() {
             labelRow.remove();
         }
 
-        // Update Check Leads / Orders buttons visibility based on counts
+        // Update Leads button visibility based on unconverted counts
         const leadsBtn = document.getElementById('waHeaderCheckLeadsBtn');
         const leadsText = document.getElementById('waHeaderCheckLeadsText');
         const leadsCount = parseInt(customer.leads_count || 0);
         if (leadsBtn) {
             if (leadsCount > 0) {
                 leadsBtn.classList.remove('d-none');
-                if (leadsText) leadsText.textContent = `Check Leads (${leadsCount})`;
+                if (leadsText) leadsText.textContent = `Leads (${leadsCount})`;
             } else {
                 leadsBtn.classList.add('d-none');
             }
         }
 
+        // Update Orders button visibility based on converted counts
         const ordersBtn = document.getElementById('waHeaderCheckOrdersBtn');
         const ordersText = document.getElementById('waHeaderCheckOrdersText');
         const ordersCount = parseInt(customer.orders_count || 0);
         if (ordersBtn) {
             if (ordersCount > 0) {
                 ordersBtn.classList.remove('d-none');
-                if (ordersText) ordersText.textContent = `Check Orders (${ordersCount})`;
+                if (ordersText) ordersText.textContent = `Orders (${ordersCount})`;
             } else {
                 ordersBtn.classList.add('d-none');
             }
         }
 
-        // Update Lead Quick Link inside #waHeaderLeadBtnWrap (only if unconverted lead)
-        const leadWrap = document.getElementById('waHeaderLeadBtnWrap');
-        if (leadWrap) {
-            if (customer.lead && (customer.lead.is_converted != 1)) {
-                const leadId = customer.lead.order_id || customer.lead.id;
-                const leadUrl = customer.lead.edit_url;
-                leadWrap.innerHTML = `
-                    <a href="${leadUrl}" target="_blank" class="wab-label-btn" style="background:#e8f5e9;color:#2e7d32;border:1px solid #c8e6c9" title="View CRM Lead #${leadId}">
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7.5" r="4"></circle><polyline points="17 11 19 13 23 9"></polyline></svg>
-                        Lead #${leadId}
-                    </a>
-                `;
-            } else {
-                leadWrap.innerHTML = '';
-            }
-        }
-
         // Prefill CRM New Lead Modal (#kt_modal_create_appaa_newLeads)
-        const crmNewLeadModal = document.getElementById('kt_modal_create_appaa_newLeads');
-        if (crmNewLeadModal) {
-            const nameInp = crmNewLeadModal.querySelector('input[name="user_name"]');
-            const emailInp = crmNewLeadModal.querySelector('input[name="email"]');
-            const idInp = crmNewLeadModal.querySelector('input[name="id"]');
-            const ccInp = crmNewLeadModal.querySelector('input[name="countrycode"]');
-            const mobInp = crmNewLeadModal.querySelector('input[name="mobile"]');
-
-            if (customer.user) {
-                if (nameInp) nameInp.value = customer.user.name || '';
-                if (emailInp) emailInp.value = customer.user.email || '';
-                if (idInp) idInp.value = customer.user.id || '';
-                if (ccInp) ccInp.value = customer.user.countrycode || '';
-                if (mobInp) mobInp.value = customer.user.mobile_no || '';
-            } else {
-                if (nameInp) nameInp.value = resolvedName !== phone ? resolvedName : '';
-                if (emailInp) emailInp.value = '';
-                if (idInp) idInp.value = '';
-
-                let cc = '';
-                let mob = phone;
-                const cleanP = phone.replace(/\D/g, '');
-                if (cleanP.startsWith('91') && cleanP.length >= 12) {
-                    cc = '91';
-                    mob = cleanP.substring(2);
-                } else if (cleanP.startsWith('44') && cleanP.length >= 11) {
-                    cc = '44';
-                    mob = cleanP.substring(2);
-                } else if (cleanP.startsWith('1') && cleanP.length >= 11) {
-                    cc = '1';
-                    mob = cleanP.substring(1);
-                } else if (cleanP.startsWith('971') && cleanP.length >= 11) {
-                    cc = '971';
-                    mob = cleanP.substring(3);
-                } else if (cleanP.startsWith('61') && cleanP.length >= 11) {
-                    cc = '61';
-                    mob = cleanP.substring(2);
-                } else {
-                    mob = cleanP.length > 10 ? cleanP.slice(-10) : cleanP;
-                    cc = cleanP.length > 10 ? cleanP.slice(0, -10) : '';
-                }
-                if (ccInp) ccInp.value = cc;
-                if (mobInp) mobInp.value = mob;
-            }
+        window.currentCustomerUser = customer.user || null;
+        window.currentCustomerRefer = customer.refer_user || null;
+        window.currentCustomerName = resolvedName || '';
+        if (typeof window.syncCrmNewLeadModal === 'function') {
+            window.syncCrmNewLeadModal(phone, resolvedName, customer.user, customer.refer_user);
         }
 
         // Update modal info & pre-fills
@@ -4745,53 +5297,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
     document.querySelectorAll('.wab-contact-item').forEach(bindContactClick);
 
-    /* ── Sidebar Infinite Scroll ── */
-    async function fetchNextContacts() {
-        if (!contactsHasMore || isLoadingContacts) return;
-        isLoadingContacts = true;
-        if (contactListLoader) contactListLoader.classList.remove('d-none');
-
-        try {
-            const nextPage = contactPage + 1;
-            const url = `${contactListUrl}?page=${nextPage}&search=${encodeURIComponent(contactSearchQuery)}&active_phone=${encodeURIComponent(selectedPhone)}`;
-            const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
-            if (!res.ok) return;
-
-            const data = await res.json();
-            const list = document.getElementById('wabContactList');
-            const contacts = data.contacts || [];
-
-            contacts.forEach(c => {
-                const el = createContactItemElement(c);
-                if (el && list) list.appendChild(el);
-            });
-
-            contactPage = nextPage;
-            contactsHasMore = Boolean(data.has_more);
-        } catch (err) {
-            console.warn('Failed to load more contacts', err);
-        } finally {
-            isLoadingContacts = false;
-            if (contactListLoader) contactListLoader.classList.add('d-none');
-        }
-    }
-
-    const contactListEl = document.getElementById('wabContactList');
-    if (contactListEl) {
-        contactListEl.addEventListener('scroll', () => {
-            if (contactListEl.scrollTop + contactListEl.clientHeight >= contactListEl.scrollHeight - 60) {
-                if (contactsHasMore && !isLoadingContacts) {
-                    fetchNextContacts();
-                }
-            }
-        });
-    }
-
-    function createContactItemElement(c) {
+    function createContactItemElement(c, forceCreate = false) {
         if (!c?.phone) return null;
         const cleanPhone = String(c.phone).replace(/\D+/g, '');
-        const existing = document.querySelector(`.wab-contact-item[data-phone="${c.phone}"]`);
-        if (existing) return null;
+        if (!forceCreate) {
+            const existing = document.querySelector(`.wab-contact-item[data-phone="${c.phone}"]`);
+            if (existing) return null;
+        }
 
         const div = document.createElement('div');
         div.className = `wab-contact-item ${c.active || c.phone === selectedPhone ? 'is-active' : ''}`;
@@ -4803,9 +5315,11 @@ document.addEventListener('DOMContentLoaded', function() {
         div.dataset.color = c.color || '#25d366';
         div.dataset.badge = String(c.badge || 0);
         div.dataset.isGroup = c.is_group ? '1' : '0';
+        div.dataset.isArchived = c.is_archived ? '1' : '0';
 
         const labels = Array.isArray(c.labels) ? c.labels : [];
         const labelIds = Array.isArray(c.label_ids) ? c.label_ids : labels.map(l => l.id);
+        div.dataset.labelIds = JSON.stringify(labelIds.map(String));
 
         let tagsHtml = `<div class="wab-contact-label-tags d-flex flex-wrap gap-1 mt-1 pt-1" id="wab-contact-tags-${cleanPhone}">`;
         if (labels.length > 0) {
@@ -4837,6 +5351,31 @@ document.addEventListener('DOMContentLoaded', function() {
                         <button type="button" class="wab-quick-tag-btn" onclick="event.stopPropagation(); openQuickLabelModal('${escapeHtml(c.phone)}', '${escapeHtml(c.name || c.phone).replace(/'/g, "\\'")}', ${JSON.stringify(labelIds)})" title="Assign Labels">
                             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
                         </button>
+                        <div class="dropdown" onclick="event.stopPropagation();">
+                            <button type="button" class="wab-quick-more-btn" data-bs-toggle="dropdown" aria-expanded="false" title="Chat options">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end shadow-sm border py-1" style="min-width: 160px; font-size: 13px; z-index: 1050;">
+                                <li>
+                                    <a class="dropdown-item d-flex align-items-center gap-2 py-2" href="javascript:void(0)" onclick="window.toggleChatArchive('${escapeHtml(c.phone)}')">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></svg>
+                                        <span class="wab-archive-item-text">${c.is_archived ? 'Unarchive chat' : 'Archive chat'}</span>
+                                    </a>
+                                </li>
+                                <li>
+                                    <a class="dropdown-item d-flex align-items-center gap-2 py-2" href="javascript:void(0)" onclick="window.toggleChatUnread('${escapeHtml(c.phone)}')">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4" fill="currentColor"/></svg>
+                                        <span class="wab-unread-item-text">${Number(c.badge || 0) > 0 ? 'Mark as read' : 'Mark as unread'}</span>
+                                    </a>
+                                </li>
+                                <li>
+                                    <a class="dropdown-item d-flex align-items-center gap-2 py-2" href="javascript:void(0)" onclick="openQuickLabelModal('${escapeHtml(c.phone)}', '${escapeHtml(c.name || c.phone).replace(/'/g, "\\'")}', ${JSON.stringify(labelIds)})">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+                                        <span>Edit labels</span>
+                                    </a>
+                                </li>
+                            </ul>
+                        </div>
                     </div>
                 </div>
                 ${tagsHtml}
@@ -4846,45 +5385,203 @@ document.addEventListener('DOMContentLoaded', function() {
         return div;
     }
 
-    /* ── Tab filter ── */
-    document.querySelectorAll('.wab-tab').forEach(tab => {
-        tab.addEventListener('click', () => {
-            document.querySelectorAll('.wab-tab').forEach(t => t.classList.remove('active'));
-            tab.classList.add('active');
-        });
-    });
+    let currentTabFilter = 'all';
+    let currentLabelFilter = 'all';
+    let contactFilterAbortController = null;
 
-    /* ── Real-time Debounced Search ── */
+    /* ── Instant 0ms Local Client-side Filter (No delay, no flicker) ── */
+    function applyLocalFilter() {
+        const list = document.getElementById('wabContactList');
+        if (!list) return 0;
+        const items = list.querySelectorAll('.wab-contact-item');
+        let visibleCount = 0;
+
+        items.forEach(item => {
+            let matchTab = true;
+            const isArchived = item.dataset.isArchived === '1';
+            const isGroup = item.dataset.isGroup === '1';
+            const badge = Number(item.dataset.badge || 0);
+
+            if (currentTabFilter === 'archived') {
+                matchTab = isArchived;
+            } else if (isArchived) {
+                matchTab = false; // Hide archived cards in all other tabs
+            } else if (currentTabFilter === 'unread') {
+                matchTab = badge > 0;
+            } else if (currentTabFilter === 'groups') {
+                matchTab = isGroup;
+            } else {
+                matchTab = true; // all
+            }
+
+            let matchLabel = true;
+            if (currentLabelFilter !== 'all') {
+                try {
+                    const labelIds = JSON.parse(item.dataset.labelIds || '[]');
+                    matchLabel = labelIds.map(String).includes(String(currentLabelFilter));
+                } catch (e) {
+                    matchLabel = false;
+                }
+            }
+
+            let matchSearch = true;
+            if (contactSearchQuery) {
+                const name = (item.dataset.name || '').toLowerCase();
+                const phone = (item.dataset.phone || '').toLowerCase();
+                const q = contactSearchQuery.toLowerCase();
+                matchSearch = name.includes(q) || phone.includes(q);
+            }
+
+            if (matchTab && matchLabel && matchSearch) {
+                item.style.display = '';
+                visibleCount++;
+            } else {
+                item.style.display = 'none';
+            }
+        });
+
+        const existingEmpty = list.querySelector('.wab-tab-empty-msg');
+        if (visibleCount === 0 && items.length > 0) {
+            if (!existingEmpty) {
+                let emptyTitle = 'No matching conversations';
+                let emptySubtitle = 'No chats match the selected filter in current view.';
+                if (currentTabFilter === 'archived') {
+                    emptyTitle = 'No archived chats';
+                    emptySubtitle = 'Archived conversations will appear here.';
+                } else if (currentTabFilter === 'unread') {
+                    emptyTitle = 'No unread messages';
+                    emptySubtitle = 'All chats are caught up!';
+                } else if (currentTabFilter === 'groups') {
+                    emptyTitle = 'No group conversations';
+                    emptySubtitle = 'No group chats found.';
+                }
+                const emptyEl = document.createElement('div');
+                emptyEl.className = 'wab-tab-empty-msg';
+                emptyEl.style.cssText = 'text-align:center;padding:36px 16px;color:#8696a0;';
+                emptyEl.innerHTML = `
+                    <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" class="mb-2 opacity-50"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                    <div class="fw-bold fs-7 mb-1" style="color:var(--wa-text-main);">${emptyTitle}</div>
+                    <div class="fs-8 text-muted">${emptySubtitle}</div>
+                `;
+                list.appendChild(emptyEl);
+            }
+        } else if (existingEmpty && visibleCount > 0) {
+            existingEmpty.remove();
+        }
+
+        return visibleCount;
+    }
+
+    /* ── Global Server-backed Contact Filter & Loader ── */
+    async function loadContactsServer({ page = 1, append = false, showLoader = false } = {}) {
+        if (isLoadingContacts && append) return;
+
+        if (!append && contactFilterAbortController) {
+            contactFilterAbortController.abort();
+        }
+        contactFilterAbortController = new AbortController();
+
+        isLoadingContacts = true;
+        const list = document.getElementById('wabContactList');
+        const loader = document.getElementById('wabContactListLoader');
+
+        if (append && loader) {
+            loader.classList.remove('d-none');
+        }
+
+        try {
+            const url = `${contactListUrl}?page=${page}&limit=25&search=${encodeURIComponent(contactSearchQuery)}&label_id=${encodeURIComponent(currentLabelFilter)}&tab=${encodeURIComponent(currentTabFilter)}&active_phone=${encodeURIComponent(selectedPhone || '')}`;
+            const res = await fetch(url, {
+                headers: { 'Accept': 'application/json' },
+                signal: contactFilterAbortController.signal
+            });
+
+            if (!res.ok) return;
+
+            const data = await res.json();
+            const contacts = data.contacts || [];
+
+            if (!append && list) {
+                if (contacts.length === 0) {
+                    let emptyTitle = 'No conversations found';
+                    let emptySubtitle = 'Try changing your search or filter criteria.';
+
+                    if (currentLabelFilter !== 'all') {
+                        const activeChip = document.querySelector(`.wab-label-chip.active[data-label-id="${currentLabelFilter}"]`);
+                        const labelName = activeChip?.querySelector('.wab-label-chip-name')?.textContent || 'this label';
+                        emptyTitle = `No chats with label "${labelName}"`;
+                        emptySubtitle = 'No conversations have been tagged with this label yet.';
+                    } else if (currentTabFilter === 'archived') {
+                        emptyTitle = 'No archived chats';
+                        emptySubtitle = 'Archived conversations will appear here.';
+                    } else if (currentTabFilter === 'unread') {
+                        emptyTitle = 'No unread messages';
+                        emptySubtitle = 'All chats are caught up!';
+                    } else if (currentTabFilter === 'groups') {
+                        emptyTitle = 'No group conversations';
+                        emptySubtitle = 'No group chats found.';
+                    } else if (contactSearchQuery) {
+                        emptyTitle = `No results for "${escapeHtml(contactSearchQuery)}"`;
+                        emptySubtitle = 'Check spelling or try a phone number.';
+                    }
+
+                    list.innerHTML = `
+                        <div class="wab-tab-empty-msg" style="text-align:center;padding:36px 16px;color:#8696a0;">
+                            <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" class="mb-2 opacity-50"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                            <div class="fw-bold fs-7 mb-1" style="color:var(--wa-text-main);">${emptyTitle}</div>
+                            <div class="fs-8 text-muted">${emptySubtitle}</div>
+                        </div>
+                    `;
+                } else {
+                    const frag = document.createDocumentFragment();
+                    contacts.forEach(c => {
+                        const el = createContactItemElement(c, true);
+                        if (el) frag.appendChild(el);
+                    });
+                    list.replaceChildren(frag);
+                    applyLocalFilter();
+                }
+            } else if (append && list) {
+                contacts.forEach(c => {
+                    const el = createContactItemElement(c, false);
+                    if (el) list.appendChild(el);
+                });
+                applyLocalFilter();
+            }
+
+            contactPage = page;
+            contactsHasMore = Boolean(data.has_more);
+        } catch (err) {
+            if (err.name !== 'AbortError') {
+                console.warn('Failed to load contacts from server:', err);
+            }
+        } finally {
+            isLoadingContacts = false;
+            if (loader) loader.classList.add('d-none');
+        }
+    }
+
+    /* ── Sidebar Infinite Scroll ── */
+    const contactListEl = document.getElementById('wabContactList');
+    if (contactListEl) {
+        contactListEl.addEventListener('scroll', () => {
+            if (contactListEl.scrollTop + contactListEl.clientHeight >= contactListEl.scrollHeight - 60) {
+                if (contactsHasMore && !isLoadingContacts) {
+                    loadContactsServer({ page: contactPage + 1, append: true, showLoader: false });
+                }
+            }
+        });
+    }
+
+    /* ── Real-time Debounced Search across whole DB with 0ms local response ── */
     searchInput?.addEventListener('input', function () {
         const q = this.value.trim();
         contactSearchQuery = q;
+        applyLocalFilter(); // Instant 0ms local response
         clearTimeout(searchDebounceTimer);
-        searchDebounceTimer = setTimeout(async () => {
-            contactPage = 1;
-            contactsHasMore = true;
-            if (contactListLoader) contactListLoader.classList.remove('d-none');
-
-            try {
-                const url = `${contactListUrl}?page=1&search=${encodeURIComponent(q)}&active_phone=${encodeURIComponent(selectedPhone)}`;
-                const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
-                if (!res.ok) return;
-
-                const data = await res.json();
-                const list = document.getElementById('wabContactList');
-                if (list) {
-                    list.innerHTML = '';
-                    (data.contacts || []).forEach(c => {
-                        const el = createContactItemElement(c);
-                        if (el) list.appendChild(el);
-                    });
-                }
-                contactsHasMore = Boolean(data.has_more);
-            } catch (err) {
-                console.warn('Search contacts failed', err);
-            } finally {
-                if (contactListLoader) contactListLoader.classList.add('d-none');
-            }
-        }, 250);
+        searchDebounceTimer = setTimeout(() => {
+            loadContactsServer({ page: 1, append: false, showLoader: false });
+        }, 200);
     });
 
     // Handle browser Back/Forward navigation
@@ -5328,152 +6025,108 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    function renderContact(contact) {
+    function renderContact(contact, forcePrepend = false) {
         const list = document.getElementById('wabContactList');
         if (!list || !contact?.phone) return;
         const cleanPhone = String(contact.phone).replace(/\D+/g, '');
 
-        let item = Array.from(list.querySelectorAll('.wab-contact-item')).find(row => row.dataset.phone === contact.phone);
-        const color = contact.color || '#25d366';
         const labels = Array.isArray(contact.labels) ? contact.labels : [];
-        const labelIds = Array.isArray(contact.label_ids) ? contact.label_ids : labels.map(l => l.id);
+        const labelIds = Array.isArray(contact.label_ids) ? contact.label_ids.map(String) : labels.map(l => String(l.id));
 
-        if (!item) {
-            item = document.createElement('div');
-            item.className = 'wab-contact-item';
-            item.id = `wab-contact-card-${cleanPhone}`;
-            item.dataset.contactId = contact.id || '';
-            item.dataset.phone = contact.phone;
-            item.dataset.color = color;
-            item.dataset.badge = String(contact.badge || 0);
-            item.dataset.isGroup = contact.is_group ? '1' : '0';
-            item.dataset.url = contactUrl(contact.phone);
-            item.innerHTML = `
-                <div class="wab-avatar" style="background:${color}1a;color:${color}">
-                    <span class="wab-avatar-letter">${escapeHtml(initials(contact.name))}</span>
-                    <span class="wab-status-badge wab-status--offline"></span>
-                </div>
-                <div class="wab-contact-info">
-                    <div class="wab-contact-row-top">
-                        <span class="wab-contact-name"></span>
-                        <span class="wab-contact-time"></span>
-                    </div>
-                    <div class="wab-contact-row-bottom">
-                        <span class="wab-contact-preview"></span>
-                        <div class="wab-contact-row-right d-flex align-items-center gap-1">
-                            <button type="button" class="wab-quick-tag-btn" onclick="event.stopPropagation(); openQuickLabelModal('${escapeHtml(contact.phone)}', '${escapeHtml(contact.name || contact.phone).replace(/'/g, "\\'")}', ${JSON.stringify(labelIds)})" title="Assign Labels">
-                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
-                            </button>
-                        </div>
-                    </div>
-                    <div class="wab-contact-label-tags d-flex flex-wrap gap-1 mt-1 pt-1" id="wab-contact-tags-${cleanPhone}"></div>
-                </div>
-            `;
-            bindContactClick(item);
-            list.prepend(item);
+        // Filter Guard: If a filter is currently active, ensure this contact belongs in the filtered view!
+        if (currentLabelFilter && currentLabelFilter !== 'all') {
+            if (!labelIds.includes(String(currentLabelFilter))) {
+                const existingItem = list.querySelector(`[data-phone="${contact.phone}"]`) || list.querySelector(`#wab-contact-card-${cleanPhone}`);
+                if (existingItem) existingItem.remove();
+                return;
+            }
         }
 
+        if (currentTabFilter === 'unread' && Number(contact.badge || 0) <= 0) {
+            const existingItem = list.querySelector(`[data-phone="${contact.phone}"]`) || list.querySelector(`#wab-contact-card-${cleanPhone}`);
+            if (existingItem) existingItem.remove();
+            return;
+        }
+
+        if (currentTabFilter === 'groups') {
+            const isGrp = contact.is_group || String(contact.phone).includes('@g.us') || String(contact.name || '').toLowerCase().includes('group');
+            if (!isGrp) {
+                const existingItem = list.querySelector(`[data-phone="${contact.phone}"]`) || list.querySelector(`#wab-contact-card-${cleanPhone}`);
+                if (existingItem) existingItem.remove();
+                return;
+            }
+        }
+
+        if (contactSearchQuery) {
+            const q = contactSearchQuery.toLowerCase();
+            const matches = String(contact.name || '').toLowerCase().includes(q) || String(contact.phone || '').includes(q);
+            if (!matches) {
+                const existingItem = list.querySelector(`[data-phone="${contact.phone}"]`) || list.querySelector(`#wab-contact-card-${cleanPhone}`);
+                if (existingItem) existingItem.remove();
+                return;
+            }
+        }
+
+        // Remove empty state message if any
+        list.querySelector('.wab-tab-empty-msg')?.remove();
+
+        let item = list.querySelector(`[data-phone="${contact.phone}"]`) || list.querySelector(`#wab-contact-card-${cleanPhone}`);
+        const color = contact.color || '#25d366';
+
+        if (!item) {
+            item = createContactItemElement(contact);
+            if (item) {
+                if (forcePrepend) {
+                    list.prepend(item);
+                } else {
+                    list.appendChild(item);
+                }
+            }
+            return;
+        }
+
+        // Update existing item in place
         item.dataset.name = String(contact.name || '').toLowerCase();
         item.dataset.badge = String(contact.badge || 0);
+        item.dataset.labelIds = JSON.stringify(labelIds);
         if (contact.is_group !== undefined) {
             item.dataset.isGroup = contact.is_group ? '1' : '0';
         }
-        item.dataset.url = contactUrl(contact.phone);
         item.classList.toggle('is-active', contact.phone === selectedPhone);
-        item.querySelector('.wab-contact-name').textContent = contact.name || contact.phone;
-        item.querySelector('.wab-contact-time').textContent = contact.time || '';
-        item.querySelector('.wab-contact-preview').textContent = contact.msg || '';
-        item.querySelector('.wab-avatar').style.background = `${color}1a`;
-        item.querySelector('.wab-avatar').style.color = color;
-        const letter = item.querySelector('.wab-avatar-letter');
-        if (letter) letter.textContent = initials(contact.name);
+
+        const nameEl = item.querySelector('.wab-contact-name');
+        if (nameEl) nameEl.textContent = contact.name || contact.phone;
+
+        const timeEl = item.querySelector('.wab-contact-time');
+        if (timeEl && contact.time) timeEl.textContent = contact.time;
+
+        const previewEl = item.querySelector('.wab-contact-preview');
+        if (previewEl && contact.msg !== undefined) previewEl.textContent = contact.msg;
+
         updateBadge(item, Number(contact.badge || 0));
 
-        // Update tag button onclick if contact has label info
-        const tagBtn = item.querySelector('.wab-quick-tag-btn');
-        if (tagBtn && contact.name) {
-            tagBtn.setAttribute('onclick', `event.stopPropagation(); openQuickLabelModal('${escapeHtml(contact.phone)}', '${escapeHtml(contact.name).replace(/'/g, "\\'")}', ${JSON.stringify(labelIds)})`);
+        // Update tags
+        const tagsWrap = item.querySelector('.wab-contact-label-tags');
+        if (tagsWrap && labels.length > 0) {
+            let chipsHtml = labels.slice(0, 4).map(lbl => `
+                <span class="wab-contact-tag-chip" style="background:${lbl.color}1f;color:${lbl.color};border:1px solid ${lbl.color}4d; font-size: 11px; padding: 1.5px 6px; border-radius: 4px; font-weight: 600; display: inline-flex; align-items: center; gap: 3px;">
+                    <span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:${lbl.color};"></span>${escapeHtml(lbl.name)}
+                </span>
+            `).join('');
+            if (labels.length > 4) {
+                chipsHtml += `<span class="badge bg-light text-muted border fs-9 px-1.5 py-0.5" style="font-size: 10px;">+${labels.length - 4}</span>`;
+            }
+            tagsWrap.innerHTML = chipsHtml;
         }
 
-        // Update label chips if provided in payload
-        if (labels.length > 0) {
-            const tagsWrap = item.querySelector('.wab-contact-label-tags');
-            if (tagsWrap) {
-                let chipsHtml = labels.slice(0, 4).map(lbl => `
-                    <span class="wab-contact-tag-chip" style="background:${lbl.color}1f;color:${lbl.color};border:1px solid ${lbl.color}4d; font-size: 11px; padding: 1.5px 6px; border-radius: 4px; font-weight: 600; display: inline-flex; align-items: center; gap: 3px;">
-                        <span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:${lbl.color};"></span>${escapeHtml(lbl.name)}
-                    </span>
-                `).join('');
-                if (labels.length > 4) {
-                    chipsHtml += `<span class="badge bg-light text-muted border fs-9 px-1.5 py-0.5" style="font-size: 10px;">+${labels.length - 4}</span>`;
-                }
-                tagsWrap.innerHTML = chipsHtml;
-            }
-        }
-        
-        if (list.firstChild !== item) {
+        if (forcePrepend && list.firstChild !== item) {
             list.prepend(item);
-        }
-    }
-
-    let currentTabFilter = 'all';
-
-    function filterContactList() {
-        const list = document.getElementById('wabContactList');
-        if (!list) return;
-
-        const term = (searchInput?.value || '').trim().toLowerCase();
-        const items = list.querySelectorAll('.wab-contact-item');
-        let visibleCount = 0;
-
-        items.forEach(item => {
-            const name = (item.dataset.name || item.querySelector('.wab-contact-name')?.textContent || '').toLowerCase();
-            const phone = (item.dataset.phone || '').toLowerCase();
-            const badge = Number(item.dataset.badge || item.querySelector('.wab-badge')?.textContent || 0);
-            const isGroup = item.dataset.isGroup === '1' || name.includes('group') || (item.querySelector('.wab-contact-tag-chip')?.textContent || '').toLowerCase().includes('group');
-
-            const matchesSearch = !term || name.includes(term) || phone.includes(term);
-            let matchesTab = true;
-
-            if (currentTabFilter === 'unread') {
-                matchesTab = badge > 0;
-            } else if (currentTabFilter === 'groups') {
-                matchesTab = isGroup;
-            }
-
-            if (matchesSearch && matchesTab) {
-                item.style.display = '';
-                visibleCount++;
-            } else {
-                item.style.display = 'none';
-            }
-        });
-
-        let emptyEl = list.querySelector('.wab-tab-empty-msg');
-        if (visibleCount === 0) {
-            if (!emptyEl) {
-                emptyEl = document.createElement('div');
-                emptyEl.className = 'wab-tab-empty-msg';
-                emptyEl.style.cssText = 'text-align:center;padding:28px 16px;color:#8696a0;font-size:13px;font-weight:500;';
-                list.appendChild(emptyEl);
-            }
-            emptyEl.style.display = 'block';
-            if (currentTabFilter === 'unread') {
-                emptyEl.textContent = 'No unread chats found.';
-            } else if (currentTabFilter === 'groups') {
-                emptyEl.textContent = 'No group chats found.';
-            } else {
-                emptyEl.textContent = 'No conversations found.';
-            }
-        } else if (emptyEl) {
-            emptyEl.style.display = 'none';
         }
     }
 
     function updateContacts(contacts) {
         if (!Array.isArray(contacts)) return;
-        contacts.slice().reverse().forEach(renderContact);
-        filterContactList();
+        contacts.forEach(c => renderContact(c, false));
     }
 
     function setRemoteTyping(isTyping) {
@@ -5527,7 +6180,9 @@ document.addEventListener('DOMContentLoaded', function() {
             const data = await response.json();
             (data.messages || []).forEach(renderMessage);
             (data.statuses || []).forEach(updateMessageStatus);
-            updateContacts(data.contacts);
+            if (currentLabelFilter === 'all' && currentTabFilter === 'all' && !contactSearchQuery) {
+                updateContacts(data.contacts);
+            }
             setRemoteTyping(Boolean(data.typing));
         } catch (error) {
             console.warn('Unable to refresh WhatsApp chat.', error);
@@ -6187,21 +6842,84 @@ document.addEventListener('DOMContentLoaded', function() {
             document.querySelectorAll('.wab-tab').forEach(b => b.classList.remove('active'));
             tabBtn.classList.add('active');
             currentTabFilter = tabBtn.dataset.tab || 'all';
-            filterContactList();
+            applyLocalFilter(); // Instant 0ms response
+            loadContactsServer({ page: 1, append: false, showLoader: false });
         });
     });
 
-    searchInput?.addEventListener('input', filterContactList);
+    /* ── Label Filter Slider Carousel Logic ── */
+    const labelTrackWrap = document.getElementById('wabLabelTrackWrap');
+    const labelTrack = document.getElementById('wabLabelTrack');
+    const labelPrevBtn = document.getElementById('wabLabelNavPrev');
+    const labelNextBtn = document.getElementById('wabLabelNavNext');
+    let labelScrollOffset = 0;
+
+    function updateLabelNavButtons() {
+        if (!labelTrackWrap || !labelTrack || !labelPrevBtn || !labelNextBtn) return;
+        const maxScroll = Math.max(0, labelTrack.scrollWidth - labelTrackWrap.clientWidth);
+        labelPrevBtn.disabled = labelScrollOffset <= 0;
+        labelNextBtn.disabled = labelScrollOffset >= maxScroll - 2;
+    }
+
+    function scrollLabelSlider(direction) {
+        if (!labelTrackWrap || !labelTrack) return;
+        const visibleWidth = labelTrackWrap.clientWidth;
+        const maxScroll = Math.max(0, labelTrack.scrollWidth - visibleWidth);
+        const step = visibleWidth; // scroll 3 items visible at a time
+
+        if (direction === 'next') {
+            labelScrollOffset = Math.min(maxScroll, labelScrollOffset + step);
+        } else {
+            labelScrollOffset = Math.max(0, labelScrollOffset - step);
+        }
+
+        labelTrack.style.transform = `translateX(-${labelScrollOffset}px)`;
+        updateLabelNavButtons();
+    }
+
+    labelPrevBtn?.addEventListener('click', (e) => {
+        e.preventDefault();
+        scrollLabelSlider('prev');
+    });
+
+    labelNextBtn?.addEventListener('click', (e) => {
+        e.preventDefault();
+        scrollLabelSlider('next');
+    });
+
+    // Label Chips Selection / Filtering across ALL DB contacts
+    document.querySelectorAll('.wab-label-chip').forEach(chip => {
+        chip.addEventListener('click', (e) => {
+            e.preventDefault();
+            const labelId = chip.dataset.labelId;
+            if (chip.classList.contains('active') && labelId !== 'all') {
+                // Clicking already active label toggles back to 'all'
+                document.querySelectorAll('.wab-label-chip').forEach(c => c.classList.remove('active'));
+                const allChip = document.getElementById('wabLabelChipAll');
+                if (allChip) allChip.classList.add('active');
+                currentLabelFilter = 'all';
+            } else {
+                document.querySelectorAll('.wab-label-chip').forEach(c => c.classList.remove('active'));
+                chip.classList.add('active');
+                currentLabelFilter = labelId || 'all';
+            }
+            applyLocalFilter(); // Instant 0ms response
+            loadContactsServer({ page: 1, append: false, showLoader: false });
+        });
+    });
+
+    window.addEventListener('resize', updateLabelNavButtons);
+    setTimeout(updateLabelNavButtons, 200);
 
     async function refreshContactsSidebar() {
-        if (contactSearchQuery !== '') return;
+        if (contactSearchQuery !== '' || isLoadingContacts || contactPage > 1) return;
         try {
-            const url = `${contactListUrl}?page=1&active_phone=${encodeURIComponent(selectedPhone || '')}`;
+            const url = `${contactListUrl}?page=1&limit=25&label_id=${encodeURIComponent(currentLabelFilter)}&tab=${encodeURIComponent(currentTabFilter)}&active_phone=${encodeURIComponent(selectedPhone || '')}`;
             const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
             if (!res.ok) return;
             const data = await res.json();
             if (data && Array.isArray(data.contacts)) {
-                updateContacts(data.contacts);
+                data.contacts.forEach(c => renderContact(c, false));
             }
         } catch (e) {
             console.warn('Unable to refresh contacts list.', e);
@@ -6218,6 +6936,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     initVoiceCards();
+    applyLocalFilter();
     if (selectedPhone) {
         markSelectedChatRead();
         pollMessages();

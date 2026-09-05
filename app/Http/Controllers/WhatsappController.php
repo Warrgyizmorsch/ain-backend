@@ -8,6 +8,7 @@ use App\Models\Leads;
 use App\Models\Services;
 use App\Models\Paper;
 use App\Models\Source;
+use App\Models\WhatsappChatArchive;
 use App\Models\WhatsappChatContactLabel;
 use App\Models\WhatsappChatLabel;
 use App\Models\WhatsappChatPanelSetting;
@@ -312,8 +313,10 @@ class WhatsappController extends Controller
         $page = max(1, (int) $request->query('page', 1));
         $limit = max(1, min(100, (int) $request->query('limit', 25)));
         $search = trim((string) $request->query('search', ''));
+        $labelId = $request->query('label_id');
+        $tab = $request->query('tab');
 
-        $data = $this->getContactsPaginated($activePhone, $limit, $page, $search);
+        $data = $this->getContactsPaginated($activePhone, $limit, $page, $search, $labelId, $tab);
 
         return response()->json([
             'success' => true,
@@ -516,7 +519,7 @@ class WhatsappController extends Controller
             'total' => $total,
             'has_more' => ($page * $limit) < $total,
             'page' => $page,
-            'all_leads_url' => route('lead.index') . '?search=' . urlencode($cleanPhone),
+            'all_leads_url' => route('leads') . '?search=' . urlencode($cleanPhone),
         ]);
     }
 
@@ -569,35 +572,33 @@ class WhatsappController extends Controller
             })
             ->get(['id', 'order_id', 'emp_id']);
 
-        $leadEmpIds = $matchingLeads->pluck('emp_id')->filter()->all();
-        $allUids = array_unique(array_filter(array_merge($userIds, $leadEmpIds)));
-        $leadOrderIds = $matchingLeads->pluck('order_id')->filter()->all();
-        $leadIds = $matchingLeads->pluck('id')->filter()->all();
+        $convertedLeadIds = $matchingLeads->where('is_converted', 1)->pluck('id')->filter()->all();
+        $convertedLeadOrderIds = $matchingLeads->where('is_converted', 1)->pluck('order_id')->filter()->all();
 
         $query = Order::query()
             ->with(['team', 'lead', 'frontendLead'])
             ->whereNotNull('orders.uid')
             ->where('orders.uid', '!=', 0)
             ->where('orders.uid', '!=', '')
-            ->whereIn('orders.uid', $allUids)
-            ->where(function ($q) {
-                $q->where(function ($sub) {
-                    $sub->whereNotNull('orders.l_converted_by')
-                        ->where('orders.l_converted_by', '!=', '');
-                })->orWhere(function ($sub) {
-                    $sub->whereNotNull('orders.amount')
-                        ->where('orders.amount', '>', 0);
-                })->orWhere(function ($sub) {
-                    $sub->whereNotNull('orders.projectstatus')
-                        ->whereNotIn('orders.projectstatus', ['', 'Pending']);
-                })->orWhereHas('lead', function ($lq) {
-                    $lq->where('is_converted', 1);
-                });
+            ->where(function ($q) use ($userIds, $convertedLeadIds, $convertedLeadOrderIds) {
+                if (!empty($userIds)) {
+                    $q->whereIn('orders.uid', $userIds)
+                      ->where(function ($sub) {
+                          $sub->whereDoesntHave('lead')->whereDoesntHave('frontendLead');
+                      });
+                }
+                if (!empty($convertedLeadIds)) {
+                    $q->orWhereIn('orders.lead_id', $convertedLeadIds);
+                }
+                if (!empty($convertedLeadOrderIds)) {
+                    $q->orWhereIn('orders.order_id', $convertedLeadOrderIds);
+                }
             })
             ->orderByDesc('id');
 
-        $total = !empty($allUids) ? $query->count() : 0;
-        $orders = !empty($allUids) ? $query->skip(($page - 1) * $limit)->take($limit)->get() : collect();
+        $hasMatchCriteria = !empty($userIds) || !empty($convertedLeadIds) || !empty($convertedLeadOrderIds);
+        $total = $hasMatchCriteria ? $query->count() : 0;
+        $orders = $hasMatchCriteria ? $query->skip(($page - 1) * $limit)->take($limit)->get() : collect();
 
         $formatted = $orders->map(function ($ord) {
             $statusClass = match(strtolower($ord->projectstatus ?? '')) {
@@ -775,6 +776,37 @@ class WhatsappController extends Controller
             'success' => true,
             'updated' => $updated,
             'contacts' => $this->getContacts($validated['phone']),
+        ]);
+    }
+
+    public function toggleArchive(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'phone' => ['required', 'string', 'max:50'],
+        ]);
+
+        $phone = $validated['phone'];
+        $variants = $this->getPhoneVariants($phone);
+
+        $existing = WhatsappChatArchive::query()
+            ->whereIn('phone', $variants)
+            ->first();
+
+        if ($existing) {
+            WhatsappChatArchive::query()->whereIn('phone', $variants)->delete();
+            $isArchived = false;
+            $message = 'Chat unarchived successfully.';
+        } else {
+            WhatsappChatArchive::query()->firstOrCreate(['phone' => $phone]);
+            $isArchived = true;
+            $message = 'Chat archived successfully.';
+        }
+
+        return response()->json([
+            'success' => true,
+            'is_archived' => $isArchived,
+            'phone' => $phone,
+            'message' => $message,
         ]);
     }
 
@@ -966,7 +998,7 @@ class WhatsappController extends Controller
         return $this->getContactsPaginated($activePhone, 25, 1)['contacts'];
     }
 
-    private function getContactsPaginated(?string $activePhone, int $limit = 25, int $page = 1, ?string $search = null): array
+    private function getContactsPaginated(?string $activePhone, int $limit = 25, int $page = 1, ?string $search = null, $labelId = null, ?string $tab = null): array
     {
         $query = DB::table('whatsapp_messages as latest')
             ->join(DB::raw('(SELECT phone, MAX(id) as max_id FROM whatsapp_messages GROUP BY phone) as grouped'), function ($join) {
@@ -974,6 +1006,7 @@ class WhatsappController extends Controller
             })
             ->select('latest.phone', 'latest.name', 'latest.message', 'latest.media_type', 'latest.media_name', 'latest.created_at', 'latest.id');
 
+        // 1. Search filter
         if ($search !== null && $search !== '') {
             $cleanSearch = preg_replace('/\D+/', '', $search);
             $matchedUserPhones = User::query()
@@ -994,6 +1027,76 @@ class WhatsappController extends Controller
                     $q->orWhereIn('latest.phone', $matchedUserPhones);
                 }
             });
+        }
+
+        // 2. Label filter (Query across entire DB)
+        if ($labelId !== null && $labelId !== '' && $labelId !== 'all') {
+            $assignedPhones = WhatsappChatContactLabel::query()
+                ->where('label_id', $labelId)
+                ->pluck('phone')
+                ->filter()
+                ->all();
+
+            if (empty($assignedPhones)) {
+                $query->whereRaw('1 = 0');
+            } else {
+                $allLabelVariants = [];
+                foreach ($assignedPhones as $ap) {
+                    foreach ($this->getPhoneVariants($ap) as $v) {
+                        $allLabelVariants[$v] = true;
+                    }
+                }
+                $query->whereIn('latest.phone', array_keys($allLabelVariants));
+            }
+        }
+
+        // Fetch all archived phones
+        $archivedPhones = WhatsappChatArchive::query()->pluck('phone')->all();
+        $archivedVariants = [];
+        foreach ($archivedPhones as $ap) {
+            foreach ($this->getPhoneVariants($ap) as $v) {
+                $archivedVariants[$v] = true;
+            }
+        }
+        $archivedPhoneKeys = array_keys($archivedVariants);
+
+        // 3. Tab filter (Unread / Groups / Archived)
+        if ($tab === 'archived') {
+            if (empty($archivedPhoneKeys)) {
+                $query->whereRaw('1 = 0');
+            } else {
+                $query->whereIn('latest.phone', $archivedPhoneKeys);
+            }
+        } else {
+            // In All / Unread / Groups tabs, exclude archived chats unless searching
+            if (!empty($archivedPhoneKeys) && ($search === null || $search === '')) {
+                $query->whereNotIn('latest.phone', $archivedPhoneKeys);
+            }
+
+            if ($tab === 'unread') {
+                $unreadPhones = WhatsappMessage::query()
+                    ->where('direction', 'inbound')
+                    ->where(function ($q) {
+                        $q->whereNull('status')->orWhere('status', '!=', 'read');
+                    })
+                    ->pluck('phone')
+                    ->filter()
+                    ->unique()
+                    ->values()
+                    ->all();
+
+                if (empty($unreadPhones)) {
+                    $query->whereRaw('1 = 0');
+                } else {
+                    $query->whereIn('latest.phone', $unreadPhones);
+                }
+            } elseif ($tab === 'groups') {
+                $query->where(function ($q) {
+                    $q->where('latest.phone', 'like', '%@g.us%')
+                      ->orWhere('latest.phone', 'like', '%-%')
+                      ->orWhere('latest.name', 'like', '%group%');
+                });
+            }
         }
 
         // Fetch limit + 1 to determine has_more without expensive COUNT(*) table scan
@@ -1044,6 +1147,22 @@ class WhatsappController extends Controller
                 ->all()
             : [];
 
+        // Also fetch latest inbound name for contacts whose latest message name is 'System' or empty or missing user name
+        $inboundNames = !empty($phones)
+            ? WhatsappMessage::query()
+                ->whereIn('phone', $phones)
+                ->where('direction', 'inbound')
+                ->whereNotNull('name')
+                ->where('name', '!=', '')
+                ->where('name', '!=', 'System')
+                ->select('phone', 'name', 'id')
+                ->orderByDesc('id')
+                ->get()
+                ->groupBy('phone')
+                ->map(fn($rows) => $rows->first()->name)
+                ->all()
+            : [];
+
         // Fetch labels for these contacts
         $labelsMap = !empty($allVariants)
             ? WhatsappChatContactLabel::query()
@@ -1058,9 +1177,13 @@ class WhatsappController extends Controller
 
         $allLabels = WhatsappChatLabel::query()->get()->keyBy('id');
 
-        $contacts = $latestMessages->map(function ($contact, int $index) use ($userMap, $activePhone, $unreadCounts, $labelsMap, $allLabels, $page, $limit) {
+        $contacts = $latestMessages->map(function ($contact, int $index) use ($userMap, $inboundNames, $activePhone, $unreadCounts, $labelsMap, $allLabels, $archivedVariants, $page, $limit) {
             $user = $userMap[$contact->phone] ?? null;
-            $name = $user?->name ?: ($contact->name ?: $contact->phone);
+            $userName = ($user && $user->name && $user->name !== 'System') ? $user->name : null;
+            $inboundName = $inboundNames[$contact->phone] ?? null;
+            $contactName = ($contact->name && $contact->name !== 'System') ? $contact->name : null;
+
+            $name = $userName ?: ($inboundName ?: ($contactName ?: $contact->phone));
             $unreadCount = (int) ($unreadCounts[$contact->phone] ?? 0);
             $globalIndex = (($page - 1) * $limit) + $index;
             $contactLabelIds = $labelsMap[$contact->phone] ?? [];
@@ -1080,6 +1203,7 @@ class WhatsappController extends Controller
                 'status' => $unreadCount > 0 ? 'online' : 'offline',
                 'label_ids' => $contactLabelIds,
                 'labels' => $contactLabels,
+                'is_archived' => isset($archivedVariants[$contact->phone]),
             ];
         })->values()->toArray();
 
@@ -1088,6 +1212,16 @@ class WhatsappController extends Controller
             'total' => count($contacts),
             'has_more' => $hasMore,
         ];
+    }
+
+    public function customerData(Request $request): JsonResponse
+    {
+        $phone = $request->query('phone', '');
+        if (!$phone) {
+            return response()->json(['success' => false, 'message' => 'Phone required']);
+        }
+        $summary = $this->getCustomerSummary($phone);
+        return response()->json(array_merge(['success' => true], $summary));
     }
 
     private function getCustomerSummary(string $phone): array
@@ -1135,29 +1269,28 @@ class WhatsappController extends Controller
         $existingLead = $matchingLeads->sortByDesc('id')->first();
         $unconvertedLeadsCount = $matchingLeads->where('is_converted', '!=', 1)->count();
 
-        $leadEmpIds = $matchingLeads->pluck('emp_id')->filter()->all();
-        $allUids = array_unique(array_filter(array_merge($userIds, $leadEmpIds)));
+        $convertedLeadIds = $matchingLeads->where('is_converted', 1)->pluck('id')->filter()->all();
+        $convertedLeadOrderIds = $matchingLeads->where('is_converted', 1)->pluck('order_id')->filter()->all();
 
         $ordersCount = 0;
-        if (!empty($allUids)) {
+        if (!empty($userIds) || !empty($convertedLeadIds) || !empty($convertedLeadOrderIds)) {
             $ordersCount = Order::query()
                 ->whereNotNull('orders.uid')
                 ->where('orders.uid', '!=', 0)
                 ->where('orders.uid', '!=', '')
-                ->whereIn('orders.uid', $allUids)
-                ->where(function ($q) {
-                    $q->where(function ($sub) {
-                        $sub->whereNotNull('orders.l_converted_by')
-                            ->where('orders.l_converted_by', '!=', '');
-                    })->orWhere(function ($sub) {
-                        $sub->whereNotNull('orders.amount')
-                            ->where('orders.amount', '>', 0);
-                    })->orWhere(function ($sub) {
-                        $sub->whereNotNull('orders.projectstatus')
-                            ->whereNotIn('orders.projectstatus', ['', 'Pending']);
-                    })->orWhereHas('lead', function ($lq) {
-                        $lq->where('is_converted', 1);
-                    });
+                ->where(function ($q) use ($userIds, $convertedLeadIds, $convertedLeadOrderIds) {
+                    if (!empty($userIds)) {
+                        $q->whereIn('orders.uid', $userIds)
+                          ->where(function ($sub) {
+                              $sub->whereDoesntHave('lead')->whereDoesntHave('frontendLead');
+                          });
+                    }
+                    if (!empty($convertedLeadIds)) {
+                        $q->orWhereIn('orders.lead_id', $convertedLeadIds);
+                    }
+                    if (!empty($convertedLeadOrderIds)) {
+                        $q->orWhereIn('orders.order_id', $convertedLeadOrderIds);
+                    }
                 })
                 ->count();
         }
@@ -1172,8 +1305,28 @@ class WhatsappController extends Controller
             ? WhatsappChatLabel::query()->whereIn('id', $labelIds)->get(['id', 'name', 'color'])
             : collect();
 
+        $latestInbound = WhatsappMessage::query()
+            ->whereIn('phone', $variants)
+            ->where('direction', 'inbound')
+            ->whereNotNull('name')
+            ->where('name', '!=', '')
+            ->where('name', '!=', 'System')
+            ->orderByDesc('id')
+            ->first(['name']);
+
+        $resolvedName = null;
+        if ($existingUser && $existingUser->name && $existingUser->name !== 'System') {
+            $resolvedName = $existingUser->name;
+        } elseif ($existingLead && $existingLead->user_name && $existingLead->user_name !== 'System') {
+            $resolvedName = $existingLead->user_name;
+        } elseif ($latestInbound && $latestInbound->name) {
+            $resolvedName = $latestInbound->name;
+        } else {
+            $resolvedName = $phone;
+        }
+
         return [
-            'name' => $existingUser?->name ?? ($existingLead?->user_name ?? $phone),
+            'name' => $resolvedName,
             'phone' => $phone,
             'leads_count' => $unconvertedLeadsCount,
             'orders_count' => $ordersCount,

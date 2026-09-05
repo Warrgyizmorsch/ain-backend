@@ -502,11 +502,15 @@ class LeadsController extends Controller
         $today = Carbon::today();
 
         // =========================
-        // VALIDATE DELIVERY DATE ARRAY
+        // VALIDATE DELIVERY DATE
         // =========================
         if ($request->delivery_date) {
-            foreach ($request->delivery_date as $date) {
-                if ($date && Carbon::parse($date)->lt($today)) {
+            $dates = is_array($request->delivery_date) ? $request->delivery_date : [$request->delivery_date];
+            foreach ($dates as $date) {
+                if (!empty($date) && strtotime($date) && Carbon::parse($date)->lt($today)) {
+                    if ($request->ajax() || $request->wantsJson()) {
+                        return response()->json(['success' => false, 'message' => 'Delivery date cannot be before today.'], 422);
+                    }
                     return redirect()->back()->with('error', 'Delivery date cannot be before today.');
                 }
             }
@@ -515,39 +519,71 @@ class LeadsController extends Controller
         // =========================
         // USER CREATE / UPDATE
         // =========================
-        $user = User::where('id', $request->input('id'))->first();
+        $cleanMobile = preg_replace('/\D+/', '', (string) $request->input('mobile'));
+        $countryCode = preg_replace('/\D+/', '', (string) $request->input('countrycode'));
+        $fullPhone = $countryCode . $cleanMobile;
+
+        $user = null;
+        if ($request->filled('id')) {
+            $user = User::where('id', $request->input('id'))->first();
+        }
+
+        if (!$user && !empty($cleanMobile)) {
+            $user = User::where('mobile_no', $cleanMobile)
+                ->orWhere('mobile_no', $fullPhone)
+                ->orWhere('mobile_no', '+' . $fullPhone)
+                ->first();
+        }
 
         if (!$user) {
-
-            if ($request->input('email')) {
+            if ($request->filled('email')) {
                 $existingUser = User::where('email', $request->input('email'))->first();
 
                 if ($existingUser) {
-                    return redirect()->back()->withInput()
-                        ->with('error', 'Email already exists with another number.');
+                    if ($existingUser->mobile_no == $cleanMobile || $existingUser->mobile_no == $fullPhone) {
+                        $user = $existingUser;
+                    } else {
+                        if ($request->ajax() || $request->wantsJson()) {
+                            return response()->json(['success' => false, 'message' => 'Email already exists with another number.'], 422);
+                        }
+                        return redirect()->back()->withInput()
+                            ->with('error', 'Email already exists with another number.');
+                    }
                 }
             }
 
-            $user = new User;
-            $user->email = $request->input('email') ?: 'user' . $request->input('mobile') . '@gmail.com';
-            $user->mobile_no = $request->input('mobile');
-            $user->name = $request->input('user_name') ?: 'user' . $request->input('mobile');
-            $user->countrycode = $request->input('countrycode');
-            $user->password = Hash::make('user@123');
-            $user->role_id = 2;
-            $user->refer_id = $request->refer_id ?? null;
-            $user->save();
-        } else {
-            $user->email = $request->input('email');
-            $user->name = $request->input('user_name');
-            $user->countrycode = $request->input('countrycode');
+            if (!$user) {
+                $user = new User;
+                $user->email = $request->input('email') ?: 'user' . $cleanMobile . '@gmail.com';
+                $user->mobile_no = $cleanMobile;
+                $user->name = $request->input('user_name') ?: 'user' . $cleanMobile;
+                $user->countrycode = $countryCode ?: '91';
+                $user->password = Hash::make('user@123');
+                $user->role_id = 2;
+                $user->refer_id = $request->refer_id ?? null;
+                $user->save();
+            }
+        }
+
+        if ($user) {
+            if ($request->filled('email')) {
+                $user->email = $request->input('email');
+            }
+            if ($request->filled('user_name')) {
+                $user->name = $request->input('user_name');
+            }
+            if (!empty($countryCode)) {
+                $user->countrycode = $countryCode;
+            }
+            if (!empty($cleanMobile) && empty($user->mobile_no)) {
+                $user->mobile_no = $cleanMobile;
+            }
+
             $oldReferId = $user->refer_id;
             $newReferId = $request->refer_id ?? null;
             if (empty($oldReferId)) {
-                // agar pehle refer nahi hai, koi bhi add kar sakta hai
                 $user->refer_id = $newReferId;
             } else {
-                // agar pehle refer hai, sirf admin change kar sakta hai
                 if (Auth::check() && Auth::user()->role_id == 1) {
                     $user->refer_id = $newReferId;
                 }
@@ -555,85 +591,114 @@ class LeadsController extends Controller
             $user->save();
         }
 
-        $userId = $user->id;
+        $userId = $user ? $user->id : 0;
 
         // =========================
-        // GET LAST ORDER NUMBER (OLD LOGIC)
+        // GET LAST ORDER NUMBER
         // =========================
-
         $latestOrder = Order::orderByDesc('id')->first();
         $newOrderNumber = $latestOrder ? intval(substr($latestOrder->order_id, 3)) : 0;
 
         // =========================
-        // LOOP START
+        // NORMALIZE INPUT ARRAYS / SCALARS
         // =========================
-        $total = count($request->project_title);
+        $projectTitles = is_array($request->project_title) ? array_values($request->project_title) : [$request->project_title];
+        $total = max(1, count($projectTitles));
+
+        $pagesArr     = is_array($request->pages) ? array_values($request->pages) : array_fill(0, $total, $request->pages);
+        $modulesArr   = is_array($request->module_code) ? array_values($request->module_code) : array_fill(0, $total, $request->module_code);
+        $delivDates   = is_array($request->delivery_date) ? array_values($request->delivery_date) : array_fill(0, $total, $request->delivery_date);
+        $delivTimes   = is_array($request->delivery_time) ? array_values($request->delivery_time) : array_fill(0, $total, $request->delivery_time);
+        $amounts      = is_array($request->amount) ? array_values($request->amount) : array_fill(0, $total, $request->amount);
+        $iStatuses    = is_array($request->i_status) ? array_values($request->i_status) : array_fill(0, $total, $request->i_status);
+        $messages     = is_array($request->message) ? array_values($request->message) : array_fill(0, $total, $request->message);
+        $serviceTypes = is_array($request->service_type) ? array_values($request->service_type) : array_fill(0, $total, $request->service_type);
+        $papers       = is_array($request->paper) ? array_values($request->paper) : array_fill(0, $total, $request->paper);
+        $chapters     = is_array($request->chapter) ? array_values($request->chapter) : array_fill(0, $total, $request->chapter);
+        $draftReqs    = is_array($request->draft_required) ? array_values($request->draft_required) : array_fill(0, $total, $request->draft_required);
+        $draftDates   = is_array($request->draft_date) ? array_values($request->draft_date) : array_fill(0, $total, $request->draft_date);
+        $draftTimes   = is_array($request->draft_time) ? array_values($request->draft_time) : array_fill(0, $total, $request->draft_time);
+
+        $creatorId = Auth::id() ?: (auth()->user()?->id ?: 1);
+        $lastCreatedLead = null;
+        $lastOrderId = null;
 
         for ($i = 0; $i < $total; $i++) {
-
-            // 🔥 INCREMENT ORDER NUMBER LIKE OLD
             $newOrderNumber++;
             $newOrderId = 'UKS' . $newOrderNumber;
+            $lastOrderId = $newOrderId;
 
-
-            // =========================
-            // VALIDATE PAGES
-            // =========================
-            if (!empty($request->pages[$i]) && !is_numeric($request->pages[$i])) {
+            $curPages = $pagesArr[$i] ?? null;
+            if (!empty($curPages) && !is_numeric($curPages)) {
+                if ($request->ajax() || $request->wantsJson()) {
+                    return response()->json(['success' => false, 'message' => 'Word count must be numeric.'], 422);
+                }
                 return redirect()->back()->with('warning', 'Word must be numeric');
             }
+
+            $curTitle = $projectTitles[$i] ?? null;
+            $curModule = $modulesArr[$i] ?? null;
+            $curDeliveryDate = $delivDates[$i] ?? null;
+            $curDeliveryTime = $delivTimes[$i] ?? null;
+            $curAmount = $amounts[$i] ?? null;
+            $curIStatus = $iStatuses[$i] ?? null;
+            $curMessage = $messages[$i] ?? null;
+            $curServiceType = $serviceTypes[$i] ?? null;
+            $curPaper = $papers[$i] ?? null;
+            $curChapter = $chapters[$i] ?? null;
+            $curDraftReq = $draftReqs[$i] ?? null;
+            $curDraftDate = $draftDates[$i] ?? null;
+            $curDraftTime = $draftTimes[$i] ?? null;
+
+            $isTech = is_array($request->tech) ? isset($request->tech[$i]) : $request->filled('tech');
+            $isResit = is_array($request->resit) ? isset($request->resit[$i]) : $request->filled('resit');
 
             // =========================
             // INSERT LEADS
             // =========================
             $leads = new Leads;
-            $leads->order_id = $newOrderId;
-            $leads->emp_id = $userId;
+            $leads->order_id    = $newOrderId;
+            $leads->emp_id      = $userId;
+            $leads->user_name   = $request->input('user_name') ?: ($user->name ?? null);
+            $leads->email       = $request->input('email') ?: ($user->email ?? null);
+            $leads->mobile      = $cleanMobile ?: ($user->mobile_no ?? null);
+            $leads->countrycode = $countryCode ?: ($user->countrycode ?? null);
 
-            $leads->project_title = $request->project_title[$i];
-            $leads->module_code   = $request->module_code[$i];
-            $leads->pages         = $request->pages[$i];
+            $leads->project_title = $curTitle ?: 'WhatsApp Lead';
+            $leads->module_code   = $curModule;
+            $leads->pages         = is_numeric($curPages) ? $curPages : null;
 
-            $leads->deadline = !empty($request->delivery_date[$i])
-                ? $request->delivery_date[$i]
-                : now();
+            $leads->deadline = !empty($curDeliveryDate) && strtotime($curDeliveryDate)
+                ? $curDeliveryDate
+                : now()->addDays(3);
 
-            $leads->delivery_time = $request->delivery_time[$i];
-            $leads->price         = $request->amount[$i];
-            $leads->l_status      = $request->i_status[$i] ?? null;
+            $leads->delivery_time = $curDeliveryTime;
+            $leads->price         = is_numeric($curAmount) ? $curAmount : null;
+            $leads->l_status      = $curIStatus ?: 'Waiting';
 
-            $leads->message       = $request->message[$i];
+            $leads->message       = $curMessage;
+            $leads->service_type  = $curServiceType;
+            $leads->typeofpaper   = $curPaper;
 
-            $leads->service_type  = $request->service_type[$i];
-            $leads->typeofpaper   = $request->paper[$i];
+            $leads->tech  = $isTech ? 'on' : 'off';
+            $leads->resit = $isResit ? 'on' : 'off';
 
-            // ✅ CHECKBOX FIX (ON / OFF STRING)
-            $leads->tech  = isset($request->tech[$i]) ? 'on' : 'off';
-            $leads->resit = isset($request->resit[$i]) ? 'on' : 'off';
+            $leads->draft_required = $curDraftReq;
+            $leads->draft_date     = $curDraftDate;
+            $leads->draft_time     = $curDraftTime;
 
-            // =========================
-            // DRAFT
-            // =========================
-            $leads->draft_required = $request->draft_required[$i] ?? null;
-            $leads->draft_date     = $request->draft_date[$i] ?? null;
-            $leads->draft_time     = $request->draft_time[$i] ?? null;
-
-            // =========================
-            // CHAPTER
-            // =========================
             if ($leads->typeofpaper === 'Dissertation' || $leads->typeofpaper === 'Thesis') {
-                $leads->chapter = $request->chapter[$i] ?? null;
+                $leads->chapter = $curChapter;
             } else {
                 $leads->chapter = null;
             }
 
-            // ✅ SAME SEMESTER
-            $leads->semester = $request->semester;
-            $leads->lead_source = $request->lead_source ?? null;
-            $creatorId = Auth::id() ?: (auth()->user()?->id ?: 1);
+            $leads->semester = $request->semester ?: 'I Semester';
+            $leads->lead_source = $request->lead_source ?? 7;
             $leads->created_by = $creatorId;
 
             $leads->save();
+            $lastCreatedLead = $leads;
 
             // =========================
             // INSERT ORDER
@@ -645,24 +710,16 @@ class LeadsController extends Controller
             $order->created_by = $creatorId;
             $order->l_converted_by = null;
 
-            $order->title   = $request->project_title[$i];
-            $order->pages   = $request->pages[$i];
-            $order->amount  = $request->amount[$i];
-            $order->message = $request->message[$i];
+            $order->title   = $leads->project_title;
+            $order->pages   = $leads->pages;
+            $order->amount  = $leads->price;
+            $order->message = $leads->message;
 
             $order->order_date = now();
-            $order->delivery_date = $request->delivery_date[$i];
-
-            $order->typeofpaper = $request->paper[$i];
-
-            if ($order->typeofpaper === 'Dissertation' || $order->typeofpaper === 'Thesis') {
-                $order->chapter = $request->chapter[$i] ?? null;
-            } else {
-                $order->chapter = null;
-            }
-
-            // ✅ SAME SEMESTER
-            $order->semester = $request->semester;
+            $order->delivery_date = $leads->deadline;
+            $order->typeofpaper = $leads->typeofpaper;
+            $order->chapter = $leads->chapter;
+            $order->semester = $leads->semester;
 
             $order->save();
 
@@ -675,8 +732,16 @@ class LeadsController extends Controller
             ]);
         }
 
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Lead & Order Created Successfully',
+                'order_id' => $lastOrderId,
+                'lead_id' => $lastCreatedLead ? $lastCreatedLead->id : null,
+            ]);
+        }
 
-        return redirect()->back()->with('success', 'Multiple Leads Inserted Successfully');
+        return redirect()->back()->with('success', 'Lead Inserted Successfully');
     }
     public function convert(Request $request, $id)
     {

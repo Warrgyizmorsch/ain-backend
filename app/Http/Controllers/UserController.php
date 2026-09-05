@@ -178,7 +178,7 @@ class UserController extends Controller
     public function index(Request $request)
     {
         $searchUserId = $request->input('user_id') ?? $request->input('uid');
-        $userText = trim((string) $request->input('user', ''));
+        $userText = trim((string) ($request->input('user') ?? $request->input('user_name') ?? $request->input('search') ?? ''));
         $startDate = $request->input('start_date');
         $endDate = $request->input('end_date');
         $roleId = $request->input('role');
@@ -280,11 +280,21 @@ class UserController extends Controller
         if ($searchUserId) {
             $query->where('id', $searchUserId);
         } elseif ($userText !== '') {
-            $query->where(function ($q) use ($userText) {
+            $cleanUserText = preg_replace('/\D+/', '', $userText);
+            $last10 = strlen($cleanUserText) >= 10 ? substr($cleanUserText, -10) : $cleanUserText;
+
+            $query->where(function ($q) use ($userText, $cleanUserText, $last10) {
                 $q->where('name', 'like', '%' . $userText . '%')
                   ->orWhere('email', 'like', '%' . $userText . '%')
                   ->orWhere('mobile_no', 'like', '%' . $userText . '%')
                   ->orWhere('mobile_no2', 'like', '%' . $userText . '%');
+                if (!empty($cleanUserText)) {
+                    $q->orWhere('mobile_no', 'like', '%' . $cleanUserText . '%')
+                      ->orWhereRaw("CONCAT(COALESCE(countrycode, ''), COALESCE(mobile_no, '')) LIKE ?", ["%{$cleanUserText}%"]);
+                }
+                if (!empty($last10)) {
+                    $q->orWhere('mobile_no', 'like', '%' . $last10 . '%');
+                }
             });
         }
         if ($startDate && !$endDate) {
