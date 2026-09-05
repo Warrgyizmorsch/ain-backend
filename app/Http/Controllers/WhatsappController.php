@@ -580,6 +580,20 @@ class WhatsappController extends Controller
             ->where('orders.uid', '!=', 0)
             ->where('orders.uid', '!=', '')
             ->whereIn('orders.uid', $allUids)
+            ->where(function ($q) {
+                $q->where(function ($sub) {
+                    $sub->whereNotNull('orders.l_converted_by')
+                        ->where('orders.l_converted_by', '!=', '');
+                })->orWhere(function ($sub) {
+                    $sub->whereNotNull('orders.amount')
+                        ->where('orders.amount', '>', 0);
+                })->orWhere(function ($sub) {
+                    $sub->whereNotNull('orders.projectstatus')
+                        ->whereNotIn('orders.projectstatus', ['', 'Pending']);
+                })->orWhereHas('lead', function ($lq) {
+                    $lq->where('is_converted', 1);
+                });
+            })
             ->orderByDesc('id');
 
         $total = !empty($allUids) ? $query->count() : 0;
