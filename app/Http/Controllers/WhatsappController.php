@@ -457,6 +457,10 @@ class WhatsappController extends Controller
                     $q->orWhereIn('email', $userEmails);
                 }
             })
+            ->where(function ($q) {
+                $q->where('is_converted', 0)
+                  ->orWhereNull('is_converted');
+            })
             ->orderByDesc('id');
 
         $total = $query->count();
