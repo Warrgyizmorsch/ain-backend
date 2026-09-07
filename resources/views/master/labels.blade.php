@@ -12,7 +12,7 @@
                     <h1 class="d-flex align-items-center text-dark fw-bolder fs-3 my-1">
                         <i class="fa fa-tags text-primary me-2 fs-2"></i> Label Master
                         <span class="h-20px border-gray-200 border-start ms-3 mx-2"></span>
-                        <small class="text-muted fs-7 fw-bold my-1 ms-1">Cross-Channel WhatsApp & Email Tags</small>
+                        <small class="text-muted fs-7 fw-bold my-1 ms-1">Cross-Channel WhatsApp, Email & CRM Tags</small>
                     </h1>
                 </div>
             </div>
@@ -26,7 +26,7 @@
                     <div class="card-header border-0 py-5 bg-light-primary">
                         <h3 class="card-title flex-column m-0">
                             <span class="card-label fw-bolder fs-4 text-primary">Create New Label</span>
-                            <span class="text-muted fw-bold fs-7">Used across WhatsApp Chats & Emails</span>
+                            <span class="text-muted fw-bold fs-7">Used across WhatsApp, Email & CRM</span>
                         </h3>
                     </div>
 
@@ -34,16 +34,54 @@
                         @csrf
                         <div class="card-body pt-5">
                             {{-- Label Name --}}
-                            <div class="fv-row mb-5">
+                            <div class="fv-row mb-4">
                                 <label class="required fw-bold fs-6 mb-2">Label Name</label>
                                 <input type="text" name="name" id="createLabelName" required
                                     class="form-control form-control-solid"
-                                    placeholder="e.g. VIP Client, Urgent, Orders"
+                                    placeholder="e.g. VIP Client, Urgent, Converted"
                                     oninput="updateCreatePreview()">
                             </div>
 
+                            {{-- Sequence / Sort Order --}}
+                            <div class="fv-row mb-4">
+                                <label class="fw-bold fs-6 mb-2">Sequence (Order)</label>
+                                <input type="number" name="sequence" id="createSequence" min="1" value="{{ ($labels->max('sequence') ?? 0) + 1 }}"
+                                    class="form-control form-control-solid"
+                                    placeholder="1, 2, 3...">
+                                <div class="text-muted fs-8 mt-1">Defines display order across WhatsApp, Email & CRM tabs.</div>
+                            </div>
+
+                            {{-- Applicable Channels (Auto-sync) --}}
+                            <div class="fv-row mb-4">
+                                <label class="fw-bold fs-6 mb-2">Applicable Channels</label>
+                                <div class="d-flex flex-column gap-2 p-3 bg-light rounded border">
+                                    <div class="form-check form-check-custom form-check-solid">
+                                        <input class="form-check-input" type="checkbox" name="is_whatsapp" value="1" id="createCheckWhatsapp" checked>
+                                        <label class="form-check-label fw-bold text-dark fs-7 cursor-pointer d-flex align-items-center gap-1.5" for="createCheckWhatsapp">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="#25D366" viewBox="0 0 16 16"><path d="M13.601 2.326A7.854 7.854 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.366 2.76 1.057 3.965L0 16l4.204-1.102a7.933 7.933 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.898 7.898 0 0 0 13.6 2.326zM7.994 14.521a6.573 6.573 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.557 6.557 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592zm3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.729.729 0 0 0-.529.247c-.182.198-.691.677-.691 1.654 0 .977.71 1.916.81 2.049.098.133 1.394 2.132 3.383 2.992.47.205.84.326 1.129.418.475.152.904.129 1.246.08.38-.058 1.171-.48 1.338-.943.164-.464.164-.86.114-.943-.049-.084-.182-.133-.38-.232z"/></svg>
+                                            <span>WhatsApp Chat</span>
+                                        </label>
+                                    </div>
+                                    <div class="form-check form-check-custom form-check-solid">
+                                        <input class="form-check-input" type="checkbox" name="is_email" value="1" id="createCheckEmail" checked>
+                                        <label class="form-check-label fw-bold text-dark fs-7 cursor-pointer d-flex align-items-center gap-1.5" for="createCheckEmail">
+                                            <i class="fa fa-envelope text-primary"></i>
+                                            <span>Email Threads</span>
+                                        </label>
+                                    </div>
+                                    <div class="form-check form-check-custom form-check-solid">
+                                        <input class="form-check-input" type="checkbox" name="is_crm" value="1" id="createCheckCrm" checked>
+                                        <label class="form-check-label fw-bold text-dark fs-7 cursor-pointer d-flex align-items-center gap-1.5" for="createCheckCrm">
+                                            <i class="fa fa-shopping-cart text-warning"></i>
+                                            <span>CRM / Orders</span>
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="text-muted fs-8 mt-1">Checked channels will automatically sync when this label is tagged on a customer.</div>
+                            </div>
+
                             {{-- Preset Color Palette (5-6 Options) --}}
-                            <div class="fv-row mb-5">
+                            <div class="fv-row mb-4">
                                 <label class="required fw-bold fs-6 mb-2">Select Color</label>
                                 <div class="d-flex flex-wrap gap-2 mb-3" id="createColorPalette">
                                     <button type="button" class="btn btn-sm btn-icon color-chip active-chip" data-color="#3454d1" style="background-color: #3454d1;" onclick="selectCreateColor('#3454d1', this)" title="Primary Blue"></button>
@@ -61,8 +99,8 @@
                             </div>
 
                             {{-- Live Badge Preview --}}
-                            <div class="fv-row mb-6 p-4 rounded bg-light border border-dashed">
-                                <label class="fs-8 text-muted fw-bold text-uppercase d-block mb-2">Live Badge Preview</label>
+                            <div class="fv-row mb-5 p-3 rounded bg-light border border-dashed">
+                                <label class="fs-8 text-muted fw-bold text-uppercase d-block mb-1">Live Badge Preview</label>
                                 <span class="badge px-3 py-2 fs-7 fw-bold" id="createBadgePreview" style="background-color: #3454d1; color: #ffffff;">
                                     <i class="fa fa-tag me-1 text-white opacity-75"></i> <span id="createBadgePreviewText">Label Preview</span>
                                 </span>
@@ -91,12 +129,22 @@
                             <table class="table table-row-dashed table-row-gray-300 align-middle gs-0 gy-4">
                                 <thead>
                                     <tr class="fw-bolder text-muted bg-light">
-                                        <th class="ps-4 min-w-50px">#</th>
-                                        <th class="min-w-150px">Label Preview</th>
-                                        <th class="min-w-100px">Color Code</th>
-                                        <th class="min-w-120px">WhatsApp Uses</th>
-                                        <th class="min-w-120px">Email Uses</th>
-                                        <th class="min-w-100px text-end pe-4">Actions</th>
+                                        <th class="ps-3 min-w-50px text-center">Seq</th>
+                                        <th class="min-w-140px">Label Preview</th>
+                                        <th class="min-w-140px">Channels</th>
+                                        <th class="min-w-100px">
+                                            <span class="d-inline-flex align-items-center gap-1.5">
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="#25D366" viewBox="0 0 16 16"><path d="M13.601 2.326A7.854 7.854 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.366 2.76 1.057 3.965L0 16l4.204-1.102a7.933 7.933 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.898 7.898 0 0 0 13.6 2.326zM7.994 14.521a6.573 6.573 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.557 6.557 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592zm3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.729.729 0 0 0-.529.247c-.182.198-.691.677-.691 1.654 0 .977.71 1.916.81 2.049.098.133 1.394 2.132 3.383 2.992.47.205.84.326 1.129.418.475.152.904.129 1.246.08.38-.058 1.171-.48 1.338-.943.164-.464.164-.86.114-.943-.049-.084-.182-.133-.38-.232z"/></svg>
+                                                <span>WhatsApp</span>
+                                            </span>
+                                        </th>
+                                        <th class="min-w-90px">
+                                            <span class="d-inline-flex align-items-center gap-1.5">
+                                                <i class="fa fa-envelope text-primary fs-6"></i>
+                                                <span>Email</span>
+                                            </span>
+                                        </th>
+                                        <th class="min-w-100px text-end pe-3">Actions</th>
                                     </tr>
                                 </thead>
 
@@ -107,37 +155,57 @@
                                             $emailCount = \App\Models\EmailThreadLabel::where('label_id', $label->id)->count();
                                         @endphp
                                         <tr>
-                                            <td class="ps-4 fw-bold text-gray-600">{{ $index + 1 }}</td>
+                                            <td class="ps-3 text-center">
+                                                <span class="badge badge-light-dark fw-bold px-2 py-1 fs-8">{{ $label->sequence ?? ($index + 1) }}</span>
+                                            </td>
                                             <td>
                                                 <span class="badge px-3 py-2 fs-7 fw-bold" style="background-color: {{ $label->color }}; color: #ffffff;">
                                                     <i class="fa fa-tag me-1 text-white opacity-75"></i> {{ $label->name }}
                                                 </span>
                                             </td>
                                             <td>
-                                                <div class="d-flex align-items-center gap-2">
-                                                    <span class="d-inline-block rounded-circle" style="width: 14px; height: 14px; background-color: {{ $label->color }};"></span>
-                                                    <code class="text-dark">{{ $label->color }}</code>
+                                                <div class="d-flex flex-wrap gap-1">
+                                                    @if($label->is_whatsapp)
+                                                        <span class="badge badge-light-success py-1 px-2 fs-9 d-inline-flex align-items-center gap-1" title="WhatsApp Chat enabled">
+                                                            <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" fill="#25D366" viewBox="0 0 16 16"><path d="M13.601 2.326A7.854 7.854 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.366 2.76 1.057 3.965L0 16l4.204-1.102a7.933 7.933 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.898 7.898 0 0 0 13.6 2.326zM7.994 14.521a6.573 6.573 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.557 6.557 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592zm3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.729.729 0 0 0-.529.247c-.182.198-.691.677-.691 1.654 0 .977.71 1.916.81 2.049.098.133 1.394 2.132 3.383 2.992.47.205.84.326 1.129.418.475.152.904.129 1.246.08.38-.058 1.171-.48 1.338-.943.164-.464.164-.86.114-.943-.049-.084-.182-.133-.38-.232z"/></svg>
+                                                            <span>WA</span>
+                                                        </span>
+                                                    @endif
+                                                    @if($label->is_email)
+                                                        <span class="badge badge-light-primary py-1 px-2 fs-9 d-inline-flex align-items-center gap-1" title="Email Threads enabled">
+                                                            <i class="fa fa-envelope text-primary" style="font-size: 11px;"></i>
+                                                            <span>Email</span>
+                                                        </span>
+                                                    @endif
+                                                    @if($label->is_crm)
+                                                        <span class="badge badge-light-warning py-1 px-2 fs-9 d-inline-flex align-items-center gap-1" title="CRM / Orders enabled">
+                                                            <i class="fa fa-shopping-cart text-warning" style="font-size: 11px;"></i>
+                                                            <span>CRM</span>
+                                                        </span>
+                                                    @endif
                                                 </div>
                                             </td>
                                             <td>
-                                                <span class="badge badge-light-success fw-bold">
-                                                    <i class="fa fa-whatsapp me-1"></i> {{ $waCount }} chats
+                                                <span class="badge badge-light-success fw-bold fs-8 d-inline-flex align-items-center gap-1">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="#25D366" viewBox="0 0 16 16"><path d="M13.601 2.326A7.854 7.854 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.366 2.76 1.057 3.965L0 16l4.204-1.102a7.933 7.933 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.898 7.898 0 0 0 13.6 2.326zM7.994 14.521a6.573 6.573 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.557 6.557 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592zm3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.729.729 0 0 0-.529.247c-.182.198-.691.677-.691 1.654 0 .977.71 1.916.81 2.049.098.133 1.394 2.132 3.383 2.992.47.205.84.326 1.129.418.475.152.904.129 1.246.08.38-.058 1.171-.48 1.338-.943.164-.464.164-.86.114-.943-.049-.084-.182-.133-.38-.232z"/></svg>
+                                                    <span>{{ $waCount }} chats</span>
                                                 </span>
                                             </td>
                                             <td>
-                                                <span class="badge badge-light-primary fw-bold">
-                                                    <i class="fa fa-envelope me-1"></i> {{ $emailCount }} threads
+                                                <span class="badge badge-light-primary fw-bold fs-8 d-inline-flex align-items-center gap-1">
+                                                    <i class="fa fa-envelope text-primary" style="font-size: 11px;"></i>
+                                                    <span>{{ $emailCount }} threads</span>
                                                 </span>
                                             </td>
-                                            <td class="text-end pe-4">
+                                            <td class="text-end pe-3">
                                                 <button type="button" class="btn btn-icon btn-bg-light btn-active-color-primary btn-sm me-1"
                                                     data-bs-toggle="modal" data-bs-target="#editLabelModal{{ $label->id }}" title="Edit Label">
-                                                    <i class="fa fa-pencil fs-6"></i>
+                                                    <i class="fa fa-edit text-primary fs-5"></i>
                                                 </button>
 
                                                 <button type="button" class="btn btn-icon btn-bg-light btn-active-color-danger btn-sm"
                                                     data-bs-toggle="modal" data-bs-target="#deleteLabelModal{{ $label->id }}" title="Delete Label">
-                                                    <i class="fa fa-trash fs-6"></i>
+                                                    <i class="fa fa-trash text-danger fs-5"></i>
                                                 </button>
                                             </td>
                                         </tr>
@@ -157,17 +225,54 @@
                                                         <div class="modal-body scroll-y px-10 pb-10 pt-0">
                                                             <div class="mb-5 text-center">
                                                                 <h2 class="fw-bolder">Edit Label</h2>
-                                                                <div class="text-muted fw-semibold fs-7">Modify label name and color</div>
+                                                                <div class="text-muted fw-semibold fs-7">Modify label name, channels, and sequence</div>
                                                             </div>
 
-                                                            <div class="fv-row mb-5">
+                                                            {{-- Edit Name --}}
+                                                            <div class="fv-row mb-4">
                                                                 <label class="required fw-bold fs-6 mb-2">Label Name</label>
                                                                 <input type="text" name="name" id="editLabelName{{ $label->id }}" required
                                                                     class="form-control form-control-solid" value="{{ $label->name }}"
                                                                     oninput="updateEditPreview({{ $label->id }})">
-                            </div>
+                                                            </div>
 
-                                                            <div class="fv-row mb-5">
+                                                            {{-- Edit Sequence --}}
+                                                            <div class="fv-row mb-4">
+                                                                <label class="fw-bold fs-6 mb-2">Sequence (Order)</label>
+                                                                <input type="number" name="sequence" id="editSequence{{ $label->id }}" min="1" value="{{ $label->sequence ?? 1 }}"
+                                                                    class="form-control form-control-solid">
+                                                            </div>
+
+                                                            {{-- Edit Channels --}}
+                                                            <div class="fv-row mb-4">
+                                                                <label class="fw-bold fs-6 mb-2">Applicable Channels</label>
+                                                                <div class="d-flex flex-column gap-2 p-3 bg-light rounded border">
+                                                                    <div class="form-check form-check-custom form-check-solid">
+                                                                        <input class="form-check-input" type="checkbox" name="is_whatsapp" value="1" id="editCheckWhatsapp{{ $label->id }}" {{ $label->is_whatsapp ? 'checked' : '' }}>
+                                                                        <label class="form-check-label fw-bold text-dark fs-7 cursor-pointer d-flex align-items-center gap-1.5" for="editCheckWhatsapp{{ $label->id }}">
+                                                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="#25D366" viewBox="0 0 16 16"><path d="M13.601 2.326A7.854 7.854 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.366 2.76 1.057 3.965L0 16l4.204-1.102a7.933 7.933 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.898 7.898 0 0 0 13.6 2.326zM7.994 14.521a6.573 6.573 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.557 6.557 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592zm3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.729.729 0 0 0-.529.247c-.182.198-.691.677-.691 1.654 0 .977.71 1.916.81 2.049.098.133 1.394 2.132 3.383 2.992.47.205.84.326 1.129.418.475.152.904.129 1.246.08.38-.058 1.171-.48 1.338-.943.164-.464.164-.86.114-.943-.049-.084-.182-.133-.38-.232z"/></svg>
+                                                                            <span>WhatsApp Chat</span>
+                                                                        </label>
+                                                                    </div>
+                                                                    <div class="form-check form-check-custom form-check-solid">
+                                                                        <input class="form-check-input" type="checkbox" name="is_email" value="1" id="editCheckEmail{{ $label->id }}" {{ $label->is_email ? 'checked' : '' }}>
+                                                                        <label class="form-check-label fw-bold text-dark fs-7 cursor-pointer d-flex align-items-center gap-1.5" for="editCheckEmail{{ $label->id }}">
+                                                                            <i class="fa fa-envelope text-primary"></i>
+                                                                            <span>Email Threads</span>
+                                                                        </label>
+                                                                    </div>
+                                                                    <div class="form-check form-check-custom form-check-solid">
+                                                                        <input class="form-check-input" type="checkbox" name="is_crm" value="1" id="editCheckCrm{{ $label->id }}" {{ $label->is_crm ? 'checked' : '' }}>
+                                                                        <label class="form-check-label fw-bold text-dark fs-7 cursor-pointer d-flex align-items-center gap-1.5" for="editCheckCrm{{ $label->id }}">
+                                                                            <i class="fa fa-shopping-cart text-warning"></i>
+                                                                            <span>CRM / Orders</span>
+                                                                        </label>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+
+                                                            {{-- Color Palette --}}
+                                                            <div class="fv-row mb-4">
                                                                 <label class="required fw-bold fs-6 mb-2">Color Palette</label>
                                                                 <div class="d-flex flex-wrap gap-2 mb-3">
                                                                     @foreach(['#3454d1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#f97316'] as $c)
@@ -183,8 +288,8 @@
                                                                 </div>
                                                             </div>
 
-                                                            <div class="fv-row mb-6 p-4 rounded bg-light border border-dashed text-center">
-                                                                <label class="fs-8 text-muted fw-bold text-uppercase d-block mb-2">Preview</label>
+                                                            <div class="fv-row mb-6 p-3 rounded bg-light border border-dashed text-center">
+                                                                <label class="fs-8 text-muted fw-bold text-uppercase d-block mb-1">Preview</label>
                                                                 <span class="badge px-3 py-2 fs-7 fw-bold" id="editBadgePreview{{ $label->id }}" style="background-color: {{ $label->color }}; color: #ffffff;">
                                                                     <i class="fa fa-tag me-1 text-white opacity-75"></i> <span id="editBadgePreviewText{{ $label->id }}">{{ $label->name }}</span>
                                                                 </span>

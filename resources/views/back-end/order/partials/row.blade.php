@@ -198,7 +198,18 @@
 
         <td class="text-center">
             @if($effectiveUser)
-            <div class="fw-bold">{{ $effectiveUser->name }}</div>
+            @php
+                $userAssignedLabels = optional($effectiveUser)->labels ?? collect();
+                $userAssignedLabelIds = $userAssignedLabels->pluck('id')->all();
+                $rawUserMobile = $effectiveUser->mobile_no ?: '';
+                $rawUserEmail = $effectiveUser->email ?: '';
+            @endphp
+            <div class="d-flex align-items-center justify-content-center gap-1">
+                <span class="fw-bold">{{ $effectiveUser->name }}</span>
+                <button type="button" class="btn btn-icon btn-sm btn-light-success p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Assign Labels" data-user-label-button="{{ $effectiveUser->id }}" data-labels='@json($userAssignedLabelIds)' onclick="event.stopPropagation(); openUserLabelModal({{ $effectiveUser->id }}, @js($effectiveUser->name), @js($rawUserMobile), @js($rawUserEmail), JSON.parse(this.dataset.labels || '[]'))">
+                    <i class="fa fa-tag fs-8 text-success"></i>
+                </button>
+            </div>
 
             @if(!empty($effectiveUser->client_review))
             <span class="duplicate-info-wrapper">
@@ -235,12 +246,11 @@
                     {{ $label }}
                 </span>
                 @php
-                    $rawMobile = $effectiveUser->mobile_no;
                     $displayMobile = ($effectiveUser->countrycode ? ('+' . $effectiveUser->countrycode . ' ') : '') . $effectiveUser->mobile_no;
                 @endphp
-                @if(!empty($rawMobile))
+                @if(!empty($rawUserMobile))
                     <span class="badge badge-light-danger fs-7 fw-bold">{{ $displayMobile }}</span>
-                    <button type="button" class="btn btn-icon btn-sm btn-active-light-danger p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Mobile" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $rawMobile }}', 'Mobile number copied!');">
+                    <button type="button" class="btn btn-icon btn-sm btn-active-light-danger p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Mobile" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $rawUserMobile }}', 'Mobile number copied!');">
                         <i class="fa fa-clone fs-8 text-danger"></i>
                     </button>
                 @endif
@@ -255,11 +265,24 @@
                 </div><br>
             @endif
 
+            {{-- User Assigned Labels Chips --}}
+            <div class="d-flex flex-wrap justify-content-center gap-1 my-1" data-user-labels-badges="{{ $effectiveUser->id }}" @if(!empty($rawUserMobile)) data-user-labels-badges-phone="{{ preg_replace('/\D+/', '', $rawUserMobile) }}" @endif>
+                @foreach($userAssignedLabels as $lbl)
+                    <span class="badge" style="background:{{ $lbl->color }}1f; color:{{ $lbl->color }}; border:1px solid {{ $lbl->color }}4d; font-size: 10px; padding: 2px 6px; font-weight: 600; display: inline-flex; align-items: center; gap: 3px;">
+                        <span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:{{ $lbl->color }};"></span>{{ $lbl->name }}
+                    </span>
+                @endforeach
+            </div>
+
             @if($effectiveUser->groups)
             <span data-user-group-badges="{{ $effectiveUser->id }}">@foreach($effectiveUser->groups as $group)<span class="badge badge-light-primary fs-8 me-1">{{ $group->name }}</span>@endforeach</span>
             @endif
 
             <div class="d-flex justify-content-center align-items-center gap-2 mt-2">
+                <button type="button" class="btn btn-icon btn-sm btn-light-success" title="Assign Labels" data-user-label-button="{{ $effectiveUser->id }}" data-labels='@json($userAssignedLabelIds)' onclick="openUserLabelModal({{ $effectiveUser->id }}, @js($effectiveUser->name), @js($rawUserMobile), @js($rawUserEmail), JSON.parse(this.dataset.labels || '[]'))">
+                    <i class="fa fa-tag text-success fs-7"></i>
+                </button>
+
                 <button type="button" class="btn btn-icon btn-sm btn-light-info" title="Add Review" onclick="openReviewModal({{ $effectiveUser->id }})">
                     <span class="fw-bold fs-6">B</span>
                 </button>

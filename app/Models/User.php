@@ -105,6 +105,123 @@ class User extends Authenticatable
     }
     public function groups() { return $this->belongsToMany(GroupMaster::class)->withTimestamps(); }
 
+    /**
+     * Get assigned labels for the user (across WhatsApp and Email)
+     */
+    public function getLabelsAttribute()
+    {
+        if ($this->relationLoaded('labels')) {
+            return $this->getRelation('labels');
+        }
+
+        $phones = [];
+        if (!empty($this->mobile_no)) {
+            $raw = trim($this->mobile_no);
+            $clean = preg_replace('/\D+/', '', $raw);
+            $cc = preg_replace('/\D+/', '', (string)($this->countrycode ?? ''));
+            $full = $cc . $clean;
+            $last10 = strlen($clean) >= 10 ? substr($clean, -10) : $clean;
+            $phones = array_values(array_unique(array_filter([
+                $raw, $clean, $full, '+' . $full, $last10, '+91' . $last10, '91' . $last10, '+44' . $last10, '44' . $last10,
+            ])));
+        }
+
+        $labelIds = collect();
+        if (!empty($phones)) {
+            $waLabelIds = WhatsappChatContactLabel::whereIn('phone', $phones)->pluck('label_id');
+            $labelIds = $labelIds->concat($waLabelIds);
+        }
+
+        if (!empty($this->email)) {
+            $emailLabelIds = \App\Models\EmailThreadLabel::where('email', $this->email)->pluck('label_id');
+            $labelIds = $labelIds->concat($emailLabelIds);
+        }
+
+        $uniqueIds = $labelIds->unique()->filter()->all();
+        if (empty($uniqueIds)) {
+            $emptyCollection = collect();
+            $this->setRelation('labels', $emptyCollection);
+            return $emptyCollection;
+        }
+
+        $labels = WhatsappChatLabel::whereIn('id', $uniqueIds)->ordered()->get();
+        $this->setRelation('labels', $labels);
+        return $labels;
+    }
+
+    /**
+     * Batch attach labels to a collection of users to prevent N+1 queries.
+     */
+    public static function attachLabelsToUsers($users)
+    {
+        if (empty($users)) return;
+
+        $userList = collect($users)->filter()->unique('id');
+        if ($userList->isEmpty()) return;
+
+        $allPhones = [];
+        $userPhoneMap = [];
+        $userEmailMap = [];
+        $allEmails = [];
+
+        foreach ($userList as $u) {
+            $uId = $u->id;
+            if (!empty($u->mobile_no)) {
+                $raw = trim($u->mobile_no);
+                $clean = preg_replace('/\D+/', '', $raw);
+                $cc = preg_replace('/\D+/', '', (string)($u->countrycode ?? ''));
+                $full = $cc . $clean;
+                $last10 = strlen($clean) >= 10 ? substr($clean, -10) : $clean;
+                $variants = array_values(array_unique(array_filter([
+                    $raw, $clean, $full, '+' . $full, $last10, '+91' . $last10, '91' . $last10, '+44' . $last10, '44' . $last10
+                ])));
+                foreach ($variants as $p) {
+                    $allPhones[] = $p;
+                    $userPhoneMap[$p][] = $uId;
+                }
+            }
+            if (!empty($u->email)) {
+                $cleanEmail = strtolower(trim($u->email));
+                $allEmails[] = $cleanEmail;
+                $userEmailMap[$cleanEmail][] = $uId;
+            }
+        }
+
+        $userLabelIds = [];
+        if (!empty($allPhones)) {
+            $contactLabels = WhatsappChatContactLabel::whereIn('phone', array_unique($allPhones))->get(['phone', 'label_id']);
+            foreach ($contactLabels as $cl) {
+                if (isset($userPhoneMap[$cl->phone])) {
+                    foreach ($userPhoneMap[$cl->phone] as $uId) {
+                        $userLabelIds[$uId][] = (int)$cl->label_id;
+                    }
+                }
+            }
+        }
+
+        if (!empty($allEmails)) {
+            $emailLabels = \App\Models\EmailThreadLabel::whereIn('email', array_unique($allEmails))->get(['email', 'label_id']);
+            foreach ($emailLabels as $el) {
+                $elEmail = strtolower(trim($el->email));
+                if (isset($userEmailMap[$elEmail])) {
+                    foreach ($userEmailMap[$elEmail] as $uId) {
+                        $userLabelIds[$uId][] = (int)$el->label_id;
+                    }
+                }
+            }
+        }
+
+        $allLabelIds = collect($userLabelIds)->flatten()->unique()->filter()->all();
+        $labelsById = !empty($allLabelIds) ? WhatsappChatLabel::whereIn('id', $allLabelIds)->ordered()->get()->keyBy('id') : collect();
+
+        foreach ($userList as $u) {
+            $uId = $u->id;
+            $ids = array_unique($userLabelIds[$uId] ?? []);
+            $labels = collect($ids)->map(fn($id) => $labelsById->get($id))->filter()->values();
+            $u->setRelation('labels', $labels);
+        }
+    }
+
     public function followups()
     {
         // Yahan 'Followup::class' ko apne actual follow-up model se replace karein

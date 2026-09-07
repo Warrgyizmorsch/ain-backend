@@ -49,14 +49,15 @@ if (typeof Twilio === 'undefined' || !Twilio.Device) {
 .twilio-softphone-box {
     position: fixed;
     right: 25px;
-    bottom: 90px;
-    width: 320px;
+    bottom: 30px;
+    width: 290px;
     max-width: calc(100vw - 30px);
     background: #1e1e2d;
     color: #fff;
-    border-radius: 16px;
-    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
-    z-index: 1081;
+    border-radius: 14px;
+    box-shadow: 0 16px 45px rgba(0, 0, 0, 0.45);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    z-index: 99999;
     overflow: hidden;
     display: none;
     animation: twilioSlideUp 0.25s ease-out;
@@ -66,12 +67,17 @@ if (typeof Twilio === 'undefined' || !Twilio.Device) {
     to { opacity: 1; transform: translateY(0); }
 }
 .twilio-softphone-header {
-    padding: 12px 16px;
+    padding: 10px 14px;
     background: #151521;
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
     display: flex;
     align-items: center;
     justify-content: space-between;
+    cursor: grab;
+    user-select: none;
+}
+.twilio-softphone-header:active {
+    cursor: grabbing;
 }
 .twilio-dialpad-btn {
     width: 58px;
@@ -125,11 +131,13 @@ if (typeof Twilio === 'undefined' || !Twilio.Device) {
 }
 </style>
 
-<!-- Floating Softphone Launcher Button -->
+{{-- Floating Softphone Launcher Button (Commented out per user request: calls are triggered via chat/crm call buttons and incoming call alerts) --}}
+{{--
 <button type="button" class="twilio-softphone-launcher" id="twilioSoftphoneLauncher" title="Open Twilio Dialer" onclick="twilioSoftphone.toggleWidget()">
     <i class="fa fa-phone fs-3 text-white"></i>
     <span class="twilio-softphone-badge offline" id="twilioDeviceStatusDot" title="Offline"></span>
 </button>
+--}}
 
 <!-- Floating Softphone Dialer Widget Box -->
 <div class="twilio-softphone-box" id="twilioSoftphoneBox">
@@ -195,8 +203,8 @@ if (typeof Twilio === 'undefined' || !Twilio.Device) {
             </div>
         </div>
 
-        <!-- Keypad / Dialpad Screen (Default view) -->
-        <div id="twilioDialpadView">
+        <!-- Keypad / Dialpad Screen (Default hidden, only active call shows) -->
+        <div id="twilioDialpadView" class="d-none">
             <div class="mb-3">
                 <input type="text" id="twilioDialerInput" class="form-control form-control-solid bg-dark text-white text-center font-monospace fs-4 border-0" placeholder="+Country Code Number" autocomplete="off">
             </div>
@@ -517,7 +525,14 @@ class TwilioSoftphoneController {
 
         $('#twilioActiveCallView').addClass('d-none');
         $('#twilioIncomingCallView').addClass('d-none');
-        $('#twilioDialpadView').removeClass('d-none');
+        $('#twilioDialpadView').addClass('d-none');
+
+        // Automatically hide the softphone box shortly after call concludes
+        setTimeout(() => {
+            if (!this.activeCall && !this.incomingCall) {
+                $('#twilioSoftphoneBox').fadeOut(250);
+            }
+        }, 1000);
     }
 
     openPopout() {
@@ -623,6 +638,70 @@ window.addEventListener('popstate', function(e) {
 // Auto-initialize on page load & continuous heartbeat to keep device Always Online
 $(document).ready(function() {
     window.twilioSoftphone.init();
+
+    // Make Softphone Card Draggable anywhere on screen
+    (function initDraggableSoftphone() {
+        const box = document.getElementById('twilioSoftphoneBox');
+        const header = document.querySelector('.twilio-softphone-header');
+        if (!box || !header) return;
+
+        let isDragging = false;
+        let startX = 0, startY = 0, initialLeft = 0, initialTop = 0;
+
+        function startDrag(e) {
+            if (e.target.closest('button') || e.target.closest('a') || e.target.closest('input')) return;
+            isDragging = true;
+            header.style.cursor = 'grabbing';
+
+            const rect = box.getBoundingClientRect();
+            const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+            const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+            startX = clientX;
+            startY = clientY;
+            initialLeft = rect.left;
+            initialTop = rect.top;
+
+            box.style.right = 'auto';
+            box.style.bottom = 'auto';
+            box.style.left = `${initialLeft}px`;
+            box.style.top = `${initialTop}px`;
+
+            document.addEventListener('mousemove', moveDrag);
+            document.addEventListener('mouseup', stopDrag);
+            document.addEventListener('touchmove', moveDrag, { passive: false });
+            document.addEventListener('touchend', stopDrag);
+        }
+
+        function moveDrag(e) {
+            if (!isDragging) return;
+            if (e.cancelable) e.preventDefault();
+            const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+            const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+
+            let newLeft = initialLeft + (clientX - startX);
+            let newTop = initialTop + (clientY - startY);
+
+            const maxLeft = window.innerWidth - box.offsetWidth - 10;
+            const maxTop = window.innerHeight - box.offsetHeight - 10;
+            newLeft = Math.max(10, Math.min(newLeft, maxLeft));
+            newTop = Math.max(10, Math.min(newTop, maxTop));
+
+            box.style.left = `${newLeft}px`;
+            box.style.top = `${newTop}px`;
+        }
+
+        function stopDrag() {
+            isDragging = false;
+            header.style.cursor = 'grab';
+            document.removeEventListener('mousemove', moveDrag);
+            document.removeEventListener('mouseup', stopDrag);
+            document.removeEventListener('touchmove', moveDrag);
+            document.removeEventListener('touchend', stopDrag);
+        }
+
+        header.addEventListener('mousedown', startDrag);
+        header.addEventListener('touchstart', startDrag, { passive: true });
+    })();
 
     // Auto reconnect heartbeat every 15 seconds if device drops offline (unless config error)
     setInterval(function() {

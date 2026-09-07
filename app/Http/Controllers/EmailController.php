@@ -212,7 +212,7 @@ class EmailController extends Controller
             ])->render();
         }
 
-        $allLabels = \App\Models\WhatsappChatLabel::orderBy('name')->get();
+        $allLabels = \App\Models\WhatsappChatLabel::forEmail()->ordered()->get();
         $threadIds = $threads->pluck('thread_id')->filter()->unique()->all();
         $threadLabelsMap = \App\Models\EmailThreadLabel::with('label')
             ->whereIn('thread_id', $threadIds)
@@ -332,9 +332,10 @@ class EmailController extends Controller
             ->all();
 
         $threadLabels = \App\Models\WhatsappChatLabel::whereIn('id', $threadLabelIds)
+            ->ordered()
             ->get(['id', 'name', 'color']);
 
-        $allLabels = \App\Models\WhatsappChatLabel::orderBy('name')->get();
+        $allLabels = \App\Models\WhatsappChatLabel::forEmail()->ordered()->get();
 
         if ($request->ajax() || $request->wantsJson()) {
             return response()->json([
@@ -1111,7 +1112,7 @@ class EmailController extends Controller
             \Log::warning('Failed to sync Email labels to WhatsApp: ' . $e->getMessage());
         }
 
-        $activeLabels = \App\Models\WhatsappChatLabel::whereIn('id', $labelIds)->get(['id', 'name', 'color']);
+        $activeLabels = \App\Models\WhatsappChatLabel::whereIn('id', $labelIds)->ordered()->get(['id', 'name', 'color']);
 
         return response()->json([
             'success' => true,

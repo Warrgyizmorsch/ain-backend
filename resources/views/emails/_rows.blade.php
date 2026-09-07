@@ -72,7 +72,7 @@
                     </div>
                     <div class="d-flex flex-column gap-1">
                         @php
-                            $allRowLabels = \App\Models\WhatsappChatLabel::orderBy('name')->get();
+                            $allRowLabels = \App\Models\WhatsappChatLabel::forEmail()->ordered()->get();
                             $activeRowLabelIds = $rowLabels->pluck('label_id')->toArray();
                         @endphp
                         @foreach($allRowLabels as $al)

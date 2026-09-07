@@ -7,6 +7,7 @@ use App\Models\EmailThreadLabel;
 use App\Models\Leads;
 use App\Models\User;
 use App\Models\WhatsappChatContactLabel;
+use App\Models\WhatsappChatLabel;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -14,6 +15,7 @@ class LabelSyncService
 {
     /**
      * Sync labels from WhatsApp phone to associated email threads.
+     * Only labels marked with is_email = true will sync to Email.
      *
      * @param string $phone
      * @param array<int> $labelIds
@@ -24,6 +26,13 @@ class LabelSyncService
     {
         $cleanPhone = preg_replace('/\D+/', '', $phone);
         $last10 = substr($cleanPhone, -10);
+
+        // Filter labels eligible for Email channel (is_email = true)
+        $emailEligibleLabelIds = WhatsappChatLabel::whereIn('id', $labelIds)
+            ->where('is_email', true)
+            ->pluck('id')
+            ->map(fn($id) => (int) $id)
+            ->all();
 
         // Find associated emails from Leads & Users
         $emails = collect();
@@ -85,7 +94,7 @@ class LabelSyncService
             // Sync email_thread_labels for each thread
             foreach ($threadIds as $tId) {
                 EmailThreadLabel::where('thread_id', $tId)->delete();
-                foreach ($labelIds as $lId) {
+                foreach ($emailEligibleLabelIds as $lId) {
                     EmailThreadLabel::create([
                         'thread_id' => $tId,
                         'email' => $email,
@@ -97,7 +106,7 @@ class LabelSyncService
 
             // Also keep generic customer email level label records
             EmailThreadLabel::where('email', $email)->whereNull('thread_id')->delete();
-            foreach ($labelIds as $lId) {
+            foreach ($emailEligibleLabelIds as $lId) {
                 EmailThreadLabel::create([
                     'thread_id' => null,
                     'email' => $email,
@@ -112,6 +121,7 @@ class LabelSyncService
 
     /**
      * Sync labels from Email to associated WhatsApp phone numbers.
+     * Only labels marked with is_whatsapp = true will sync to WhatsApp.
      *
      * @param string $email
      * @param string|null $threadId
@@ -123,6 +133,19 @@ class LabelSyncService
     {
         $cleanEmail = EmailMessage::extractCleanEmail($email);
 
+        // Filter labels eligible for Email channel & WhatsApp channel
+        $emailEligibleLabelIds = WhatsappChatLabel::whereIn('id', $labelIds)
+            ->where('is_email', true)
+            ->pluck('id')
+            ->map(fn($id) => (int) $id)
+            ->all();
+
+        $waEligibleLabelIds = WhatsappChatLabel::whereIn('id', $labelIds)
+            ->where('is_whatsapp', true)
+            ->pluck('id')
+            ->map(fn($id) => (int) $id)
+            ->all();
+
         // Never treat our own configured system accounts as customer email
         $configuredSystemEmails = \App\Models\EmailConfiguration::pluck('email_address')
             ->map(fn($e) => strtolower(trim($e)))
@@ -133,10 +156,10 @@ class LabelSyncService
             $cleanEmail = null;
         }
 
-        // 1. Update email_thread_labels for this thread
+        // 1. Update email_thread_labels for this thread with email eligible labels
         if (!empty($threadId)) {
             EmailThreadLabel::where('thread_id', $threadId)->delete();
-            foreach ($labelIds as $lId) {
+            foreach ($emailEligibleLabelIds as $lId) {
                 EmailThreadLabel::create([
                     'thread_id' => $threadId,
                     'email' => !empty($cleanEmail) ? $cleanEmail : null,
@@ -146,7 +169,7 @@ class LabelSyncService
             }
         } elseif (!empty($cleanEmail)) {
             EmailThreadLabel::where('email', $cleanEmail)->whereNull('thread_id')->delete();
-            foreach ($labelIds as $lId) {
+            foreach ($emailEligibleLabelIds as $lId) {
                 EmailThreadLabel::create([
                     'thread_id' => null,
                     'email' => $cleanEmail,
@@ -183,11 +206,11 @@ class LabelSyncService
 
         $uniquePhones = $phones->filter()->unique()->values()->all();
 
-        // 3. Mirror labels to WhatsApp Contact Labels if associated phone found
-        if (!empty($uniquePhones)) {
+        // 3. Mirror WA eligible labels to WhatsApp Contact Labels if associated phone found
+        if (!empty($uniquePhones) && !empty($waEligibleLabelIds)) {
             foreach ($uniquePhones as $phone) {
                 WhatsappChatContactLabel::query()->where('phone', $phone)->delete();
-                foreach ($labelIds as $lId) {
+                foreach ($waEligibleLabelIds as $lId) {
                     WhatsappChatContactLabel::query()->create([
                         'phone' => $phone,
                         'label_id' => (int) $lId,
@@ -221,13 +244,21 @@ class LabelSyncService
         // 1. Check if this email already has labels in EmailThreadLabel
         $emailLabelIds = [];
         if (!empty($cleanEmail)) {
-            $emailLabelIds = EmailThreadLabel::where('email', $cleanEmail)->pluck('label_id')->unique()->all();
+            $rawEmailLabelIds = EmailThreadLabel::where('email', $cleanEmail)->pluck('label_id')->unique()->all();
+            $emailLabelIds = WhatsappChatLabel::whereIn('id', $rawEmailLabelIds)
+                ->where('is_whatsapp', true)
+                ->pluck('id')
+                ->all();
         }
 
         // 2. Check if this phone already has labels in WhatsappChatContactLabel
         $phoneLabelIds = [];
         if (!empty($variants)) {
-            $phoneLabelIds = WhatsappChatContactLabel::whereIn('phone', $variants)->pluck('label_id')->unique()->all();
+            $rawPhoneLabelIds = WhatsappChatContactLabel::whereIn('phone', $variants)->pluck('label_id')->unique()->all();
+            $phoneLabelIds = WhatsappChatLabel::whereIn('id', $rawPhoneLabelIds)
+                ->where('is_email', true)
+                ->pluck('id')
+                ->all();
         }
 
         // 3. If email has labels but phone does not -> mirror email labels to WhatsApp

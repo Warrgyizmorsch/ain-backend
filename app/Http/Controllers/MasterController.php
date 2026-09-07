@@ -1050,7 +1050,7 @@ class MasterController extends Controller
     public function labels()
     {
         $labels = \App\Models\WhatsappChatLabel::query()
-            ->orderBy('id', 'desc')
+            ->ordered()
             ->get();
 
         return view('master.labels', compact('labels'));
@@ -1064,13 +1064,29 @@ class MasterController extends Controller
         $request->validate([
             'name' => 'required|string|max:100',
             'color' => 'required|string|max:30',
+            'sequence' => 'nullable|integer|min:1',
         ]);
+
+        $maxSeq = \App\Models\WhatsappChatLabel::max('sequence') ?? 0;
+        $targetSeq = (int) ($request->input('sequence') ?? ($maxSeq + 1));
+        if ($targetSeq <= 0) {
+            $targetSeq = $maxSeq + 1;
+        }
+
+        // Auto-shift existing labels with sequence >= targetSeq up by +1
+        \App\Models\WhatsappChatLabel::where('sequence', '>=', $targetSeq)->increment('sequence', 1);
 
         \App\Models\WhatsappChatLabel::create([
             'name' => trim($request->input('name')),
             'color' => $request->input('color'),
+            'is_whatsapp' => $request->has('is_whatsapp') ? 1 : 0,
+            'is_email' => $request->has('is_email') ? 1 : 0,
+            'is_crm' => $request->has('is_crm') ? 1 : 0,
+            'sequence' => $targetSeq,
             'created_by' => auth()->id(),
         ]);
+
+        $this->reindexLabelSequences();
 
         return redirect()->back()->with('success', 'Label created successfully!');
     }
@@ -1085,12 +1101,32 @@ class MasterController extends Controller
         $request->validate([
             'name' => 'required|string|max:100',
             'color' => 'required|string|max:30',
+            'sequence' => 'nullable|integer|min:1',
         ]);
+
+        $maxSeq = \App\Models\WhatsappChatLabel::where('id', '!=', $id)->max('sequence') ?? 0;
+        $targetSeq = (int) ($request->input('sequence') ?? ($maxSeq + 1));
+        if ($targetSeq <= 0) {
+            $targetSeq = $maxSeq + 1;
+        }
+
+        // If sequence changed, shift existing other labels with sequence >= targetSeq up by +1
+        if ((int)$label->sequence !== $targetSeq) {
+            \App\Models\WhatsappChatLabel::where('id', '!=', $id)
+                ->where('sequence', '>=', $targetSeq)
+                ->increment('sequence', 1);
+        }
 
         $label->update([
             'name' => trim($request->input('name')),
             'color' => $request->input('color'),
+            'is_whatsapp' => $request->has('is_whatsapp') ? 1 : 0,
+            'is_email' => $request->has('is_email') ? 1 : 0,
+            'is_crm' => $request->has('is_crm') ? 1 : 0,
+            'sequence' => $targetSeq,
         ]);
+
+        $this->reindexLabelSequences();
 
         return redirect()->back()->with('success', 'Label updated successfully!');
     }
@@ -1108,6 +1144,26 @@ class MasterController extends Controller
         
         $label->delete();
 
+        $this->reindexLabelSequences();
+
         return redirect()->back()->with('success', 'Label deleted successfully!');
+    }
+
+    /**
+     * Maintain consecutive sequential numbering (1, 2, 3...) without gaps or duplicates
+     */
+    private function reindexLabelSequences(): void
+    {
+        $all = \App\Models\WhatsappChatLabel::query()
+            ->orderBy('sequence', 'asc')
+            ->orderBy('id', 'asc')
+            ->get();
+
+        foreach ($all as $idx => $lbl) {
+            $properSeq = $idx + 1;
+            if ((int)$lbl->sequence !== $properSeq) {
+                $lbl->update(['sequence' => $properSeq]);
+            }
+        }
     }
 }

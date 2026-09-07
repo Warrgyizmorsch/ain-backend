@@ -95,7 +95,18 @@
                                         </td>
 										<td class="text-center">
 										@if($order->user != null && ($order->user->name != '' || $order->user->name == null))
-											<div class="fw-bold">{{ $order->user->name }}</div>
+											@php
+												$userAssignedLabels = optional($order->user)->labels ?? collect();
+												$userAssignedLabelIds = $userAssignedLabels->pluck('id')->all();
+												$rawUserMobile = $order->user->mobile_no ?: '';
+												$rawUserEmail = $order->user->email ?: '';
+											@endphp
+											<div class="d-flex align-items-center justify-content-center gap-1">
+												<span class="fw-bold">{{ $order->user->name }}</span>
+												<button type="button" class="btn btn-icon btn-sm btn-light-success p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Assign Labels" data-user-label-button="{{ $order->user->id }}" data-labels='@json($userAssignedLabelIds)' onclick="event.stopPropagation(); openUserLabelModal({{ $order->user->id }}, @js($order->user->name), @js($rawUserMobile), @js($rawUserEmail), JSON.parse(this.dataset.labels || '[]'))">
+													<i class="fa fa-tag fs-8 text-success"></i>
+												</button>
+											</div>
 											@if(!empty($order->user->email))
 												<div class="d-inline-flex align-items-center my-1">
 													<span class="text-gray-600 fs-8 text-break">{{ $order->user->email }}</span>
@@ -113,6 +124,15 @@
 													</button>
 												</div>
 											@endif
+
+											{{-- User Assigned Labels Chips --}}
+											<div class="d-flex flex-wrap justify-content-center gap-1 my-1" data-user-labels-badges="{{ $order->user->id }}" @if(!empty($rawUserMobile)) data-user-labels-badges-phone="{{ preg_replace('/\D+/', '', $rawUserMobile) }}" @endif>
+												@foreach($userAssignedLabels as $lbl)
+													<span class="badge" style="background:{{ $lbl->color }}1f; color:{{ $lbl->color }}; border:1px solid {{ $lbl->color }}4d; font-size: 10px; padding: 2px 6px; font-weight: 600; display: inline-flex; align-items: center; gap: 3px;">
+														<span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:{{ $lbl->color }};"></span>{{ $lbl->name }}
+													</span>
+												@endforeach
+											</div>
 										@else
 											N/A
 										@endif
@@ -529,5 +549,6 @@
     }
 </script>
 
+  @include('back-end.order.partials.user-label-modal')
   @endsection
   

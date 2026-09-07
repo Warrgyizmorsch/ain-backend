@@ -5,8 +5,18 @@
     $contacts = $contacts ?? [];
     $messages = $messages ?? collect();
     $selectedContact = $selectedContact ?? null;
-    $selectedName = $selectedContact['name'] ?? 'Select chat';
+    $selectedContactName = trim($selectedContact['name'] ?? '');
     $selectedPhone = $selectedPhone ?? ($selectedContact['phone'] ?? '');
+    $cleanSelectedPhone = preg_replace('/\D+/', '', (string)$selectedPhone);
+    $cleanSelectedName = preg_replace('/\D+/', '', (string)$selectedContactName);
+
+    if (!$selectedPhone && empty($selectedContactName)) {
+        $selectedName = 'Select chat';
+    } elseif (empty($selectedContactName) || $selectedContactName === $selectedPhone || ($cleanSelectedPhone !== '' && $cleanSelectedName === $cleanSelectedPhone) || $selectedContactName === 'System') {
+        $selectedName = 'Unknown User';
+    } else {
+        $selectedName = $selectedContactName;
+    }
     $selectedColor = $selectedContact['color'] ?? '#25d366';
     $panelDefinitions = $panelDefinitions ?? [];
     $enabledPanelKeys = $enabledPanelKeys ?? [];
@@ -86,8 +96,9 @@
         <div class="wab-tabs">
             <button class="wab-tab active" data-tab="all">All</button>
             <button class="wab-tab" data-tab="unread">Unread</button>
-            <button class="wab-tab" data-tab="groups">Groups</button>
             <button class="wab-tab" data-tab="archived">Archived</button>
+            <button class="wab-tab" data-tab="groups">Groups</button>
+            <button class="wab-tab" data-tab="history">History</button>
         </div>
 
         {{-- Label Filter Slider Carousel --}}
@@ -117,34 +128,48 @@
 
         {{-- Contact List --}}
         @php
-            $contacts = [
-                ['id'=>1,'name'=>'Aarav Sharma',   'msg'=>'Please share the payment link.','time'=>'10:42','active'=>true, 'badge'=>2,'color'=>'#25d366','status'=>'online'],
-                ['id'=>2,'name'=>'Maya Patel',     'msg'=>'Deadline confirmation needed.', 'time'=>'09:18','active'=>false,'badge'=>0,'color'=>'#00bcd4','status'=>'away'],
-                ['id'=>3,'name'=>'Karan Singh',    'msg'=>'I uploaded the new files ✅',   'time'=>'Yest.','active'=>false,'badge'=>1,'color'=>'#ff7043','status'=>'offline'],
-                ['id'=>4,'name'=>'Nisha Verma',    'msg'=>'Thank you for the update 🙏',   'time'=>'Mon',  'active'=>false,'badge'=>0,'color'=>'#ab47bc','status'=>'online'],
-                ['id'=>5,'name'=>'Raj Mehta',      'msg'=>'Can we reschedule?',            'time'=>'Sun',  'active'=>false,'badge'=>3,'color'=>'#ffa726','status'=>'away'],
-                ['id'=>6,'name'=>'Priya Iyer',     'msg'=>'Order placed successfully!',    'time'=>'Fri',  'active'=>false,'badge'=>0,'color'=>'#ef5350','status'=>'offline'],
-            ];
+            $contacts = $contacts ?? ($dynamicContacts ?? []);
         @endphp
-        @php $contacts = $dynamicContacts ?? $contacts; @endphp
+        {{-- Top Sidebar Loading Spinner on Tab/Filter change --}}
+        <div id="wabSidebarTopLoader" class="text-center py-2 d-none" style="width:100%;background:#f0f2f5;border-bottom:1px solid #e9edef;">
+            <div class="spinner-border spinner-border-sm text-success" role="status" style="width:1.1rem;height:1.1rem">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <span class="ms-2 fs-9 text-muted fw-bold" id="wabSidebarTopLoaderText">Loading chats...</span>
+        </div>
 
         <div class="wab-contact-list" id="wabContactList">
             @foreach($contacts as $c)
             @php
                 $cPhone = $c['phone'] ?? '';
+                $rawCName = trim($c['name'] ?? '');
+                $cleanCPhone = preg_replace('/\D+/', '', (string)$cPhone);
+                $cleanCName = preg_replace('/\D+/', '', (string)$rawCName);
+                if (empty($rawCName) || $rawCName === $cPhone || ($cleanCPhone !== '' && $cleanCName === $cleanCPhone) || $rawCName === 'System') {
+                    $cDisplayName = 'Unknown User';
+                } else {
+                    $cDisplayName = $rawCName;
+                }
                 $cLabelIds = $allContactLabelMap->get($cPhone, []);
                 $cLabels = $cLabelIds ? $labels->whereIn('id', $cLabelIds) : collect();
                 $cIsArchived = !empty($c['is_archived']);
+                $cIsPinned = !empty($c['is_pinned']);
+                $cIsClosed = !empty($c['is_closed']);
             @endphp
-            <div class="wab-contact-item {{ $c['active'] ? 'is-active' : '' }}" id="wab-contact-card-{{ preg_replace('/\D+/', '', $cPhone) }}" data-name="{{ strtolower($c['name']) }}" data-contact-id="{{ $c['id'] }}" data-url="{{ isset($c['phone']) ? route('whatsapp.chat', ['phone' => $c['phone']]) : '' }}" data-phone="{{ $cPhone }}" data-color="{{ $c['color'] }}" data-badge="{{ $c['badge'] ?? 0 }}" data-is-group="{{ !empty($c['is_group']) ? '1' : '0' }}" data-is-archived="{{ $cIsArchived ? '1' : '0' }}" data-label-ids="{{ json_encode(array_values(array_map('strval', $cLabelIds ?? []))) }}">
+            <div class="wab-contact-item {{ $c['active'] ? 'is-active' : '' }}" id="wab-contact-card-{{ preg_replace('/\D+/', '', $cPhone) }}" data-name="{{ strtolower($cDisplayName) }}" data-contact-id="{{ $c['id'] }}" data-url="{{ isset($c['phone']) ? route('whatsapp.chat', ['phone' => $c['phone']]) : '' }}" data-phone="{{ $cPhone }}" data-color="{{ $c['color'] }}" data-badge="{{ $c['badge'] ?? 0 }}" data-is-group="{{ !empty($c['is_group']) ? '1' : '0' }}" data-is-archived="{{ $cIsArchived ? '1' : '0' }}" data-is-pinned="{{ $cIsPinned ? '1' : '0' }}" data-is-closed="{{ $cIsClosed ? '1' : '0' }}" data-label-ids="{{ json_encode(array_values(array_map('strval', $cLabelIds ?? []))) }}">
                 <div class="wab-avatar" style="background:{{ $c['color'] }}1a;color:{{ $c['color'] }}">
-                    {{ strtoupper(substr($c['name'],0,1)) }}
+                    {{ strtoupper(substr($cDisplayName,0,1)) }}
                     <span class="wab-status-badge wab-status--{{ $c['status'] }}"></span>
                 </div>
                 <div class="wab-contact-info">
                     <div class="wab-contact-row-top">
-                        <span class="wab-contact-name">{{ $c['name'] }}</span>
-                        <span class="wab-contact-time">{{ $c['time'] }}</span>
+                        <span class="wab-contact-name">{{ $cDisplayName }}</span>
+                        <div class="d-flex align-items-center gap-1">
+                            <span class="wab-pin-indicator text-muted" title="Pinned chat" style="display: {{ $cIsPinned ? 'inline-flex' : 'none' }}; align-items: center;">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="0.5" style="transform: rotate(45deg); color: #8696a0;"><path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2l-2-2z"/></svg>
+                            </span>
+                            <span class="wab-contact-time">{{ $c['time'] }}</span>
+                        </div>
                     </div>
                     <div class="wab-contact-row-bottom">
                         <span class="wab-contact-preview">{{ $c['msg'] }}</span>
@@ -152,6 +177,9 @@
                             @if($c['badge'])
                                 <span class="wab-badge">{{ $c['badge'] }}</span>
                             @endif
+                            <button type="button" class="wab-quick-copy-btn" onclick="event.stopPropagation(); copyPhoneNumberToClipboard('{{ $cPhone }}', this)" title="Copy phone number">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+                            </button>
                             <button type="button" class="wab-quick-tag-btn" onclick="event.stopPropagation(); openQuickLabelModal('{{ $cPhone }}', '{{ addslashes($c['name']) }}', {{ json_encode($cLabelIds) }})" title="Assign Labels">
                                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
                             </button>
@@ -160,6 +188,18 @@
                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>
                                 </button>
                                 <ul class="dropdown-menu dropdown-menu-end shadow-sm border py-1" style="min-width: 160px; font-size: 13px; z-index: 1050;">
+                                    <li>
+                                        <a class="dropdown-item d-flex align-items-center gap-2 py-2" href="javascript:void(0)" onclick="window.toggleChatPin('{{ $cPhone }}')">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 17v5M5 12l2-2V4a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v6l2 2v2H5v-2z"/></svg>
+                                            <span class="wab-pin-item-text">{{ $cIsPinned ? 'Unpin chat' : 'Pin chat' }}</span>
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a class="dropdown-item d-flex align-items-center gap-2 py-2" href="javascript:void(0)" onclick="copyPhoneNumberToClipboard('{{ $cPhone }}')">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+                                            <span>Copy number</span>
+                                        </a>
+                                    </li>
                                     <li>
                                         <a class="dropdown-item d-flex align-items-center gap-2 py-2" href="javascript:void(0)" onclick="window.toggleChatArchive('{{ $cPhone }}')">
                                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></svg>
@@ -213,14 +253,6 @@
     {{-- ── CONVERSATION PANEL ── --}}
     <section class="wab-conversation" style="position:relative">
 
-        {{-- Instant Chat Preloader / Skeleton --}}
-        <div id="wabChatPreloader" class="wab-chat-preloader d-none">
-            <div class="spinner-border text-success" role="status" style="width:2.2rem;height:2.2rem">
-                <span class="visually-hidden">Loading messages...</span>
-            </div>
-            <div class="mt-2 text-dark fw-bold fs-7" id="wabChatPreloaderText">Loading conversation...</div>
-        </div>
-
         @unless($selectedPhone)
             <div class="wab-blank-chat">
                 <div class="wab-blank-actions">
@@ -252,6 +284,11 @@
                     <div class="wab-conv-status">
                         <span class="wab-online-dot"></span>
                         <span id="wabTypingLabel">{{ $selectedPhone ?: 'ready' }}</span>
+                        @if($selectedPhone)
+                        <button type="button" class="btn btn-sm btn-icon p-0 ms-1 border-0" id="waHeaderCopyPhoneBtn" style="width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;background:transparent;color:var(--wa-text-muted);" onclick="event.stopPropagation(); copyPhoneNumberToClipboard(window.selectedPhone || '{{ $selectedPhone }}', this)" title="Copy phone number">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+                        </button>
+                        @endif
                     </div>
                     @if($activeLabels->isNotEmpty())
                         <div class="wab-chat-label-row">
@@ -265,39 +302,53 @@
             <div class="wab-conv-actions" id="wabConvActions">
                 <div id="wabChatActionButtons" class="d-flex align-items-center gap-2 {{ !$selectedPhone ? 'd-none' : '' }}">
                     {{-- Leads Button (Only show if unconverted leads_count > 0) --}}
-                    <button type="button" class="wab-label-btn {{ ($customerSummary['leads_count'] ?? 0) > 0 ? '' : 'd-none' }}" style="background:#fff3e0;color:#e65100;border:1px solid #ffe0b2;border-radius:5px;" data-bs-toggle="modal" data-bs-target="#waCheckLeadsModal" id="waHeaderCheckLeadsBtn" title="Check Leads for this customer">
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
-                        <span id="waHeaderCheckLeadsText">Leads @if(($customerSummary['leads_count'] ?? 0) > 0) ({{ $customerSummary['leads_count'] }}) @endif</span>
+                    <button type="button" class="wab-header-action-btn wab-header-btn-leads {{ ($customerSummary['leads_count'] ?? 0) > 0 ? '' : 'd-none' }}" data-bs-toggle="modal" data-bs-target="#waCheckLeadsModal" id="waHeaderCheckLeadsBtn" title="Check Leads for this customer">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                        <span id="waHeaderCheckLeadsText">Leads @if(($customerSummary['leads_count'] ?? 0) > 0)({{ $customerSummary['leads_count'] }})@endif</span>
                     </button>
 
                     {{-- Orders Button (Only show if converted orders_count > 0) --}}
-                    <button type="button" class="wab-label-btn {{ ($customerSummary['orders_count'] ?? 0) > 0 ? '' : 'd-none' }}" style="background:#f3e5f5;color:#6a1b9a;border:1px solid #e1bee7;border-radius:5px;" data-bs-toggle="modal" data-bs-target="#waCheckOrdersModal" id="waHeaderCheckOrdersBtn" title="Check Orders for this customer">
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg>
-                        <span id="waHeaderCheckOrdersText">Orders @if(($customerSummary['orders_count'] ?? 0) > 0) ({{ $customerSummary['orders_count'] }}) @endif</span>
+                    <button type="button" class="wab-header-action-btn wab-header-btn-orders {{ ($customerSummary['orders_count'] ?? 0) > 0 ? '' : 'd-none' }}" data-bs-toggle="modal" data-bs-target="#waCheckOrdersModal" id="waHeaderCheckOrdersBtn" title="Check Orders for this customer">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg>
+                        <span id="waHeaderCheckOrdersText">Orders @if(($customerSummary['orders_count'] ?? 0) > 0)({{ $customerSummary['orders_count'] }})@endif</span>
                     </button>
 
-                    {{-- Create Lead Button (+ button opening Lead CRM Modal) --}}
-                    <button type="button" class="wab-label-btn" style="background:#00a884;color:#fff;border:none;font-weight:700;border-radius:5px;" data-bs-toggle="modal" data-bs-target="#kt_modal_create_appaa_newLeads" id="waHeaderCreateLeadBtn" title="Create New Lead">
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>
-                        + Lead
+                    {{-- Create Lead Button (Circle Plus Icon Only) --}}
+                    <button type="button" class="wab-header-icon-btn wab-header-btn-create-lead" data-bs-toggle="modal" data-bs-target="#kt_modal_create_appaa_newLeads" id="waHeaderCreateLeadBtn" title="Create New Lead">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>
                     </button>
 
-                    {{-- Label Chat Button --}}
-                    <button type="button" class="wab-label-btn" style="border-radius:5px;" data-bs-toggle="modal" data-bs-target="#waAssignLabelsModal" id="waHeaderLabelChatBtn" title="Label chat">
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
-                        Label chat
+                    {{-- Twilio Call Button (Call Icon Only) --}}
+                    <button type="button" class="wab-header-icon-btn wab-header-btn-call" id="waHeaderCallBtn" title="Call customer via Twilio" onclick="initiateCustomerCall()">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+                    </button>
+
+                    {{-- Label Chat Button (Tag Icon Only) --}}
+                    <button type="button" class="wab-header-icon-btn wab-header-btn-label" onclick="openQuickLabelModal(window.selectedPhone || window.selectedCustomerPhone, window.selectedCustomerName || '{{ addslashes($selectedContact['name'] ?? $selectedPhone) }}')" id="waHeaderLabelChatBtn" title="Assign Labels">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+                    </button>
+
+                    {{-- Send Template Button (Shown ONLY when chat is ended / 24h window closed) --}}
+                    @php
+                        $selectedIsClosed = !empty($selectedContact['is_closed']);
+                    @endphp
+                    <button type="button" class="wab-header-action-btn wab-header-btn-template {{ $selectedIsClosed ? '' : 'd-none' }}" data-bs-toggle="modal" data-bs-target="#waSendTemplateModal" onclick="openSendTemplateModal()" id="waHeaderSendTemplateBtn" title="Send WhatsApp Template">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                        <span>Template</span>
                     </button>
                 </div>
 
-                <button class="wab-icon-btn" id="wabOpenProfileBtn2" title="Contact Info">
+                <button class="wab-icon-btn ms-1" id="wabOpenProfileBtn2" title="Contact Info">
                     <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
                 </button>
 
-                <div class="wab-chat-more {{ !$selectedPhone ? 'd-none' : '' }}" id="wabChatMoreWrapper">
+                <div class="wab-chat-more ms-1 {{ !$selectedPhone ? 'd-none' : '' }}" id="wabChatMoreWrapper">
                     <button class="wab-icon-btn" id="wabChatMoreBtn" title="More options">
                         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
                     </button>
                     <div class="wab-chat-menu" id="wabChatMenu">
+                        <button type="button" id="wabSendTemplateMenuBtn" class="{{ $selectedIsClosed ? '' : 'd-none' }}" data-bs-toggle="modal" data-bs-target="#waSendTemplateModal" onclick="openSendTemplateModal()">Send template</button>
+                        <button type="button" id="wabPinChatBtn">Pin chat</button>
                         <button type="button" id="wabMarkUnreadBtn">Mark as unread</button>
                         <button type="button" id="wabArchiveChatBtn">Archive chat</button>
                         <a href="{{ route('whatsapp.chat') }}" id="wabCloseChatBtn">Close chat</a>
@@ -522,13 +573,42 @@
 
         </div>
 
-        {{-- Conv Footer --}}
-        <form class="wab-conv-footer {{ !$selectedPhone ? 'd-none' : '' }}" method="POST" action="{{ route('whatsapp.chat.send') }}">
+        {{-- 24h Window Closed Banner (Shown when chat is ended / 24h expired) --}}
+        @php
+            $isClosedChat = !empty($selectedContact['is_closed']);
+        @endphp
+        <div class="wab-24h-closed-banner {{ ($isClosedChat && $selectedPhone) ? '' : 'd-none' }}" id="wab24hClosedBanner">
+            <div class="d-flex align-items-center gap-3">
+                <div class="wab-closed-icon-wrap" style="width:38px;height:38px;border-radius:50%;background:#fef3c7;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="#d97706" stroke="#d97706" stroke-width="0.5">
+                        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+                    </svg>
+                </div>
+                <div>
+                    <div class="fw-bold text-dark fs-7 mb-0.5">24-Hour Messaging Window Closed</div>
+                    <div class="text-muted fs-8">Regular chat input is disabled. Send an approved template message to restart the 24-hour chat window.</div>
+                </div>
+            </div>
+            <button type="button" class="btn btn-warning fw-bold py-2 px-4 d-flex align-items-center gap-2 shadow-sm rounded-pill" data-bs-toggle="modal" data-bs-target="#waSendTemplateModal" onclick="openSendTemplateModal()" id="wabBannerTemplateBtn" style="font-size:13px;background:linear-gradient(135deg,#f59e0b,#d97706);border:none;color:#fff;white-space:nowrap;">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="0">
+                    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+                </svg>
+                <span>⚡ Send Template</span>
+            </button>
+        </div>
+
+        {{-- Conv Footer (Hidden when chat is closed / 24h expired) --}}
+        <form class="wab-conv-footer {{ (!$selectedPhone || $isClosedChat) ? 'd-none' : '' }}" id="wabConvFooterForm" method="POST" action="{{ route('whatsapp.chat.send') }}">
             @csrf
             <input type="hidden" name="phone" value="{{ $selectedPhone }}">
             <div class="wab-footer-actions-left">
                 <button type="button" class="wab-icon-btn wab-emoji-btn" id="wabEmojiBtn" title="Emoji">
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
+                </button>
+                <button type="button" class="wab-icon-btn wab-template-btn" data-bs-toggle="modal" data-bs-target="#waSendTemplateModal" onclick="openSendTemplateModal()" id="wabFooterTemplateBtn" title="Send WhatsApp Template (⚡ Quick Response)">
+                    <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+                    </svg>
                 </button>
                 <button type="button" class="wab-icon-btn wab-plus-btn" id="wabAttachBtn" title="Attach">
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -833,7 +913,7 @@
 </div>
 
 {{-- ══════════════════════════════════════════════════
-     ASSIGN LABELS MODAL (Multiple Label Tagging + Cross Sync)
+     ASSIGN LABELS MODAL (Real-time Tap-to-Toggle + Cross Sync)
 ══════════════════════════════════════════════════ --}}
 <div class="modal fade" id="waAssignLabelsModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-sm">
@@ -841,28 +921,31 @@
             <form method="POST" action="{{ route('whatsapp.chat.contact-labels.save') }}" id="waAssignLabelsForm">
                 @csrf
                 <input type="hidden" name="phone" id="waAssignPhoneInput" value="{{ $selectedPhone }}">
-                <div class="modal-header wab-modal-header" style="background: linear-gradient(135deg, #3454d1, #1e3a8a);">
-                    <div class="wab-modal-icon" style="background: rgba(255,255,255,0.2);">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+                <div class="modal-header wab-modal-header" style="background: linear-gradient(135deg, #075E54, #128C7E); padding: 14px 16px;">
+                    <div class="wab-modal-icon" style="background: rgba(255,255,255,0.2); width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center;">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
                     </div>
                     <div>
-                        <h5 class="modal-title wab-modal-title text-white">Assign Labels</h5>
-                        <div class="text-white opacity-75 fs-8" id="waAssignContactSubtitle">Auto-synced with Email inbox</div>
+                        <h5 class="modal-title wab-modal-title text-white fs-5 fw-bold mb-0">Label Chat</h5>
+                        <div class="text-white opacity-75 fs-9" id="waAssignContactSubtitle">Real-time Auto Save &amp; Sync</div>
                     </div>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body wab-modal-body p-3">
                     <div class="d-flex align-items-center justify-content-between mb-2 px-1">
-                        <span class="fs-8 text-muted fw-bold text-uppercase">Select Labels</span>
+                        <span class="fs-8 text-muted fw-bold text-uppercase">Labels (Tap to Toggle)</span>
                         <a href="{{ route('labels.index') }}" target="_blank" class="fs-9 text-primary fw-semibold"><i class="fa fa-cog"></i> Master</a>
                     </div>
-                    <div class="d-flex flex-column gap-1">
+                    <div class="d-flex flex-column gap-1.5" id="waModalLabelsList">
                         @forelse($labels as $label)
-                            <label class="form-check form-check-custom form-check-solid d-flex align-items-center gap-2 p-2 rounded hover-bg-light cursor-pointer mb-0">
-                                <input class="form-check-input wa-contact-label-modal-chk" type="checkbox" name="labels[{{ $label->id }}]" value="1" id="wa-chk-label-{{ $label->id }}" data-label-id="{{ $label->id }}" data-name="{{ $label->name }}" data-color="{{ $label->color }}" onchange="autoApplyWhatsAppModalLabels()" {{ in_array($label->id, $selectedContactLabels) ? 'checked' : '' }}>
-                                <span class="badge px-2.5 py-1 fs-8 fw-bold" style="background-color: {{ $label->color }}; color: #ffffff;">
-                                    {{ $label->name }}
-                                </span>
+                            <label class="form-check form-check-custom form-check-solid d-flex align-items-center justify-content-between p-2.5 rounded hover-bg-light cursor-pointer mb-0 border border-transparent" style="transition: background 0.15s, border-color 0.15s;">
+                                <div class="d-flex align-items-center gap-2">
+                                    <input class="form-check-input wa-contact-label-modal-chk" type="checkbox" name="labels[{{ $label->id }}]" value="1" id="wa-chk-label-{{ $label->id }}" data-label-id="{{ $label->id }}" data-name="{{ $label->name }}" data-color="{{ $label->color }}" onchange="autoApplyWhatsAppModalLabels()" {{ in_array($label->id, $selectedContactLabels) ? 'checked' : '' }}>
+                                    <span class="badge px-2.5 py-1.5 fs-8 fw-bold" style="background-color: {{ $label->color }}; color: #ffffff;">
+                                        {{ $label->name }}
+                                    </span>
+                                </div>
+                                <span class="fs-9 text-muted fw-semibold">Seq {{ $label->sequence ?? 1 }}</span>
                             </label>
                         @empty
                             <div class="text-center py-4 text-muted fs-8">
@@ -871,9 +954,9 @@
                         @endforelse
                     </div>
                 </div>
-                <div class="modal-footer wab-modal-footer p-2">
-                    <button type="button" class="wab-btn wab-btn--ghost" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="wab-btn wab-btn--primary">Save &amp; Sync</button>
+                <div class="modal-footer wab-modal-footer p-2.5 d-flex align-items-center justify-content-between">
+                    <span class="fs-9 text-success fw-bold" id="waLabelRealtimeSyncStatus"><i class="fa fa-check-circle me-1"></i> Auto-synced</span>
+                    <button type="button" class="btn btn-sm btn-light-primary fw-bold px-4" data-bs-dismiss="modal">Done</button>
                 </div>
             </form>
         </div>
@@ -1122,18 +1205,6 @@
 .wab-crm-border-table tbody tr:hover {
     background-color: #f8fafc !important;
 }
-.wab-chat-preloader {
-    position: absolute;
-    inset: 0;
-    background: rgba(240, 242, 245, 0.88);
-    backdrop-filter: blur(3px);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    z-index: 100;
-    transition: opacity 0.2s ease;
-}
 </style>
 
 {{-- ══════════════════════════════════════════════════
@@ -1182,17 +1253,17 @@
 
                 {{-- Table Wrap --}}
                 <div id="waLeadsTableWrap" class="table-responsive d-none">
-                    <table class="table table-bordered table-hover table-striped align-middle mb-0 fs-8 wab-crm-border-table" id="waLeadsTable" style="border:1px solid #cbd5e1 !important">
+                    <table class="table table-bordered table-hover align-middle mb-0 fs-8 wab-crm-border-table" id="waLeadsTable" style="border:1px solid #cbd5e1 !important">
                         <thead class="bg-light fw-bolder text-uppercase text-gray-800 fs-9 position-sticky top-0" style="z-index:2;background:#f1f5f9 !important">
                             <tr>
                                 <th style="border:1px solid #cbd5e1 !important;width:40px;text-align:center">#</th>
-                                <th style="border:1px solid #cbd5e1 !important">Lead ID</th>
-                                <th style="border:1px solid #cbd5e1 !important">Title &amp; Service</th>
-                                <th style="border:1px solid #cbd5e1 !important;text-align:center">Words</th>
-                                <th style="border:1px solid #cbd5e1 !important;min-width:130px">Total &amp; Due Amount</th>
-                                <th style="border:1px solid #cbd5e1 !important;text-align:center">Status</th>
-                                <th style="border:1px solid #cbd5e1 !important;min-width:140px">Dates (Deadline / Created)</th>
-                                <th style="border:1px solid #cbd5e1 !important;text-align:end">Action</th>
+                                <th style="border:1px solid #cbd5e1 !important;min-width:130px;text-align:start">Lead ID</th>
+                                <th style="border:1px solid #cbd5e1 !important;min-width:160px;text-align:start">Title &amp; Service</th>
+                                <th style="border:1px solid #cbd5e1 !important;width:75px;text-align:center">Words</th>
+                                <th style="border:1px solid #cbd5e1 !important;min-width:130px;text-align:start">Total &amp; Due</th>
+                                <th style="border:1px solid #cbd5e1 !important;width:110px;text-align:center">Status</th>
+                                <th style="border:1px solid #cbd5e1 !important;min-width:170px;text-align:start">Dates</th>
+                                <th style="border:1px solid #cbd5e1 !important;width:85px;text-align:center">Action</th>
                             </tr>
                         </thead>
                         <tbody id="waLeadsTbody"></tbody>
@@ -1220,16 +1291,18 @@
 <div class="modal fade" id="waCheckOrdersModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered mw-1000px modal-dialog-scrollable">
         <div class="modal-content wab-modal-content">
-            <div class="modal-header wab-modal-header" style="background:linear-gradient(135deg,#6a1b9a,#4a148c)">
-                <div class="wab-modal-icon" style="background:rgba(255,255,255,0.2)">
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg>
-                </div>
-                <div class="d-flex flex-column">
-                    <h5 class="modal-title wab-modal-title text-white mb-0">Customer Orders History</h5>
-                    <div class="text-white opacity-75 fs-8">Customer: <strong>{{ $selectedContact['name'] ?? 'User' }}</strong> ({{ $selectedPhone }})</div>
+            <div class="modal-header wab-modal-header" style="background:linear-gradient(135deg,#6a1b9a,#4a148c);padding:14px 20px;">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="wab-modal-icon" style="background:rgba(255,255,255,0.2);width:36px;height:36px;display:flex;align-items:center;justify-content:center;border-radius:8px;">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg>
+                    </div>
+                    <div>
+                        <h5 class="modal-title wab-modal-title text-white mb-0" style="font-size:15px;font-weight:700;">Customer Orders History</h5>
+                        <div class="text-white opacity-75 fs-9">Customer: <strong class="text-white">{{ $selectedContact['name'] ?? 'User' }}</strong> ({{ $selectedPhone }})</div>
+                    </div>
                 </div>
                 <div class="ms-auto d-flex align-items-center gap-2">
-                    <a href="{{ route('orders.index') }}" target="_blank" id="waOrdersModalViewAllBtn" class="btn btn-sm btn-light py-1 px-3 fs-8 fw-bold" title="Open Orders page for this customer">
+                    <a href="{{ route('orders.index') }}" target="_blank" id="waOrdersModalViewAllBtn" class="btn btn-sm btn-light py-1.5 px-3 fs-9 fw-bold rounded" title="Open Orders page for this customer">
                         <i class="fa fa-external-link me-1"></i>View All Orders
                     </a>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
@@ -1254,17 +1327,17 @@
 
                 {{-- Table Wrap --}}
                 <div id="waOrdersTableWrap" class="table-responsive d-none">
-                    <table class="table table-bordered table-hover table-striped align-middle mb-0 fs-8 wab-crm-border-table" id="waOrdersTable" style="border:1px solid #cbd5e1 !important">
+                    <table class="table table-bordered table-hover align-middle mb-0 fs-8 wab-crm-border-table" id="waOrdersTable" style="border:1px solid #cbd5e1 !important">
                         <thead class="bg-light fw-bolder text-uppercase text-gray-800 fs-9 position-sticky top-0" style="z-index:2;background:#f1f5f9 !important">
                             <tr>
-                                <th style="border:1px solid #cbd5e1 !important;width:35px;text-align:center">#</th>
-                                <th style="border:1px solid #cbd5e1 !important;min-width:135px">Order ID &amp; Labels</th>
-                                <th style="border:1px solid #cbd5e1 !important;min-width:160px">Title &amp; Service</th>
-                                <th style="border:1px solid #cbd5e1 !important;text-align:center">Words</th>
-                                <th style="border:1px solid #cbd5e1 !important;min-width:145px">Total, Paid &amp; Due</th>
-                                <th style="border:1px solid #cbd5e1 !important;text-align:center">Project Status</th>
-                                <th style="border:1px solid #cbd5e1 !important;min-width:180px">Dates (Order, Deadline, Delivery)</th>
-                                <th style="border:1px solid #cbd5e1 !important;min-width:130px;text-align:end">Action</th>
+                                <th style="border:1px solid #cbd5e1 !important;width:40px;text-align:center">#</th>
+                                <th style="border:1px solid #cbd5e1 !important;min-width:140px;text-align:start">Order ID &amp; Labels</th>
+                                <th style="border:1px solid #cbd5e1 !important;min-width:160px;text-align:start">Title &amp; Service</th>
+                                <th style="border:1px solid #cbd5e1 !important;width:75px;text-align:center">Words</th>
+                                <th style="border:1px solid #cbd5e1 !important;min-width:140px;text-align:start">Total, Paid &amp; Due</th>
+                                <th style="border:1px solid #cbd5e1 !important;width:120px;text-align:center">Project Status</th>
+                                <th style="border:1px solid #cbd5e1 !important;min-width:190px;text-align:start">Dates</th>
+                                <th style="border:1px solid #cbd5e1 !important;width:95px;text-align:center">Action</th>
                             </tr>
                         </thead>
                         <tbody id="waOrdersTbody"></tbody>
@@ -1320,6 +1393,121 @@
             <div class="modal-footer wab-modal-footer d-flex justify-content-between align-items-center">
                 <span class="text-muted fs-8">Order balance will automatically synchronize upon adding payment.</span>
                 <button type="button" class="wab-btn wab-btn--ghost py-1" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{-- ══════════════════════════════════════════════════
+     SEND WHATSAPP TEMPLATE MODAL (AiSensy / Meta)
+══════════════════════════════════════════════════ --}}
+<div class="modal fade" id="waSendTemplateModal" tabindex="-1" aria-hidden="true" style="z-index: 1060;">
+    <div class="modal-dialog modal-dialog-centered mw-850px">
+        <div class="modal-content wab-modal-content shadow-lg border-0">
+            <div class="modal-header wab-modal-header" style="background:linear-gradient(135deg,#00a884,#008069);padding:14px 20px;">
+                <div class="wab-modal-icon" style="background:rgba(255,255,255,0.2);width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                </div>
+                <div class="d-flex flex-column ms-2">
+                    <h5 class="modal-title wab-modal-title text-white mb-0 fs-5 fw-bold">Send WhatsApp Template</h5>
+                    <div class="text-white opacity-80 fs-9">Pre-approved Meta templates to initiate or restart 24-hr chat conversations</div>
+                </div>
+                <div class="ms-auto d-flex align-items-center gap-2">
+                    <span class="badge bg-white text-success fw-bold px-2 py-1 fs-9 shadow-sm"><i class="fa fa-shield text-success me-1"></i>Official API</span>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+            </div>
+
+            <div class="modal-body p-4" style="background:#f8fafc;max-height:calc(85vh - 120px);overflow-y:auto;">
+                {{-- Recipient Info Pill --}}
+                <div class="d-flex align-items-center justify-content-between p-3 mb-3 bg-white rounded-3 border shadow-xs">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="wab-avatar" style="width:38px;height:38px;font-size:15px;background:#e8f5e9;color:#2e7d32;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:bold;" id="waTemplateRecipientAvatar">U</div>
+                        <div>
+                            <div class="fw-bold text-dark fs-7" id="waTemplateRecipientName">Customer Name</div>
+                            <div class="text-muted fs-8 d-flex align-items-center gap-1">
+                                <span id="waTemplateRecipientPhone">+91 ...</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <span id="waTemplateSessionBadge" class="badge badge-light-warning fw-bold fs-9 py-1 px-2">
+                            <i class="fa fa-clock-o me-1"></i>24h Window
+                        </span>
+                    </div>
+                </div>
+
+                <div class="row g-3">
+                    {{-- Left Column: Template Selection & Inputs --}}
+                    <div class="col-lg-6 d-flex flex-column">
+                        <div class="bg-white p-3 rounded-3 border h-100 shadow-xs">
+                            <label class="form-label fw-bold text-dark fs-7 mb-1">Select Approved Template <span class="text-danger">*</span></label>
+                            <select id="waTemplateSelect" class="form-select form-select-solid mb-2 fw-semibold" style="font-size:13px;" onchange="onTemplateChange(this.value)">
+                                @if(isset($whatsappTemplates) && count($whatsappTemplates) > 0)
+                                    @foreach($whatsappTemplates as $t)
+                                        <option value="{{ $t->id }}">{{ $t->category ? '[' . $t->category . '] ' : '' }}{{ $t->title ?: $t->name }}</option>
+                                    @endforeach
+                                @else
+                                    <option value="">Loading templates...</option>
+                                @endif
+                            </select>
+
+                            {{-- Template Metadata --}}
+                            <div class="d-flex flex-wrap gap-1 mb-3" id="waTemplateMetaBadges">
+                                <span class="badge badge-light-primary fs-9 fw-bold" id="waTemplateCategoryBadge">UTILITY</span>
+                                <span class="badge badge-light-info fs-9 fw-bold" id="waTemplateLangBadge">en_US</span>
+                                <span class="badge badge-light-success fs-9 fw-bold"><i class="fa fa-check-circle me-1"></i>Meta Approved</span>
+                            </div>
+
+                            {{-- Dynamic Parameters Container --}}
+                            <div class="mb-2">
+                                <div class="d-flex align-items-center justify-content-between mb-1.5">
+                                    <label class="form-label fw-bold text-gray-700 fs-8 mb-0">Dynamic Variables / Parameters</label>
+                                    <span class="text-muted fs-9" id="waTemplateParamsCount">0 variables</span>
+                                </div>
+                                <div id="waTemplateParamsContainer" class="d-flex flex-column gap-2.5">
+                                    <div class="text-muted fs-9 py-2 text-center bg-light rounded border border-dashed">Select a template to configure parameters.</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {{-- Right Column: Live WhatsApp Bubble Preview --}}
+                    <div class="col-lg-6 d-flex flex-column">
+                        <div class="bg-white p-3 rounded-3 border h-100 shadow-xs d-flex flex-column">
+                            <div class="d-flex align-items-center justify-content-between mb-2">
+                                <span class="fw-bold text-dark fs-7">Live WhatsApp Preview</span>
+                                <span class="badge badge-light-success fs-9 py-0.5 px-1.5">Real-time simulation</span>
+                            </div>
+
+                            {{-- Chat Screen Mockup --}}
+                            <div class="wa-preview-screen flex-grow-1">
+                                <div class="wa-preview-bubble" id="waTemplatePreviewBubble">
+                                    <div class="wa-preview-header d-none" id="waTemplatePreviewHeader"></div>
+                                    <div class="wa-preview-body" id="waTemplatePreviewBody">Select a template to preview the message.</div>
+                                    <div class="wa-preview-footer d-none" id="waTemplatePreviewFooter"></div>
+                                    <div class="wa-preview-meta">
+                                        <span id="waTemplatePreviewTime">12:30</span>
+                                        <svg width="15" height="9" viewBox="0 0 20 12" fill="none"><path d="M1 6.5l3.2 3.2L11.8 2" stroke="#53bdeb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 9.7L17 1" stroke="#53bdeb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                    </div>
+                                    <div class="wa-preview-buttons d-none" id="waTemplatePreviewButtons"></div>
+                                </div>
+                            </div>
+
+                            <div class="text-muted fs-9 text-center mt-2">
+                                <i class="fa fa-info-circle text-primary me-1"></i>Variables typed on the left will immediately reflect inside the preview.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer wab-modal-footer d-flex justify-content-between align-items-center bg-white px-4 py-3">
+                <button type="button" class="wab-btn wab-btn--ghost" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="wab-btn wab-btn--primary px-4" id="waSendTemplateSubmitBtn" onclick="submitSendWhatsappTemplate()">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" class="me-1"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                    <span>Send Template Message</span>
+                </button>
             </div>
         </div>
     </div>
@@ -1647,7 +1835,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
                     // Real-time Background Sync: Fetch fresh customer data to accurately verify Leads & Orders count
                     if (targetPhone) {
-                        fetch(`{{ route('whatsapp.chat.customer-data') }}?phone=${encodeURIComponent(targetPhone)}`)
+                        fetch(`{{ route('whatsapp.chat.customer-data', [], false) }}?phone=${encodeURIComponent(targetPhone)}`)
                             .then(r => r.json())
                             .then(freshCustomer => {
                                 if (freshCustomer.success) {
@@ -1731,7 +1919,7 @@ document.addEventListener('DOMContentLoaded', function() {
             loadMoreLeadsBtn.disabled = true;
         }
 
-        fetch(`{{ route('whatsapp.chat.customer-leads') }}?phone=${encodeURIComponent(phone)}&page=${page}&limit=10`)
+        fetch(`{{ route('whatsapp.chat.customer-leads', [], false) }}?phone=${encodeURIComponent(phone)}&page=${page}&limit=10`)
             .then(res => res.json())
             .then(data => {
                 leadsIsLoading = false;
@@ -1767,8 +1955,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     leadsLoadedCount++;
                     rowsHtml += `
                         <tr class="wa-lead-row">
-                            <td class="text-muted text-center" style="border:1px solid #cbd5e1 !important">${leadsLoadedCount}</td>
-                            <td style="border:1px solid #cbd5e1 !important">
+                            <td class="text-muted text-center align-middle" style="border:1px solid #cbd5e1 !important">${leadsLoadedCount}</td>
+                            <td class="align-middle" style="border:1px solid #cbd5e1 !important;min-width:130px">
                                 <div class="d-inline-flex align-items-center gap-1">
                                     <a href="${lead.edit_url}" target="_blank" class="fw-bolder text-primary text-hover-dark fs-8">
                                         ${lead.order_id}
@@ -1778,28 +1966,28 @@ document.addEventListener('DOMContentLoaded', function() {
                                     </button>
                                 </div>
                             </td>
-                            <td style="border:1px solid #cbd5e1 !important">
+                            <td class="align-middle" style="border:1px solid #cbd5e1 !important">
                                 <div class="fw-bold text-dark text-truncate" style="max-width:220px" title="${lead.project_title}">
                                     ${lead.project_title}
                                 </div>
                                 <div class="text-muted fs-9">${lead.service_type}</div>
                             </td>
-                            <td class="text-center" style="border:1px solid #cbd5e1 !important">${lead.pages}</td>
-                            <td style="border:1px solid #cbd5e1 !important">
+                            <td class="text-center align-middle" style="border:1px solid #cbd5e1 !important">${lead.pages}</td>
+                            <td class="align-middle" style="border:1px solid #cbd5e1 !important">
                                 <strong class="text-dark fs-9">£${lead.price_formatted}</strong>
                             </td>
-                            <td class="text-center" style="border:1px solid #cbd5e1 !important">
+                            <td class="text-center align-middle" style="border:1px solid #cbd5e1 !important">
                                 <span class="badge ${lead.status_class} py-1 px-2 fw-bold">${lead.status}</span>
                                 ${lead.is_cancelled && lead.cancel_reason ? `<div class="text-danger fs-9 mt-1" style="max-width:130px;word-break:break-word;" title="${lead.cancel_reason}">Reason: ${lead.cancel_reason}</div>` : ''}
                             </td>
-                            <td style="border:1px solid #cbd5e1 !important">
+                            <td class="align-middle" style="border:1px solid #cbd5e1 !important;min-width:170px">
                                 <div class="d-flex flex-column gap-1">
-                                    <div><span class="text-muted fs-9">Deadline:</span> <strong class="fs-9">${lead.deadline}</strong>${lead.delivery_time ? ` <span class="text-muted fs-9">(${lead.delivery_time})</span>` : ''}</div>
-                                    ${lead.create_date ? `<div><span class="text-muted fs-9">Created:</span> <span class="fs-9 text-gray-700">${lead.create_date}</span></div>` : ''}
+                                    <div class="d-flex justify-content-between align-items-center"><span class="text-muted fs-9 me-2">Deadline:</span> <strong class="fs-9 text-dark">${lead.deadline}</strong>${lead.delivery_time ? ` <span class="text-muted fs-9">(${lead.delivery_time})</span>` : ''}</div>
+                                    ${lead.create_date ? `<div class="d-flex justify-content-between align-items-center"><span class="text-muted fs-9 me-2">Created:</span> <span class="fs-9 text-gray-700">${lead.create_date}</span></div>` : ''}
                                 </div>
                             </td>
-                            <td class="text-end" style="border:1px solid #cbd5e1 !important">
-                                <a href="${lead.edit_url}" target="_blank" class="btn btn-xs btn-light-primary py-1 px-2">
+                            <td class="text-center align-middle" style="border:1px solid #cbd5e1 !important;width:85px">
+                                <a href="${lead.edit_url}" target="_blank" class="btn btn-xs btn-light-primary py-1 px-2 fw-bold">
                                     <i class="fa fa-external-link me-1"></i>View
                                 </a>
                             </td>
@@ -1894,7 +2082,7 @@ document.addEventListener('DOMContentLoaded', function() {
             loadMoreOrdersBtn.disabled = true;
         }
 
-        fetch(`{{ route('whatsapp.chat.customer-orders') }}?phone=${encodeURIComponent(phone)}&page=${page}&limit=10`)
+        fetch(`{{ route('whatsapp.chat.customer-orders', [], false) }}?phone=${encodeURIComponent(phone)}&page=${page}&limit=10`)
             .then(res => res.json())
             .then(data => {
                 ordersIsLoading = false;
@@ -1970,27 +2158,25 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
 
                     // Comprehensive Dates Breakdown
-                    let datesHtml = `
-                        <div class="d-flex flex-column gap-1 text-start">
-                            <div><span class="text-muted fs-9">Order Date:</span> <strong class="fs-9 text-dark">${ord.order_date}</strong></div>
-                    `;
+                    let datesHtml = `<div class="d-flex flex-column gap-1 text-start">
+                        <div class="d-flex justify-content-between align-items-center"><span class="text-muted fs-9 me-2">Order Date:</span> <strong class="fs-9 text-dark">${ord.order_date}</strong></div>`;
                     if (ord.writer_deadline) {
-                        datesHtml += `<div><span class="text-muted fs-9">Writer Deadline:</span> <span class="fs-9 fw-semibold text-gray-800">${ord.writer_deadline}</span></div>`;
+                        datesHtml += `<div class="d-flex justify-content-between align-items-center"><span class="text-muted fs-9 me-2">Writer Deadline:</span> <span class="fs-9 fw-semibold text-gray-800">${ord.writer_deadline}</span></div>`;
                     }
                     if (ord.draft_date) {
-                        datesHtml += `<div><span class="badge badge-light-success fs-9 fw-bold py-0 px-1">Draft: ${ord.draft_date}</span></div>`;
+                        datesHtml += `<div class="d-flex justify-content-between align-items-center"><span class="text-muted fs-9 me-2">Draft:</span> <span class="fs-9 fw-bold text-success">${ord.draft_date}</span></div>`;
                     }
-                    const overdueStyle = ord.is_overdue ? 'color:#F1416C;font-weight:bold' : '';
-                    datesHtml += `<div><span class="text-muted fs-9">Delivery Date:</span> <span class="fs-9" style="${overdueStyle}">${ord.delivery_date}</span></div>`;
+                    const overdueStyle = ord.is_overdue ? 'color:#F1416C;font-weight:bold' : 'color:#1e293b;';
+                    datesHtml += `<div class="d-flex justify-content-between align-items-center"><span class="text-muted fs-9 me-2">Delivery Date:</span> <span class="fs-9" style="${overdueStyle}">${ord.delivery_date}</span></div>`;
                     if (ord.f_delivery_date) {
-                        datesHtml += `<div><span class="badge badge-light-warning fs-9 fw-bold py-0 px-1">Feedback: ${ord.f_delivery_date}</span></div>`;
+                        datesHtml += `<div class="d-flex justify-content-between align-items-center"><span class="text-muted fs-9 me-2">Feedback:</span> <span class="fs-9 fw-bold text-warning">${ord.f_delivery_date}</span></div>`;
                     }
                     datesHtml += `</div>`;
 
                     rowsHtml += `
                         <tr class="wa-order-row">
-                            <td class="text-muted text-center" style="border:1px solid #cbd5e1 !important">${ordersLoadedCount}</td>
-                            <td style="border:1px solid #cbd5e1 !important;min-width:135px">
+                            <td class="text-muted text-center align-middle" style="border:1px solid #cbd5e1 !important">${ordersLoadedCount}</td>
+                            <td class="align-middle" style="border:1px solid #cbd5e1 !important;min-width:140px">
                                 <div class="d-inline-flex align-items-center gap-1">
                                     <a href="${ord.edit_url}" target="_blank" class="fw-bolder text-primary text-hover-dark fs-8">
                                         ${ord.order_id}
@@ -2001,14 +2187,14 @@ document.addEventListener('DOMContentLoaded', function() {
                                 </div>
                                 ${badgesHtml ? `<div class="d-flex flex-wrap gap-1 mt-1">${badgesHtml}</div>` : ''}
                             </td>
-                            <td style="border:1px solid #cbd5e1 !important">
+                            <td class="align-middle" style="border:1px solid #cbd5e1 !important">
                                 <div class="fw-bold text-dark text-truncate" style="max-width:200px" title="${ord.title}">
                                     ${ord.title}
                                 </div>
                                 <div class="text-muted fs-9">${ord.service_type}</div>
                             </td>
-                            <td class="text-center" style="border:1px solid #cbd5e1 !important">${ord.pages}</td>
-                            <td style="border:1px solid #cbd5e1 !important">
+                            <td class="text-center align-middle" style="border:1px solid #cbd5e1 !important">${ord.pages}</td>
+                            <td class="align-middle" style="border:1px solid #cbd5e1 !important">
                                 <div class="d-flex flex-column gap-1">
                                     <div class="d-flex justify-content-between align-items-center">
                                         <span class="text-muted fs-9">Total:</span>
@@ -2021,15 +2207,15 @@ document.addEventListener('DOMContentLoaded', function() {
                                     </div>
                                 </div>
                             </td>
-                            <td class="text-center" style="border:1px solid #cbd5e1 !important">
+                            <td class="text-center align-middle" style="border:1px solid #cbd5e1 !important">
                                 <span class="badge ${ord.status_class} py-1 px-2">${ord.status}</span>
                             </td>
-                            <td style="border:1px solid #cbd5e1 !important;min-width:180px">
+                            <td class="align-middle" style="border:1px solid #cbd5e1 !important;min-width:190px">
                                 ${datesHtml}
                             </td>
-                            <td class="text-end" style="border:1px solid #cbd5e1 !important;min-width:100px">
-                                <button type="button" class="btn btn-xs btn-light-success py-1 px-3 fw-bold" title="Open Payment Modal" onclick="openWaOrderPaymentModal('${ord.id}', '${ord.order_id}', '${ord.payment_url}')">
-                                    <i class="fa fa-money me-1"></i>Pay
+                            <td class="text-center align-middle" style="border:1px solid #cbd5e1 !important;width:95px">
+                                <button type="button" class="btn btn-sm btn-light-success fw-bold py-1 px-3" style="display:inline-flex;align-items:center;justify-content:center;gap:5px;white-space:nowrap;font-size:11px;" title="Open Payment Modal" onclick="openWaOrderPaymentModal('${ord.id}', '${ord.order_id}', '${ord.payment_url}')">
+                                    <i class="fa fa-money fs-7"></i><span>Pay</span>
                                 </button>
                             </td>
                         </tr>
@@ -2090,56 +2276,6 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 
-{{-- ══════════════════════════════════════════════════
-     LABEL CHAT MODAL (WhatsApp-style tap-to-toggle)
-══════════════════════════════════════════════════ --}}
-<div class="modal fade" id="waAssignLabelsModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-sm">
-        <div class="modal-content wab-modal-content">
-            <div class="modal-header wab-modal-header">
-                <div class="wab-modal-icon">
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/></svg>
-                </div>
-                <h5 class="modal-title wab-modal-title">Label Chat</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body wab-modal-body" style="padding:16px">
-                <div class="wab-label-search-box">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                    <input type="text" id="labelSearchInput" placeholder="Search labels…">
-                </div>
-                <div class="wab-wa-label-list" id="waLabelList">
-                    @forelse($labels as $label)
-                        @php $isActive = in_array($label->id, $selectedContactLabels, true); @endphp
-                        <div class="wab-wa-label-row {{ $isActive ? 'is-selected' : '' }}"
-                             data-label-id="{{ $label->id }}"
-                             data-label-name="{{ $label->name }}"
-                             data-label-color="{{ $label->color }}"
-                             onclick="toggleLabel(this)">
-                            <div class="wab-wa-label-left">
-                                <span class="wab-wa-label-icon" style="background:{{ $label->color }}">{{ strtoupper(substr($label->name,0,1)) }}</span>
-                                <span class="wab-wa-label-name">{{ $label->name }}</span>
-                            </div>
-                            <span class="wab-wa-check" style="border-color:{{ $label->color }}">
-                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="{{ $label->color }}" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
-                            </span>
-                        </div>
-                    @empty
-                        <div class="wab-empty-labels" id="noLabelsTxt">No labels yet. Create labels from ⚙️ settings.</div>
-                    @endforelse
-                </div>
-            </div>
-            <div class="modal-footer wab-modal-footer" style="justify-content:space-between">
-                <button type="button" class="wab-btn wab-btn--ghost" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="wab-btn wab-btn--primary" id="saveLabelAssignBtn">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-                    Save Labels
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-
 {{-- ── RIGHT PROFILE PANEL (WhatsApp-style sliding panel) ── --}}
 <div class="wab-profile-panel" id="wabProfilePanel">
     <div class="wab-profile-panel-inner">
@@ -2153,16 +2289,31 @@ document.addEventListener('DOMContentLoaded', function() {
         {{-- Avatar / Name --}}
         <div class="wab-pp-hero">
             <div class="wab-pp-avatar" style="background:{{ $selectedColor }}1a;color:{{ $selectedColor }}">{{ strtoupper(substr($selectedName,0,1)) }}</div>
-            <div class="wab-pp-name">{{ $selectedName }}</div>
-            <div class="wab-pp-phone">{{ $selectedPhone ?: 'N/A' }}</div>
+            <div class="wab-pp-name" id="wabProfileNameText">{{ $selectedName }}</div>
+            <div class="wab-pp-phone d-flex align-items-center justify-content-center gap-2 mt-1">
+                <span id="wabProfilePhoneText" class="fw-semibold">{{ $selectedPhone ?: 'N/A' }}</span>
+                @if($selectedPhone)
+                <button type="button" class="btn btn-sm btn-icon p-0 border-0" id="wabProfileCopyPhoneBtn" style="width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;background:#e8f5e9;color:#2e7d32;border-radius:50%;" onclick="copyPhoneNumberToClipboard(window.selectedPhone || '{{ $selectedPhone }}', this)" title="Copy phone number">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+                </button>
+                @endif
+            </div>
             <div class="wab-pp-biz"><span class="wab-online-dot"></span> Open until 6:00 PM</div>
         </div>
         {{-- Actions row --}}
-        <div class="wab-pp-actions">
+        <div class="wab-pp-actions d-flex align-items-center justify-content-center gap-2.5">
             @if($selectedPhone)
-            <button class="wab-pp-action-btn" data-bs-toggle="modal" data-bs-target="#waAssignLabelsModal">
+            <button class="wab-pp-action-btn" type="button" onclick="initiateCustomerCall()" title="Call customer via Twilio">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+                Call
+            </button>
+            <button class="wab-pp-action-btn" type="button" onclick="openQuickLabelModal(window.selectedPhone || window.selectedCustomerPhone, window.selectedCustomerName || '{{ addslashes($selectedContact['name'] ?? $selectedPhone) }}')" title="Assign Labels">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
-                Label chat
+                Labels
+            </button>
+            <button class="wab-pp-action-btn" type="button" onclick="copyContactDetails(this)" title="Copy contact details">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+                Copy
             </button>
             @endif
         </div>
@@ -2176,14 +2327,33 @@ document.addEventListener('DOMContentLoaded', function() {
                         {{ $label->name }}
                     </span>
                 @empty
-                    <span class="wab-pp-no-labels">No labels assigned. Click "Label chat" to add.</span>
+                    <span class="wab-pp-no-labels">No labels assigned. Click "Labels" to add.</span>
                 @endforelse
             </div>
         </div>
         {{-- Stats section --}}
         <div class="wab-pp-section">
             <div class="wab-pp-section-title">Overview</div>
-            <div class="wab-pp-stat-row"><span>Phone</span><strong>{{ $selectedPhone ?: 'N/A' }}</strong></div>
+            <div class="wab-pp-stat-row">
+                <span>Name</span>
+                <div class="d-flex align-items-center gap-1.5">
+                    <strong id="wabPpStatName">{{ $selectedName }}</strong>
+                    <button type="button" class="btn btn-sm btn-icon btn-light p-0 border-0" style="width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;color:#54656f;" onclick="copyPhoneNumberToClipboard(document.getElementById('wabPpStatName')?.textContent || '{{ addslashes($selectedName) }}', this)" title="Copy name">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+                    </button>
+                </div>
+            </div>
+            <div class="wab-pp-stat-row">
+                <span>Phone</span>
+                <div class="d-flex align-items-center gap-1.5">
+                    <strong id="wabPpStatPhone">{{ $selectedPhone ?: 'N/A' }}</strong>
+                    @if($selectedPhone)
+                    <button type="button" class="btn btn-sm btn-icon btn-light p-0 border-0" style="width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;color:#54656f;" onclick="copyPhoneNumberToClipboard(window.selectedPhone || '{{ $selectedPhone }}', this)" title="Copy phone number">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+                    </button>
+                    @endif
+                </div>
+            </div>
             <div class="wab-pp-stat-row"><span>Total Messages</span><strong>{{ $messages->count() }}</strong></div>
             <div class="wab-pp-stat-row"><span>Unread</span><strong>{{ $messages->where('direction','inbound')->whereNotIn('status',['read'])->count() }}</strong></div>
             <div class="wab-pp-stat-row"><span>Source</span><strong>WhatsApp Business</strong></div>
@@ -2637,6 +2807,25 @@ document.addEventListener('DOMContentLoaded', function() {
     flex-shrink: 0;
     animation: badge-pop .2s ease;
 }
+.wab-quick-copy-btn {
+    width: 22px;
+    height: 22px;
+    border-radius: 5px;
+    border: 1px solid var(--wa-border);
+    background: #ffffff;
+    color: var(--wa-text-muted);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all .15s ease;
+    flex-shrink: 0;
+}
+.wab-quick-copy-btn:hover {
+    background: #e8f5e9;
+    color: #2e7d32;
+    border-color: #a5d6a7;
+}
 .wab-quick-tag-btn {
     width: 22px;
     height: 22px;
@@ -2686,6 +2875,10 @@ document.addEventListener('DOMContentLoaded', function() {
     position: relative;
     overflow: hidden;
 }
+@keyframes wab-pop {
+    from { transform: scale(0.94); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
 
 /* ── Background pattern ── */
 .wab-messages-body {
@@ -2708,15 +2901,244 @@ document.addEventListener('DOMContentLoaded', function() {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 18px;
+    padding: 8px 16px;
+    min-height: 62px;
     background: var(--wa-bg-header);
     border-bottom: 1px solid var(--wa-border-dark);
     gap: 12px;
 }
-.wab-conv-header-left { display: flex; align-items: center; gap: 10px; }
-.wab-conv-name   { font-size: 15px; font-weight: 700; color: var(--wa-text-main); }
-.wab-conv-status { font-size: 12px; color: var(--wa-text-muted); display: flex; align-items: center; gap: 5px; margin-top: 1px; }
-.wab-conv-actions { display: flex; align-items: center; gap: 2px; }
+.wab-conv-header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+    flex: 1 1 auto;
+}
+.wab-conv-user-info {
+    min-width: 0;
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+.wab-conv-name {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--wa-text-main);
+    line-height: 1.25;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.wab-conv-status {
+    font-size: 12px;
+    color: var(--wa-text-muted);
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-top: 1px;
+    line-height: 1.2;
+}
+.wab-conv-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+}
+.wab-header-action-btn {
+    height: 34px;
+    padding: 0 10px;
+    border-radius: 6px;
+    font-size: 11.5px;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    cursor: pointer;
+    transition: all .15s ease;
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+.wab-header-icon-btn {
+    width: 34px;
+    height: 34px;
+    border-radius: 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all .15s ease;
+    flex-shrink: 0;
+    padding: 0;
+}
+.wab-header-btn-leads {
+    background: #fff3e0;
+    color: #e65100;
+    border: 1px solid #ffe0b2;
+}
+.wab-header-btn-leads:hover {
+    background: #ffe0b2;
+    color: #bf360c;
+}
+.wab-header-btn-orders {
+    background: #f3e5f5;
+    color: #6a1b9a;
+    border: 1px solid #e1bee7;
+}
+.wab-header-btn-orders:hover {
+    background: #e1bee7;
+    color: #4a148c;
+}
+.wab-header-btn-create-lead {
+    background: #00a884;
+    color: #ffffff;
+    border: 1px solid #00a884;
+}
+.wab-header-btn-create-lead:hover {
+    background: #008f6f;
+    border-color: #008f6f;
+    color: #ffffff;
+    box-shadow: 0 2px 6px rgba(0,168,132,0.3);
+}
+.wab-header-btn-call {
+    background: #e8f5e9;
+    color: #2e7d32;
+    border: 1px solid #c8e6c9;
+}
+.wab-header-btn-call:hover {
+    background: #c8e6c9;
+    color: #1b5e20;
+}
+.wab-header-btn-label {
+    background: #f0f2f5;
+    color: #54656f;
+    border: 1px solid #d1d7db;
+}
+.wab-header-btn-label:hover {
+    background: #e9edef;
+    color: #111b21;
+    border-color: #bec5c9;
+}
+.wab-header-btn-template {
+    background: #e0f2fe;
+    color: #0369a1;
+    border: 1px solid #bae6fd;
+}
+.wab-header-btn-template:hover {
+    background: #bae6fd;
+    color: #075985;
+}
+.wab-template-btn {
+    color: #54656f;
+}
+.wab-template-btn:hover {
+    color: #00a884;
+    background: #e9edef;
+}
+.wab-24h-closed-banner {
+    background: #fffbeb;
+    border-top: 1px solid #fde68a;
+    border-bottom: 1px solid #fde68a;
+    padding: 8px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 12.5px;
+    color: #92400e;
+    flex-shrink: 0;
+    z-index: 10;
+}
+.wab-24h-banner-text {
+    font-size: 12px;
+    color: #92400e;
+    line-height: 1.4;
+}
+
+/* ── WhatsApp Template Live Preview ── */
+.wa-preview-screen {
+    background-color: #efeae2;
+    background-image: radial-gradient(#d1d7db 1.2px, transparent 1.2px);
+    background-size: 16px 16px;
+    border-radius: 12px;
+    padding: 20px 16px;
+    min-height: 260px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    border: 1px solid #e2e8f0;
+}
+.wa-preview-bubble {
+    background: #d9fdd3;
+    border-radius: 10px 10px 2px 10px;
+    padding: 10px 14px;
+    box-shadow: 0 1px 2.5px rgba(11,20,26,.18);
+    max-width: 95%;
+    margin-left: auto;
+    position: relative;
+    font-size: 13.5px;
+    line-height: 1.5;
+    color: #111b21;
+}
+.wa-preview-header {
+    font-weight: 700;
+    font-size: 13.5px;
+    color: #128c7e;
+    margin-bottom: 5px;
+}
+.wa-preview-body {
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+.wa-preview-body .wa-var-highlight {
+    background: #bbf7d0;
+    color: #166534;
+    font-weight: 700;
+    padding: 1px 5px;
+    border-radius: 4px;
+    border: 1px dashed #4ade80;
+    display: inline-block;
+    margin: 0 1px;
+}
+.wa-preview-footer {
+    font-size: 11px;
+    color: #667781;
+    margin-top: 8px;
+    font-style: italic;
+}
+.wa-preview-meta {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 4px;
+    font-size: 11px;
+    color: #667781;
+    margin-top: 4px;
+}
+.wa-preview-buttons {
+    margin-top: 10px;
+    border-top: 1px solid rgba(0,0,0,0.07);
+    padding-top: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.wa-preview-btn {
+    background: rgba(255,255,255,0.92);
+    border: 1px solid rgba(0,0,0,0.08);
+    color: #00a884;
+    font-weight: 600;
+    font-size: 12.5px;
+    border-radius: 6px;
+    padding: 7px 12px;
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+}
 .wab-mobile-back { display: none; }
 .wab-chat-more {
     position: relative;
@@ -3034,6 +3456,21 @@ document.addEventListener('DOMContentLoaded', function() {
     30%          { transform: translateY(-6px); opacity: 1; }
 }
 
+/* ── 24h Window Closed Banner ── */
+.wab-24h-closed-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 12px 20px;
+    background: #ffffff;
+    border-top: 1px solid var(--wa-border-dark);
+    min-height: var(--footer-h);
+    box-shadow: 0 -2px 10px rgba(0,0,0,0.03);
+    z-index: 10;
+}
+.wab-24h-closed-banner.d-none { display: none !important; }
+
 /* ── Conv Footer ── */
 .wab-conv-footer {
     display: flex;
@@ -3044,6 +3481,7 @@ document.addEventListener('DOMContentLoaded', function() {
     border-top: 1px solid var(--wa-border-dark);
     position: relative;
 }
+.wab-conv-footer.d-none { display: none !important; }
 .wab-footer-actions-left { display: flex; align-items: center; gap: 2px; position: relative; }
 .wab-plus-btn {
     color: #54656f;
@@ -3695,19 +4133,24 @@ document.addEventListener('DOMContentLoaded', function() {
 }
 .wab-chat-label-row {
     display: flex;
-    flex-wrap: wrap;
+    align-items: center;
     gap: 4px;
-    margin-top: 4px;
+    margin-top: 3px;
+    flex-wrap: wrap;
+    max-height: 24px;
+    overflow: hidden;
 }
 .wab-chat-label-row span,
 .wab-contact-labels span {
     display: inline-flex;
     align-items: center;
     max-width: 140px;
-    padding: 2px 8px;
-    border-radius: 5px;
-    font-size: 10.5px;
+    padding: 1.5px 7px;
+    border-radius: 4px;
+    font-size: 10px;
     font-weight: 700;
+    line-height: 1.3;
+    white-space: nowrap;
 }
 .wab-label-create-form {
     padding: 0 20px 18px;
@@ -4684,11 +5127,13 @@ document.addEventListener('DOMContentLoaded', function() {
     const csrfToken     = document.querySelector('meta[name="csrf-token"]')?.content || '';
     let selectedPhone   = body?.dataset.selectedPhone || '';
     let selectedPhoneChannel = selectedPhone.replace(/\D+/g, '');
-    const messagesUrl   = @json(route('whatsapp.chat.messages'));
-    const contactListUrl = @json(route('whatsapp.chat.contacts'));
-    const markReadUrl   = @json(route('whatsapp.chat.mark-read'));
-    const markUnreadUrl = @json(route('whatsapp.chat.mark-unread'));
-    const mediaUploadUrl = @json(route('whatsapp.chat.send-media'));
+    const messagesUrl   = @json(route('whatsapp.chat.messages', [], false));
+    const contactListUrl = @json(route('whatsapp.chat.contacts', [], false));
+    const markReadUrl   = @json(route('whatsapp.chat.mark-read', [], false));
+    const markUnreadUrl = @json(route('whatsapp.chat.mark-unread', [], false));
+    const mediaUploadUrl = @json(route('whatsapp.chat.send-media', [], false));
+    const templatesUrl  = @json(route('whatsapp.chat.templates', [], false));
+    const sendTemplateUrl = @json(route('whatsapp.chat.send-template', [], false));
     let lastMessageId   = Number(body?.dataset.lastMessageId || 0);
     let firstMessageId  = Number(body?.dataset.firstMessageId || 0);
     let hasMoreOlder    = body?.dataset.hasMoreOlder === '1';
@@ -4716,7 +5161,6 @@ document.addEventListener('DOMContentLoaded', function() {
     let isLoadingContacts = false;
     let contactSearchQuery = '';
     let searchDebounceTimer = null;
-    const chatPreloader = document.getElementById('wabChatPreloader');
     const contactListLoader = document.getElementById('wabContactListLoader');
 
 
@@ -4739,6 +5183,14 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
+    const headerPinBtn = document.getElementById('wabPinChatBtn');
+    headerPinBtn?.addEventListener('click', (e) => {
+        e.preventDefault();
+        chatMenu?.classList.remove('is-open');
+        if (!selectedPhone) return;
+        window.toggleChatPin(selectedPhone);
+    });
+
     markUnreadBtn?.addEventListener('click', (e) => {
         e.preventDefault();
         chatMenu?.classList.remove('is-open');
@@ -4754,7 +5206,27 @@ document.addEventListener('DOMContentLoaded', function() {
         window.toggleChatArchive(selectedPhone);
     });
 
+    function closeAllQuickDropdowns() {
+        document.querySelectorAll('.wab-contact-item .dropdown-menu.show').forEach(m => m.classList.remove('show'));
+        document.querySelectorAll('.wab-contact-item .wab-quick-more-btn.show').forEach(b => {
+            b.classList.remove('show');
+            b.setAttribute('aria-expanded', 'false');
+            if (window.bootstrap?.Dropdown) {
+                const inst = bootstrap.Dropdown.getInstance(b);
+                if (inst) inst.hide();
+            }
+        });
+    }
+    window.closeAllQuickDropdowns = closeAllQuickDropdowns;
+
+    document.addEventListener('click', (e) => {
+        if (e.target.closest('.wab-contact-item .dropdown-item')) {
+            closeAllQuickDropdowns();
+        }
+    });
+
     window.toggleChatArchive = async function(phone) {
+        closeAllQuickDropdowns();
         if (!phone) return;
         const cleanPhone = phone.replace(/\D+/g, '');
         const item = document.querySelector(`.wab-contact-item[data-phone="${phone}"]`) || document.querySelector(`#wab-contact-card-${cleanPhone}`);
@@ -4802,7 +5274,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // 2. Perform Server Request in background
         try {
-            const res = await fetch(@json(route('whatsapp.chat.toggle-archive')), {
+            const res = await fetch(@json(route('whatsapp.chat.toggle-archive', [], false)), {
                 method: 'POST',
                 headers: {
                     'X-CSRF-TOKEN': csrfToken,
@@ -4841,7 +5313,102 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     };
 
+    window.toggleChatPin = async function(phone) {
+        closeAllQuickDropdowns();
+        if (!phone) return;
+        const cleanPhone = phone.replace(/\D+/g, '');
+        const item = document.querySelector(`.wab-contact-item[data-phone="${phone}"]`) || document.querySelector(`#wab-contact-card-${cleanPhone}`);
+        const list = document.getElementById('wabContactList');
+
+        const prevIsPinned = item ? (item.dataset.isPinned === '1') : false;
+        const willPin = !prevIsPinned;
+
+        // Enforce max 3 pinned chats limit on client
+        if (willPin) {
+            const currentPinnedCount = document.querySelectorAll('.wab-contact-item[data-is-pinned="1"]').length;
+            if (currentPinnedCount >= 3) {
+                if (typeof toastr !== 'undefined') {
+                    toastr.warning('You can only pin up to 3 chats.');
+                } else if (window.Swal) {
+                    Swal.fire({ icon: 'warning', title: 'Limit Reached', text: 'You can only pin up to 3 chats.' });
+                } else {
+                    alert('You can only pin up to 3 chats.');
+                }
+                return;
+            }
+        }
+
+        // 1. Instant 0ms Optimistic UI Update
+        if (item) {
+            item.dataset.isPinned = willPin ? '1' : '0';
+            const pinText = item.querySelector('.wab-pin-item-text');
+            if (pinText) pinText.textContent = willPin ? 'Unpin chat' : 'Pin chat';
+
+            const pinIndicator = item.querySelector('.wab-pin-indicator');
+            if (pinIndicator) {
+                pinIndicator.style.display = willPin ? 'inline-flex' : 'none';
+            }
+
+            // Re-order contact list: move pinned items to the very top
+            if (list) {
+                if (willPin) {
+                    list.prepend(item);
+                } else {
+                    const pinnedItems = Array.from(list.querySelectorAll('.wab-contact-item[data-is-pinned="1"]'));
+                    if (pinnedItems.length > 0) {
+                        const lastPinned = pinnedItems[pinnedItems.length - 1];
+                        lastPinned.after(item);
+                    } else {
+                        list.prepend(item);
+                    }
+                }
+            }
+        }
+
+        if (typeof toastr !== 'undefined') {
+            toastr.info(willPin ? 'Pinning chat…' : 'Unpinning chat…', '', { timeOut: 800 });
+        }
+
+        // 2. Perform Server Request in background
+        try {
+            const res = await fetch(@json(route('whatsapp.chat.toggle-pin', [], false)), {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': csrfToken,
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: JSON.stringify({ phone: phone })
+            });
+            const data = await res.json();
+            if (data.success) {
+                if (typeof toastr !== 'undefined') {
+                    toastr.success(data.message || (willPin ? 'Chat pinned to top' : 'Chat unpinned'));
+                }
+            } else {
+                throw new Error(data.message || 'Action failed');
+            }
+        } catch (e) {
+            console.error('Error toggling pin:', e);
+            // 3. Rollback on Failure
+            if (item) {
+                item.dataset.isPinned = prevIsPinned ? '1' : '0';
+                const pinText = item.querySelector('.wab-pin-item-text');
+                if (pinText) pinText.textContent = prevIsPinned ? 'Unpin chat' : 'Pin chat';
+                const pinIndicator = item.querySelector('.wab-pin-indicator');
+                if (pinIndicator) {
+                    pinIndicator.style.display = prevIsPinned ? 'inline-flex' : 'none';
+                }
+            }
+            if (typeof toastr !== 'undefined') {
+                toastr.error(e.message || 'Failed to update pin. Please try again.');
+            }
+        }
+    };
+
     window.toggleChatUnread = async function(phone) {
+        closeAllQuickDropdowns();
         if (!phone) return;
         const cleanPhone = phone.replace(/\D+/g, '');
         const item = document.querySelector(`.wab-contact-item[data-phone="${phone}"]`) || document.querySelector(`#wab-contact-card-${cleanPhone}`);
@@ -4920,23 +5487,36 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    let chatSwitchAbortController = null;
+
     /* ── Dynamic Live Chat Switch (Always fetch fresh latest data) ── */
     async function switchChat(phone, name, color) {
         if (!phone) return;
 
+        // Abort previous in-flight chat message load
+        if (chatSwitchAbortController) {
+            chatSwitchAbortController.abort();
+        }
+        chatSwitchAbortController = new AbortController();
+
         selectedPhone = phone;
+        window.selectedPhone = phone;
+        window.selectedCustomerPhone = phone;
+        const initialResolvedName = resolveContactName(name, phone);
+        window.selectedCustomerName = initialResolvedName;
         selectedPhoneChannel = phone.replace(/\D+/g, '');
         defaultTypingLabel = phone;
-        window.selectedCustomerPhone = phone;
         if (typeof window.resetLeadsOrdersPhone === 'function') {
             window.resetLeadsOrdersPhone(phone);
         }
 
-        // Show header action buttons container immediately
-        const actionBtns = document.getElementById('wabChatActionButtons');
-        if (actionBtns) actionBtns.classList.remove('d-none');
-        const chatMore = document.getElementById('wabChatMoreWrapper');
-        if (chatMore) chatMore.classList.remove('d-none');
+        // Hide customer badges & counts from previous chat while loading
+        const leadsBtn = document.getElementById('waHeaderCheckLeadsBtn');
+        if (leadsBtn) leadsBtn.classList.add('d-none');
+        const ordersBtn = document.getElementById('waHeaderCheckOrdersBtn');
+        if (ordersBtn) ordersBtn.classList.add('d-none');
+        const labelRow = document.querySelector('.wab-chat-label-row');
+        if (labelRow) labelRow.remove();
 
         // Update active class in sidebar
         document.querySelectorAll('.wab-contact-item').forEach(i => {
@@ -4952,22 +5532,35 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Update browser URL without reloading
         const newUrl = contactUrl(phone);
-        history.pushState({ phone, name, color }, '', newUrl);
+        history.pushState({ phone, name: initialResolvedName, color }, '', newUrl);
 
         // Show conversation containers
         document.querySelector('.wab-blank-chat')?.classList.add('d-none');
         document.querySelector('.wab-conv-header')?.classList.remove('d-none');
-        document.querySelector('.wab-conv-footer')?.classList.remove('d-none');
         if (body) {
             body.classList.remove('d-none');
             body.dataset.selectedPhone = phone;
         }
 
+        // Instant template button & closed banner toggle based on existing card dataset
+        const initialActiveCard = document.querySelector(`.wab-contact-item[data-phone="${phone}"]`);
+        const initialIsClosed = initialActiveCard ? (initialActiveCard.dataset.isClosed === '1') : false;
+        const initialClosedBanner = document.getElementById('wab24hClosedBanner');
+        if (initialClosedBanner) initialClosedBanner.classList.toggle('d-none', !initialIsClosed);
+        
+        const footerForm = document.getElementById('wabConvFooterForm') || document.querySelector('.wab-conv-footer');
+        if (footerForm) footerForm.classList.toggle('d-none', initialIsClosed);
+
+        const initialSendTemplateBtn = document.getElementById('waHeaderSendTemplateBtn');
+        if (initialSendTemplateBtn) initialSendTemplateBtn.classList.toggle('d-none', !initialIsClosed);
+        const initialSendTemplateMenuBtn = document.getElementById('wabSendTemplateMenuBtn');
+        if (initialSendTemplateMenuBtn) initialSendTemplateMenuBtn.classList.toggle('d-none', !initialIsClosed);
+
         // Enable message form
         if (input) {
             input.disabled = false;
             input.placeholder = 'Type a message…';
-            input.focus();
+            if (!initialIsClosed) input.focus();
         }
         if (sendBtn) sendBtn.disabled = false;
         if (micBtn) micBtn.disabled = false;
@@ -4976,15 +5569,15 @@ document.addEventListener('DOMContentLoaded', function() {
         if (hiddenPhoneInput) hiddenPhoneInput.value = phone;
 
         // Update header basics immediately
-        updateHeaderBasic(name, phone, color);
+        updateHeaderBasic(initialResolvedName, phone, color);
 
-        // Show Preloader
-        if (chatPreloader) chatPreloader.classList.remove('d-none');
-        clearMessagesBody();
+        isLoadingChat = true;
+        showChatLoading();
 
         try {
             const res = await fetch(`${messagesUrl}?phone=${encodeURIComponent(phone)}&limit=30&with_summary=1`, {
-                headers: { 'Accept': 'application/json' }
+                headers: { 'Accept': 'application/json' },
+                signal: chatSwitchAbortController.signal
             });
             if (!res.ok) throw new Error('Failed to load chat');
 
@@ -5002,7 +5595,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     body.dataset.firstMessageId = String(firstMessageId);
                     body.dataset.hasMoreOlder = hasMoreOlder ? '1' : '0';
                 }
-                if (olderLoader) olderLoader.classList.toggle('d-none', !hasMoreOlder);
+
+                // Ensure clean body before rendering
+                clearMessagesBody();
 
                 // Render fresh messages
                 renderInitialMessagesBatch(msgs);
@@ -5010,35 +5605,105 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (data.customer) {
                     updateHeaderCustomerDetails(data.customer, name, phone, color);
                 }
+
+                // Update 24h Window Closed Banner & Template Button Visibility
+                const activeCard = document.querySelector(`.wab-contact-item[data-phone="${phone}"], .wab-contact-item.is-active`);
+                const isClosed = (data.customer && data.customer.is_closed !== undefined) 
+                    ? Boolean(data.customer.is_closed) 
+                    : (activeCard && activeCard.dataset.isClosed === '1');
+                
+                const closedBanner = document.getElementById('wab24hClosedBanner');
+                if (closedBanner) {
+                    closedBanner.classList.toggle('d-none', !isClosed);
+                }
+                const footerForm = document.getElementById('wabConvFooterForm') || document.querySelector('.wab-conv-footer');
+                if (footerForm) {
+                    footerForm.classList.toggle('d-none', isClosed);
+                }
+                const sendTemplateHeaderBtn = document.getElementById('waHeaderSendTemplateBtn');
+                if (sendTemplateHeaderBtn) {
+                    sendTemplateHeaderBtn.classList.toggle('d-none', !isClosed);
+                }
+                const sendTemplateMenuBtn = document.getElementById('wabSendTemplateMenuBtn');
+                if (sendTemplateMenuBtn) {
+                    sendTemplateMenuBtn.classList.toggle('d-none', !isClosed);
+                }
+
+                if (body) body.scrollTop = body.scrollHeight;
             }
         } catch (err) {
-            console.warn('Error loading chat messages:', err);
+            if (err.name !== 'AbortError') {
+                console.warn('Error loading chat messages:', err);
+                if (selectedPhone === phone) {
+                    clearMessagesBody();
+                }
+            }
         } finally {
-            if (chatPreloader) chatPreloader.classList.add('d-none');
-            if (body && selectedPhone === phone) body.scrollTop = body.scrollHeight;
+            if (selectedPhone === phone) {
+                isLoadingChat = false;
+                hideChatLoading();
+            }
         }
     }
 
+    window.initiateCustomerCall = function(phoneToCall = null, nameToCall = null) {
+        const phone = phoneToCall || window.selectedCustomerPhone || selectedPhone || document.querySelector('.wab-conv-footer input[name="phone"]')?.value || '';
+        const name = nameToCall || window.currentCustomerName || document.querySelector('.wab-conv-name')?.textContent || phone;
+
+        if (!phone) {
+            if (typeof toastr !== 'undefined') {
+                toastr.warning('Please select a customer or chat conversation first.');
+            } else if (typeof Swal !== 'undefined') {
+                Swal.fire('No Contact Selected', 'Please select a customer or chat conversation first.', 'info');
+            } else {
+                alert('Please select a customer or chat conversation first.');
+            }
+            return;
+        }
+
+        if (window.twilioSoftphone && typeof window.twilioSoftphone.makeCall === 'function') {
+            window.twilioSoftphone.makeCall(phone, name);
+        } else {
+            if (typeof toastr !== 'undefined') {
+                toastr.error('Twilio Voice softphone is not ready or active.');
+            } else {
+                alert('Twilio Voice softphone is not ready or active.');
+            }
+        }
+    };
+
     function updateHeaderBasic(name, phone, color) {
+        const resolvedName = resolveContactName(name, phone);
         const avatar = document.getElementById('wabOpenProfilePanel');
         if (avatar) {
-            avatar.textContent = initials(name);
+            avatar.textContent = initials(resolvedName);
             avatar.style.background = `${color}1a`;
             avatar.style.color = color;
         }
         const nameEl = document.querySelector('.wab-conv-name');
-        if (nameEl) nameEl.textContent = name || phone;
+        if (nameEl) nameEl.textContent = resolvedName;
         if (typingLabel) typingLabel.textContent = phone;
+
+        const ppAvatar = document.querySelector('.wab-pp-avatar');
+        if (ppAvatar) {
+            ppAvatar.textContent = initials(resolvedName);
+            ppAvatar.style.background = `${color}1a`;
+            ppAvatar.style.color = color;
+        }
+        const ppName = document.getElementById('wabProfileNameText');
+        if (ppName) ppName.textContent = resolvedName;
+        const ppPhone = document.getElementById('wabProfilePhoneText');
+        if (ppPhone) ppPhone.textContent = phone || 'N/A';
+        const ppStatPhone = document.getElementById('wabPpStatPhone');
+        if (ppStatPhone) ppStatPhone.textContent = phone || 'N/A';
+        const ppStatName = document.getElementById('wabPpStatName');
+        if (ppStatName) ppStatName.textContent = resolvedName;
     }
 
     function updateHeaderCustomerDetails(customer, fallbackName, phone, color) {
         const nameEl = document.querySelector('.wab-conv-name');
-        let resolvedName = customer.name || fallbackName || phone;
-        if (resolvedName === 'System' && fallbackName && fallbackName !== 'System') {
-            resolvedName = fallbackName;
-        } else if (resolvedName === 'System') {
-            resolvedName = phone;
-        }
+        const candidateName = (customer && customer.name) ? customer.name : (fallbackName || '');
+        const resolvedName = resolveContactName(candidateName, phone);
         if (nameEl) nameEl.textContent = resolvedName;
 
         const avatar = document.getElementById('wabOpenProfilePanel');
@@ -5047,6 +5712,17 @@ document.addEventListener('DOMContentLoaded', function() {
             avatar.style.background = `${color}1a`;
             avatar.style.color = color;
         }
+
+        const ppAvatar = document.querySelector('.wab-pp-avatar');
+        if (ppAvatar) {
+            ppAvatar.textContent = initials(resolvedName);
+            ppAvatar.style.background = `${color}1a`;
+            ppAvatar.style.color = color;
+        }
+        const ppName = document.getElementById('wabProfileNameText');
+        if (ppName) ppName.textContent = resolvedName;
+        const ppStatName = document.getElementById('wabPpStatName');
+        if (ppStatName) ppStatName.textContent = resolvedName;
 
         // Ensure action buttons are visible
         const actionBtns = document.getElementById('wabChatActionButtons');
@@ -5117,6 +5793,13 @@ document.addEventListener('DOMContentLoaded', function() {
         document.querySelectorAll('.wa-contact-label-modal-chk').forEach(chk => {
             chk.checked = labelIdSet.has(parseInt(chk.dataset.labelId || chk.value));
         });
+
+        // Sync Pin Chat button in Header dropdown menu
+        const headerPinBtn = document.getElementById('wabPinChatBtn');
+        const activeCard = document.querySelector(`.wab-contact-item[data-phone="${phone}"]`) || document.querySelector(`#wab-contact-card-${phone.replace(/\D+/g, '')}`);
+        if (headerPinBtn && activeCard) {
+            headerPinBtn.textContent = (activeCard.dataset.isPinned === '1') ? 'Unpin chat' : 'Pin chat';
+        }
 
         // Update Check Leads / Orders modal subtitles & state
         window.selectedCustomerPhone = phone;
@@ -5235,11 +5918,64 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function clearMessagesBody() {
         if (!body) return;
-        body.querySelectorAll('.wab-msg-row:not(.wab-typing-row), .wab-date-badge, .wab-empty-message, .wab-panel-card').forEach(el => el.remove());
+        const typing = getTypingRow();
+        body.innerHTML = '';
+        if (typing) {
+            typing.hidden = true;
+            body.appendChild(typing);
+        }
     }
+
+    function showChatLoading() {
+        if (!body) return;
+        clearMessagesBody();
+        const loader = document.createElement('div');
+        loader.id = 'wabChatNormalLoader';
+        loader.className = 'text-center py-5';
+        loader.style.cssText = 'width:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:50px 0;';
+        loader.innerHTML = `
+            <div class="spinner-border text-success mb-2" role="status" style="width:2rem;height:2rem;border-width:2.5px;">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <span class="text-muted fs-8 fw-bold">Loading messages...</span>
+        `;
+        insertBeforeTyping(loader);
+    }
+
+    function hideChatLoading() {
+        const loader = document.getElementById('wabChatNormalLoader');
+        if (loader) loader.remove();
+    }
+
+    function getOlderLoader() {
+        let loader = document.getElementById('wabOlderMessagesLoader');
+        if (!loader) {
+            loader = document.createElement('div');
+            loader.id = 'wabOlderMessagesLoader';
+            loader.className = 'text-center py-2 d-none';
+            loader.style.cssText = 'width:100%;padding:8px 0;';
+            loader.innerHTML = `
+                <div class="spinner-border spinner-border-sm text-success" role="status" style="width:1.2rem;height:1.2rem;border-width:2px;">
+                    <span class="visually-hidden">Loading older messages...</span>
+                </div>
+                <span class="ms-2 fs-9 text-muted fw-bold">Loading older messages...</span>
+            `;
+        }
+        return loader;
+    }
+
+    let isLoadingChat = false;
 
     function renderInitialMessagesBatch(messages) {
         if (!body) return;
+
+        const loader = getOlderLoader();
+        if (loader) {
+            loader.classList.add('d-none');
+            if (body.firstChild !== loader) {
+                body.prepend(loader);
+            }
+        }
 
         if (!Array.isArray(messages) || messages.length === 0) {
             const emptyRow = document.createElement('div');
@@ -5305,22 +6041,26 @@ document.addEventListener('DOMContentLoaded', function() {
             if (existing) return null;
         }
 
+        const displayName = resolveContactName(c.name, c.phone);
+
         const div = document.createElement('div');
-        div.className = `wab-contact-item ${c.active || c.phone === selectedPhone ? 'is-active' : ''}`;
+        div.className = `wab-contact-item ${c.active ? 'is-active' : ''}`;
         div.id = `wab-contact-card-${cleanPhone}`;
-        div.dataset.name = (c.name || '').toLowerCase();
-        div.dataset.contactId = c.id || '';
-        div.dataset.url = contactUrl(c.phone);
+        div.dataset.name = displayName.toLowerCase();
+        div.dataset.contactId = c.id;
+        div.dataset.url = c.phone ? `{{ route('whatsapp.chat') }}?phone=${encodeURIComponent(c.phone)}` : '';
         div.dataset.phone = c.phone || '';
         div.dataset.color = c.color || '#25d366';
-        div.dataset.badge = String(c.badge || 0);
+        div.dataset.badge = c.badge || 0;
         div.dataset.isGroup = c.is_group ? '1' : '0';
         div.dataset.isArchived = c.is_archived ? '1' : '0';
-
+        div.dataset.isPinned = c.is_pinned ? '1' : '0';
+        div.dataset.isClosed = c.is_closed ? '1' : '0';
         const labels = Array.isArray(c.labels) ? c.labels : [];
         const labelIds = Array.isArray(c.label_ids) ? c.label_ids : labels.map(l => l.id);
-        div.dataset.labelIds = JSON.stringify(labelIds.map(String));
 
+        div.dataset.labelIds = JSON.stringify(labelIds);
+        
         let tagsHtml = `<div class="wab-contact-label-tags d-flex flex-wrap gap-1 mt-1 pt-1" id="wab-contact-tags-${cleanPhone}">`;
         if (labels.length > 0) {
             tagsHtml += labels.slice(0, 4).map(lbl => `
@@ -5336,19 +6076,27 @@ document.addEventListener('DOMContentLoaded', function() {
 
         div.innerHTML = `
             <div class="wab-avatar" style="background:${c.color || '#25d366'}1a;color:${c.color || '#25d366'}">
-                ${escapeHtml(initials(c.name))}
+                ${escapeHtml(initials(displayName))}
                 <span class="wab-status-badge wab-status--${c.status || 'offline'}"></span>
             </div>
             <div class="wab-contact-info">
                 <div class="wab-contact-row-top">
-                    <span class="wab-contact-name">${escapeHtml(c.name || c.phone)}</span>
-                    <span class="wab-contact-time">${escapeHtml(c.time || '')}</span>
+                    <span class="wab-contact-name">${escapeHtml(displayName)}</span>
+                    <div class="d-flex align-items-center gap-1">
+                        <span class="wab-pin-indicator text-muted" title="Pinned chat" style="display: ${c.is_pinned ? 'inline-flex' : 'none'}; align-items: center;">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="0.5" style="transform: rotate(45deg); color: #8696a0;"><path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2l-2-2z"/></svg>
+                        </span>
+                        <span class="wab-contact-time">${escapeHtml(c.time || '')}</span>
+                    </div>
                 </div>
                 <div class="wab-contact-row-bottom">
                     <span class="wab-contact-preview">${escapeHtml(c.msg || '')}</span>
                     <div class="wab-contact-row-right d-flex align-items-center gap-1">
                         ${c.badge ? `<span class="wab-badge">${c.badge}</span>` : ''}
-                        <button type="button" class="wab-quick-tag-btn" onclick="event.stopPropagation(); openQuickLabelModal('${escapeHtml(c.phone)}', '${escapeHtml(c.name || c.phone).replace(/'/g, "\\'")}', ${JSON.stringify(labelIds)})" title="Assign Labels">
+                        <button type="button" class="wab-quick-copy-btn" onclick="event.stopPropagation(); copyPhoneNumberToClipboard('${escapeHtml(c.phone)}', this)" title="Copy phone number">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+                        </button>
+                        <button type="button" class="wab-quick-tag-btn" onclick="event.stopPropagation(); openQuickLabelModal('${escapeHtml(c.phone)}', '${escapeHtml(displayName).replace(/'/g, "\\'")}', ${JSON.stringify(labelIds)})" title="Assign Labels">
                             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
                         </button>
                         <div class="dropdown" onclick="event.stopPropagation();">
@@ -5356,6 +6104,18 @@ document.addEventListener('DOMContentLoaded', function() {
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>
                             </button>
                             <ul class="dropdown-menu dropdown-menu-end shadow-sm border py-1" style="min-width: 160px; font-size: 13px; z-index: 1050;">
+                                <li>
+                                    <a class="dropdown-item d-flex align-items-center gap-2 py-2" href="javascript:void(0)" onclick="window.toggleChatPin('${escapeHtml(c.phone)}')">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 17v5M5 12l2-2V4a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v6l2 2v2H5v-2z"/></svg>
+                                        <span class="wab-pin-item-text">${c.is_pinned ? 'Unpin chat' : 'Pin chat'}</span>
+                                    </a>
+                                </li>
+                                <li>
+                                    <a class="dropdown-item d-flex align-items-center gap-2 py-2" href="javascript:void(0)" onclick="copyPhoneNumberToClipboard('${escapeHtml(c.phone)}')">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+                                        <span>Copy number</span>
+                                    </a>
+                                </li>
                                 <li>
                                     <a class="dropdown-item d-flex align-items-center gap-2 py-2" href="javascript:void(0)" onclick="window.toggleChatArchive('${escapeHtml(c.phone)}')">
                                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></svg>
@@ -5391,6 +6151,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     /* ── Instant 0ms Local Client-side Filter (No delay, no flicker) ── */
     function applyLocalFilter() {
+        if (isLoadingContacts) return 0;
         const list = document.getElementById('wabContactList');
         if (!list) return 0;
         const items = list.querySelectorAll('.wab-contact-item');
@@ -5400,6 +6161,7 @@ document.addEventListener('DOMContentLoaded', function() {
             let matchTab = true;
             const isArchived = item.dataset.isArchived === '1';
             const isGroup = item.dataset.isGroup === '1';
+            const isClosed = item.dataset.isClosed === '1';
             const badge = Number(item.dataset.badge || 0);
 
             if (currentTabFilter === 'archived') {
@@ -5410,8 +6172,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 matchTab = badge > 0;
             } else if (currentTabFilter === 'groups') {
                 matchTab = isGroup;
+            } else if (currentTabFilter === 'history' || currentTabFilter === 'closed') {
+                matchTab = isClosed;
             } else {
-                matchTab = true; // all
+                matchTab = true; // 'all' tab: Show all non-archived conversations
             }
 
             let matchLabel = true;
@@ -5454,6 +6218,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 } else if (currentTabFilter === 'groups') {
                     emptyTitle = 'No group conversations';
                     emptySubtitle = 'No group chats found.';
+                } else if (currentTabFilter === 'history' || currentTabFilter === 'closed') {
+                    emptyTitle = 'No closed / history chats';
+                    emptySubtitle = 'Chats with expired 24-hour window will appear here.';
                 }
                 const emptyEl = document.createElement('div');
                 emptyEl.className = 'wab-tab-empty-msg';
@@ -5472,6 +6239,8 @@ document.addEventListener('DOMContentLoaded', function() {
         return visibleCount;
     }
 
+    let activeContactRequestId = 0;
+
     /* ── Global Server-backed Contact Filter & Loader ── */
     async function loadContactsServer({ page = 1, append = false, showLoader = false } = {}) {
         if (isLoadingContacts && append) return;
@@ -5480,13 +6249,45 @@ document.addEventListener('DOMContentLoaded', function() {
             contactFilterAbortController.abort();
         }
         contactFilterAbortController = new AbortController();
+        const thisRequestId = ++activeContactRequestId;
 
         isLoadingContacts = true;
         const list = document.getElementById('wabContactList');
-        const loader = document.getElementById('wabContactListLoader');
+        const bottomLoader = document.getElementById('wabContactListLoader');
+        const topLoader = document.getElementById('wabSidebarTopLoader');
+        const topLoaderText = document.getElementById('wabSidebarTopLoaderText');
 
-        if (append && loader) {
-            loader.classList.remove('d-none');
+        if (append && bottomLoader) {
+            bottomLoader.classList.remove('d-none');
+        } else if (showLoader) {
+            let loaderTitle = 'Loading chats...';
+            if (contactSearchQuery) {
+                loaderTitle = `Searching "${escapeHtml(contactSearchQuery)}"...`;
+            } else if (currentLabelFilter !== 'all') {
+                const activeChip = document.querySelector(`.wab-label-chip.active[data-label-id="${currentLabelFilter}"]`);
+                const labelName = activeChip?.querySelector('.wab-label-chip-name')?.textContent || 'selected label';
+                loaderTitle = `Loading "${escapeHtml(labelName)}" chats...`;
+            } else {
+                const tabLabel = currentTabFilter === 'history' ? 'History (Closed)' : (currentTabFilter === 'all' ? 'All' : (currentTabFilter.charAt(0).toUpperCase() + currentTabFilter.slice(1)));
+                loaderTitle = `Loading ${tabLabel} chats...`;
+            }
+
+            if (topLoader) {
+                topLoader.classList.add('d-none');
+            }
+
+            // Display a single clean preloader in the contact list area so no old cards or contradictory empty messages show
+            if (list) {
+                list.innerHTML = `
+                    <div class="wab-sidebar-loading-state text-center py-5" style="padding:48px 16px;color:#8696a0;">
+                        <div class="spinner-border text-success mb-2" role="status" style="width:2rem;height:2rem;border-width:2.5px;">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <div class="fw-bold fs-7 mb-1" style="color:var(--wa-text-main);">${loaderTitle}</div>
+                        <div class="fs-8 text-muted">Please wait...</div>
+                    </div>
+                `;
+            }
         }
 
         try {
@@ -5496,9 +6297,21 @@ document.addEventListener('DOMContentLoaded', function() {
                 signal: contactFilterAbortController.signal
             });
 
-            if (!res.ok) return;
+            if (!res.ok) {
+                if (!append && list && thisRequestId === activeContactRequestId) {
+                    list.innerHTML = `
+                        <div class="wab-tab-empty-msg" style="text-align:center;padding:36px 16px;color:#8696a0;">
+                            <div class="fw-bold fs-7 mb-1 text-danger">Failed to load conversations</div>
+                            <div class="fs-8 text-muted">Please check your connection and try again.</div>
+                        </div>
+                    `;
+                }
+                return;
+            }
 
             const data = await res.json();
+            if (thisRequestId !== activeContactRequestId) return;
+
             const contacts = data.contacts || [];
 
             if (!append && list) {
@@ -5506,7 +6319,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     let emptyTitle = 'No conversations found';
                     let emptySubtitle = 'Try changing your search or filter criteria.';
 
-                    if (currentLabelFilter !== 'all') {
+                    if (contactSearchQuery) {
+                        emptyTitle = `No results for "${escapeHtml(contactSearchQuery)}"`;
+                        emptySubtitle = 'Check spelling or try a phone number.';
+                    } else if (currentLabelFilter !== 'all') {
                         const activeChip = document.querySelector(`.wab-label-chip.active[data-label-id="${currentLabelFilter}"]`);
                         const labelName = activeChip?.querySelector('.wab-label-chip-name')?.textContent || 'this label';
                         emptyTitle = `No chats with label "${labelName}"`;
@@ -5520,9 +6336,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     } else if (currentTabFilter === 'groups') {
                         emptyTitle = 'No group conversations';
                         emptySubtitle = 'No group chats found.';
-                    } else if (contactSearchQuery) {
-                        emptyTitle = `No results for "${escapeHtml(contactSearchQuery)}"`;
-                        emptySubtitle = 'Check spelling or try a phone number.';
+                    } else if (currentTabFilter === 'history' || currentTabFilter === 'closed') {
+                        emptyTitle = 'No closed / history chats';
+                        emptySubtitle = 'Chats with expired 24-hour window will appear here.';
                     }
 
                     list.innerHTML = `
@@ -5554,10 +6370,21 @@ document.addEventListener('DOMContentLoaded', function() {
         } catch (err) {
             if (err.name !== 'AbortError') {
                 console.warn('Failed to load contacts from server:', err);
+                if (!append && list && thisRequestId === activeContactRequestId) {
+                    list.innerHTML = `
+                        <div class="wab-tab-empty-msg" style="text-align:center;padding:36px 16px;color:#8696a0;">
+                            <div class="fw-bold fs-7 mb-1 text-danger">Failed to load conversations</div>
+                            <div class="fs-8 text-muted">Please check your connection and try again.</div>
+                        </div>
+                    `;
+                }
             }
         } finally {
-            isLoadingContacts = false;
-            if (loader) loader.classList.add('d-none');
+            if (thisRequestId === activeContactRequestId) {
+                isLoadingContacts = false;
+                if (bottomLoader) bottomLoader.classList.add('d-none');
+                if (topLoader) topLoader.classList.add('d-none');
+            }
         }
     }
 
@@ -5573,14 +6400,25 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    /* ── Real-time Debounced Search across whole DB with 0ms local response ── */
+    /* ── Real-time Debounced Search across whole DB with 0ms local response & live preloader ── */
     searchInput?.addEventListener('input', function () {
         const q = this.value.trim();
         contactSearchQuery = q;
         applyLocalFilter(); // Instant 0ms local response
+
+        // Show live preloader immediately while typing
+        const topLoader = document.getElementById('wabSidebarTopLoader');
+        const topLoaderText = document.getElementById('wabSidebarTopLoaderText');
+        if (topLoader) {
+            if (topLoaderText) {
+                topLoaderText.textContent = q ? `Searching "${q}"...` : 'Loading chats...';
+            }
+            topLoader.classList.remove('d-none');
+        }
+
         clearTimeout(searchDebounceTimer);
         searchDebounceTimer = setTimeout(() => {
-            loadContactsServer({ page: 1, append: false, showLoader: false });
+            loadContactsServer({ page: 1, append: false, showLoader: true });
         }, 200);
     });
 
@@ -5807,12 +6645,16 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     async function fetchOlderMessages() {
-        if (!selectedPhone || !hasMoreOlder || isLoadingOlder || firstMessageId <= 0) return;
+        if (!selectedPhone || !hasMoreOlder || isLoadingOlder || isLoadingChat || firstMessageId <= 0) return;
         isLoadingOlder = true;
-        if (olderLoader) olderLoader.classList.remove('d-none');
+        const loader = getOlderLoader();
+        if (loader) {
+            if (body.firstChild !== loader) body.prepend(loader);
+            loader.classList.remove('d-none');
+        }
 
         try {
-            const url = `${messagesUrl}?phone=${encodeURIComponent(selectedPhone)}&before_id=${firstMessageId}&limit=25`;
+            const url = `${messagesUrl}?phone=${encodeURIComponent(selectedPhone)}&before_id=${firstMessageId}&limit=30`;
             const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
             if (!res.ok) return;
 
@@ -5821,7 +6663,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
             if (olderList.length === 0) {
                 hasMoreOlder = false;
-                if (olderLoader) olderLoader.classList.add('d-none');
+                if (loader) loader.classList.add('d-none');
                 return;
             }
 
@@ -5835,10 +6677,6 @@ document.addEventListener('DOMContentLoaded', function() {
             body.dataset.firstMessageId = String(firstMessageId);
             hasMoreOlder = Boolean(data.has_more_older);
 
-            if (!hasMoreOlder && olderLoader) {
-                olderLoader.classList.add('d-none');
-            }
-
             // Restore scroll position
             const newScrollHeight = body.scrollHeight;
             body.scrollTop = prevScrollTop + (newScrollHeight - prevScrollHeight);
@@ -5846,7 +6684,7 @@ document.addEventListener('DOMContentLoaded', function() {
             console.warn('Error fetching older WhatsApp messages:', err);
         } finally {
             isLoadingOlder = false;
-            if (!hasMoreOlder && olderLoader) olderLoader.classList.add('d-none');
+            if (loader) loader.classList.add('d-none');
         }
     }
 
@@ -5888,11 +6726,12 @@ document.addEventListener('DOMContentLoaded', function() {
             initVoiceCards(row);
         });
 
-        // Insert after olderLoader (or at start of body)
-        if (olderLoader && olderLoader.parentNode === body && olderLoader.nextSibling) {
-            body.insertBefore(frag, olderLoader.nextSibling);
+        const loader = getOlderLoader();
+        if (loader && loader.parentNode === body && loader.nextSibling) {
+            body.insertBefore(frag, loader.nextSibling);
         } else {
             body.prepend(frag);
+            if (loader) body.prepend(loader);
         }
     }
 
@@ -5924,6 +6763,26 @@ document.addEventListener('DOMContentLoaded', function() {
 
         insertBeforeTyping(row);
         initVoiceCards(row);
+
+        // When customer sends inbound message, 24h window re-opens & template button hides
+        if (message.direction === 'inbound') {
+            const closedBanner = document.getElementById('wab24hClosedBanner');
+            if (closedBanner) closedBanner.classList.add('d-none');
+            const footerForm = document.getElementById('wabConvFooterForm') || document.querySelector('.wab-conv-footer');
+            if (footerForm) footerForm.classList.remove('d-none');
+            const sendTemplateHeaderBtn = document.getElementById('waHeaderSendTemplateBtn');
+            if (sendTemplateHeaderBtn) sendTemplateHeaderBtn.classList.add('d-none');
+            const sendTemplateMenuBtn = document.getElementById('wabSendTemplateMenuBtn');
+            if (sendTemplateMenuBtn) sendTemplateMenuBtn.classList.add('d-none');
+
+            const cleanP = String(message.phone || selectedPhone).replace(/\D+/g, '');
+            const cards = document.querySelectorAll(`#wab-contact-card-${cleanP}, .wab-contact-item[data-phone="${message.phone || selectedPhone}"]`);
+            cards.forEach(card => {
+                card.dataset.isClosed = '0';
+            });
+            applyLocalFilter();
+        }
+
         const numericId = Number(message.id);
         if (!Number.isNaN(numericId) && numericId > 0) {
             lastMessageId = Math.max(lastMessageId, numericId);
@@ -5935,6 +6794,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         body.scrollTop = body.scrollHeight;
     }
+    window.renderMessage = renderMessage;
 
     function initVoiceCards(root = document) {
         root.querySelectorAll('.wab-voice-card').forEach(card => {
@@ -6003,8 +6863,29 @@ document.addEventListener('DOMContentLoaded', function() {
         return @json(route('whatsapp.chat')) + '?phone=' + encodeURIComponent(phone);
     }
 
+    function resolveContactName(name, phone) {
+        const raw = String(name || '').trim();
+        const ph = String(phone || '').trim();
+        const cleanPh = ph.replace(/\D+/g, '');
+        const cleanRaw = raw.replace(/\D+/g, '');
+
+        if (!raw || raw === 'System' || raw === 'null' || raw === 'undefined') {
+            return ph ? 'Unknown User' : 'Select chat';
+        }
+        if (raw === 'Select chat' && !ph) {
+            return 'Select chat';
+        }
+        if (raw === ph || (cleanPh && cleanRaw === cleanPh)) {
+            return 'Unknown User';
+        }
+        return raw;
+    }
+    window.resolveContactName = resolveContactName;
+
     function initials(name) {
-        return String(name || '?').trim().charAt(0).toUpperCase() || '?';
+        const clean = String(name || '?').trim();
+        if (!clean || clean === '?' || clean === 'null' || clean === 'undefined') return 'U';
+        return clean.charAt(0).toUpperCase() || 'U';
     }
 
     function updateBadge(item, badgeCount) {
@@ -6028,6 +6909,12 @@ document.addEventListener('DOMContentLoaded', function() {
     function renderContact(contact, forcePrepend = false) {
         const list = document.getElementById('wabContactList');
         if (!list || !contact?.phone) return;
+
+        // Strict guard: NEVER append or modify contact items while a full filter/search load is in-flight
+        if (isLoadingContacts || list.querySelector('.wab-sidebar-loading-state')) {
+            return;
+        }
+
         const cleanPhone = String(contact.phone).replace(/\D+/g, '');
 
         const labels = Array.isArray(contact.labels) ? contact.labels : [];
@@ -6036,6 +6923,14 @@ document.addEventListener('DOMContentLoaded', function() {
         // Filter Guard: If a filter is currently active, ensure this contact belongs in the filtered view!
         if (currentLabelFilter && currentLabelFilter !== 'all') {
             if (!labelIds.includes(String(currentLabelFilter))) {
+                const existingItem = list.querySelector(`[data-phone="${contact.phone}"]`) || list.querySelector(`#wab-contact-card-${cleanPhone}`);
+                if (existingItem) existingItem.remove();
+                return;
+            }
+        }
+
+        if (currentTabFilter === 'history' || currentTabFilter === 'closed') {
+            if (!contact.is_closed) {
                 const existingItem = list.querySelector(`[data-phone="${contact.phone}"]`) || list.querySelector(`#wab-contact-card-${cleanPhone}`);
                 if (existingItem) existingItem.remove();
                 return;
@@ -6076,8 +6971,16 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!item) {
             item = createContactItemElement(contact);
             if (item) {
-                if (forcePrepend) {
+                const isItemPinned = item.dataset.isPinned === '1';
+                if (isItemPinned) {
                     list.prepend(item);
+                } else if (forcePrepend) {
+                    const pinnedItems = Array.from(list.querySelectorAll('.wab-contact-item[data-is-pinned="1"]'));
+                    if (pinnedItems.length > 0) {
+                        pinnedItems[pinnedItems.length - 1].after(item);
+                    } else {
+                        list.prepend(item);
+                    }
                 } else {
                     list.appendChild(item);
                 }
@@ -6085,17 +6988,33 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
+        const displayName = resolveContactName(contact.name, contact.phone);
+
         // Update existing item in place
-        item.dataset.name = String(contact.name || '').toLowerCase();
+        item.dataset.name = displayName.toLowerCase();
         item.dataset.badge = String(contact.badge || 0);
         item.dataset.labelIds = JSON.stringify(labelIds);
         if (contact.is_group !== undefined) {
             item.dataset.isGroup = contact.is_group ? '1' : '0';
         }
+        if (contact.is_pinned !== undefined) {
+            item.dataset.isPinned = contact.is_pinned ? '1' : '0';
+            const pinIndicator = item.querySelector('.wab-pin-indicator');
+            if (pinIndicator) pinIndicator.style.display = contact.is_pinned ? 'inline-flex' : 'none';
+            const pinText = item.querySelector('.wab-pin-item-text');
+            if (pinText) pinText.textContent = contact.is_pinned ? 'Unpin chat' : 'Pin chat';
+        }
         item.classList.toggle('is-active', contact.phone === selectedPhone);
 
         const nameEl = item.querySelector('.wab-contact-name');
-        if (nameEl) nameEl.textContent = contact.name || contact.phone;
+        if (nameEl) nameEl.textContent = displayName;
+
+        const avatarEl = item.querySelector('.wab-avatar');
+        if (avatarEl && avatarEl.childNodes.length > 0) {
+            if (avatarEl.childNodes[0].nodeType === Node.TEXT_NODE) {
+                avatarEl.childNodes[0].nodeValue = initials(displayName) + ' ';
+            }
+        }
 
         const timeEl = item.querySelector('.wab-contact-time');
         if (timeEl && contact.time) timeEl.textContent = contact.time;
@@ -6119,15 +7038,34 @@ document.addEventListener('DOMContentLoaded', function() {
             tagsWrap.innerHTML = chipsHtml;
         }
 
-        if (forcePrepend && list.firstChild !== item) {
-            list.prepend(item);
+        if (forcePrepend) {
+            const isItemPinned = item.dataset.isPinned === '1';
+            if (isItemPinned) {
+                if (list.firstChild !== item) list.prepend(item);
+            } else {
+                const pinnedItems = Array.from(list.querySelectorAll('.wab-contact-item[data-is-pinned="1"]'));
+                if (pinnedItems.length > 0) {
+                    const lastPinned = pinnedItems[pinnedItems.length - 1];
+                    if (lastPinned !== item && lastPinned.nextSibling !== item) {
+                        lastPinned.after(item);
+                    }
+                } else if (list.firstChild !== item) {
+                    list.prepend(item);
+                }
+            }
         }
     }
 
     function updateContacts(contacts) {
         if (!Array.isArray(contacts)) return;
+        const list = document.getElementById('wabContactList');
+        if (isLoadingContacts || (list && list.querySelector('.wab-sidebar-loading-state'))) {
+            return;
+        }
         contacts.forEach(c => renderContact(c, false));
     }
+    window.renderContact = renderContact;
+    window.updateContacts = updateContacts;
 
     function setRemoteTyping(isTyping) {
         const row = getTypingRow();
@@ -6842,8 +7780,7 @@ document.addEventListener('DOMContentLoaded', function() {
             document.querySelectorAll('.wab-tab').forEach(b => b.classList.remove('active'));
             tabBtn.classList.add('active');
             currentTabFilter = tabBtn.dataset.tab || 'all';
-            applyLocalFilter(); // Instant 0ms response
-            loadContactsServer({ page: 1, append: false, showLoader: false });
+            loadContactsServer({ page: 1, append: false, showLoader: true });
         });
     });
 
@@ -6903,8 +7840,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 chip.classList.add('active');
                 currentLabelFilter = labelId || 'all';
             }
-            applyLocalFilter(); // Instant 0ms response
-            loadContactsServer({ page: 1, append: false, showLoader: false });
+            loadContactsServer({ page: 1, append: false, showLoader: true });
         });
     });
 
@@ -6912,12 +7848,21 @@ document.addEventListener('DOMContentLoaded', function() {
     setTimeout(updateLabelNavButtons, 200);
 
     async function refreshContactsSidebar() {
-        if (contactSearchQuery !== '' || isLoadingContacts || contactPage > 1) return;
+        const list = document.getElementById('wabContactList');
+        if (contactSearchQuery !== '' || isLoadingContacts || (list && list.querySelector('.wab-sidebar-loading-state')) || contactPage > 1) return;
+        const thisReqTab = currentTabFilter;
+        const thisReqLabel = currentLabelFilter;
         try {
             const url = `${contactListUrl}?page=1&limit=25&label_id=${encodeURIComponent(currentLabelFilter)}&tab=${encodeURIComponent(currentTabFilter)}&active_phone=${encodeURIComponent(selectedPhone || '')}`;
             const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
             if (!res.ok) return;
+            if (isLoadingContacts || currentTabFilter !== thisReqTab || currentLabelFilter !== thisReqLabel || (list && list.querySelector('.wab-sidebar-loading-state'))) {
+                return;
+            }
             const data = await res.json();
+            if (isLoadingContacts || currentTabFilter !== thisReqTab || currentLabelFilter !== thisReqLabel || (list && list.querySelector('.wab-sidebar-loading-state'))) {
+                return;
+            }
             if (data && Array.isArray(data.contacts)) {
                 data.contacts.forEach(c => renderContact(c, false));
             }
@@ -6930,7 +7875,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (body) {
         body.scrollTop = body.scrollHeight;
         body.addEventListener('scroll', () => {
-            if (body.scrollTop <= 60 && hasMoreOlder && !isLoadingOlder) {
+            if (!isLoadingChat && !isLoadingOlder && hasMoreOlder && body.scrollTop <= 60 && body.scrollHeight > body.clientHeight) {
                 fetchOlderMessages();
             }
         });
@@ -7372,19 +8317,107 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     setStep(1);
-
 })();
 
+window.copyPhoneNumberToClipboard = function(phone, btn) {
+    if (typeof window.closeAllQuickDropdowns === 'function') {
+        window.closeAllQuickDropdowns();
+    }
+    if (!phone) return;
+    const textToCopy = String(phone).trim();
+    if (!textToCopy) return;
+
+    function showFeedback() {
+        if (btn) {
+            const origHtml = btn.innerHTML;
+            const origTitle = btn.getAttribute('title');
+            btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#2e7d32" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+            btn.setAttribute('title', 'Copied!');
+            btn.style.color = '#2e7d32';
+            setTimeout(() => {
+                btn.innerHTML = origHtml;
+                if (origTitle) btn.setAttribute('title', origTitle);
+                btn.style.color = '';
+            }, 1800);
+        }
+        if (typeof toastr !== 'undefined') {
+            toastr.options = { closeButton: true, timeOut: 2000, positionClass: 'toast-bottom-right' };
+            toastr.success(`Number ${textToCopy} copied to clipboard!`);
+        }
+    }
+
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(textToCopy).then(showFeedback).catch(() => {
+            fallbackCopy(textToCopy, showFeedback);
+        });
+    } else {
+        fallbackCopy(textToCopy, showFeedback);
+    }
+
+    function fallbackCopy(text, cb) {
+        const temp = document.createElement('textarea');
+        temp.value = text;
+        temp.style.position = 'fixed';
+        temp.style.opacity = '0';
+        document.body.appendChild(temp);
+        temp.select();
+        try {
+            document.execCommand('copy');
+            if (cb) cb();
+        } catch(e) {
+            console.warn('Copy failed', e);
+        }
+        document.body.removeChild(temp);
+    }
+};
+
+window.copyContactDetails = function(btn) {
+    const phone = window.selectedPhone || window.selectedCustomerPhone || document.getElementById('wabProfilePhoneText')?.textContent?.trim() || '';
+    const name = window.selectedCustomerName || document.getElementById('wabProfileNameText')?.textContent?.trim() || '';
+    const details = `Name: ${name}\nPhone: ${phone}`;
+    window.copyPhoneNumberToClipboard(details, btn);
+};
+
 window.openQuickLabelModal = function(phone, contactName, labelIds) {
+    if (typeof window.closeAllQuickDropdowns === 'function') {
+        window.closeAllQuickDropdowns();
+    }
+    if (!phone) {
+        phone = window.selectedPhone || window.selectedCustomerPhone;
+        contactName = contactName || window.selectedCustomerName || phone;
+    }
+    if (!phone) return;
+
+    const cleanPhone = String(phone).replace(/\D+/g, '');
     const phoneInput = document.getElementById('waAssignPhoneInput');
     const subtitle = document.getElementById('waAssignContactSubtitle');
     if (phoneInput) phoneInput.value = phone;
     if (subtitle) subtitle.textContent = `for ${contactName || phone} (${phone})`;
 
+    // Locate contact card in DOM across possible phone formats
+    const card = document.querySelector(`#wab-contact-card-${cleanPhone}, .wab-contact-item[data-phone="${phone}"], .wab-contact-item[data-phone="${cleanPhone}"], .wab-contact-item[data-phone="+${cleanPhone}"]`);
+
+    // If labelIds not passed or empty, retrieve from contact card dataset
+    if (!labelIds || !Array.isArray(labelIds) || labelIds.length === 0) {
+        if (card && card.dataset.labelIds) {
+            try {
+                labelIds = JSON.parse(card.dataset.labelIds);
+            } catch(e) {
+                labelIds = [];
+            }
+        }
+    }
+
     const idSet = new Set((labelIds || []).map(id => parseInt(id)));
     document.querySelectorAll('.wa-contact-label-modal-chk').forEach(chk => {
         chk.checked = idSet.has(parseInt(chk.dataset.labelId || chk.value));
     });
+
+    const statusEl = document.getElementById('waLabelRealtimeSyncStatus');
+    if (statusEl) {
+        statusEl.className = 'fs-9 text-success fw-bold';
+        statusEl.innerHTML = '<i class="fa fa-check-circle me-1"></i> Auto-synced';
+    }
 
     const modalEl = document.getElementById('waAssignLabelsModal');
     if (modalEl) {
@@ -7406,11 +8439,20 @@ window.updateContactItemLabels = function(phone, labelsData, labelIds) {
     `);
 
     cards.forEach(contactCard => {
+        contactCard.dataset.labelIds = JSON.stringify(labelIds || []);
+
         // Update tag button onclick
         const btn = contactCard.querySelector('.wab-quick-tag-btn');
         if (btn) {
             const cName = contactCard.dataset.name || phone;
             btn.setAttribute('onclick', `event.stopPropagation(); openQuickLabelModal('${phone}', '${cName.replace(/'/g, "\\'")}', ${JSON.stringify(labelIds)})`);
+        }
+
+        // Update dropdown edit labels onclick if present
+        const dropdownItem = contactCard.querySelector('.dropdown-item[onclick*="openQuickLabelModal"]');
+        if (dropdownItem) {
+            const cName = contactCard.dataset.name || phone;
+            dropdownItem.setAttribute('onclick', `openQuickLabelModal('${phone}', '${cName.replace(/'/g, "\\'")}', ${JSON.stringify(labelIds)})`);
         }
 
         // Update tag chips
@@ -7455,7 +8497,12 @@ window.updateContactItemLabels = function(phone, labelsData, labelIds) {
 };
 
 window.autoApplyWhatsAppModalLabels = function() {
-    const phone = document.getElementById('waAssignPhoneInput')?.value;
+    let phone = document.getElementById('waAssignPhoneInput')?.value;
+    if (!phone) {
+        phone = window.selectedPhone || window.selectedCustomerPhone;
+        const phoneInput = document.getElementById('waAssignPhoneInput');
+        if (phoneInput && phone) phoneInput.value = phone;
+    }
     if (!phone) return;
 
     const checkedBoxes = Array.from(document.querySelectorAll('.wa-contact-label-modal-chk:checked'));
@@ -7466,13 +8513,20 @@ window.autoApplyWhatsAppModalLabels = function() {
         color: chk.dataset.color
     }));
 
-    // Instant 0ms UI update on sidebar and active chat header
+    // Instant 0ms UI update on sidebar card and active chat header (if matching phone)
     window.updateContactItemLabels(phone, labelsData, labelIds);
 
-    // Background AJAX Sync
+    const statusEl = document.getElementById('waLabelRealtimeSyncStatus');
+    if (statusEl) {
+        statusEl.className = 'fs-9 text-warning fw-bold';
+        statusEl.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Saving...';
+    }
+
+    // Background AJAX Sync to Laravel backend & cross-channel Email sync
     const assignForm = document.getElementById('waAssignLabelsForm');
     if (!assignForm) return;
     const formData = new FormData(assignForm);
+    formData.set('phone', phone);
 
     fetch(assignForm.action, {
         method: 'POST',
@@ -7483,77 +8537,458 @@ window.autoApplyWhatsAppModalLabels = function() {
         body: formData
     })
     .then(res => res.json())
-    .catch(err => console.error('Real-time label sync error', err));
+    .then(data => {
+        if (data.success && data.labels) {
+            window.updateContactItemLabels(phone, data.labels, data.label_ids);
+        }
+        if (statusEl) {
+            statusEl.className = 'fs-9 text-success fw-bold';
+            statusEl.innerHTML = '<i class="fa fa-check-circle me-1"></i> Auto-synced';
+        }
+    })
+    .catch(err => {
+        console.warn('Real-time label sync response:', err);
+        if (statusEl) {
+            statusEl.className = 'fs-9 text-success fw-bold';
+            statusEl.innerHTML = '<i class="fa fa-check-circle me-1"></i> Saved';
+        }
+    });
 };
 
 document.addEventListener('DOMContentLoaded', function() {
+    const modalEl = document.getElementById('waAssignLabelsModal');
+    if (modalEl) {
+        modalEl.addEventListener('show.bs.modal', function() {
+            let phone = document.getElementById('waAssignPhoneInput')?.value;
+            if (!phone) {
+                phone = window.selectedPhone || window.selectedCustomerPhone;
+                const phoneInput = document.getElementById('waAssignPhoneInput');
+                if (phoneInput && phone) phoneInput.value = phone;
+            }
+            if (!phone) return;
+
+            const cleanPhone = String(phone).replace(/\D+/g, '');
+            const card = document.querySelector(`#wab-contact-card-${cleanPhone}, .wab-contact-item[data-phone="${phone}"], .wab-contact-item[data-phone="${cleanPhone}"], .wab-contact-item[data-phone="+${cleanPhone}"]`);
+            
+            let currentLabelIds = null;
+            if (card && card.dataset.labelIds) {
+                try {
+                    currentLabelIds = JSON.parse(card.dataset.labelIds).map(id => parseInt(id));
+                } catch(e) {
+                    currentLabelIds = null;
+                }
+            }
+
+            if (currentLabelIds !== null) {
+                const idSet = new Set(currentLabelIds);
+                document.querySelectorAll('.wa-contact-label-modal-chk').forEach(chk => {
+                    chk.checked = idSet.has(parseInt(chk.dataset.labelId || chk.value));
+                });
+            }
+
+            const subtitle = document.getElementById('waAssignContactSubtitle');
+            if (subtitle) {
+                const name = card?.dataset?.name || (phone === (window.selectedPhone || window.selectedCustomerPhone) ? window.selectedCustomerName : phone);
+                subtitle.textContent = `for ${name || phone} (${phone})`;
+            }
+
+            const statusEl = document.getElementById('waLabelRealtimeSyncStatus');
+            if (statusEl) {
+                statusEl.className = 'fs-9 text-success fw-bold';
+                statusEl.innerHTML = '<i class="fa fa-check-circle me-1"></i> Auto-synced';
+            }
+        });
+    }
+
     const assignForm = document.getElementById('waAssignLabelsForm');
-    if (!assignForm) return;
+    if (assignForm) {
+        assignForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            window.autoApplyWhatsAppModalLabels();
+            const bsModal = bootstrap.Modal.getInstance(modalEl);
+            if (bsModal) bsModal.hide();
+        });
+    }
+});
 
-    assignForm.addEventListener('submit', function(e) {
-        e.preventDefault();
-        const phone = document.getElementById('waAssignPhoneInput')?.value;
-        if (!phone) return;
+// ══════════════════════════════════════════════════
+// WHATSAPP TEMPLATES (AiSensy / Meta Approved)
+// ══════════════════════════════════════════════════
+window.cachedWaTemplates = @json($whatsappTemplates ?? []);
+window.selectedWaTemplate = null;
 
-        const checkedBoxes = Array.from(document.querySelectorAll('.wa-contact-label-modal-chk:checked'));
-        const labelIds = checkedBoxes.map(chk => parseInt(chk.dataset.labelId || chk.value));
-        const labelsData = checkedBoxes.map(chk => ({
-            id: parseInt(chk.dataset.labelId || chk.value),
-            name: chk.dataset.name,
-            color: chk.dataset.color
-        }));
+window.openSendTemplateModal = function(targetPhone = null, targetName = null) {
+    const phone = targetPhone || window.selectedPhone || window.selectedCustomerPhone || document.querySelector('.wab-conv-footer input[name="phone"]')?.value || '';
+    const name = targetName || window.selectedCustomerName || window.currentCustomerName || document.querySelector('.wab-conv-name')?.textContent || phone || 'Customer';
+    
+    if (!phone) {
+        if (typeof toastr !== 'undefined') toastr.warning('Please select a customer or chat first.');
+        else alert('Please select a customer or chat first.');
+        return;
+    }
 
-        const submitBtn = assignForm.querySelector('button[type="submit"]');
-        const origBtnText = submitBtn ? submitBtn.innerHTML : 'Save & Sync';
-        if (submitBtn) {
-            submitBtn.disabled = true;
-            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Saving…';
+    // Set recipient details
+    const recipientNameEl = document.getElementById('waTemplateRecipientName');
+    const recipientPhoneEl = document.getElementById('waTemplateRecipientPhone');
+    const recipientAvatarEl = document.getElementById('waTemplateRecipientAvatar');
+    const sessionBadge = document.getElementById('waTemplateSessionBadge');
+
+    if (recipientNameEl) recipientNameEl.textContent = name;
+    if (recipientPhoneEl) recipientPhoneEl.textContent = phone;
+    if (recipientAvatarEl) {
+        recipientAvatarEl.textContent = (name || 'U').trim().charAt(0).toUpperCase();
+    }
+
+    // Check if contact is closed
+    const cleanP = String(phone).replace(/\D+/g, '');
+    const activeCard = document.querySelector(`#wab-contact-card-${cleanP}, .wab-contact-item[data-phone="${phone}"], .wab-contact-item.is-active`);
+    const isClosed = activeCard ? (activeCard.dataset.isClosed === '1') : false;
+    
+    if (sessionBadge) {
+        if (isClosed) {
+            sessionBadge.className = 'badge badge-light-danger fw-bold fs-9 py-1 px-2';
+            sessionBadge.innerHTML = '<i class="fa fa-lock me-1"></i>24h Window Closed';
+        } else {
+            sessionBadge.className = 'badge badge-light-success fw-bold fs-9 py-1 px-2';
+            sessionBadge.innerHTML = '<i class="fa fa-clock-o me-1"></i>24h Window Active';
         }
+    }
 
-        // Instant UI update
-        window.updateContactItemLabels(phone, labelsData, labelIds);
-
-        const formData = new FormData(assignForm);
-
-        fetch(assignForm.action, {
-            method: 'POST',
-            headers: {
-                'X-Requested-With': 'XMLHttpRequest',
-                'Accept': 'application/json'
-            },
-            body: formData
+    // Ensure templates dropdown is populated
+    const selectEl = document.getElementById('waTemplateSelect');
+    if (!window.cachedWaTemplates || window.cachedWaTemplates.length === 0) {
+        if (selectEl) selectEl.innerHTML = '<option value="">Loading official templates...</option>';
+        fetch(templatesUrl, {
+            headers: { 'Accept': 'application/json' }
         })
         .then(res => res.json())
         .then(data => {
-            if (data.success && data.labels) {
-                window.updateContactItemLabels(phone, data.labels, data.label_ids);
-            }
-            if (typeof toastr !== 'undefined') {
-                toastr.success('Chat labels saved successfully!');
-            }
-
-            // Close modal
-            const modalEl = document.getElementById('waAssignLabelsModal');
-            if (modalEl) {
-                const bsModal = bootstrap.Modal.getInstance(modalEl);
-                if (bsModal) bsModal.hide();
+            if (data.success && Array.isArray(data.templates) && data.templates.length > 0) {
+                window.cachedWaTemplates = data.templates;
+                populateTemplateDropdown(data.templates);
+            } else {
+                if (selectEl) selectEl.innerHTML = '<option value="">No approved templates found</option>';
             }
         })
         .catch(err => {
-            console.warn('Background label save completed', err);
-            const modalEl = document.getElementById('waAssignLabelsModal');
-            if (modalEl) {
-                const bsModal = bootstrap.Modal.getInstance(modalEl);
-                if (bsModal) bsModal.hide();
+            console.error('Failed to load templates:', err);
+            if (selectEl) selectEl.innerHTML = '<option value="">Failed to load templates</option>';
+        });
+    } else {
+        populateTemplateDropdown(window.cachedWaTemplates);
+    }
+
+    // Show modal
+    const modalEl = document.getElementById('waSendTemplateModal');
+    if (modalEl) {
+        if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+            const modal = (typeof bootstrap.Modal.getOrCreateInstance === 'function') 
+                ? bootstrap.Modal.getOrCreateInstance(modalEl) 
+                : (bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl));
+            modal.show();
+        } else if (window.$ && typeof $.fn.modal === 'function') {
+            $('#waSendTemplateModal').modal('show');
+        }
+    }
+};
+
+// Sync template modal on bootstrap show event
+document.addEventListener('DOMContentLoaded', function() {
+    const templateModalEl = document.getElementById('waSendTemplateModal');
+    if (templateModalEl) {
+        templateModalEl.addEventListener('show.bs.modal', function() {
+            const phone = window.selectedPhone || window.selectedCustomerPhone || document.querySelector('.wab-conv-footer input[name="phone"]')?.value || '';
+            const name = window.selectedCustomerName || window.currentCustomerName || document.querySelector('.wab-conv-name')?.textContent || phone || 'Customer';
+            
+            const recipientNameEl = document.getElementById('waTemplateRecipientName');
+            const recipientPhoneEl = document.getElementById('waTemplateRecipientPhone');
+            const recipientAvatarEl = document.getElementById('waTemplateRecipientAvatar');
+            const sessionBadge = document.getElementById('waTemplateSessionBadge');
+
+            if (recipientNameEl) recipientNameEl.textContent = name;
+            if (recipientPhoneEl) recipientPhoneEl.textContent = phone;
+            if (recipientAvatarEl) {
+                recipientAvatarEl.textContent = (name || 'U').trim().charAt(0).toUpperCase();
             }
-        })
-        .finally(() => {
-            if (submitBtn) {
-                submitBtn.disabled = false;
-                submitBtn.innerHTML = origBtnText;
+
+            const cleanP = String(phone).replace(/\D+/g, '');
+            const activeCard = document.querySelector(`#wab-contact-card-${cleanP}, .wab-contact-item[data-phone="${phone}"], .wab-contact-item.is-active`);
+            const isClosed = activeCard ? (activeCard.dataset.isClosed === '1') : false;
+            
+            if (sessionBadge) {
+                if (isClosed) {
+                    sessionBadge.className = 'badge badge-light-danger fw-bold fs-9 py-1 px-2';
+                    sessionBadge.innerHTML = '<i class="fa fa-lock me-1"></i>24h Window Closed';
+                } else {
+                    sessionBadge.className = 'badge badge-light-success fw-bold fs-9 py-1 px-2';
+                    sessionBadge.innerHTML = '<i class="fa fa-clock-o me-1"></i>24h Window Active';
+                }
+            }
+
+            if (window.cachedWaTemplates && window.cachedWaTemplates.length > 0) {
+                populateTemplateDropdown(window.cachedWaTemplates);
             }
         });
+    }
+});
+
+function populateTemplateDropdown(templates) {
+    const selectEl = document.getElementById('waTemplateSelect');
+    if (!selectEl || !Array.isArray(templates) || templates.length === 0) return;
+
+    let html = '';
+    templates.forEach(t => {
+        const catLabel = t.category ? `[${t.category}] ` : '';
+        html += `<option value="${t.id}">${catLabel}${t.title || t.name}</option>`;
     });
+
+    selectEl.innerHTML = html;
+    selectEl.onchange = function() {
+        onTemplateChange(this.value);
+    };
+
+    if (templates.length > 0) {
+        selectEl.value = templates[0].id;
+        onTemplateChange(templates[0].id);
+    }
+}
+
+function onTemplateChange(templateId) {
+    if (!window.cachedWaTemplates || window.cachedWaTemplates.length === 0) return;
+    const template = window.cachedWaTemplates.find(t => String(t.id) === String(templateId)) || window.cachedWaTemplates[0];
+    if (!template) return;
+
+    window.selectedWaTemplate = template;
+
+    // Update Meta badges
+    const catBadge = document.getElementById('waTemplateCategoryBadge');
+    const langBadge = document.getElementById('waTemplateLangBadge');
+    if (catBadge) catBadge.textContent = template.category || 'UTILITY';
+    if (langBadge) langBadge.textContent = template.language || 'en_US';
+
+    // Parse variables from template body (e.g. {{1}}, {{2}}, etc.)
+    const bodyStr = String(template.body || '');
+    const varRegex = new RegExp('\\{\\{[0-9]+\\}\\}', 'g');
+    const matches = bodyStr.match(varRegex) || [];
+    const uniqueVars = Array.from(new Set(matches)).sort((a, b) => {
+        const numA = parseInt(a.replace(/\D/g, ''), 10) || 0;
+        const numB = parseInt(b.replace(/\D/g, ''), 10) || 0;
+        return numA - numB;
+    });
+
+    const paramsCountEl = document.getElementById('waTemplateParamsCount');
+    if (paramsCountEl) paramsCountEl.textContent = `${uniqueVars.length} variable${uniqueVars.length === 1 ? '' : 's'}`;
+
+    const container = document.getElementById('waTemplateParamsContainer');
+    if (!container) return;
+
+    if (uniqueVars.length === 0) {
+        container.innerHTML = '<div class="text-muted fs-9 py-2 text-center bg-light rounded border border-dashed">This template has no dynamic variables. Ready to send!</div>';
+    } else {
+        let paramsHtml = '';
+        const currentName = (window.selectedCustomerName || window.currentCustomerName || 'Customer').trim();
+        const variablesHints = Array.isArray(template.variables) ? template.variables : [];
+
+        uniqueVars.forEach((vStr, idx) => {
+            const varNum = idx + 1;
+            let labelHint = variablesHints[idx] || (varNum === 1 ? 'Customer Name' : (varNum === 2 ? 'Order ID / Service' : `Parameter ${varNum}`));
+            let defaultVal = '';
+            if (varNum === 1) {
+                defaultVal = (currentName && currentName !== 'System' && currentName !== 'Select chat') ? currentName : 'Customer';
+            }
+
+            paramsHtml += `
+                <div class="wa-param-field">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <label class="form-label fs-8 fw-bold text-dark mb-0">${vStr} &mdash; <span class="text-primary">${labelHint}</span></label>
+                        ${varNum === 1 ? `<button type="button" class="btn btn-link btn-xs p-0 text-primary fs-9" onclick="const inp = document.getElementById('waTemplateParam_${idx}'); if (inp) { inp.value = '${escapeHtml(defaultVal).replace(/'/g, "\\'")}'; updateWaTemplatePreview(); }">Insert Name</button>` : ''}
+                    </div>
+                    <input type="text" id="waTemplateParam_${idx}" class="form-control form-control-sm form-control-solid wa-template-param-input" placeholder="Enter ${labelHint.toLowerCase()}" value="${escapeHtml(defaultVal)}" oninput="updateWaTemplatePreview()">
+                </div>
+            `;
+        });
+
+        container.innerHTML = paramsHtml;
+    }
+
+    updateWaTemplatePreview();
+}
+
+function updateWaTemplatePreview() {
+    if (!window.selectedWaTemplate) return;
+    const template = window.selectedWaTemplate;
+
+    let bodyText = String(template.body || '');
+    const inputs = document.querySelectorAll('.wa-template-param-input');
+    
+    inputs.forEach((inp, idx) => {
+        const num = idx + 1;
+        const val = inp.value.trim();
+        const marker = '{' + '{' + num + '}' + '}';
+        const replacement = val 
+            ? `<span class="wa-var-highlight">${escapeHtml(val)}</span>` 
+            : `<span class="wa-var-highlight" style="opacity:0.6">${marker}</span>`;
+        bodyText = bodyText.split(marker).join(replacement);
+    });
+
+    const previewBody = document.getElementById('waTemplatePreviewBody');
+    if (previewBody) previewBody.innerHTML = bodyText;
+
+    const previewHeader = document.getElementById('waTemplatePreviewHeader');
+    if (previewHeader) {
+        if (template.header_text) {
+            previewHeader.textContent = template.header_text;
+            previewHeader.classList.remove('d-none');
+        } else {
+            previewHeader.classList.add('d-none');
+        }
+    }
+
+    const previewFooter = document.getElementById('waTemplatePreviewFooter');
+    if (previewFooter) {
+        if (template.footer_text) {
+            previewFooter.textContent = template.footer_text;
+            previewFooter.classList.remove('d-none');
+        } else {
+            previewFooter.classList.add('d-none');
+        }
+    }
+
+    const previewTime = document.getElementById('waTemplatePreviewTime');
+    if (previewTime) {
+        const now = new Date();
+        previewTime.textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+    }
+}
+
+window.submitSendWhatsappTemplate = function() {
+    if (!window.selectedWaTemplate) {
+        if (typeof toastr !== 'undefined') toastr.error('Please select a template first.');
+        return;
+    }
+
+    const phone = window.selectedPhone || window.selectedCustomerPhone || document.querySelector('.wab-conv-footer input[name="phone"]')?.value || '';
+    if (!phone) {
+        if (typeof toastr !== 'undefined') toastr.error('No customer selected.');
+        return;
+    }
+
+    const btn = document.getElementById('waSendTemplateSubmitBtn');
+    const origHtml = btn ? btn.innerHTML : '';
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Sending via Official API...';
+    }
+
+    // Collect parameter values in array
+    const paramInputs = document.querySelectorAll('.wa-template-param-input');
+    const paramValues = [];
+    paramInputs.forEach(inp => paramValues.push(inp.value.trim()));
+
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') 
+        || document.querySelector('input[name="_token"]')?.value 
+        || '{{ csrf_token() }}';
+
+    fetch(sendTemplateUrl, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'X-CSRF-TOKEN': csrfToken,
+        },
+        body: JSON.stringify({
+            phone: phone,
+            template_id: window.selectedWaTemplate.id,
+            template_name: window.selectedWaTemplate.name,
+            params: paramValues,
+        })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = origHtml;
+        }
+
+        if (data.success) {
+            // Close modal
+            const modalEl = document.getElementById('waSendTemplateModal');
+            if (modalEl) {
+                const modal = bootstrap.Modal.getInstance(modalEl);
+                if (modal) modal.hide();
+            }
+
+            // Render message immediately
+            if (data.message && typeof window.renderMessage === 'function') {
+                window.renderMessage(data.message);
+            }
+
+            // Update sidebar contacts if present
+            if (Array.isArray(data.contacts) && typeof window.renderContact === 'function') {
+                data.contacts.forEach(c => window.renderContact(c, false));
+            }
+
+            // Mark active card as open & hide 24h closed banner & show footer & template button
+            const cleanP = String(phone).replace(/\D+/g, '');
+            const cards = document.querySelectorAll(`#wab-contact-card-${cleanP}, .wab-contact-item[data-phone="${phone}"], .wab-contact-item.is-active`);
+            cards.forEach(card => {
+                card.dataset.isClosed = '0';
+            });
+            const closedBanner = document.getElementById('wab24hClosedBanner');
+            if (closedBanner) closedBanner.classList.add('d-none');
+            const footerForm = document.getElementById('wabConvFooterForm') || document.querySelector('.wab-conv-footer');
+            if (footerForm) footerForm.classList.remove('d-none');
+            const sendTemplateHeaderBtn = document.getElementById('waHeaderSendTemplateBtn');
+            if (sendTemplateHeaderBtn) sendTemplateHeaderBtn.classList.add('d-none');
+            const sendTemplateMenuBtn = document.getElementById('wabSendTemplateMenuBtn');
+            if (sendTemplateMenuBtn) sendTemplateMenuBtn.classList.add('d-none');
+            applyLocalFilter();
+
+            if (typeof toastr !== 'undefined') {
+                toastr.success('WhatsApp template sent successfully!');
+            } else {
+                alert('WhatsApp template sent successfully!');
+            }
+        } else {
+            const errorMsg = data.message || data.error || 'Failed to send WhatsApp template.';
+            if (typeof toastr !== 'undefined') {
+                toastr.error(errorMsg);
+            } else {
+                alert(errorMsg);
+            }
+        }
+    })
+    .catch(err => {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = origHtml;
+        }
+        console.error('Error sending WhatsApp template:', err);
+        if (typeof toastr !== 'undefined') {
+            toastr.error('Network error while sending template message.');
+        } else {
+            alert('Network error while sending template message.');
+        }
+    });
+};
+
+// Initialize templates on DOM load
+document.addEventListener('DOMContentLoaded', function() {
+    if (window.cachedWaTemplates && window.cachedWaTemplates.length > 0) {
+        populateTemplateDropdown(window.cachedWaTemplates);
+    } else {
+        fetch(templatesUrl, {
+            headers: { 'Accept': 'application/json' }
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success && Array.isArray(data.templates) && data.templates.length > 0) {
+                window.cachedWaTemplates = data.templates;
+                populateTemplateDropdown(data.templates);
+            }
+        })
+        .catch(() => {});
+    }
 });
 </script>
 

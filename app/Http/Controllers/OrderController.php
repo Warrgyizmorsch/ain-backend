@@ -418,6 +418,11 @@ class OrderController extends Controller
             $data['totalPages'] = $totalPages;
         }
 
+        $effectiveUsers = collect($data['orders'])->map(function ($o) {
+            return $o->user ?? $o->lead?->user ?? $o->frontendLead?->user;
+        })->filter();
+        User::attachLabelsToUsers($effectiveUsers);
+
         if (auth()->user()->role_id == 1) {
             return view('order.my_orders', compact('data'));
         } elseif (auth()->user()->role_id == 4) {
@@ -3882,6 +3887,10 @@ class OrderController extends Controller
 
         $this->attachWriterFeedbackMeta($orders);
         $this->attachCreatorsMeta($orders);
+        $effectiveUsers = $orders->map(function ($o) {
+            return $o->user ?? $o->lead?->user ?? $o->frontendLead?->user;
+        })->filter();
+        User::attachLabelsToUsers($effectiveUsers);
         $data['projectStatusCounts'] = ProjectStatusCount::whereIn('order_Id', $orders->pluck('id'))->get();
 
         $totals = [
@@ -4036,6 +4045,11 @@ class OrderController extends Controller
                     $allStatus = Status::select('id', 'status')->get();
                     $teams = Team::select('id', 'team_name')->get();
 
+                    $effectiveUsers = $latestOrders->map(function ($o) {
+                        return $o->user ?? $o->lead?->user ?? $o->frontendLead?->user;
+                    })->filter();
+                    User::attachLabelsToUsers($effectiveUsers);
+
                     $projectStatusCountsMap = ProjectStatusCount::whereIn('order_Id', $latestOrders->pluck('id'))
                         ->get()
                         ->groupBy('order_Id');
@@ -4092,6 +4106,10 @@ class OrderController extends Controller
 
         $this->attachWriterFeedbackMeta($orders);
         $this->attachCreatorsMeta($orders);
+        $effectiveUsers = $orders->map(function ($o) {
+            return $o->user ?? $o->lead?->user ?? $o->frontendLead?->user;
+        })->filter();
+        User::attachLabelsToUsers($effectiveUsers);
 
         $totals = [
             'total_amount' => $orders->sum(function ($o) {

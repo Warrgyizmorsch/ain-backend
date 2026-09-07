@@ -84,6 +84,7 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/chat/mark-read', [WhatsappController::class, 'markRead'])->name('chat.mark-read');
         Route::post('/chat/mark-unread', [WhatsappController::class, 'markUnread'])->name('chat.mark-unread');
         Route::post('/chat/toggle-archive', [WhatsappController::class, 'toggleArchive'])->name('chat.toggle-archive');
+        Route::post('/chat/toggle-pin', [WhatsappController::class, 'togglePin'])->name('chat.toggle-pin');
         Route::post('/chat/panel-settings', [WhatsappController::class, 'saveChatPanelSettings'])->name('chat.panel-settings');
         Route::post('/chat/labels', [WhatsappController::class, 'storeChatLabel'])->name('chat.labels.store');
         Route::post('/chat/contact-labels', [WhatsappController::class, 'saveContactLabels'])->name('chat.contact-labels.save');
@@ -93,6 +94,8 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/chat/customer-leads', [WhatsappController::class, 'customerLeads'])->name('chat.customer-leads');
         Route::get('/chat/customer-orders', [WhatsappController::class, 'customerOrders'])->name('chat.customer-orders');
         Route::get('/chat/customer-data', [WhatsappController::class, 'customerData'])->name('chat.customer-data');
+        Route::get('/chat/templates', [WhatsappController::class, 'getTemplates'])->name('chat.templates');
+        Route::post('/chat/send-template', [WhatsappController::class, 'sendTemplate'])->name('chat.send-template');
     });
 
     Route::prefix('career')->group(function () {

@@ -420,7 +420,7 @@
                                 @php
                                     $clientEmail = $email->customer_email ?? '';
                                     $activeLabelIds = $threadLabelIds ?? \App\Models\EmailThreadLabel::where('thread_id', $email->thread_id)->pluck('label_id')->unique()->toArray();
-                                    $allLabelsList = $allLabels ?? \App\Models\WhatsappChatLabel::orderBy('name')->get();
+                                    $allLabelsList = $allLabels ?? \App\Models\WhatsappChatLabel::forEmail()->ordered()->get();
                                 @endphp
                                 @foreach($allLabelsList as $lbl)
                                     <label class="form-check form-check-custom form-check-solid d-flex align-items-center gap-2 p-1.5 rounded hover-bg-light cursor-pointer mb-0">
@@ -451,7 +451,7 @@
                     </div>
                     <div class="d-flex flex-wrap gap-1 mt-2" id="showLabelsBadges">
                         @php
-                            $activeThreadLabels = $threadLabels ?? \App\Models\WhatsappChatLabel::whereIn('id', $activeLabelIds)->get();
+                            $activeThreadLabels = $threadLabels ?? \App\Models\WhatsappChatLabel::whereIn('id', $activeLabelIds)->ordered()->get();
                         @endphp
                         @foreach($activeThreadLabels as $tl)
                             <span class="badge px-2.5 py-1 fs-8 fw-bold d-inline-flex align-items-center gap-1 shadow-sm" style="background-color: {{ $tl->color }}; color: #ffffff;">
