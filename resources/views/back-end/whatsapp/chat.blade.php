@@ -1440,7 +1440,12 @@
                     {{-- Left Column: Template Selection & Inputs --}}
                     <div class="col-lg-6 d-flex flex-column">
                         <div class="bg-white p-3 rounded-3 border h-100 shadow-xs">
-                            <label class="form-label fw-bold text-dark fs-7 mb-1">Select Approved Template <span class="text-danger">*</span></label>
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <label class="form-label fw-bold text-dark fs-7 mb-0">Select Approved Template <span class="text-danger">*</span></label>
+                                <button type="button" class="btn btn-link btn-xs p-0 fs-9 text-primary fw-bold" onclick="refreshTemplatesLive(true)" id="waRefreshTemplatesBtn" title="Fetch latest approved templates from AiSensy">
+                                    <i class="fa fa-refresh me-1"></i>Live Sync
+                                </button>
+                            </div>
                             <select id="waTemplateSelect" class="form-select form-select-solid mb-2 fw-semibold" style="font-size:13px;" onchange="onTemplateChange(this.value)">
                                 @if(isset($whatsappTemplates) && count($whatsappTemplates) > 0)
                                     @foreach($whatsappTemplates as $t)
@@ -8705,7 +8710,7 @@ const defaultFallbackTemplates = [
 ];
 
 let serverTemplates = @json($whatsappTemplates ?? []);
-window.cachedWaTemplates = (Array.isArray(serverTemplates) && serverTemplates.length > 0) ? serverTemplates : defaultFallbackTemplates;
+window.cachedWaTemplates = Array.isArray(serverTemplates) ? serverTemplates : [];
 window.selectedWaTemplate = null;
 
 window.openSendTemplateModal = function(targetPhone = null, targetName = null) {
@@ -8759,6 +8764,7 @@ window.openSendTemplateModal = function(targetPhone = null, targetName = null) {
 
     // Ensure templates dropdown is populated
     populateTemplateDropdown(window.cachedWaTemplates);
+    refreshTemplatesLive(false);
 
     // Show modal
     const modalEl = document.getElementById('waSendTemplateModal');
@@ -8770,6 +8776,34 @@ window.openSendTemplateModal = function(targetPhone = null, targetName = null) {
             modal.show();
         } else if (window.$ && typeof $.fn.modal === 'function') {
             $('#waSendTemplateModal').modal('show');
+        }
+    }
+};
+
+window.refreshTemplatesLive = async function(isManual = false) {
+    const refreshBtn = document.getElementById('waRefreshTemplatesBtn');
+    if (refreshBtn && isManual) {
+        refreshBtn.innerHTML = '<i class="fa fa-spinner fa-spin me-1"></i>Syncing...';
+    }
+
+    try {
+        const res = await fetch(`{{ route('whatsapp.chat.templates') }}?refresh=1`, {
+            headers: { 'Accept': 'application/json' }
+        });
+        if (res.ok) {
+            const data = await res.json();
+            const templates = (data && Array.isArray(data.templates)) ? data.templates : [];
+            window.cachedWaTemplates = templates;
+            populateTemplateDropdown(templates);
+            if (isManual && typeof toastr !== 'undefined') {
+                toastr.success(`${templates.length} approved template(s) synced from AiSensy.`);
+            }
+        }
+    } catch (e) {
+        console.warn('Error refreshing WhatsApp templates from API:', e);
+    } finally {
+        if (refreshBtn && isManual) {
+            refreshBtn.innerHTML = '<i class="fa fa-refresh me-1"></i>Live Sync';
         }
     }
 };
@@ -8817,15 +8851,47 @@ document.addEventListener('DOMContentLoaded', function() {
             }
 
             populateTemplateDropdown(window.cachedWaTemplates);
+            refreshTemplatesLive(false);
         });
     }
 });
 
 function populateTemplateDropdown(templates) {
     const selectEl = document.getElementById('waTemplateSelect');
+    const submitBtn = document.querySelector('#waSendTemplateModal button[onclick*="submitSendWhatsappTemplate"]');
     if (!selectEl) return;
-    const tList = (Array.isArray(templates) && templates.length > 0) ? templates : defaultFallbackTemplates;
+    const tList = Array.isArray(templates) ? templates : [];
     window.cachedWaTemplates = tList;
+
+    if (tList.length === 0) {
+        selectEl.innerHTML = '<option value="">-- No Approved Templates Found --</option>';
+        selectEl.disabled = true;
+        if (submitBtn) submitBtn.disabled = true;
+        window.selectedWaTemplate = null;
+
+        const container = document.getElementById('waTemplateParamsContainer');
+        if (container) {
+            container.innerHTML = `
+                <div class="alert alert-warning d-flex align-items-center p-3 mb-0 fs-8">
+                    <i class="fa fa-exclamation-triangle text-warning fs-5 me-2"></i>
+                    <div>
+                        <strong>No Approved Meta Templates for +44 7917 481696</strong><br>
+                        AiSensy dashboard me template approve hone par woh yahan automatically show hone lagega.
+                    </div>
+                </div>
+            `;
+        }
+        const previewBody = document.getElementById('waTemplatePreviewBody');
+        if (previewBody) previewBody.innerHTML = '<span class="text-muted font-italic">No approved Meta templates found in this project. Create & approve a template in your AiSensy dashboard to send template messages.</span>';
+        const metaBadges = document.getElementById('waTemplateMetaBadges');
+        if (metaBadges) metaBadges.classList.add('d-none');
+        return;
+    }
+
+    selectEl.disabled = false;
+    if (submitBtn) submitBtn.disabled = false;
+    const metaBadges = document.getElementById('waTemplateMetaBadges');
+    if (metaBadges) metaBadges.classList.remove('d-none');
 
     let html = '';
     tList.forEach(t => {

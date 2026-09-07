@@ -1099,17 +1099,17 @@ class WhatsappController extends Controller
     {
         $setting = WhatsappSetting::query()->where('is_active', true)->first();
         $config = $setting?->settings ?? [];
-        $projectId = $config['project_id'] ?? env('AISENSY_PROJECT_ID') ?: '67e109077c4b230bed2fb1ff';
-        $apiKey = $config['api_key'] ?? env('AISENSY_API_KEY') ?: '222488aa8678e32a9069d';
+        $projectId = $config['project_id'] ?? env('AISENSY_PROJECT_ID') ?: '64b7904a3702730b51b76dc1';
+        $apiKey = $config['api_key'] ?? env('AISENSY_API_KEY') ?: '798699e56bbe28cc0b669';
 
         if (empty($projectId) || $projectId === '{project_id}') {
-            $projectId = '67e109077c4b230bed2fb1ff';
+            $projectId = '64b7904a3702730b51b76dc1';
         }
 
-        // Try fetching live approved templates directly from AiSensy Project API
+        // Fetch live approved templates directly from AiSensy Project API (auto-syncs on approval)
         try {
             $cacheKey = 'aisensy_wa_templates_' . $projectId;
-            $apiTemplates = Cache::remember($cacheKey, 180, function () use ($projectId, $apiKey) {
+            $apiTemplates = Cache::remember($cacheKey, 60, function () use ($projectId, $apiKey) {
                 $url = "https://apis.aisensy.com/project-apis/v1/project/{$projectId}/wa_template/";
                 $res = Http::withHeaders([
                     'Accept' => 'application/json',
@@ -1162,73 +1162,28 @@ class WhatsappController extends Controller
                         ->values()
                         ->all();
                 }
-                return null;
+                return [];
             });
 
-            if (!empty($apiTemplates) && is_array($apiTemplates) && count($apiTemplates) > 0) {
+            if (!empty($apiTemplates) && is_array($apiTemplates)) {
                 return collect($apiTemplates)->map(fn($t) => (object) $t);
             }
         } catch (\Throwable $e) {
             Log::warning('AiSensy wa_template fetch error: ' . $e->getMessage());
         }
 
-        // Fallback to database if available
-        try {
-            if (Schema::hasTable('whatsapp_templates')) {
-                $dbTemplates = WhatsappTemplate::query()->where('is_active', true)->get();
-                if ($dbTemplates->isNotEmpty()) {
-                    return $dbTemplates;
-                }
-            }
-        } catch (\Throwable $e) {
-            Log::warning('WhatsApp templates DB lookup fallback', ['error' => $e->getMessage()]);
-        }
-
-        // Final approved default fallback templates
-        $defaultTemplates = [
-            [
-                'id' => 'tpl_intro',
-                'name' => 'introduction',
-                'title' => 'Welcome & Introduction',
-                'category' => 'MARKETING',
-                'language' => 'en_GB',
-                'body' => "Hello! Hope you're doing well today\n\nWelcome to Assignment In Need (AIN)✨ \n\n I'm here to assist you with your academic needs.📚: \n\nPlease let me know how I can help you today with assignments, projects, or anything else!\n\nLooking forward to supporting you. 😊",
-                'footer_text' => 'Assignment In Need Team',
-                'variables' => [],
-                'status' => 'APPROVED',
-                'is_active' => true,
-            ],
-            [
-                'id' => 'tpl_offer',
-                'name' => 'offer_message',
-                'title' => 'Special 10% Discount Offer',
-                'category' => 'MARKETING',
-                'language' => 'en_GB',
-                'body' => "Hello! Hope you're doing well today.\n*We are from Assignment In Need (AIN)*\n\nNow our company is providing *Flat 10% discount* on any assignment work,\n\nIf you have any assignment, Please let us know.",
-                'footer_text' => 'Assignment In Need Team',
-                'variables' => [],
-                'status' => 'APPROVED',
-                'is_active' => true,
-            ],
-            [
-                'id' => 'tpl_welcome',
-                'name' => 'after_orderconfirmation_welcome_messge',
-                'title' => 'Order Confirmation Welcome',
-                'category' => 'MARKETING',
-                'language' => 'en_GB',
-                'body' => "Hello! Hope you're doing well today\n\nI'm a representative from Assignment In Need (AIN).\n\nYou have recently confirmed the order with us.\n\nWe would like to communicate with you about your recent assignment on this primary number, which offers instant response and hassle-free services.\n\nI'll be waiting for your response to the discussion.\n\nThanks,\nTeam AIN",
-                'footer_text' => 'Assignment In Need Team',
-                'variables' => [],
-                'status' => 'APPROVED',
-                'is_active' => true,
-            ],
-        ];
-
-        return collect($defaultTemplates)->map(fn($t) => (object) $t);
+        return collect();
     }
 
-    public function getTemplates(): JsonResponse
+    public function getTemplates(Request $request): JsonResponse
     {
+        if ($request->query('refresh')) {
+            $setting = WhatsappSetting::query()->where('is_active', true)->first();
+            $config = $setting?->settings ?? [];
+            $projectId = $config['project_id'] ?? env('AISENSY_PROJECT_ID') ?: '64b7904a3702730b51b76dc1';
+            Cache::forget('aisensy_wa_templates_' . $projectId);
+        }
+
         $templates = $this->getAvailableTemplates()
             ->map(function ($t) {
                 return [
@@ -1239,6 +1194,7 @@ class WhatsappController extends Controller
                     'language' => is_object($t) ? ($t->language ?? 'en_GB') : ($t['language'] ?? 'en_GB'),
                     'body' => is_object($t) ? $t->body : ($t['body'] ?? ''),
                     'footer_text' => is_object($t) ? ($t->footer_text ?? '') : ($t['footer_text'] ?? ''),
+                    'buttons' => is_object($t) ? ($t->buttons ?? []) : ($t['buttons'] ?? []),
                     'variables' => is_object($t) ? ($t->variables ?? []) : ($t['variables'] ?? []),
                     'status' => is_object($t) ? ($t->status ?? 'APPROVED') : ($t['status'] ?? 'APPROVED'),
                 ];
@@ -1334,13 +1290,13 @@ class WhatsappController extends Controller
         $provider = $setting?->provider ?? 'ai-sense';
         $config = $setting?->settings ?? [];
 
-        $apiKey = $config['api_key'] ?? env('AISENSY_API_KEY') ?: '222488aa8678e32a9069d';
-        $projectId = $config['project_id'] ?? env('AISENSY_PROJECT_ID') ?: '67e109077c4b230bed2fb1ff';
-        if (empty($projectId) || $projectId === '{project_id}' || $projectId === '64b7904a3702730b51b76dc1') {
-            $projectId = '67e109077c4b230bed2fb1ff';
+        $apiKey = $config['api_key'] ?? env('AISENSY_API_KEY') ?: '798699e56bbe28cc0b669';
+        $projectId = $config['project_id'] ?? env('AISENSY_PROJECT_ID') ?: '64b7904a3702730b51b76dc1';
+        if (empty($projectId) || $projectId === '{project_id}') {
+            $projectId = '64b7904a3702730b51b76dc1';
         }
-        if (empty($apiKey) || $apiKey === '798699e56bbe28cc0b669') {
-            $apiKey = '222488aa8678e32a9069d';
+        if (empty($apiKey)) {
+            $apiKey = '798699e56bbe28cc0b669';
         }
 
         $apiUrl = "https://apis.aisensy.com/project-apis/v1/project/{$projectId}/messages";
