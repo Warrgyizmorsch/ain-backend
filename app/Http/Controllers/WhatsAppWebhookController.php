@@ -11,6 +11,7 @@ use App\Models\WhatsappChatLabel;
 use App\Models\WhatsappChatContactLabel;
 use App\Models\WhatsappMessage;
 use App\Models\WhatsappSetting;
+use App\Models\WhatsappChatState;
 use App\Events\MessageSent;
 use App\Events\MessageStatusUpdated;
 use Illuminate\Support\Str;
@@ -138,6 +139,48 @@ public function receive(Request $request)
     // ----------------------------------------------------
     $topic = $data['topic'] ?? null;
     $eventName = strtolower((string) ($topic ?? $data['event'] ?? $data['type'] ?? ''));
+
+    // AiSensy chat lifecycle is separate from WhatsApp's 24-hour messaging window.
+    // Persist it so the local Closed tab mirrors AiSensy's actual Closed status.
+    $conversationStatus = strtolower((string) (
+        $data['data']['contact']['status']
+        ?? $data['data']['conversation_status']
+        ?? $data['data']['chat_status']
+        ?? $data['contact']['status']
+        ?? $data['conversation_status']
+        ?? $data['chat_status']
+        ?? (($data['data']['status'] ?? null) && (str_contains($eventName, 'contact') || str_contains($eventName, 'conversation') || str_contains($eventName, 'chat'))
+            ? $data['data']['status']
+            : '')
+    ));
+
+    if (in_array($conversationStatus, ['active', 'requesting', 'intervened', 'closed'], true)) {
+        $statePhone = $data['data']['contact']['phone_number']
+            ?? $data['data']['contact']['phone']
+            ?? $data['data']['phone_number']
+            ?? $data['data']['phone']
+            ?? $data['contact']['phone_number']
+            ?? $data['contact']['phone']
+            ?? $data['phone_number']
+            ?? $data['phone']
+            ?? null;
+
+        if ($statePhone) {
+            $statePhone = preg_replace('/\D+/', '', str_replace('whatsapp:', '', (string) $statePhone));
+            WhatsappChatState::query()->updateOrCreate(
+                ['phone' => $statePhone],
+                [
+                    'provider' => 'ai-sense',
+                    'conversation_status' => $conversationStatus,
+                    'provider_updated_at' => now(),
+                ]
+            );
+        }
+
+        if (! str_contains($eventName, 'message')) {
+            return response()->json(['status' => 'conversation-status-updated'], 200);
+        }
+    }
 
     // Typing Event
     if (str_contains($eventName, 'typing')) {

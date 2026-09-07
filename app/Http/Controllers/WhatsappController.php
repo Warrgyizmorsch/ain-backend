@@ -10,6 +10,7 @@ use App\Models\Paper;
 use App\Models\Source;
 use App\Models\WhatsappChatArchive;
 use App\Models\WhatsappChatPin;
+use App\Models\WhatsappChatState;
 use App\Models\WhatsappChatContactLabel;
 use App\Models\WhatsappChatLabel;
 use App\Models\WhatsappChatPanelSetting;
@@ -1574,24 +1575,23 @@ class WhatsappController extends Controller
                       ->orWhere('latest.name', 'like', '%group%');
                 });
             } elseif ($tab === 'history' || $tab === 'closed') {
-                $cutoff = now()->subHours(24);
-                $activeInboundPhones = WhatsappMessage::query()
-                    ->where('direction', 'inbound')
-                    ->where('created_at', '>=', $cutoff)
+                $closedPhones = WhatsappChatState::query()
+                    ->where('provider', 'ai-sense')
+                    ->where('conversation_status', 'closed')
                     ->pluck('phone')
                     ->filter()
-                    ->unique()
-                    ->values()
                     ->all();
 
-                if (!empty($activeInboundPhones)) {
-                    $activeVariants = [];
-                    foreach ($activeInboundPhones as $ap) {
-                        foreach ($this->getPhoneVariants($ap) as $v) {
-                            $activeVariants[$v] = true;
+                if (empty($closedPhones)) {
+                    $query->whereRaw('1 = 0');
+                } else {
+                    $closedVariants = [];
+                    foreach ($closedPhones as $closedPhone) {
+                        foreach ($this->getPhoneVariants($closedPhone) as $variant) {
+                            $closedVariants[$variant] = true;
                         }
                     }
-                    $query->whereNotIn('latest.phone', array_keys($activeVariants));
+                    $query->whereIn('latest.phone', array_keys($closedVariants));
                 }
             }
             // Note: For 'all' tab or default, all non-archived conversations are returned.
@@ -1658,18 +1658,15 @@ class WhatsappController extends Controller
             : [];
 
         // Check active 24-hour window for returned contacts to determine closed status
-        $cutoffTime = now()->subHours(24);
-        $recentInboundPhones = !empty($allVariants)
-            ? WhatsappMessage::query()
+        $conversationStates = !empty($allVariants)
+            ? WhatsappChatState::query()
                 ->whereIn('phone', array_keys($allVariants))
-                ->where('direction', 'inbound')
-                ->where('created_at', '>=', $cutoffTime)
-                ->pluck('phone')
-                ->map(fn($p) => $allVariants[$p] ?? $p)
-                ->unique()
+                ->get(['phone', 'conversation_status'])
+                ->mapWithKeys(fn($state) => [
+                    $allVariants[$state->phone] ?? $state->phone => strtolower($state->conversation_status),
+                ])
                 ->all()
             : [];
-        $recentInboundSet = array_flip($recentInboundPhones);
 
         // Also fetch latest inbound name for contacts whose latest message name is 'System' or empty or missing user name
         $inboundNames = !empty($phones)
@@ -1701,7 +1698,7 @@ class WhatsappController extends Controller
 
         $allLabels = WhatsappChatLabel::query()->ordered()->get()->keyBy('id');
 
-        $contacts = $latestMessages->map(function ($contact, int $index) use ($userMap, $leadMap, $inboundNames, $activePhone, $unreadCounts, $labelsMap, $allLabels, $archivedVariants, $pinnedVariants, $recentInboundSet, $page, $limit) {
+        $contacts = $latestMessages->map(function ($contact, int $index) use ($userMap, $leadMap, $inboundNames, $activePhone, $unreadCounts, $labelsMap, $allLabels, $archivedVariants, $pinnedVariants, $conversationStates, $page, $limit) {
             $cleanP = preg_replace('/\D+/', '', (string)$contact->phone);
             $user = $userMap[$contact->phone] ?? null;
             $userName = ($user && $user->name && $user->name !== 'System' && !str_starts_with(strtolower($user->name), 'user') && preg_replace('/\D+/', '', (string)$user->name) !== $cleanP) ? $user->name : null;
@@ -1722,7 +1719,8 @@ class WhatsappController extends Controller
             $contactLabelIds = $labelsMap[$contact->phone] ?? [];
             $contactLabels = collect($contactLabelIds)->map(fn($id) => $allLabels->get($id))->filter()->values();
             $isPinned = !empty($pinnedVariants[$contact->phone]) || (!empty($cleanP) && !empty($pinnedVariants[$cleanP]));
-            $isClosed = !isset($recentInboundSet[$contact->phone]);
+            $conversationStatus = $conversationStates[$contact->phone] ?? null;
+            $isClosed = $conversationStatus === 'closed';
 
             return [
                 'id' => $contact->id,
@@ -1741,6 +1739,7 @@ class WhatsappController extends Controller
                 'is_archived' => isset($archivedVariants[$contact->phone]),
                 'is_pinned' => $isPinned,
                 'is_closed' => $isClosed,
+                'conversation_status' => $conversationStatus,
             ];
         })->values()->toArray();
 
@@ -1789,7 +1788,8 @@ class WhatsappController extends Controller
                             'labels' => $cLabels,
                             'is_archived' => false,
                             'is_pinned' => true,
-                            'is_closed' => !isset($recentInboundSet[$pp]),
+                            'is_closed' => ($conversationStates[$pp] ?? null) === 'closed',
+                            'conversation_status' => $conversationStates[$pp] ?? null,
                         ];
 
                         foreach ($ppVariants as $v) {
@@ -1984,18 +1984,17 @@ class WhatsappController extends Controller
             $resolvedName = 'Unknown User';
         }
 
-        $hasActiveInbound = WhatsappMessage::query()
+        $conversationStatus = WhatsappChatState::query()
             ->whereIn('phone', $variants)
-            ->where('direction', 'inbound')
-            ->where('created_at', '>=', now()->subHours(24))
-            ->exists();
+            ->value('conversation_status');
 
         return [
             'name' => $resolvedName,
             'phone' => $phone,
             'leads_count' => $unconvertedLeadsCount,
             'orders_count' => $ordersCount,
-            'is_closed' => !$hasActiveInbound,
+            'is_closed' => strtolower((string) $conversationStatus) === 'closed',
+            'conversation_status' => $conversationStatus,
             'lead' => $existingLead ? [
                 'id' => $existingLead->id,
                 'order_id' => $existingLead->order_id ?? (string) $existingLead->id,
