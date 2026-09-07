@@ -6742,8 +6742,43 @@ document.addEventListener('DOMContentLoaded', function() {
         const hasText = String(message?.message || '').trim() !== '';
         const hasMedia = Boolean(message?.media_url);
 
-        if (!body || (!hasText && !hasMedia) || document.querySelector(`[data-message-id="${message.id}"]`)) {
+        if (!body || (!hasText && !hasMedia)) {
             return;
+        }
+
+        // 1. Direct ID deduplication
+        if (message.id && body.querySelector(`[data-message-id="${message.id}"]`)) {
+            return;
+        }
+
+        // 2. WA Message ID deduplication
+        if (message.wa_message_id && body.querySelector(`[data-wa-message-id="${message.wa_message_id}"]`)) {
+            return;
+        }
+
+        // 3. Deduplicate against pending optimistic bubble (prevents 2x duplicate message on poll/echo/callback)
+        if (message.direction === 'outbound' && !String(message.id).startsWith('temp_')) {
+            const pendingRows = Array.from(body.querySelectorAll('.wab-msg-row.wab-outgoing[data-message-id^="temp_"]'));
+            const msgText = String(message.message || '').trim();
+            for (const tempRow of pendingRows) {
+                const bubble = tempRow.querySelector('.wab-msg-bubble');
+                const bubbleText = tempRow.querySelector('.wab-media-caption')?.textContent?.trim()
+                    || (bubble ? Array.from(bubble.childNodes).filter(n => n.nodeType === Node.TEXT_NODE).map(n => n.textContent).join('').trim() : '')
+                    || '';
+
+                if ((msgText !== '' && bubbleText === msgText) || (hasMedia && tempRow.querySelector('.wab-bubble--media'))) {
+                    tempRow.dataset.messageId = message.id;
+                    if (message.wa_message_id) tempRow.dataset.waMessageId = message.wa_message_id;
+                    updateMessageStatus(message);
+
+                    const numericId = Number(message.id);
+                    if (!Number.isNaN(numericId) && numericId > 0) {
+                        lastMessageId = Math.max(lastMessageId, numericId);
+                        body.dataset.lastMessageId = String(lastMessageId);
+                    }
+                    return;
+                }
+            }
         }
 
         document.querySelector('.wab-empty-message')?.remove();
@@ -7365,13 +7400,25 @@ document.addEventListener('DOMContentLoaded', function() {
         audioPlay.querySelector('.wab-audio-pause-icon')?.setAttribute('hidden', 'hidden');
     });
 
+    let isSubmittingMessage = false;
+
     async function submitCurrentMessage(event) {
-        event?.preventDefault();
+        if (event) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+
+        if (isSubmittingMessage) return;
 
         if (!sendForm || !input || !selectedPhone) return;
 
         if (recordedAudioBlob) {
-            await sendRecordedAudio();
+            isSubmittingMessage = true;
+            try {
+                await sendRecordedAudio();
+            } finally {
+                isSubmittingMessage = false;
+            }
             return;
         }
 
@@ -7380,6 +7427,8 @@ document.addEventListener('DOMContentLoaded', function() {
             input.focus();
             return;
         }
+
+        isSubmittingMessage = true;
 
         // 1. Instant 0ms Optimistic UI: Render bubble immediately with WhatsApp Clock / Watch icon (🕒)
         const tempId = 'temp_' + Date.now();
@@ -7459,6 +7508,8 @@ document.addEventListener('DOMContentLoaded', function() {
             if (tempRow) {
                 updateMessageStatus({ id: tempId, status: 'failed' });
             }
+        } finally {
+            isSubmittingMessage = false;
         }
     }
 

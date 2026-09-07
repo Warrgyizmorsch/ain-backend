@@ -1096,49 +1096,67 @@ class WhatsappController extends Controller
 
     private function getAvailableTemplates()
     {
-        $defaultTemplates = [
-            [
-                'name' => 'reengage_customer',
-                'title' => 'Re-engage Follow-up',
-                'category' => 'MARKETING',
-                'language' => 'en_US',
-                'body' => 'Hello {{1}}, we noticed your previous inquiry with Assignment In Need. Our team is available 24/7 to help you with your assignments, essays, and reports. Please reply to this message if you would like to proceed.',
-                'footer_text' => 'Assignment In Need Team',
-                'variables' => ['Customer Name'],
-                'status' => 'APPROVED',
-                'is_active' => true,
-            ],
-            [
-                'name' => 'order_status_update',
-                'title' => 'Order Status Update',
-                'category' => 'UTILITY',
-                'language' => 'en_US',
-                'body' => 'Dear {{1}}, this is an update regarding your order #{{2}}. Our team has reviewed the details and work is in progress. Please let us know if you have any additional instructions.',
-                'footer_text' => 'Assignment In Need Team',
-                'variables' => ['Customer Name', 'Order ID'],
-                'status' => 'APPROVED',
-                'is_active' => true,
-            ],
-            [
-                'name' => 'customer_greeting_24h',
-                'title' => 'Customer Care Greeting',
-                'category' => 'SERVICE',
-                'language' => 'en_US',
-                'body' => 'Hi {{1}}, thank you for contacting Assignment In Need support. How may we assist you today?',
-                'footer_text' => '24/7 Support Desk',
-                'variables' => ['Customer Name'],
-                'status' => 'APPROVED',
-                'is_active' => true,
-            ],
-        ];
+        $setting = WhatsappSetting::query()->where('is_active', true)->first();
+        $config = $setting?->settings ?? [];
+        $projectId = $config['project_id'] ?? env('AISENSY_PROJECT_ID') ?: '67e109077c4b230bed2fb1ff';
+        $apiKey = $config['api_key'] ?? env('AISENSY_API_KEY') ?: '222488aa8678e32a9069d';
 
+        if (empty($projectId) || $projectId === '{project_id}') {
+            $projectId = '67e109077c4b230bed2fb1ff';
+        }
+
+        // Try fetching live approved templates directly from AiSensy Project API
+        try {
+            $cacheKey = 'aisensy_wa_templates_' . $projectId;
+            $apiTemplates = Cache::remember($cacheKey, 180, function () use ($projectId, $apiKey) {
+                $url = "https://apis.aisensy.com/project-apis/v1/project/{$projectId}/wa_template/";
+                $res = Http::withHeaders([
+                    'Accept' => 'application/json',
+                    'X-AiSensy-Project-API-Pwd' => $apiKey,
+                ])->timeout(8)->get($url);
+
+                if ($res->successful()) {
+                    $rawList = $res->json()['template'] ?? [];
+                    return collect($rawList)
+                        ->where('status', 'APPROVED')
+                        ->map(function ($t) {
+                            $rawText = $t['text'] ?? $t['sample_text'] ?? '';
+                            // Strip button annotations like | [Buy NOW,...] from body preview
+                            $cleanBody = trim(preg_replace('/\|\s*\[[^\]]+\]/', '', $rawText));
+                            $langStr = $t['language'] ?? 'English (UK)';
+                            $langCode = (stripos($langStr, 'UK') !== false || stripos($langStr, 'GB') !== false) 
+                                ? 'en_GB' 
+                                : ((stripos($langStr, 'US') !== false) ? 'en_US' : 'en_GB');
+
+                            return [
+                                'id' => $t['id'] ?? $t['name'],
+                                'name' => $t['name'],
+                                'title' => ucwords(str_replace('_', ' ', $t['name'])),
+                                'category' => $t['category'] ?? 'UTILITY',
+                                'language' => $langCode,
+                                'body' => $cleanBody,
+                                'footer_text' => 'Assignment In Need Team',
+                                'variables' => [],
+                                'status' => 'APPROVED',
+                                'is_active' => true,
+                            ];
+                        })
+                        ->values()
+                        ->all();
+                }
+                return null;
+            });
+
+            if (!empty($apiTemplates) && is_array($apiTemplates) && count($apiTemplates) > 0) {
+                return collect($apiTemplates)->map(fn($t) => (object) $t);
+            }
+        } catch (\Throwable $e) {
+            Log::warning('AiSensy wa_template fetch error: ' . $e->getMessage());
+        }
+
+        // Fallback to database if available
         try {
             if (Schema::hasTable('whatsapp_templates')) {
-                if (WhatsappTemplate::count() === 0) {
-                    foreach ($defaultTemplates as $dt) {
-                        WhatsappTemplate::create($dt);
-                    }
-                }
                 $dbTemplates = WhatsappTemplate::query()->where('is_active', true)->get();
                 if ($dbTemplates->isNotEmpty()) {
                     return $dbTemplates;
@@ -1148,10 +1166,47 @@ class WhatsappController extends Controller
             Log::warning('WhatsApp templates DB lookup fallback', ['error' => $e->getMessage()]);
         }
 
-        return collect($defaultTemplates)->map(function ($t, $idx) {
-            $t['id'] = $idx + 1;
-            return (object) $t;
-        });
+        // Final approved default fallback templates
+        $defaultTemplates = [
+            [
+                'id' => 'tpl_intro',
+                'name' => 'introduction',
+                'title' => 'Welcome & Introduction',
+                'category' => 'MARKETING',
+                'language' => 'en_GB',
+                'body' => "Hello! Hope you're doing well today\n\nWelcome to Assignment In Need (AIN)✨ \n\n I'm here to assist you with your academic needs.📚: \n\nPlease let me know how I can help you today with assignments, projects, or anything else!\n\nLooking forward to supporting you. 😊",
+                'footer_text' => 'Assignment In Need Team',
+                'variables' => [],
+                'status' => 'APPROVED',
+                'is_active' => true,
+            ],
+            [
+                'id' => 'tpl_offer',
+                'name' => 'offer_message',
+                'title' => 'Special 10% Discount Offer',
+                'category' => 'MARKETING',
+                'language' => 'en_GB',
+                'body' => "Hello! Hope you're doing well today.\n*We are from Assignment In Need (AIN)*\n\nNow our company is providing *Flat 10% discount* on any assignment work,\n\nIf you have any assignment, Please let us know.",
+                'footer_text' => 'Assignment In Need Team',
+                'variables' => [],
+                'status' => 'APPROVED',
+                'is_active' => true,
+            ],
+            [
+                'id' => 'tpl_welcome',
+                'name' => 'after_orderconfirmation_welcome_messge',
+                'title' => 'Order Confirmation Welcome',
+                'category' => 'MARKETING',
+                'language' => 'en_GB',
+                'body' => "Hello! Hope you're doing well today\n\nI'm a representative from Assignment In Need (AIN).\n\nYou have recently confirmed the order with us.\n\nWe would like to communicate with you about your recent assignment on this primary number, which offers instant response and hassle-free services.\n\nI'll be waiting for your response to the discussion.\n\nThanks,\nTeam AIN",
+                'footer_text' => 'Assignment In Need Team',
+                'variables' => [],
+                'status' => 'APPROVED',
+                'is_active' => true,
+            ],
+        ];
+
+        return collect($defaultTemplates)->map(fn($t) => (object) $t);
     }
 
     public function getTemplates(): JsonResponse
@@ -1163,7 +1218,7 @@ class WhatsappController extends Controller
                     'name' => is_object($t) ? $t->name : ($t['name'] ?? ''),
                     'title' => (is_object($t) ? ($t->title ?: $t->name) : ($t['title'] ?? $t['name'] ?? '')),
                     'category' => is_object($t) ? ($t->category ?? 'UTILITY') : ($t['category'] ?? 'UTILITY'),
-                    'language' => is_object($t) ? ($t->language ?? 'en_US') : ($t['language'] ?? 'en_US'),
+                    'language' => is_object($t) ? ($t->language ?? 'en_GB') : ($t['language'] ?? 'en_GB'),
                     'body' => is_object($t) ? $t->body : ($t['body'] ?? ''),
                     'footer_text' => is_object($t) ? ($t->footer_text ?? '') : ($t['footer_text'] ?? ''),
                     'variables' => is_object($t) ? ($t->variables ?? []) : ($t['variables'] ?? []),
@@ -1227,13 +1282,18 @@ class WhatsappController extends Controller
         foreach ($params as $idx => $val) {
             $num = $idx + 1;
             $valStr = trim((string)$val);
-            $paramValues[] = $valStr;
-            $renderedBody = str_replace("{{{$num}}}", $valStr, $renderedBody);
+            if ($valStr !== '') {
+                $paramValues[] = $valStr;
+                $renderedBody = str_replace("{{{$num}}}", $valStr, $renderedBody);
+            }
         }
 
         $footerText = is_object($template) ? ($template->footer_text ?? '') : ($template['footer_text'] ?? '');
         $templateName = is_object($template) ? $template->name : ($template['name'] ?? '');
-        $templateLang = (is_object($template) ? ($template->language ?? 'en_US') : ($template['language'] ?? 'en_US')) ?: 'en_US';
+        $rawLang = is_object($template) ? ($template->language ?? 'en_GB') : ($template['language'] ?? 'en_GB');
+        $templateLang = (stripos($rawLang, 'UK') !== false || stripos($rawLang, 'GB') !== false)
+            ? 'en_GB'
+            : ((stripos($rawLang, 'US') !== false) ? 'en_US' : 'en_GB');
 
         if (!empty($footerText)) {
             $fullMessageText = $renderedBody . "\n\n— " . $footerText;
@@ -1251,80 +1311,85 @@ class WhatsappController extends Controller
             'wa_message_id' => 'tpl_' . (string) Str::uuid(),
         ]);
 
-        // Send via active provider
+        // Resolve AiSensy Settings with verified fallbacks
         $setting = WhatsappSetting::query()->where('is_active', true)->first();
         $provider = $setting?->provider ?? 'ai-sense';
         $config = $setting?->settings ?? [];
 
+        $apiKey = $config['api_key'] ?? env('AISENSY_API_KEY') ?: '222488aa8678e32a9069d';
+        $projectId = $config['project_id'] ?? env('AISENSY_PROJECT_ID') ?: '67e109077c4b230bed2fb1ff';
+        if (empty($projectId) || $projectId === '{project_id}' || $projectId === '64b7904a3702730b51b76dc1') {
+            $projectId = '67e109077c4b230bed2fb1ff';
+        }
+        if (empty($apiKey) || $apiKey === '798699e56bbe28cc0b669') {
+            $apiKey = '222488aa8678e32a9069d';
+        }
+
+        $apiUrl = "https://apis.aisensy.com/project-apis/v1/project/{$projectId}/messages";
+
         $sendSuccess = false;
         $sendError = null;
 
-        if ($provider === 'ai-sense') {
-            $apiKey = $config['api_key'] ?? env('AISENSY_API_KEY');
-            $projectId = $config['project_id'] ?? null;
-            $apiUrl = $config['api_url'] ?? ($projectId ? "https://apis.aisensy.com/project-apis/v1/project/{$projectId}/messages" : null);
+        if ($provider === 'ai-sense' || true) {
+            $cleanPhone = ltrim(preg_replace('/\D+/', '', $phone), '+');
+            $payload = [
+                'to' => $cleanPhone,
+                'type' => 'template',
+                'recipient_type' => 'individual',
+                'template' => [
+                    'name' => $templateName,
+                    'language' => [
+                        'code' => $templateLang,
+                        'policy' => 'deterministic',
+                    ],
+                ],
+            ];
 
-            if ($apiKey && $apiUrl) {
-                $cleanPhone = ltrim(preg_replace('/\D+/', '', $phone), '+');
-                $payload = [
-                    'to' => $cleanPhone,
-                    'type' => 'template',
-                    'recipient_type' => 'individual',
-                    'template' => [
-                        'name' => $templateName,
-                        'language' => [
-                            'code' => $templateLang,
-                            'policy' => 'deterministic',
-                        ],
-                        'components' => [
-                            [
-                                'type' => 'body',
-                                'parameters' => array_map(fn($v) => ['type' => 'text', 'text' => (string)$v], $paramValues),
-                            ],
-                        ],
+            if (!empty($paramValues)) {
+                $payload['template']['components'] = [
+                    [
+                        'type' => 'body',
+                        'parameters' => array_map(fn($v) => ['type' => 'text', 'text' => (string)$v], $paramValues),
                     ],
                 ];
-
-                try {
-                    $response = Http::withHeaders([
-                        'Accept' => 'application/json',
-                        'Content-Type' => 'application/json',
-                        'X-AiSensy-Project-API-Pwd' => $apiKey,
-                    ])->timeout(25)->post($apiUrl, $payload);
-
-                    if ($response->successful()) {
-                        $resData = $response->json();
-                        $waMsgId = $resData['messages'][0]['id'] 
-                            ?? $resData['messageId'] 
-                            ?? $resData['id'] 
-                            ?? $resData['data']['messageId'] 
-                            ?? null;
-
-                        $message->update([
-                            'wa_message_id' => $waMsgId ?: $message->wa_message_id,
-                            'status' => 'sent',
-                        ]);
-                        $sendSuccess = true;
-                    } else {
-                        // Fallback sending as text via provider if template name doesn't match on Meta
-                        $sendResult = $this->sendViaActiveProvider($message);
-                        $sendSuccess = $sendResult['success'];
-                        $sendError = $sendResult['error'] ?? null;
-                    }
-                } catch (\Throwable $e) {
-                    Log::error('AiSensy template send error', ['error' => $e->getMessage()]);
-                    $message->update(['status' => 'failed']);
-                    $sendError = $e->getMessage();
-                }
-            } else {
-                $sendResult = $this->sendViaActiveProvider($message);
-                $sendSuccess = $sendResult['success'];
-                $sendError = $sendResult['error'] ?? null;
             }
-        } else {
-            $sendResult = $this->sendViaActiveProvider($message);
-            $sendSuccess = $sendResult['success'];
-            $sendError = $sendResult['error'] ?? null;
+
+            try {
+                $response = Http::withHeaders([
+                    'Accept' => 'application/json',
+                    'Content-Type' => 'application/json',
+                    'X-AiSensy-Project-API-Pwd' => $apiKey,
+                ])->timeout(25)->post($apiUrl, $payload);
+
+                if ($response->successful()) {
+                    $resData = $response->json();
+                    $waMsgId = $resData['messages'][0]['id'] 
+                        ?? $resData['messageId'] 
+                        ?? $resData['id'] 
+                        ?? $resData['data']['messageId'] 
+                        ?? null;
+
+                    $message->update([
+                        'wa_message_id' => $waMsgId ?: $message->wa_message_id,
+                        'status' => 'sent',
+                    ]);
+                    $sendSuccess = true;
+                } else {
+                    $resData = $response->json() ?: [];
+                    $errText = $resData['message'] ?? $resData['error']['message'] ?? ('AiSensy HTTP error ' . $response->status());
+                    Log::error('AiSensy template send error response', [
+                        'status' => $response->status(),
+                        'response' => $resData,
+                        'payload' => $payload,
+                    ]);
+                    $message->update(['status' => 'failed']);
+                    $sendError = $errText;
+                }
+            } catch (\Throwable $e) {
+                Log::error('AiSensy template exception', ['error' => $e->getMessage()]);
+                $message->update(['status' => 'failed']);
+                $sendError = $e->getMessage();
+            }
         }
 
         $message->refresh();
