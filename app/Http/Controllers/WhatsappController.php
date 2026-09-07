@@ -1128,6 +1128,22 @@ class WhatsappController extends Controller
                                 ? 'en_GB' 
                                 : ((stripos($langStr, 'US') !== false) ? 'en_US' : 'en_GB');
 
+                            $buttons = [];
+                            if (!empty($t['quick_replies']) && is_array($t['quick_replies'])) {
+                                $buttons = array_values($t['quick_replies']);
+                            } elseif (!empty($t['buttons']) && is_array($t['buttons'])) {
+                                $buttons = array_map(fn($b) => is_array($b) ? ($b['text'] ?? $b['title'] ?? '') : (string)$b, $t['buttons']);
+                            } elseif (preg_match_all('/\|\s*\[([^\]]+)\]/', $rawText, $btnMatches)) {
+                                $buttons = array_map(fn($b) => explode(',', $b)[0], $btnMatches[1]);
+                            }
+
+                            $variables = [];
+                            if (preg_match_all('/\{\{(\d+)\}\}/', $cleanBody, $vMatches)) {
+                                foreach (array_unique($vMatches[1]) as $varNum) {
+                                    $variables[$varNum] = 'Variable ' . $varNum;
+                                }
+                            }
+
                             return [
                                 'id' => $t['id'] ?? $t['name'],
                                 'name' => $t['name'],
@@ -1136,7 +1152,8 @@ class WhatsappController extends Controller
                                 'language' => $langCode,
                                 'body' => $cleanBody,
                                 'footer_text' => 'Assignment In Need Team',
-                                'variables' => [],
+                                'buttons' => $buttons,
+                                'variables' => $variables,
                                 'status' => 'APPROVED',
                                 'is_active' => true,
                             ];
@@ -1345,7 +1362,10 @@ class WhatsappController extends Controller
                 ],
             ];
 
-            if (!empty($paramValues)) {
+            $rawTemplateBody = is_object($template) ? $template->body : ($template['body'] ?? '');
+            $hasVariables = (bool) preg_match('/\{\{\d+\}\}/', (string)$rawTemplateBody);
+
+            if ($hasVariables && !empty($paramValues)) {
                 $payload['template']['components'] = [
                     [
                         'type' => 'body',
