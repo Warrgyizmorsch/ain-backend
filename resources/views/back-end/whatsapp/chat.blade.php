@@ -6202,8 +6202,8 @@ document.addEventListener('DOMContentLoaded', function() {
             let matchTab = true;
             const isArchived = item.dataset.isArchived === '1';
             const isGroup = item.dataset.isGroup === '1';
-            const isClosed = item.dataset.isClosed === '1';
-            const isActive = !isClosed;
+            const isActive = item.dataset.templateRequired !== '1';
+            const isHistory = !isActive;
             const badge = Number(item.dataset.badge || 0);
 
             if (currentTabFilter === 'archived') {
@@ -6217,7 +6217,7 @@ document.addEventListener('DOMContentLoaded', function() {
             } else if (currentTabFilter === 'groups') {
                 matchTab = isGroup;
             } else if (currentTabFilter === 'history' || currentTabFilter === 'closed') {
-                matchTab = isClosed;
+                matchTab = isHistory;
             } else {
                 matchTab = true; // 'all' tab: Show all non-archived conversations
             }
@@ -6261,13 +6261,13 @@ document.addEventListener('DOMContentLoaded', function() {
                     emptySubtitle = 'All chats are caught up!';
                 } else if (currentTabFilter === 'active') {
                     emptyTitle = 'No active chats';
-                    emptySubtitle = 'Chats that are not closed in AiSensy will appear here.';
+                    emptySubtitle = 'Chats inside the 24-hour window will appear here.';
                 } else if (currentTabFilter === 'groups') {
                     emptyTitle = 'No group conversations';
                     emptySubtitle = 'No group chats found.';
                 } else if (currentTabFilter === 'history' || currentTabFilter === 'closed') {
                     emptyTitle = 'No closed / history chats';
-                    emptySubtitle = 'Chats closed in AiSensy will appear here.';
+                    emptySubtitle = 'Chats with an expired 24-hour window will appear here.';
                 }
                 const emptyEl = document.createElement('div');
                 emptyEl.className = 'wab-tab-empty-msg';
@@ -6383,13 +6383,13 @@ document.addEventListener('DOMContentLoaded', function() {
                         emptySubtitle = 'All chats are caught up!';
                     } else if (currentTabFilter === 'active') {
                         emptyTitle = 'No active chats';
-                        emptySubtitle = 'Chats that are not closed in AiSensy will appear here.';
+                        emptySubtitle = 'Chats inside the 24-hour window will appear here.';
                     } else if (currentTabFilter === 'groups') {
                         emptyTitle = 'No group conversations';
                         emptySubtitle = 'No group chats found.';
                     } else if (currentTabFilter === 'history' || currentTabFilter === 'closed') {
                         emptyTitle = 'No closed / history chats';
-                        emptySubtitle = 'Chats closed in AiSensy will appear here.';
+                        emptySubtitle = 'Chats with an expired 24-hour window will appear here.';
                     }
 
                     list.innerHTML = `

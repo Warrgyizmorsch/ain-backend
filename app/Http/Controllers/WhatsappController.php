@@ -1570,24 +1570,23 @@ class WhatsappController extends Controller
             }
 
             if ($tab === 'active') {
-                $closedPhones = Schema::hasTable('whatsapp_chat_states')
-                    ? WhatsappChatState::query()
-                        ->where('provider', 'ai-sense')
-                        ->where('conversation_status', 'closed')
-                        ->pluck('phone')
-                        ->filter()
-                        ->all()
-                    : [];
+                $activeInboundPhones = WhatsappMessage::query()
+                    ->where('direction', 'inbound')
+                    ->where('created_at', '>=', now()->subHours(24))
+                    ->pluck('phone')
+                    ->filter()
+                    ->all();
 
-                $closedVariants = [];
-                foreach ($closedPhones as $closedPhone) {
-                    foreach ($this->getPhoneVariants($closedPhone) as $variant) {
-                        $closedVariants[$variant] = true;
+                if (empty($activeInboundPhones)) {
+                    $query->whereRaw('1 = 0');
+                } else {
+                    $activeVariants = [];
+                    foreach ($activeInboundPhones as $activePhone) {
+                        foreach ($this->getPhoneVariants($activePhone) as $variant) {
+                            $activeVariants[$variant] = true;
+                        }
                     }
-                }
-
-                if (!empty($closedVariants)) {
-                    $query->whereNotIn('latest.phone', array_keys($closedVariants));
+                    $query->whereIn('latest.phone', array_keys($activeVariants));
                 }
             } elseif ($tab === 'unread') {
                 $unreadPhones = WhatsappMessage::query()
@@ -1613,25 +1612,21 @@ class WhatsappController extends Controller
                       ->orWhere('latest.name', 'like', '%group%');
                 });
             } elseif ($tab === 'history' || $tab === 'closed') {
-                $closedPhones = Schema::hasTable('whatsapp_chat_states')
-                    ? WhatsappChatState::query()
-                        ->where('provider', 'ai-sense')
-                        ->where('conversation_status', 'closed')
-                        ->pluck('phone')
-                        ->filter()
-                        ->all()
-                    : [];
+                $activeInboundPhones = WhatsappMessage::query()
+                    ->where('direction', 'inbound')
+                    ->where('created_at', '>=', now()->subHours(24))
+                    ->pluck('phone')
+                    ->filter()
+                    ->all();
 
-                if (empty($closedPhones)) {
-                    $query->whereRaw('1 = 0');
-                } else {
-                    $closedVariants = [];
-                    foreach ($closedPhones as $closedPhone) {
-                        foreach ($this->getPhoneVariants($closedPhone) as $variant) {
-                            $closedVariants[$variant] = true;
+                if (!empty($activeInboundPhones)) {
+                    $activeVariants = [];
+                    foreach ($activeInboundPhones as $activePhone) {
+                        foreach ($this->getPhoneVariants($activePhone) as $variant) {
+                            $activeVariants[$variant] = true;
                         }
                     }
-                    $query->whereIn('latest.phone', array_keys($closedVariants));
+                    $query->whereNotIn('latest.phone', array_keys($activeVariants));
                 }
             }
             // Note: For 'all' tab or default, all non-archived conversations are returned.
