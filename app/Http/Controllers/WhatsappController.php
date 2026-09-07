@@ -1575,12 +1575,14 @@ class WhatsappController extends Controller
                       ->orWhere('latest.name', 'like', '%group%');
                 });
             } elseif ($tab === 'history' || $tab === 'closed') {
-                $closedPhones = WhatsappChatState::query()
-                    ->where('provider', 'ai-sense')
-                    ->where('conversation_status', 'closed')
-                    ->pluck('phone')
-                    ->filter()
-                    ->all();
+                $closedPhones = Schema::hasTable('whatsapp_chat_states')
+                    ? WhatsappChatState::query()
+                        ->where('provider', 'ai-sense')
+                        ->where('conversation_status', 'closed')
+                        ->pluck('phone')
+                        ->filter()
+                        ->all()
+                    : [];
 
                 if (empty($closedPhones)) {
                     $query->whereRaw('1 = 0');
@@ -1658,7 +1660,7 @@ class WhatsappController extends Controller
             : [];
 
         // Check active 24-hour window for returned contacts to determine closed status
-        $conversationStates = !empty($allVariants)
+        $conversationStates = Schema::hasTable('whatsapp_chat_states') && !empty($allVariants)
             ? WhatsappChatState::query()
                 ->whereIn('phone', array_keys($allVariants))
                 ->get(['phone', 'conversation_status'])
@@ -1984,9 +1986,11 @@ class WhatsappController extends Controller
             $resolvedName = 'Unknown User';
         }
 
-        $conversationStatus = WhatsappChatState::query()
-            ->whereIn('phone', $variants)
-            ->value('conversation_status');
+        $conversationStatus = Schema::hasTable('whatsapp_chat_states')
+            ? WhatsappChatState::query()
+                ->whereIn('phone', $variants)
+                ->value('conversation_status')
+            : null;
 
         return [
             'name' => $resolvedName,

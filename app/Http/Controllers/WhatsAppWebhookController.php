@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use App\Models\Leads;
 use App\Models\WhatsappChatLabel;
 use App\Models\WhatsappChatContactLabel;
@@ -165,7 +166,7 @@ public function receive(Request $request)
             ?? $data['phone']
             ?? null;
 
-        if ($statePhone) {
+        if ($statePhone && Schema::hasTable('whatsapp_chat_states')) {
             $statePhone = preg_replace('/\D+/', '', str_replace('whatsapp:', '', (string) $statePhone));
             WhatsappChatState::query()->updateOrCreate(
                 ['phone' => $statePhone],
