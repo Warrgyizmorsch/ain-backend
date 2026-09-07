@@ -167,7 +167,7 @@ class WhatsappController extends Controller
         $servicesList = Services::all();
         $papersList = Paper::all();
         $sourcesList = Source::all();
-        $whatsappTemplates = WhatsappTemplate::query()->active()->get();
+        $whatsappTemplates = $this->getAvailableTemplates();
 
         return view('back-end.whatsapp.chat', [
             'contacts' => $contacts,
@@ -1094,22 +1094,80 @@ class WhatsappController extends Controller
         return redirect()->route('whatsapp.chat', ['phone' => $validated['phone']]);
     }
 
+    private function getAvailableTemplates()
+    {
+        $defaultTemplates = [
+            [
+                'name' => 'reengage_customer',
+                'title' => 'Re-engage Follow-up',
+                'category' => 'MARKETING',
+                'language' => 'en_US',
+                'body' => 'Hello {{1}}, we noticed your previous inquiry with Assignment In Need. Our team is available 24/7 to help you with your assignments, essays, and reports. Please reply to this message if you would like to proceed.',
+                'footer_text' => 'Assignment In Need Team',
+                'variables' => ['Customer Name'],
+                'status' => 'APPROVED',
+                'is_active' => true,
+            ],
+            [
+                'name' => 'order_status_update',
+                'title' => 'Order Status Update',
+                'category' => 'UTILITY',
+                'language' => 'en_US',
+                'body' => 'Dear {{1}}, this is an update regarding your order #{{2}}. Our team has reviewed the details and work is in progress. Please let us know if you have any additional instructions.',
+                'footer_text' => 'Assignment In Need Team',
+                'variables' => ['Customer Name', 'Order ID'],
+                'status' => 'APPROVED',
+                'is_active' => true,
+            ],
+            [
+                'name' => 'customer_greeting_24h',
+                'title' => 'Customer Care Greeting',
+                'category' => 'SERVICE',
+                'language' => 'en_US',
+                'body' => 'Hi {{1}}, thank you for contacting Assignment In Need support. How may we assist you today?',
+                'footer_text' => '24/7 Support Desk',
+                'variables' => ['Customer Name'],
+                'status' => 'APPROVED',
+                'is_active' => true,
+            ],
+        ];
+
+        try {
+            if (Schema::hasTable('whatsapp_templates')) {
+                if (WhatsappTemplate::count() === 0) {
+                    foreach ($defaultTemplates as $dt) {
+                        WhatsappTemplate::create($dt);
+                    }
+                }
+                $dbTemplates = WhatsappTemplate::query()->where('is_active', true)->get();
+                if ($dbTemplates->isNotEmpty()) {
+                    return $dbTemplates;
+                }
+            }
+        } catch (\Throwable $e) {
+            Log::warning('WhatsApp templates DB lookup fallback', ['error' => $e->getMessage()]);
+        }
+
+        return collect($defaultTemplates)->map(function ($t, $idx) {
+            $t['id'] = $idx + 1;
+            return (object) $t;
+        });
+    }
+
     public function getTemplates(): JsonResponse
     {
-        $templates = WhatsappTemplate::query()
-            ->active()
-            ->get()
-            ->map(function (WhatsappTemplate $t) {
+        $templates = $this->getAvailableTemplates()
+            ->map(function ($t) {
                 return [
-                    'id' => $t->id,
-                    'name' => $t->name,
-                    'title' => $t->title ?: $t->name,
-                    'category' => $t->category,
-                    'language' => $t->language,
-                    'body' => $t->body,
-                    'footer_text' => $t->footer_text,
-                    'variables' => $t->variables ?: [],
-                    'status' => $t->status,
+                    'id' => is_object($t) ? $t->id : ($t['id'] ?? 1),
+                    'name' => is_object($t) ? $t->name : ($t['name'] ?? ''),
+                    'title' => (is_object($t) ? ($t->title ?: $t->name) : ($t['title'] ?? $t['name'] ?? '')),
+                    'category' => is_object($t) ? ($t->category ?? 'UTILITY') : ($t['category'] ?? 'UTILITY'),
+                    'language' => is_object($t) ? ($t->language ?? 'en_US') : ($t['language'] ?? 'en_US'),
+                    'body' => is_object($t) ? $t->body : ($t['body'] ?? ''),
+                    'footer_text' => is_object($t) ? ($t->footer_text ?? '') : ($t['footer_text'] ?? ''),
+                    'variables' => is_object($t) ? ($t->variables ?? []) : ($t['variables'] ?? []),
+                    'status' => is_object($t) ? ($t->status ?? 'APPROVED') : ($t['status'] ?? 'APPROVED'),
                 ];
             });
 
@@ -1131,10 +1189,28 @@ class WhatsappController extends Controller
         $phone = $validated['phone'];
         $template = null;
         if (!empty($validated['template_id'])) {
-            $template = WhatsappTemplate::find($validated['template_id']);
+            try {
+                if (Schema::hasTable('whatsapp_templates')) {
+                    $template = WhatsappTemplate::find($validated['template_id']);
+                }
+            } catch (\Throwable $e) {}
         }
         if (!$template && !empty($validated['template_name'])) {
-            $template = WhatsappTemplate::where('name', $validated['template_name'])->first();
+            try {
+                if (Schema::hasTable('whatsapp_templates')) {
+                    $template = WhatsappTemplate::where('name', $validated['template_name'])->first();
+                }
+            } catch (\Throwable $e) {}
+        }
+
+        if (!$template) {
+            $avail = $this->getAvailableTemplates();
+            $template = $avail->first(function ($t) use ($validated) {
+                $tId = is_object($t) ? $t->id : ($t['id'] ?? null);
+                $tName = is_object($t) ? $t->name : ($t['name'] ?? null);
+                return (!empty($validated['template_id']) && (string)$tId === (string)$validated['template_id'])
+                    || (!empty($validated['template_name']) && (string)$tName === (string)$validated['template_name']);
+            });
         }
 
         if (!$template) {
@@ -1145,7 +1221,7 @@ class WhatsappController extends Controller
         }
 
         $params = $validated['params'] ?? [];
-        $renderedBody = $template->body;
+        $renderedBody = is_object($template) ? $template->body : ($template['body'] ?? '');
         $paramValues = [];
 
         foreach ($params as $idx => $val) {

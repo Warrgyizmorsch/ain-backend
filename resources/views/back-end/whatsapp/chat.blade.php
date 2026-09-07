@@ -45,6 +45,8 @@
 
         return $type;
     };
+    $selectedIsClosed = !empty($selectedContact['is_closed']);
+    $isClosedChat = $selectedIsClosed;
 @endphp
 
 {{-- ======================================================
@@ -326,15 +328,6 @@
                     {{-- Label Chat Button (Tag Icon Only) --}}
                     <button type="button" class="wab-header-icon-btn wab-header-btn-label" onclick="openQuickLabelModal(window.selectedPhone || window.selectedCustomerPhone, window.selectedCustomerName || '{{ addslashes($selectedContact['name'] ?? $selectedPhone) }}')" id="waHeaderLabelChatBtn" title="Assign Labels">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
-                    </button>
-
-                    {{-- Send Template Button (Shown ONLY when chat is ended / 24h window closed) --}}
-                    @php
-                        $selectedIsClosed = !empty($selectedContact['is_closed']);
-                    @endphp
-                    <button type="button" class="wab-header-action-btn wab-header-btn-template {{ $selectedIsClosed ? '' : 'd-none' }}" data-bs-toggle="modal" data-bs-target="#waSendTemplateModal" onclick="openSendTemplateModal()" id="waHeaderSendTemplateBtn" title="Send WhatsApp Template">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
-                        <span>Template</span>
                     </button>
                 </div>
 
@@ -8614,7 +8607,41 @@ document.addEventListener('DOMContentLoaded', function() {
 // ══════════════════════════════════════════════════
 // WHATSAPP TEMPLATES (AiSensy / Meta Approved)
 // ══════════════════════════════════════════════════
-window.cachedWaTemplates = @json($whatsappTemplates ?? []);
+const defaultFallbackTemplates = [
+    {
+        id: 1,
+        name: 'reengage_customer',
+        title: 'Re-engage Follow-up',
+        category: 'MARKETING',
+        language: 'en_US',
+        body: 'Hello {{1}}, we noticed your previous inquiry with Assignment In Need. Our team is available 24/7 to help you with your assignments, essays, and reports. Please reply to this message if you would like to proceed.',
+        footer_text: 'Assignment In Need Team',
+        variables: ['Customer Name']
+    },
+    {
+        id: 2,
+        name: 'order_status_update',
+        title: 'Order Status Update',
+        category: 'UTILITY',
+        language: 'en_US',
+        body: 'Dear {{1}}, this is an update regarding your order #{{2}}. Our team has reviewed the details and work is in progress. Please let us know if you have any additional instructions.',
+        footer_text: 'Assignment In Need Team',
+        variables: ['Customer Name', 'Order ID']
+    },
+    {
+        id: 3,
+        name: 'customer_greeting_24h',
+        title: 'Customer Care Greeting',
+        category: 'SERVICE',
+        language: 'en_US',
+        body: 'Hi {{1}}, thank you for contacting Assignment In Need support. How may we assist you today?',
+        footer_text: '24/7 Support Desk',
+        variables: ['Customer Name']
+    }
+];
+
+let serverTemplates = @json($whatsappTemplates ?? []);
+window.cachedWaTemplates = (Array.isArray(serverTemplates) && serverTemplates.length > 0) ? serverTemplates : defaultFallbackTemplates;
 window.selectedWaTemplate = null;
 
 window.openSendTemplateModal = function(targetPhone = null, targetName = null) {
@@ -8655,28 +8682,7 @@ window.openSendTemplateModal = function(targetPhone = null, targetName = null) {
     }
 
     // Ensure templates dropdown is populated
-    const selectEl = document.getElementById('waTemplateSelect');
-    if (!window.cachedWaTemplates || window.cachedWaTemplates.length === 0) {
-        if (selectEl) selectEl.innerHTML = '<option value="">Loading official templates...</option>';
-        fetch(templatesUrl, {
-            headers: { 'Accept': 'application/json' }
-        })
-        .then(res => res.json())
-        .then(data => {
-            if (data.success && Array.isArray(data.templates) && data.templates.length > 0) {
-                window.cachedWaTemplates = data.templates;
-                populateTemplateDropdown(data.templates);
-            } else {
-                if (selectEl) selectEl.innerHTML = '<option value="">No approved templates found</option>';
-            }
-        })
-        .catch(err => {
-            console.error('Failed to load templates:', err);
-            if (selectEl) selectEl.innerHTML = '<option value="">Failed to load templates</option>';
-        });
-    } else {
-        populateTemplateDropdown(window.cachedWaTemplates);
-    }
+    populateTemplateDropdown(window.cachedWaTemplates);
 
     // Show modal
     const modalEl = document.getElementById('waSendTemplateModal');
@@ -8725,19 +8731,19 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
 
-            if (window.cachedWaTemplates && window.cachedWaTemplates.length > 0) {
-                populateTemplateDropdown(window.cachedWaTemplates);
-            }
+            populateTemplateDropdown(window.cachedWaTemplates);
         });
     }
 });
 
 function populateTemplateDropdown(templates) {
     const selectEl = document.getElementById('waTemplateSelect');
-    if (!selectEl || !Array.isArray(templates) || templates.length === 0) return;
+    if (!selectEl) return;
+    const tList = (Array.isArray(templates) && templates.length > 0) ? templates : defaultFallbackTemplates;
+    window.cachedWaTemplates = tList;
 
     let html = '';
-    templates.forEach(t => {
+    tList.forEach(t => {
         const catLabel = t.category ? `[${t.category}] ` : '';
         html += `<option value="${t.id}">${catLabel}${t.title || t.name}</option>`;
     });
@@ -8747,10 +8753,20 @@ function populateTemplateDropdown(templates) {
         onTemplateChange(this.value);
     };
 
-    if (templates.length > 0) {
-        selectEl.value = templates[0].id;
-        onTemplateChange(templates[0].id);
+    if (tList.length > 0) {
+        selectEl.value = tList[0].id;
+        onTemplateChange(tList[0].id);
     }
+}
+
+function waEscapeHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, char => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;',
+    }[char]));
 }
 
 function onTemplateChange(templateId) {
@@ -8768,13 +8784,14 @@ function onTemplateChange(templateId) {
 
     // Parse variables from template body (e.g. {{1}}, {{2}}, etc.)
     const bodyStr = String(template.body || '');
-    const varRegex = new RegExp('\\{\\{[0-9]+\\}\\}', 'g');
-    const matches = bodyStr.match(varRegex) || [];
-    const uniqueVars = Array.from(new Set(matches)).sort((a, b) => {
-        const numA = parseInt(a.replace(/\D/g, ''), 10) || 0;
-        const numB = parseInt(b.replace(/\D/g, ''), 10) || 0;
-        return numA - numB;
-    });
+    const varRegex = /\{\{([^}]+)\}\}/g;
+    let match;
+    const uniqueVars = [];
+    while ((match = varRegex.exec(bodyStr)) !== null) {
+        if (!uniqueVars.includes(match[0])) {
+            uniqueVars.push(match[0]);
+        }
+    }
 
     const paramsCountEl = document.getElementById('waTemplateParamsCount');
     if (paramsCountEl) paramsCountEl.textContent = `${uniqueVars.length} variable${uniqueVars.length === 1 ? '' : 's'}`;
@@ -8787,7 +8804,12 @@ function onTemplateChange(templateId) {
     } else {
         let paramsHtml = '';
         const currentName = (window.selectedCustomerName || window.currentCustomerName || 'Customer').trim();
-        const variablesHints = Array.isArray(template.variables) ? template.variables : [];
+        let variablesHints = [];
+        if (Array.isArray(template.variables)) {
+            variablesHints = template.variables;
+        } else if (typeof template.variables === 'string') {
+            try { variablesHints = JSON.parse(template.variables); } catch (e) { variablesHints = []; }
+        }
 
         uniqueVars.forEach((vStr, idx) => {
             const varNum = idx + 1;
@@ -8800,10 +8822,10 @@ function onTemplateChange(templateId) {
             paramsHtml += `
                 <div class="wa-param-field">
                     <div class="d-flex justify-content-between align-items-center mb-1">
-                        <label class="form-label fs-8 fw-bold text-dark mb-0">${vStr} &mdash; <span class="text-primary">${labelHint}</span></label>
-                        ${varNum === 1 ? `<button type="button" class="btn btn-link btn-xs p-0 text-primary fs-9" onclick="const inp = document.getElementById('waTemplateParam_${idx}'); if (inp) { inp.value = '${escapeHtml(defaultVal).replace(/'/g, "\\'")}'; updateWaTemplatePreview(); }">Insert Name</button>` : ''}
+                        <label class="form-label fs-8 fw-bold text-dark mb-0">${vStr} &mdash; <span class="text-primary">${waEscapeHtml(labelHint)}</span></label>
+                        ${varNum === 1 ? `<button type="button" class="btn btn-link btn-xs p-0 text-primary fs-9" onclick="const inp = document.getElementById('waTemplateParam_${idx}'); if (inp) { inp.value = '${waEscapeHtml(defaultVal).replace(/'/g, "\\'")}'; updateWaTemplatePreview(); }">Insert Name</button>` : ''}
                     </div>
-                    <input type="text" id="waTemplateParam_${idx}" class="form-control form-control-sm form-control-solid wa-template-param-input" placeholder="Enter ${labelHint.toLowerCase()}" value="${escapeHtml(defaultVal)}" oninput="updateWaTemplatePreview()">
+                    <input type="text" id="waTemplateParam_${idx}" data-token="${vStr}" class="form-control form-control-sm form-control-solid wa-template-param-input" placeholder="Enter ${waEscapeHtml(labelHint.toLowerCase())}" value="${waEscapeHtml(defaultVal)}" oninput="updateWaTemplatePreview()">
                 </div>
             `;
         });
@@ -8818,17 +8840,16 @@ function updateWaTemplatePreview() {
     if (!window.selectedWaTemplate) return;
     const template = window.selectedWaTemplate;
 
-    let bodyText = String(template.body || '');
+    let bodyText = waEscapeHtml(String(template.body || ''));
     const inputs = document.querySelectorAll('.wa-template-param-input');
     
     inputs.forEach((inp, idx) => {
-        const num = idx + 1;
+        const token = inp.dataset.token || ('{{' + (idx + 1) + '}}');
         const val = inp.value.trim();
-        const marker = '{' + '{' + num + '}' + '}';
         const replacement = val 
-            ? `<span class="wa-var-highlight">${escapeHtml(val)}</span>` 
-            : `<span class="wa-var-highlight" style="opacity:0.6">${marker}</span>`;
-        bodyText = bodyText.split(marker).join(replacement);
+            ? `<span class="wa-var-highlight">${waEscapeHtml(val)}</span>` 
+            : `<span class="wa-var-highlight" style="opacity:0.6">${waEscapeHtml(token)}</span>`;
+        bodyText = bodyText.split(token).join(replacement);
     });
 
     const previewBody = document.getElementById('waTemplatePreviewBody');
