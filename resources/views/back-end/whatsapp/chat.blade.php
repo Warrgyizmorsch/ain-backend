@@ -7016,11 +7016,17 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         if (currentTabFilter === 'history' || currentTabFilter === 'closed') {
-            if (!contact.is_closed) {
+            if (!contact.template_required) {
                 const existingItem = list.querySelector(`[data-phone="${contact.phone}"]`) || list.querySelector(`#wab-contact-card-${cleanPhone}`);
                 if (existingItem) existingItem.remove();
                 return;
             }
+        }
+
+        if (currentTabFilter === 'active' && contact.template_required) {
+            const existingItem = list.querySelector(`[data-phone="${contact.phone}"]`) || list.querySelector(`#wab-contact-card-${cleanPhone}`);
+            if (existingItem) existingItem.remove();
+            return;
         }
 
         if (currentTabFilter === 'unread' && Number(contact.badge || 0) <= 0) {
