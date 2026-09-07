@@ -8875,8 +8875,8 @@ function populateTemplateDropdown(templates) {
                 <div class="alert alert-warning d-flex align-items-center p-3 mb-0 fs-8">
                     <i class="fa fa-exclamation-triangle text-warning fs-5 me-2"></i>
                     <div>
-                        <strong>No Approved Meta Templates for +44 7917 481696</strong><br>
-                        AiSensy dashboard me template approve hone par woh yahan automatically show hone lagega.
+                        <strong>No approved Meta templates found for the configured WhatsApp account</strong><br>
+                        Active AiSensy project me template approve hone par woh yahan automatically show hone lagega.
                     </div>
                 </div>
             `;

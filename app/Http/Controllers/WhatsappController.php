@@ -15,7 +15,6 @@ use App\Models\WhatsappChatLabel;
 use App\Models\WhatsappChatPanelSetting;
 use App\Models\WhatsappMessage;
 use App\Models\WhatsappSetting;
-use App\Models\WhatsappTemplate;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -1097,14 +1096,16 @@ class WhatsappController extends Controller
 
     private function getAvailableTemplates()
     {
-        $setting = WhatsappSetting::query()->where('is_active', true)->first();
-        $config = $setting?->settings ?? [];
-        $projectId = $config['project_id'] ?? env('AISENSY_PROJECT_ID') ?: '64b7904a3702730b51b76dc1';
-        $apiKey = $config['api_key'] ?? env('AISENSY_API_KEY') ?: '798699e56bbe28cc0b669';
+        try {
+            $aisensy = $this->activeAiSensyConfiguration();
+        } catch (\RuntimeException $exception) {
+            Log::warning('WhatsApp templates unavailable', ['error' => $exception->getMessage()]);
 
-        if (empty($projectId) || $projectId === '{project_id}') {
-            $projectId = '64b7904a3702730b51b76dc1';
+            return collect();
         }
+
+        $projectId = $aisensy['project_id'];
+        $apiKey = $aisensy['api_key'];
 
         // Fetch live approved templates directly from AiSensy Project API (auto-syncs on approval)
         try {
@@ -1178,10 +1179,16 @@ class WhatsappController extends Controller
     public function getTemplates(Request $request): JsonResponse
     {
         if ($request->query('refresh')) {
-            $setting = WhatsappSetting::query()->where('is_active', true)->first();
-            $config = $setting?->settings ?? [];
-            $projectId = $config['project_id'] ?? env('AISENSY_PROJECT_ID') ?: '64b7904a3702730b51b76dc1';
-            Cache::forget('aisensy_wa_templates_' . $projectId);
+            try {
+                $aisensy = $this->activeAiSensyConfiguration();
+                Cache::forget('aisensy_wa_templates_' . $aisensy['project_id']);
+            } catch (\RuntimeException $exception) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $exception->getMessage(),
+                    'templates' => [],
+                ], 422);
+            }
         }
 
         $templates = $this->getAvailableTemplates()
@@ -1216,31 +1223,23 @@ class WhatsappController extends Controller
         ]);
 
         $phone = $validated['phone'];
-        $template = null;
-        if (!empty($validated['template_id'])) {
-            try {
-                if (Schema::hasTable('whatsapp_templates')) {
-                    $template = WhatsappTemplate::find($validated['template_id']);
-                }
-            } catch (\Throwable $e) {}
-        }
-        if (!$template && !empty($validated['template_name'])) {
-            try {
-                if (Schema::hasTable('whatsapp_templates')) {
-                    $template = WhatsappTemplate::where('name', $validated['template_name'])->first();
-                }
-            } catch (\Throwable $e) {}
+        try {
+            $aisensy = $this->activeAiSensyConfiguration();
+        } catch (\RuntimeException $exception) {
+            return response()->json([
+                'success' => false,
+                'message' => $exception->getMessage(),
+            ], 422);
         }
 
-        if (!$template) {
-            $avail = $this->getAvailableTemplates();
-            $template = $avail->first(function ($t) use ($validated) {
-                $tId = is_object($t) ? $t->id : ($t['id'] ?? null);
-                $tName = is_object($t) ? $t->name : ($t['name'] ?? null);
-                return (!empty($validated['template_id']) && (string)$tId === (string)$validated['template_id'])
-                    || (!empty($validated['template_name']) && (string)$tName === (string)$validated['template_name']);
-            });
-        }
+        // Only allow a template returned by the currently configured AiSensy project.
+        // A same-named local/seeded template may belong to a different WhatsApp number.
+        $template = $this->getAvailableTemplates()->first(function ($t) use ($validated) {
+            $tId = is_object($t) ? $t->id : ($t['id'] ?? null);
+            $tName = is_object($t) ? $t->name : ($t['name'] ?? null);
+            return (!empty($validated['template_id']) && (string)$tId === (string)$validated['template_id'])
+                || (!empty($validated['template_name']) && (string)$tName === (string)$validated['template_name']);
+        });
 
         if (!$template) {
             return response()->json([
@@ -1285,27 +1284,12 @@ class WhatsappController extends Controller
             'wa_message_id' => 'tpl_' . (string) Str::uuid(),
         ]);
 
-        // Resolve AiSensy Settings with verified fallbacks
-        $setting = WhatsappSetting::query()->where('is_active', true)->first();
-        $provider = $setting?->provider ?? 'ai-sense';
-        $config = $setting?->settings ?? [];
-
-        $apiKey = $config['api_key'] ?? env('AISENSY_API_KEY') ?: '798699e56bbe28cc0b669';
-        $projectId = $config['project_id'] ?? env('AISENSY_PROJECT_ID') ?: '64b7904a3702730b51b76dc1';
-        if (empty($projectId) || $projectId === '{project_id}') {
-            $projectId = '64b7904a3702730b51b76dc1';
-        }
-        if (empty($apiKey)) {
-            $apiKey = '798699e56bbe28cc0b669';
-        }
-
-        $apiUrl = "https://apis.aisensy.com/project-apis/v1/project/{$projectId}/messages";
+        $apiKey = $aisensy['api_key'];
+        $apiUrl = $aisensy['messages_url'];
 
         $sendSuccess = false;
         $sendError = null;
-
-        if ($provider === 'ai-sense' || true) {
-            $cleanPhone = ltrim(preg_replace('/\D+/', '', $phone), '+');
+        $cleanPhone = ltrim(preg_replace('/\D+/', '', $phone), '+');
             $payload = [
                 'to' => $cleanPhone,
                 'type' => 'template',
@@ -1366,7 +1350,6 @@ class WhatsappController extends Controller
                 Log::error('AiSensy template exception', ['error' => $e->getMessage()]);
                 $message->update(['status' => 'failed']);
                 $sendError = $e->getMessage();
-            }
         }
 
         $message->refresh();
@@ -1377,6 +1360,45 @@ class WhatsappController extends Controller
             'contacts' => $this->getContacts($phone),
             'error' => $sendError,
         ], $sendSuccess ? 200 : 422);
+    }
+
+    /**
+     * Resolve the single AiSensy project selected in WhatsApp Settings.
+     * Templates and messages must use this same project because the project owns
+     * both the approved templates and the WhatsApp sender number.
+     */
+    private function activeAiSensyConfiguration(): array
+    {
+        $setting = WhatsappSetting::query()->where('is_active', true)->first();
+
+        if (! $setting) {
+            throw new \RuntimeException('No active WhatsApp provider is configured in WhatsApp Settings.');
+        }
+
+        if ($setting->provider !== 'ai-sense') {
+            throw new \RuntimeException('Template messages require AiSensy to be the active WhatsApp provider.');
+        }
+
+        $config = $setting->settings ?? [];
+        $apiKey = trim((string) ($config['api_key'] ?? ''));
+        $projectId = trim((string) ($config['project_id'] ?? ''), " \t\n\r\0\x0B/");
+        $apiUrl = trim((string) ($config['api_url'] ?? ''));
+
+        if (! $projectId && preg_match('#project-apis/v1/project/([a-zA-Z0-9_-]+)/messages#', $apiUrl, $matches)) {
+            if (! in_array($matches[1], ['messages', '{project_id}'], true)) {
+                $projectId = $matches[1];
+            }
+        }
+
+        if (! $apiKey || ! $projectId || $projectId === '{project_id}') {
+            throw new \RuntimeException('AiSensy Project ID or API Key is missing. Please check WhatsApp Settings.');
+        }
+
+        return [
+            'api_key' => $apiKey,
+            'project_id' => $projectId,
+            'messages_url' => "https://apis.aisensy.com/project-apis/v1/project/{$projectId}/messages",
+        ];
     }
 
     private function getPhoneVariants(?string $phone): array
