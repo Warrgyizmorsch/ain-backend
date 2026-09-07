@@ -134,9 +134,10 @@ class WhatsappController extends Controller
                 ->map(fn($rows) => $rows->pluck('label_id')->unique()->values()->all())
             : collect();
 
-        $messages = $selectedPhone
+        $selectedPhoneVariants = $selectedPhone ? $this->getPhoneVariants($selectedPhone) : [];
+        $messages = !empty($selectedPhoneVariants)
             ? WhatsappMessage::query()
-                ->where('phone', $selectedPhone)
+                ->whereIn('phone', $selectedPhoneVariants)
                 ->where(function ($query) {
                     $query->whereRaw("TRIM(COALESCE(message, '')) != ''")
                         ->orWhereNotNull('media_url');
@@ -149,9 +150,9 @@ class WhatsappController extends Controller
             : collect();
 
         $firstMsgId = optional($messages->first())->id ?? 0;
-        $hasMoreOlderMessages = ($selectedPhone && $firstMsgId > 0)
+        $hasMoreOlderMessages = (!empty($selectedPhoneVariants) && $firstMsgId > 0)
             ? WhatsappMessage::query()
-                ->where('phone', $selectedPhone)
+                ->whereIn('phone', $selectedPhoneVariants)
                 ->where('id', '<', $firstMsgId)
                 ->where(function ($query) {
                     $query->whereRaw("TRIM(COALESCE(message, '')) != ''")
@@ -1680,12 +1681,13 @@ class WhatsappController extends Controller
 
         // Check active 24-hour window for returned contacts to determine closed status
         $cutoffTime = now()->subHours(24);
-        $recentInboundPhones = !empty($phones)
+        $recentInboundPhones = !empty($allVariants)
             ? WhatsappMessage::query()
-                ->whereIn('phone', $phones)
+                ->whereIn('phone', array_keys($allVariants))
                 ->where('direction', 'inbound')
                 ->where('created_at', '>=', $cutoffTime)
                 ->pluck('phone')
+                ->map(fn($p) => $allVariants[$p] ?? $p)
                 ->unique()
                 ->all()
             : [];
