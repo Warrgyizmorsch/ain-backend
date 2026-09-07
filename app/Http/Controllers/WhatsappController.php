@@ -1231,8 +1231,12 @@ class WhatsappController extends Controller
             $renderedBody = str_replace("{{{$num}}}", $valStr, $renderedBody);
         }
 
-        if (!empty($template->footer_text)) {
-            $fullMessageText = $renderedBody . "\n\n— " . $template->footer_text;
+        $footerText = is_object($template) ? ($template->footer_text ?? '') : ($template['footer_text'] ?? '');
+        $templateName = is_object($template) ? $template->name : ($template['name'] ?? '');
+        $templateLang = (is_object($template) ? ($template->language ?? 'en_US') : ($template['language'] ?? 'en_US')) ?: 'en_US';
+
+        if (!empty($footerText)) {
+            $fullMessageText = $renderedBody . "\n\n— " . $footerText;
         } else {
             $fullMessageText = $renderedBody;
         }
@@ -1267,9 +1271,9 @@ class WhatsappController extends Controller
                     'type' => 'template',
                     'recipient_type' => 'individual',
                     'template' => [
-                        'name' => $template->name,
+                        'name' => $templateName,
                         'language' => [
-                            'code' => $template->language ?: 'en_US',
+                            'code' => $templateLang,
                             'policy' => 'deterministic',
                         ],
                         'components' => [

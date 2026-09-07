@@ -47,6 +47,12 @@
     };
     $selectedIsClosed = !empty($selectedContact['is_closed']);
     $isClosedChat = $selectedIsClosed;
+    $existingUser = $existingUser ?? null;
+    $existingLead = $existingLead ?? null;
+    $servicesList = $servicesList ?? collect();
+    $papersList = $papersList ?? collect();
+    $sourcesList = $sourcesList ?? collect();
+    $whatsappTemplates = $whatsappTemplates ?? [];
 @endphp
 
 {{-- ======================================================
@@ -5119,6 +5125,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const markUnreadBtn = document.getElementById('wabMarkUnreadBtn');
     const csrfToken     = document.querySelector('meta[name="csrf-token"]')?.content || '';
     let selectedPhone   = body?.dataset.selectedPhone || '';
+    window.selectedPhone = selectedPhone;
     let selectedPhoneChannel = selectedPhone.replace(/\D+/g, '');
     const messagesUrl   = @json(route('whatsapp.chat.messages', [], false));
     const contactListUrl = @json(route('whatsapp.chat.contacts', [], false));
@@ -5127,6 +5134,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const mediaUploadUrl = @json(route('whatsapp.chat.send-media', [], false));
     const templatesUrl  = @json(route('whatsapp.chat.templates', [], false));
     const sendTemplateUrl = @json(route('whatsapp.chat.send-template', [], false));
+    window.templatesUrl = templatesUrl;
+    window.sendTemplateUrl = sendTemplateUrl;
     let lastMessageId   = Number(body?.dataset.lastMessageId || 0);
     let firstMessageId  = Number(body?.dataset.firstMessageId || 0);
     let hasMoreOlder    = body?.dataset.hasMoreOlder === '1';
@@ -6231,6 +6240,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         return visibleCount;
     }
+    window.applyLocalFilter = applyLocalFilter;
 
     let activeContactRequestId = 0;
 
@@ -8607,6 +8617,9 @@ document.addEventListener('DOMContentLoaded', function() {
 // ══════════════════════════════════════════════════
 // WHATSAPP TEMPLATES (AiSensy / Meta Approved)
 // ══════════════════════════════════════════════════
+const sendTemplateUrl = window.sendTemplateUrl || @json(route('whatsapp.chat.send-template', [], false));
+const templatesUrl    = window.templatesUrl || @json(route('whatsapp.chat.templates', [], false));
+
 const defaultFallbackTemplates = [
     {
         id: 1,
@@ -8645,8 +8658,20 @@ window.cachedWaTemplates = (Array.isArray(serverTemplates) && serverTemplates.le
 window.selectedWaTemplate = null;
 
 window.openSendTemplateModal = function(targetPhone = null, targetName = null) {
-    const phone = targetPhone || window.selectedPhone || window.selectedCustomerPhone || document.querySelector('.wab-conv-footer input[name="phone"]')?.value || '';
-    const name = targetName || window.selectedCustomerName || window.currentCustomerName || document.querySelector('.wab-conv-name')?.textContent || phone || 'Customer';
+    const phone = targetPhone 
+        || window.selectedPhone 
+        || window.selectedCustomerPhone 
+        || document.querySelector('.wab-conv-footer input[name="phone"]')?.value 
+        || document.querySelector('#wabConvFooterForm input[name="phone"]')?.value 
+        || document.getElementById('wabProfilePhoneText')?.textContent?.trim() 
+        || '';
+
+    const name = targetName 
+        || window.selectedCustomerName 
+        || window.currentCustomerName 
+        || document.querySelector('.wab-conv-name')?.textContent?.trim() 
+        || phone 
+        || 'Customer';
     
     if (!phone) {
         if (typeof toastr !== 'undefined') toastr.warning('Please select a customer or chat first.');
@@ -8703,8 +8728,17 @@ document.addEventListener('DOMContentLoaded', function() {
     const templateModalEl = document.getElementById('waSendTemplateModal');
     if (templateModalEl) {
         templateModalEl.addEventListener('show.bs.modal', function() {
-            const phone = window.selectedPhone || window.selectedCustomerPhone || document.querySelector('.wab-conv-footer input[name="phone"]')?.value || '';
-            const name = window.selectedCustomerName || window.currentCustomerName || document.querySelector('.wab-conv-name')?.textContent || phone || 'Customer';
+            const phone = window.selectedPhone 
+                || window.selectedCustomerPhone 
+                || document.querySelector('.wab-conv-footer input[name="phone"]')?.value 
+                || document.getElementById('waTemplateRecipientPhone')?.textContent?.trim() 
+                || '';
+
+            const name = window.selectedCustomerName 
+                || window.currentCustomerName 
+                || document.querySelector('.wab-conv-name')?.textContent?.trim() 
+                || phone 
+                || 'Customer';
             
             const recipientNameEl = document.getElementById('waTemplateRecipientName');
             const recipientPhoneEl = document.getElementById('waTemplateRecipientPhone');
@@ -8885,12 +8919,20 @@ function updateWaTemplatePreview() {
 window.submitSendWhatsappTemplate = function() {
     if (!window.selectedWaTemplate) {
         if (typeof toastr !== 'undefined') toastr.error('Please select a template first.');
+        else alert('Please select a template first.');
         return;
     }
 
-    const phone = window.selectedPhone || window.selectedCustomerPhone || document.querySelector('.wab-conv-footer input[name="phone"]')?.value || '';
+    const phone = window.selectedPhone 
+        || window.selectedCustomerPhone 
+        || document.querySelector('.wab-conv-footer input[name="phone"]')?.value 
+        || document.querySelector('#wabConvFooterForm input[name="phone"]')?.value 
+        || document.getElementById('waTemplateRecipientPhone')?.textContent?.trim() 
+        || '';
+
     if (!phone) {
         if (typeof toastr !== 'undefined') toastr.error('No customer selected.');
+        else alert('No customer selected.');
         return;
     }
 
@@ -8935,8 +8977,14 @@ window.submitSendWhatsappTemplate = function() {
             // Close modal
             const modalEl = document.getElementById('waSendTemplateModal');
             if (modalEl) {
-                const modal = bootstrap.Modal.getInstance(modalEl);
-                if (modal) modal.hide();
+                if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+                    const modal = (typeof bootstrap.Modal.getOrCreateInstance === 'function') 
+                        ? bootstrap.Modal.getOrCreateInstance(modalEl) 
+                        : (bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl));
+                    if (modal) modal.hide();
+                } else if (window.$ && typeof $.fn.modal === 'function') {
+                    $('#waSendTemplateModal').modal('hide');
+                }
             }
 
             // Render message immediately
@@ -8963,7 +9011,12 @@ window.submitSendWhatsappTemplate = function() {
             if (sendTemplateHeaderBtn) sendTemplateHeaderBtn.classList.add('d-none');
             const sendTemplateMenuBtn = document.getElementById('wabSendTemplateMenuBtn');
             if (sendTemplateMenuBtn) sendTemplateMenuBtn.classList.add('d-none');
-            applyLocalFilter();
+
+            if (typeof window.applyLocalFilter === 'function') {
+                window.applyLocalFilter();
+            } else if (typeof applyLocalFilter === 'function') {
+                applyLocalFilter();
+            }
 
             if (typeof toastr !== 'undefined') {
                 toastr.success('WhatsApp template sent successfully!');
