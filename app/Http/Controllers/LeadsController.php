@@ -2539,10 +2539,15 @@ class LeadsController extends Controller
 
     public function fetchTemplates($userId)
     {
+        $setting = \App\Models\WhatsappSetting::where('is_active', true)->first();
+        $config = $setting?->settings ?? [];
+        $projectId = $config['project_id'] ?? env('AISENSY_PROJECT_ID') ?: '64b7904a3702730b51b76dc1';
+        $apiKey = $config['api_key'] ?? env('AISENSY_API_KEY') ?: '798699e56bbe28cc0b669';
+
         $response = Http::withHeaders([
             'Accept' => 'application/json',
-            'X-AiSensy-Project-API-Pwd' => '222488aa8678e32a9069d'
-        ])->get('https://apis.aisensy.com/project-apis/v1/project/67e109077c4b230bed2fb1ff/wa_template/');
+            'X-AiSensy-Project-API-Pwd' => $apiKey
+        ])->timeout(8)->get("https://apis.aisensy.com/project-apis/v1/project/{$projectId}/wa_template/");
 
         if ($response->successful()) {
             $templates = collect($response->json()['template'] ?? [])
@@ -2564,7 +2569,6 @@ class LeadsController extends Controller
 
     public function whatsapp(Request $request, $id)
     {
-        // dd($request->all());
         // 1. Find the user
         $user = User::find($id);
         if (!$user) {
@@ -2572,7 +2576,7 @@ class LeadsController extends Controller
         }
 
         // 2. Build the full WhatsApp number
-        $whatsappNumber = $user->countrycode . $user->mobile_no;
+        $whatsappNumber = preg_replace('/\D+/', '', (string) ($user->countrycode . $user->mobile_no));
 
         // 3. Prepare the payload
         $payload = [
@@ -2583,24 +2587,29 @@ class LeadsController extends Controller
                     "policy" => "deterministic",
                     "code" => "en_GB"
                 ],
-                "name" => $request->input('template_name'), // Use the template name from the request
+                "name" => $request->input('template_name'),
             ]
         ];
 
-        // 4. Make the POST request to AiSensy API
+        // 4. Make the POST request to active AiSensy API
+        $setting = \App\Models\WhatsappSetting::where('is_active', true)->first();
+        $config = $setting?->settings ?? [];
+        $projectId = $config['project_id'] ?? env('AISENSY_PROJECT_ID') ?: '64b7904a3702730b51b76dc1';
+        $apiKey = $config['api_key'] ?? env('AISENSY_API_KEY') ?: '798699e56bbe28cc0b669';
+
         $response = Http::withHeaders([
             'Accept' => 'application/json',
             'Content-Type' => 'application/json',
-            'X-AiSensy-Project-API-Pwd' => '222488aa8678e32a9069d'
-        ])->post('https://apis.aisensy.com/project-apis/v1/project/67e109077c4b230bed2fb1ff/messages', $payload);
+            'X-AiSensy-Project-API-Pwd' => $apiKey
+        ])->timeout(20)->post("https://apis.aisensy.com/project-apis/v1/project/{$projectId}/messages", $payload);
 
         // 5. Handle the response and redirect
         if ($response->successful()) {
-            return redirect('/chat/' . $whatsappNumber)
+            return redirect('/whatsapp/chat?phone=' . $whatsappNumber)
                 ->with('success', 'WhatsApp message sent successfully!');
         } else {
             return redirect()->back()
-                ->with('error', 'Failed to send message. ' . $response->json('message'));
+                ->with('error', 'Failed to send message. ' . ($response->json('message') ?? 'Unknown error'));
         }
     }
 
