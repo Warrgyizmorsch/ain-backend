@@ -8,14 +8,16 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('whatsapp_chat_states', function (Blueprint $table) {
-            $table->id();
-            $table->string('phone', 30)->unique();
-            $table->string('provider', 30)->default('ai-sense');
-            $table->string('conversation_status', 30)->index();
-            $table->timestamp('provider_updated_at')->nullable();
-            $table->timestamps();
-        });
+        if (! Schema::hasTable('whatsapp_chat_states')) {
+            Schema::create('whatsapp_chat_states', function (Blueprint $table) {
+                $table->id();
+                $table->string('phone', 30)->unique();
+                $table->string('provider', 30)->default('ai-sense');
+                $table->string('conversation_status', 30)->index();
+                $table->timestamp('provider_updated_at')->nullable();
+                $table->timestamps();
+            });
+        }
     }
 
     public function down(): void

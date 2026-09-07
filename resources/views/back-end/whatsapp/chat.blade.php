@@ -46,7 +46,8 @@
         return $type;
     };
     $selectedIsClosed = !empty($selectedContact['is_closed']);
-    $isClosedChat = $selectedIsClosed;
+    $selectedTemplateRequired = !empty($selectedContact['template_required']);
+    $isClosedChat = $selectedTemplateRequired;
     $existingUser = $existingUser ?? null;
     $existingLead = $existingLead ?? null;
     $servicesList = $servicesList ?? collect();
@@ -102,11 +103,18 @@
 
         {{-- Filter Tabs --}}
         <div class="wab-tabs">
-            <button class="wab-tab active" data-tab="all">All</button>
-            <button class="wab-tab" data-tab="unread">Unread</button>
-            <button class="wab-tab" data-tab="archived">Archived</button>
-            <button class="wab-tab" data-tab="groups">Groups</button>
-            <button class="wab-tab" data-tab="history">History</button>
+            <button type="button" class="wab-tabs-arrow" id="wabTabsPrev" aria-label="Previous tabs" disabled>&lsaquo;</button>
+            <div class="wab-tabs-viewport" id="wabTabsViewport">
+                <div class="wab-tabs-track">
+                    <button class="wab-tab active" data-tab="all">All</button>
+                    <button class="wab-tab" data-tab="active">Active</button>
+                    <button class="wab-tab" data-tab="history">History</button>
+                    <button class="wab-tab" data-tab="unread">Unread</button>
+                    <button class="wab-tab" data-tab="archived">Archive</button>
+                    <button class="wab-tab" data-tab="groups">Group</button>
+                </div>
+            </div>
+            <button type="button" class="wab-tabs-arrow" id="wabTabsNext" aria-label="Next tabs">&rsaquo;</button>
         </div>
 
         {{-- Label Filter Slider Carousel --}}
@@ -163,8 +171,9 @@
                 $cIsArchived = !empty($c['is_archived']);
                 $cIsPinned = !empty($c['is_pinned']);
                 $cIsClosed = !empty($c['is_closed']);
+                $cTemplateRequired = !empty($c['template_required']);
             @endphp
-            <div class="wab-contact-item {{ $c['active'] ? 'is-active' : '' }}" id="wab-contact-card-{{ preg_replace('/\D+/', '', $cPhone) }}" data-name="{{ strtolower($cDisplayName) }}" data-contact-id="{{ $c['id'] }}" data-url="{{ isset($c['phone']) ? route('whatsapp.chat', ['phone' => $c['phone']]) : '' }}" data-phone="{{ $cPhone }}" data-color="{{ $c['color'] }}" data-badge="{{ $c['badge'] ?? 0 }}" data-is-group="{{ !empty($c['is_group']) ? '1' : '0' }}" data-is-archived="{{ $cIsArchived ? '1' : '0' }}" data-is-pinned="{{ $cIsPinned ? '1' : '0' }}" data-is-closed="{{ $cIsClosed ? '1' : '0' }}" data-label-ids="{{ json_encode(array_values(array_map('strval', $cLabelIds ?? []))) }}">
+            <div class="wab-contact-item {{ $c['active'] ? 'is-active' : '' }}" id="wab-contact-card-{{ preg_replace('/\D+/', '', $cPhone) }}" data-name="{{ strtolower($cDisplayName) }}" data-contact-id="{{ $c['id'] }}" data-url="{{ isset($c['phone']) ? route('whatsapp.chat', ['phone' => $c['phone']]) : '' }}" data-phone="{{ $cPhone }}" data-color="{{ $c['color'] }}" data-badge="{{ $c['badge'] ?? 0 }}" data-is-group="{{ !empty($c['is_group']) ? '1' : '0' }}" data-is-archived="{{ $cIsArchived ? '1' : '0' }}" data-is-pinned="{{ $cIsPinned ? '1' : '0' }}" data-is-closed="{{ $cIsClosed ? '1' : '0' }}" data-template-required="{{ $cTemplateRequired ? '1' : '0' }}" data-label-ids="{{ json_encode(array_values(array_map('strval', $cLabelIds ?? []))) }}">
                 <div class="wab-avatar" style="background:{{ $c['color'] }}1a;color:{{ $c['color'] }}">
                     {{ strtoupper(substr($cDisplayName,0,1)) }}
                     <span class="wab-status-badge wab-status--{{ $c['status'] }}"></span>
@@ -346,7 +355,7 @@
                         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
                     </button>
                     <div class="wab-chat-menu" id="wabChatMenu">
-                        <button type="button" id="wabSendTemplateMenuBtn" class="{{ $selectedIsClosed ? '' : 'd-none' }}" data-bs-toggle="modal" data-bs-target="#waSendTemplateModal" onclick="openSendTemplateModal()">Send template</button>
+                        <button type="button" id="wabSendTemplateMenuBtn" class="{{ $selectedTemplateRequired ? '' : 'd-none' }}" data-bs-toggle="modal" data-bs-target="#waSendTemplateModal" onclick="openSendTemplateModal()">Send template</button>
                         <button type="button" id="wabPinChatBtn">Pin chat</button>
                         <button type="button" id="wabMarkUnreadBtn">Mark as unread</button>
                         <button type="button" id="wabArchiveChatBtn">Archive chat</button>
@@ -574,7 +583,7 @@
 
         {{-- 24h Window Closed Banner (Shown when chat is ended / 24h expired) --}}
         @php
-            $isClosedChat = !empty($selectedContact['is_closed']);
+            $isClosedChat = !empty($selectedContact['template_required']);
         @endphp
         <div class="wab-24h-closed-banner {{ ($isClosedChat && $selectedPhone) ? '' : 'd-none' }}" id="wab24hClosedBanner">
             <div class="d-flex align-items-center gap-3">
@@ -2599,14 +2608,38 @@ document.addEventListener('DOMContentLoaded', function() {
 /* ── Tabs ── */
 .wab-tabs {
     display: flex;
+    align-items: center;
     gap: 4px;
     padding: 6px 12px;
     border-bottom: 1px solid var(--wa-border);
     background: #fff;
     flex-shrink: 0;
 }
+.wab-tabs-viewport {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    scroll-behavior: smooth;
+}
+.wab-tabs-track {
+    display: flex;
+    width: 150%;
+}
+.wab-tabs-arrow {
+    width: 25px;
+    height: 25px;
+    flex: 0 0 25px;
+    border: 0;
+    border-radius: 50%;
+    background: #e7fce3;
+    color: #008069;
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+}
+.wab-tabs-arrow:disabled { opacity: .3; cursor: default; }
 .wab-tab {
-    flex: 1; padding: 5px 0;
+    flex: 0 0 16.6667%; padding: 5px 2px;
     border: 0; border-radius: 20px;
     background: transparent;
     font-size: 12px; font-weight: 500; font-family: var(--wa-font);
@@ -5551,7 +5584,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Instant template button & closed banner toggle based on existing card dataset
         const initialActiveCard = document.querySelector(`.wab-contact-item[data-phone="${phone}"]`);
-        const initialIsClosed = initialActiveCard ? (initialActiveCard.dataset.isClosed === '1') : false;
+        const initialIsClosed = initialActiveCard ? (initialActiveCard.dataset.templateRequired === '1') : false;
         const initialClosedBanner = document.getElementById('wab24hClosedBanner');
         if (initialClosedBanner) initialClosedBanner.classList.toggle('d-none', !initialIsClosed);
         
@@ -5615,9 +5648,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
                 // Update 24h Window Closed Banner & Template Button Visibility
                 const activeCard = document.querySelector(`.wab-contact-item[data-phone="${phone}"], .wab-contact-item.is-active`);
-                const isClosed = (data.customer && data.customer.is_closed !== undefined) 
-                    ? Boolean(data.customer.is_closed) 
-                    : (activeCard && activeCard.dataset.isClosed === '1');
+                const isClosed = (data.customer && data.customer.template_required !== undefined)
+                    ? Boolean(data.customer.template_required)
+                    : (activeCard && activeCard.dataset.templateRequired === '1');
                 
                 const closedBanner = document.getElementById('wab24hClosedBanner');
                 if (closedBanner) {
@@ -6063,6 +6096,7 @@ document.addEventListener('DOMContentLoaded', function() {
         div.dataset.isArchived = c.is_archived ? '1' : '0';
         div.dataset.isPinned = c.is_pinned ? '1' : '0';
         div.dataset.isClosed = c.is_closed ? '1' : '0';
+        div.dataset.templateRequired = c.template_required ? '1' : '0';
         const labels = Array.isArray(c.labels) ? c.labels : [];
         const labelIds = Array.isArray(c.label_ids) ? c.label_ids : labels.map(l => l.id);
 
@@ -6169,6 +6203,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const isArchived = item.dataset.isArchived === '1';
             const isGroup = item.dataset.isGroup === '1';
             const isClosed = item.dataset.isClosed === '1';
+            const isActive = !isClosed;
             const badge = Number(item.dataset.badge || 0);
 
             if (currentTabFilter === 'archived') {
@@ -6177,6 +6212,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 matchTab = false; // Hide archived cards in all other tabs
             } else if (currentTabFilter === 'unread') {
                 matchTab = badge > 0;
+            } else if (currentTabFilter === 'active') {
+                matchTab = isActive;
             } else if (currentTabFilter === 'groups') {
                 matchTab = isGroup;
             } else if (currentTabFilter === 'history' || currentTabFilter === 'closed') {
@@ -6222,12 +6259,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 } else if (currentTabFilter === 'unread') {
                     emptyTitle = 'No unread messages';
                     emptySubtitle = 'All chats are caught up!';
+                } else if (currentTabFilter === 'active') {
+                    emptyTitle = 'No active chats';
+                    emptySubtitle = 'Chats that are not closed in AiSensy will appear here.';
                 } else if (currentTabFilter === 'groups') {
                     emptyTitle = 'No group conversations';
                     emptySubtitle = 'No group chats found.';
                 } else if (currentTabFilter === 'history' || currentTabFilter === 'closed') {
                     emptyTitle = 'No closed / history chats';
-                    emptySubtitle = 'Chats with expired 24-hour window will appear here.';
+                    emptySubtitle = 'Chats closed in AiSensy will appear here.';
                 }
                 const emptyEl = document.createElement('div');
                 emptyEl.className = 'wab-tab-empty-msg';
@@ -6341,12 +6381,15 @@ document.addEventListener('DOMContentLoaded', function() {
                     } else if (currentTabFilter === 'unread') {
                         emptyTitle = 'No unread messages';
                         emptySubtitle = 'All chats are caught up!';
+                    } else if (currentTabFilter === 'active') {
+                        emptyTitle = 'No active chats';
+                        emptySubtitle = 'Chats that are not closed in AiSensy will appear here.';
                     } else if (currentTabFilter === 'groups') {
                         emptyTitle = 'No group conversations';
                         emptySubtitle = 'No group chats found.';
                     } else if (currentTabFilter === 'history' || currentTabFilter === 'closed') {
                         emptyTitle = 'No closed / history chats';
-                        emptySubtitle = 'Chats with expired 24-hour window will appear here.';
+                        emptySubtitle = 'Chats closed in AiSensy will appear here.';
                     }
 
                     list.innerHTML = `
@@ -6821,7 +6864,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const cleanP = String(message.phone || selectedPhone).replace(/\D+/g, '');
             const cards = document.querySelectorAll(`#wab-contact-card-${cleanP}, .wab-contact-item[data-phone="${message.phone || selectedPhone}"]`);
             cards.forEach(card => {
-                card.dataset.isClosed = '0';
+                card.dataset.templateRequired = '0';
             });
             applyLocalFilter();
         }
@@ -7843,6 +7886,27 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
+    const tabsViewport = document.getElementById('wabTabsViewport');
+    const tabsPrev = document.getElementById('wabTabsPrev');
+    const tabsNext = document.getElementById('wabTabsNext');
+
+    function updateTabsArrows() {
+        if (!tabsViewport || !tabsPrev || !tabsNext) return;
+        const maxScroll = Math.max(0, tabsViewport.scrollWidth - tabsViewport.clientWidth);
+        tabsPrev.disabled = tabsViewport.scrollLeft <= 2;
+        tabsNext.disabled = tabsViewport.scrollLeft >= maxScroll - 2;
+    }
+
+    tabsPrev?.addEventListener('click', () => {
+        tabsViewport?.scrollBy({ left: -(tabsViewport.clientWidth || 0), behavior: 'smooth' });
+    });
+    tabsNext?.addEventListener('click', () => {
+        tabsViewport?.scrollBy({ left: tabsViewport.clientWidth || 0, behavior: 'smooth' });
+    });
+    tabsViewport?.addEventListener('scroll', updateTabsArrows, { passive: true });
+    window.addEventListener('resize', updateTabsArrows);
+    updateTabsArrows();
+
     /* ── Label Filter Slider Carousel Logic ── */
     const labelTrackWrap = document.getElementById('wabLabelTrackWrap');
     const labelTrack = document.getElementById('wabLabelTrack');
@@ -8750,7 +8814,7 @@ window.openSendTemplateModal = function(targetPhone = null, targetName = null) {
     // Check if contact is closed
     const cleanP = String(phone).replace(/\D+/g, '');
     const activeCard = document.querySelector(`#wab-contact-card-${cleanP}, .wab-contact-item[data-phone="${phone}"], .wab-contact-item.is-active`);
-    const isClosed = activeCard ? (activeCard.dataset.isClosed === '1') : false;
+    const isClosed = activeCard ? (activeCard.dataset.templateRequired === '1') : false;
     
     if (sessionBadge) {
         if (isClosed) {
@@ -8838,7 +8902,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
             const cleanP = String(phone).replace(/\D+/g, '');
             const activeCard = document.querySelector(`#wab-contact-card-${cleanP}, .wab-contact-item[data-phone="${phone}"], .wab-contact-item.is-active`);
-            const isClosed = activeCard ? (activeCard.dataset.isClosed === '1') : false;
+            const isClosed = activeCard ? (activeCard.dataset.templateRequired === '1') : false;
             
             if (sessionBadge) {
                 if (isClosed) {
@@ -9114,26 +9178,8 @@ window.submitSendWhatsappTemplate = function() {
                 data.contacts.forEach(c => window.renderContact(c, false));
             }
 
-            // Mark active card as open & hide 24h closed banner & show footer & template button
-            const cleanP = String(phone).replace(/\D+/g, '');
-            const cards = document.querySelectorAll(`#wab-contact-card-${cleanP}, .wab-contact-item[data-phone="${phone}"], .wab-contact-item.is-active`);
-            cards.forEach(card => {
-                card.dataset.isClosed = '0';
-            });
-            const closedBanner = document.getElementById('wab24hClosedBanner');
-            if (closedBanner) closedBanner.classList.add('d-none');
-            const footerForm = document.getElementById('wabConvFooterForm') || document.querySelector('.wab-conv-footer');
-            if (footerForm) footerForm.classList.remove('d-none');
-            const sendTemplateHeaderBtn = document.getElementById('waHeaderSendTemplateBtn');
-            if (sendTemplateHeaderBtn) sendTemplateHeaderBtn.classList.add('d-none');
-            const sendTemplateMenuBtn = document.getElementById('wabSendTemplateMenuBtn');
-            if (sendTemplateMenuBtn) sendTemplateMenuBtn.classList.add('d-none');
-
-            if (typeof window.applyLocalFilter === 'function') {
-                window.applyLocalFilter();
-            } else if (typeof applyLocalFilter === 'function') {
-                applyLocalFilter();
-            }
+            // A template does not reopen WhatsApp's 24-hour service window.
+            // Keep normal chat disabled until the customer replies.
 
             if (typeof toastr !== 'undefined') {
                 toastr.success('WhatsApp template sent successfully!');
