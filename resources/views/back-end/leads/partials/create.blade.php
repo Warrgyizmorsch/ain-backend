@@ -45,10 +45,11 @@
                                 <div class="col-md-3 position-relative">
                                     <label class="fs-7 fw-bold">Mobile</label>
                                     <div class="position-relative">
-                                        <input type="text"
+                                        <input type="{{ auth()->user()->role_id == 1 ? 'text' : 'password' }}"
                                             name="mobile"
                                             id="mobile"
                                             class="form-control form-control-sm form-control-solid pe-10"
+                                            autocomplete="off"
                                             required>
                                         <span id="mobile_lookup_loader"
                                             class="spinner-border spinner-border-sm text-primary position-absolute top-50 end-0 translate-middle-y me-3"
@@ -536,7 +537,7 @@
                                             data-email="${user.email ?? ''}"
                                             data-mobile="${user.mobile_no ?? ''}">
                                             <strong>${user.name ?? 'No Name'}</strong><br>
-                                            <small>${user.email ?? ''} | ${user.mobile_no ?? ''}</small>
+                                            <small>${user.email ?? ''} | ${window.maskPhoneForDisplay(user.mobile_no ?? '')}</small>
                                         </div>
                                     `;
                                 });
@@ -557,7 +558,7 @@
                 let mobile = $(this).data('mobile');
 
                 $('#refer_id').val(id);
-                $('#refer_search').val(name + ' - ' + mobile + ' - ' + email);
+                $('#refer_search').val(name + ' - ' + window.maskPhoneForDisplay(mobile) + ' - ' + email);
                 $('#refer_result').hide();
             });
 
@@ -599,7 +600,7 @@ $(document).ready(function () {
             $('#refer_id').val(referUser.id);
             $('#refer_search').val(
                 (referUser.name || '') + ' - ' +
-                (referUser.mobile_no || '') + ' - ' +
+                window.maskPhoneForDisplay(referUser.mobile_no || '') + ' - ' +
                 (referUser.email || '')
             );
 
@@ -637,7 +638,7 @@ $(document).ready(function () {
                     style="cursor:pointer;"
                     data-user='${escapeHtml(JSON.stringify(user))}'>
                     <strong>${escapeHtml(user.name || 'No Name')}</strong><br>
-                    <small>${escapeHtml(user.countrycode || '')} ${escapeHtml(user.mobile_no || '')} | ${escapeHtml(user.email || '')}</small>
+                    <small>${escapeHtml(window.maskPhoneForDisplay((user.countrycode || '') + (user.mobile_no || '')))} | ${escapeHtml(user.email || '')}</small>
                 </div>
             `;
         });

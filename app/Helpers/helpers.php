@@ -38,11 +38,11 @@ if (!function_exists('mask_phone_for_display')) {
             return $digits;
         }
 
-        if (strlen($digits) <= 8) {
+        if (strlen($digits) <= 6) {
             return str_repeat('*', strlen($digits));
         }
 
-        return substr($digits, 0, 4) . '****' . substr($digits, -4);
+        return substr($digits, 0, 2) . str_repeat('*', strlen($digits) - 6) . substr($digits, -4);
     }
 }
 

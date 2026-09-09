@@ -1772,6 +1772,7 @@ class WhatsappController extends Controller
             return [
                 'id' => $contact->id,
                 'phone' => $contact->phone,
+                'phone_display' => mask_phone_for_display('', $contact->phone),
                 'name' => $name,
                 'msg' => $this->contactPreview($contact),
                 'time' => optional($contact->created_at ? \Carbon\Carbon::parse($contact->created_at) : null)->isToday()
@@ -1823,6 +1824,7 @@ class WhatsappController extends Controller
                         $contacts[] = [
                             'id' => $lastMsg->id,
                             'phone' => $pp,
+                            'phone_display' => mask_phone_for_display('', $pp),
                             'name' => $cName,
                             'msg' => $this->contactPreview($lastMsg),
                             'time' => optional($lastMsg->created_at ? \Carbon\Carbon::parse($lastMsg->created_at) : null)->isToday()
@@ -1877,8 +1879,9 @@ class WhatsappController extends Controller
                     $contacts[] = [
                         'id' => 'u_' . $mu->id,
                         'phone' => $mu->mobile_no,
-                        'name' => $mu->name ?: $mu->mobile_no,
-                        'msg' => 'CRM User (' . ($mu->email ?: $mu->mobile_no) . ')',
+                        'phone_display' => mask_phone_for_display('', $mu->mobile_no),
+                        'name' => $mu->name ?: mask_phone_for_display('', $mu->mobile_no),
+                        'msg' => 'CRM User (' . ($mu->email ?: mask_phone_for_display('', $mu->mobile_no)) . ')',
                         'time' => 'User',
                         'active' => $mu->mobile_no === $activePhone,
                         'badge' => 0,
@@ -1899,8 +1902,9 @@ class WhatsappController extends Controller
                     $contacts[] = [
                         'id' => 'l_' . $ml->id,
                         'phone' => $ml->mobile,
-                        'name' => $ml->user_name ?: $ml->mobile,
-                        'msg' => 'CRM Lead (' . ($ml->email ?: $ml->mobile) . ')',
+                        'phone_display' => mask_phone_for_display('', $ml->mobile),
+                        'name' => $ml->user_name ?: mask_phone_for_display('', $ml->mobile),
+                        'msg' => 'CRM Lead (' . ($ml->email ?: mask_phone_for_display('', $ml->mobile)) . ')',
                         'time' => 'Lead',
                         'active' => $ml->mobile === $activePhone,
                         'badge' => 0,

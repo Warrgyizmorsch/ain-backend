@@ -14,6 +14,18 @@
     {{-- Styles --}}
     @include('layouts.css')
 
+    {{-- Phone masking: full numbers are admin-only (role_id 1) --}}
+    <script>
+        window.canViewFullPhone = @json(auth()->check() && auth()->user()->role_id == 1);
+        window.maskPhoneForDisplay = function (phone) {
+            if (window.canViewFullPhone) return phone || '';
+            const digits = String(phone || '').replace(/\D+/g, '');
+            if (!digits) return '';
+            if (digits.length <= 6) return '*'.repeat(digits.length);
+            return digits.slice(0, 2) + '*'.repeat(digits.length - 6) + digits.slice(-4);
+        };
+    </script>
+
     {{-- Page-specific head content --}}
     @stack('head')
 </head>

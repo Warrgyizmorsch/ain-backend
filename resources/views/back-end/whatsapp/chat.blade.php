@@ -300,12 +300,10 @@
                     <div class="wab-conv-name">{{ $selectedName }}</div>
                     <div class="wab-conv-status">
                         <span class="wab-online-dot"></span>
-                        <span id="wabTypingLabel">{{ $selectedPhone ?: 'ready' }}</span>
-                        @if($selectedPhone)
-                        <button type="button" class="btn btn-sm btn-icon p-0 ms-1 border-0" id="waHeaderCopyPhoneBtn" style="width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;background:transparent;color:var(--wa-text-muted);" onclick="event.stopPropagation(); copyPhoneNumberToClipboard(window.selectedPhone || '{{ $selectedPhone }}', this)" title="Copy phone number">
+                        <span id="wabTypingLabel">{{ $selectedPhone ? mask_phone_for_display('', $selectedPhone) : 'ready' }}</span>
+                        <button type="button" class="btn btn-sm btn-icon p-0 ms-1 border-0 {{ $selectedPhone ? '' : 'd-none' }}" id="waHeaderCopyPhoneBtn" style="width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;background:transparent;color:var(--wa-text-muted);" onclick="event.stopPropagation(); copyPhoneNumberToClipboard(window.maskPhoneForDisplay(window.selectedPhone || '{{ $selectedPhone }}'), this)" title="Copy phone number">
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
                         </button>
-                        @endif
                     </div>
                     @if($activeLabels->isNotEmpty())
                         <div class="wab-chat-label-row">
@@ -993,7 +991,7 @@
                     </div>
                     <div>
                         <h5 class="modal-title wab-modal-title text-white mb-0">Create New Lead from WhatsApp</h5>
-                        <div class="text-white opacity-75 fs-8" id="waCreateLeadSubtitle">Create CRM Lead &amp; Order for {{ $selectedPhone }}</div>
+                        <div class="text-white opacity-75 fs-8" id="waCreateLeadSubtitle">Create CRM Lead &amp; Order for {{ $selectedPhone ? mask_phone_for_display('', $selectedPhone) : '' }}</div>
                     </div>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
@@ -1067,7 +1065,12 @@
                         </div>
                         <div class="col-md-5">
                             <label class="wab-form-label fw-bold">Mobile Number <span class="text-danger">*</span></label>
-                            <input type="text" name="mobile" id="waCreateLeadMobile" class="wab-form-input font-monospace" value="{{ $extractedMobile }}" required placeholder="e.g. 9876543210">
+                            @if(auth()->user()->role_id == 1)
+                                <input type="text" name="mobile" id="waCreateLeadMobile" class="wab-form-input font-monospace" value="{{ $extractedMobile }}" required placeholder="e.g. 9876543210" autocomplete="off">
+                            @else
+                                <input type="text" id="waCreateLeadMobileDisplay" class="wab-form-input font-monospace" value="{{ mask_phone_for_display('', $extractedMobile) }}" placeholder="e.g. 9876543210" autocomplete="off" readonly title="Full number hidden — contact an admin if this needs correcting">
+                                <input type="hidden" name="mobile" id="waCreateLeadMobile" value="{{ $extractedMobile }}" required>
+                            @endif
                         </div>
                         <div class="col-md-4">
                             <label class="wab-form-label fw-bold">Lead Source <span class="text-danger">*</span></label>
@@ -1229,7 +1232,7 @@
                 </div>
                 <div class="d-flex flex-column">
                     <h5 class="modal-title wab-modal-title text-white mb-0">Customer Leads History</h5>
-                    <div class="text-white opacity-75 fs-8">Customer: <strong>{{ $selectedContact['name'] ?? 'User' }}</strong> ({{ $selectedPhone }})</div>
+                    <div class="text-white opacity-75 fs-8">Customer: <strong>{{ $selectedContact['name'] ?? 'User' }}</strong> ({{ $selectedPhone ? mask_phone_for_display('', $selectedPhone) : '' }})</div>
                 </div>
                 <div class="ms-auto d-flex align-items-center gap-2">
                     <a href="{{ route('leads') }}" target="_blank" id="waLeadsModalViewAllBtn" class="btn btn-sm btn-light py-1 px-3 fs-8 fw-bold" title="Open Leads page for this customer">
@@ -1308,7 +1311,7 @@
                     </div>
                     <div>
                         <h5 class="modal-title wab-modal-title text-white mb-0" style="font-size:15px;font-weight:700;">Customer Orders History</h5>
-                        <div class="text-white opacity-75 fs-9">Customer: <strong class="text-white">{{ $selectedContact['name'] ?? 'User' }}</strong> ({{ $selectedPhone }})</div>
+                        <div class="text-white opacity-75 fs-9">Customer: <strong class="text-white">{{ $selectedContact['name'] ?? 'User' }}</strong> ({{ $selectedPhone ? mask_phone_for_display('', $selectedPhone) : '' }})</div>
                     </div>
                 </div>
                 <div class="ms-auto d-flex align-items-center gap-2">
@@ -2306,12 +2309,10 @@ document.addEventListener('DOMContentLoaded', function() {
             <div class="wab-pp-avatar" style="background:{{ $selectedColor }}1a;color:{{ $selectedColor }}">{{ strtoupper(substr($selectedName,0,1)) }}</div>
             <div class="wab-pp-name" id="wabProfileNameText">{{ $selectedName }}</div>
             <div class="wab-pp-phone d-flex align-items-center justify-content-center gap-2 mt-1">
-                <span id="wabProfilePhoneText" class="fw-semibold">{{ $selectedPhone ?: 'N/A' }}</span>
-                @if($selectedPhone)
-                <button type="button" class="btn btn-sm btn-icon p-0 border-0" id="wabProfileCopyPhoneBtn" style="width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;background:#e8f5e9;color:#2e7d32;border-radius:50%;" onclick="copyPhoneNumberToClipboard(window.selectedPhone || '{{ $selectedPhone }}', this)" title="Copy phone number">
+                <span id="wabProfilePhoneText" class="fw-semibold">{{ $selectedPhone ? mask_phone_for_display('', $selectedPhone) : 'N/A' }}</span>
+                <button type="button" class="btn btn-sm btn-icon p-0 border-0 {{ $selectedPhone ? '' : 'd-none' }}" id="wabProfileCopyPhoneBtn" style="width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;background:#e8f5e9;color:#2e7d32;border-radius:50%;" onclick="copyPhoneNumberToClipboard(window.maskPhoneForDisplay(window.selectedPhone || '{{ $selectedPhone }}'), this)" title="Copy phone number">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
                 </button>
-                @endif
             </div>
             <div class="wab-pp-biz"><span class="wab-online-dot"></span> Open until 6:00 PM</div>
         </div>
@@ -2361,12 +2362,10 @@ document.addEventListener('DOMContentLoaded', function() {
             <div class="wab-pp-stat-row">
                 <span>Phone</span>
                 <div class="d-flex align-items-center gap-1.5">
-                    <strong id="wabPpStatPhone">{{ $selectedPhone ?: 'N/A' }}</strong>
-                    @if($selectedPhone)
-                    <button type="button" class="btn btn-sm btn-icon btn-light p-0 border-0" style="width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;color:#54656f;" onclick="copyPhoneNumberToClipboard(window.selectedPhone || '{{ $selectedPhone }}', this)" title="Copy phone number">
+                    <strong id="wabPpStatPhone">{{ $selectedPhone ? mask_phone_for_display('', $selectedPhone) : 'N/A' }}</strong>
+                    <button type="button" class="btn btn-sm btn-icon btn-light p-0 border-0 {{ $selectedPhone ? '' : 'd-none' }}" id="wabPpStatCopyPhoneBtn" style="width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;color:#54656f;" onclick="copyPhoneNumberToClipboard(window.maskPhoneForDisplay(window.selectedPhone || '{{ $selectedPhone }}'), this)" title="Copy phone number">
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
                     </button>
-                    @endif
                 </div>
             </div>
             <div class="wab-pp-stat-row"><span>Total Messages</span><strong>{{ $messages->count() }}</strong></div>
@@ -5197,7 +5196,7 @@ document.addEventListener('DOMContentLoaded', function() {
     let recordedAudio = null;
     let recordedAudioDuration = 0;
     let recordedAudioExtension = 'webm';
-    let defaultTypingLabel = typingLabel?.textContent || selectedPhone || 'ready';
+    let defaultTypingLabel = typingLabel?.textContent || window.maskPhoneForDisplay(selectedPhone) || 'ready';
 
     /* ── Sidebar pagination & search state ── */
     let contactPage = 1;
@@ -5549,7 +5548,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const initialResolvedName = resolveContactName(name, phone);
         window.selectedCustomerName = initialResolvedName;
         selectedPhoneChannel = phone.replace(/\D+/g, '');
-        defaultTypingLabel = phone;
+        defaultTypingLabel = window.maskPhoneForDisplay(phone) || 'ready';
         if (typeof window.resetLeadsOrdersPhone === 'function') {
             window.resetLeadsOrdersPhone(phone);
         }
@@ -5726,7 +5725,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         const nameEl = document.querySelector('.wab-conv-name');
         if (nameEl) nameEl.textContent = resolvedName;
-        if (typingLabel) typingLabel.textContent = phone;
+        if (typingLabel) typingLabel.textContent = window.maskPhoneForDisplay(phone) || 'ready';
 
         const ppAvatar = document.querySelector('.wab-pp-avatar');
         if (ppAvatar) {
@@ -5737,11 +5736,16 @@ document.addEventListener('DOMContentLoaded', function() {
         const ppName = document.getElementById('wabProfileNameText');
         if (ppName) ppName.textContent = resolvedName;
         const ppPhone = document.getElementById('wabProfilePhoneText');
-        if (ppPhone) ppPhone.textContent = phone || 'N/A';
+        if (ppPhone) ppPhone.textContent = window.maskPhoneForDisplay(phone) || 'N/A';
         const ppStatPhone = document.getElementById('wabPpStatPhone');
-        if (ppStatPhone) ppStatPhone.textContent = phone || 'N/A';
+        if (ppStatPhone) ppStatPhone.textContent = window.maskPhoneForDisplay(phone) || 'N/A';
         const ppStatName = document.getElementById('wabPpStatName');
         if (ppStatName) ppStatName.textContent = resolvedName;
+
+        ['waHeaderCopyPhoneBtn', 'wabProfileCopyPhoneBtn', 'wabPpStatCopyPhoneBtn'].forEach(function (btnId) {
+            const btn = document.getElementById(btnId);
+            if (btn) btn.classList.toggle('d-none', !phone);
+        });
     }
 
     function updateHeaderCustomerDetails(customer, fallbackName, phone, color) {
@@ -5830,7 +5834,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const assignPhoneInput = document.getElementById('waAssignPhoneInput');
         if (assignPhoneInput) assignPhoneInput.value = phone;
         const assignSubtitle = document.getElementById('waAssignContactSubtitle');
-        if (assignSubtitle) assignSubtitle.textContent = `for ${resolvedName} (${phone})`;
+        if (assignSubtitle) assignSubtitle.textContent = `for ${resolvedName} (${window.maskPhoneForDisplay(phone)})`;
 
         // Check active label checkboxes in Label modal
         const labelIdSet = new Set(labels.map(l => parseInt(l.id)));
@@ -5850,9 +5854,9 @@ document.addEventListener('DOMContentLoaded', function() {
         window.leadsLoadedPhone = null;
         window.ordersLoadedPhone = null;
         const leadsModalSub = document.querySelector('#waCheckLeadsModal .opacity-75');
-        if (leadsModalSub) leadsModalSub.innerHTML = `Customer: <strong>${escapeHtml(resolvedName)}</strong> (${phone})`;
+        if (leadsModalSub) leadsModalSub.innerHTML = `Customer: <strong>${escapeHtml(resolvedName)}</strong> (${escapeHtml(window.maskPhoneForDisplay(phone))})`;
         const ordersModalSub = document.querySelector('#waCheckOrdersModal .opacity-75');
-        if (ordersModalSub) ordersModalSub.innerHTML = `Customer: <strong>${escapeHtml(resolvedName)}</strong> (${phone})`;
+        if (ordersModalSub) ordersModalSub.innerHTML = `Customer: <strong>${escapeHtml(resolvedName)}</strong> (${escapeHtml(window.maskPhoneForDisplay(phone))})`;
 
         // Update Create Lead modal inputs
         const createLeadModal = document.getElementById('waCreateLeadModal');
@@ -5865,12 +5869,17 @@ document.addEventListener('DOMContentLoaded', function() {
             const emailInput = document.getElementById('waCreateLeadEmail');
             const countryCodeSelect = document.getElementById('waCreateLeadCountryCode');
             const mobileInput = document.getElementById('waCreateLeadMobile');
+            const mobileDisplayInput = document.getElementById('waCreateLeadMobileDisplay');
+            const setLeadMobile = function (value) {
+                if (mobileInput) mobileInput.value = value || '';
+                if (mobileDisplayInput) mobileDisplayInput.value = window.maskPhoneForDisplay(value || '');
+            };
             const subtitleEl = document.getElementById('waCreateLeadSubtitle');
             const bannerEl = document.getElementById('waCreateLeadUserBanner');
             const bannerTitleEl = document.getElementById('waCreateLeadBannerTitle');
             const bannerDescEl = document.getElementById('waCreateLeadBannerDesc');
 
-            if (subtitleEl) subtitleEl.textContent = `Create CRM Lead & Order for ${phone}`;
+            if (subtitleEl) subtitleEl.textContent = `Create CRM Lead & Order for ${window.maskPhoneForDisplay(phone)}`;
 
             // Parse phone number & country code
             let cleanP = phone.replace(/\D+/g, '');
@@ -5904,7 +5913,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (emailInput) emailInput.value = customer.user.email || '';
                 if (countryCodeSelect && customer.user.countrycode) countryCodeSelect.value = customer.user.countrycode;
                 else if (countryCodeSelect) countryCodeSelect.value = parsedCode;
-                if (mobileInput) mobileInput.value = customer.user.mobile_no || parsedMobile;
+                setLeadMobile(customer.user.mobile_no || parsedMobile);
 
                 if (bannerEl) {
                     bannerEl.className = 'p-2 mb-3 rounded d-flex align-items-center justify-content-between bg-light-success border border-success';
@@ -5918,7 +5927,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (nameInput) nameInput.value = (customer && customer.name && customer.name !== phone) ? customer.name : (fallbackName && fallbackName !== phone ? fallbackName : '');
                 if (emailInput) emailInput.value = '';
                 if (countryCodeSelect) countryCodeSelect.value = parsedCode;
-                if (mobileInput) mobileInput.value = parsedMobile;
+                setLeadMobile(parsedMobile);
 
                 if (bannerEl) {
                     bannerEl.className = 'p-2 mb-3 rounded d-flex align-items-center justify-content-between bg-light-info border border-info';
@@ -6138,7 +6147,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     <span class="wab-contact-preview">${escapeHtml(c.msg || '')}</span>
                     <div class="wab-contact-row-right d-flex align-items-center gap-1">
                         ${c.badge ? `<span class="wab-badge">${c.badge}</span>` : ''}
-                        <button type="button" class="wab-quick-copy-btn" onclick="event.stopPropagation(); copyPhoneNumberToClipboard('${escapeHtml(c.phone)}', this)" title="Copy phone number">
+                        <button type="button" class="wab-quick-copy-btn" onclick="event.stopPropagation(); copyPhoneNumberToClipboard('${escapeHtml(c.phone_display || c.phone)}', this)" title="Copy phone number">
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
                         </button>
                         <button type="button" class="wab-quick-tag-btn" onclick="event.stopPropagation(); openQuickLabelModal('${escapeHtml(c.phone)}', '${escapeHtml(displayName).replace(/'/g, "\\'")}', ${JSON.stringify(labelIds)})" title="Assign Labels">
@@ -6156,7 +6165,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                     </a>
                                 </li>
                                 <li>
-                                    <a class="dropdown-item d-flex align-items-center gap-2 py-2" href="javascript:void(0)" onclick="copyPhoneNumberToClipboard('${escapeHtml(c.phone)}')">
+                                    <a class="dropdown-item d-flex align-items-center gap-2 py-2" href="javascript:void(0)" onclick="copyPhoneNumberToClipboard('${escapeHtml(c.phone_display || c.phone)}')">
                                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
                                         <span>Copy number</span>
                                     </a>
@@ -8505,9 +8514,10 @@ window.copyPhoneNumberToClipboard = function(phone, btn) {
 };
 
 window.copyContactDetails = function(btn) {
-    const phone = window.selectedPhone || window.selectedCustomerPhone || document.getElementById('wabProfilePhoneText')?.textContent?.trim() || '';
+    const phone = window.selectedPhone || window.selectedCustomerPhone || '';
+    const maskedPhone = window.maskPhoneForDisplay(phone) || document.getElementById('wabProfilePhoneText')?.textContent?.trim() || '';
     const name = window.selectedCustomerName || document.getElementById('wabProfileNameText')?.textContent?.trim() || '';
-    const details = `Name: ${name}\nPhone: ${phone}`;
+    const details = `Name: ${name}\nPhone: ${maskedPhone}`;
     window.copyPhoneNumberToClipboard(details, btn);
 };
 
@@ -8525,7 +8535,7 @@ window.openQuickLabelModal = function(phone, contactName, labelIds) {
     const phoneInput = document.getElementById('waAssignPhoneInput');
     const subtitle = document.getElementById('waAssignContactSubtitle');
     if (phoneInput) phoneInput.value = phone;
-    if (subtitle) subtitle.textContent = `for ${contactName || phone} (${phone})`;
+    if (subtitle) subtitle.textContent = `for ${contactName || window.maskPhoneForDisplay(phone)} (${window.maskPhoneForDisplay(phone)})`;
 
     // Locate contact card in DOM across possible phone formats
     const card = document.querySelector(`#wab-contact-card-${cleanPhone}, .wab-contact-item[data-phone="${phone}"], .wab-contact-item[data-phone="${cleanPhone}"], .wab-contact-item[data-phone="+${cleanPhone}"]`);
@@ -8721,8 +8731,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
             const subtitle = document.getElementById('waAssignContactSubtitle');
             if (subtitle) {
-                const name = card?.dataset?.name || (phone === (window.selectedPhone || window.selectedCustomerPhone) ? window.selectedCustomerName : phone);
-                subtitle.textContent = `for ${name || phone} (${phone})`;
+                const name = card?.dataset?.name || (phone === (window.selectedPhone || window.selectedCustomerPhone) ? window.selectedCustomerName : window.maskPhoneForDisplay(phone));
+                subtitle.textContent = `for ${name || window.maskPhoneForDisplay(phone)} (${window.maskPhoneForDisplay(phone)})`;
             }
 
             const statusEl = document.getElementById('waLabelRealtimeSyncStatus');
@@ -8816,7 +8826,7 @@ window.openSendTemplateModal = function(targetPhone = null, targetName = null) {
     const sessionBadge = document.getElementById('waTemplateSessionBadge');
 
     if (recipientNameEl) recipientNameEl.textContent = name;
-    if (recipientPhoneEl) recipientPhoneEl.textContent = phone;
+    if (recipientPhoneEl) recipientPhoneEl.textContent = window.maskPhoneForDisplay(phone);
     if (recipientAvatarEl) {
         recipientAvatarEl.textContent = (name || 'U').trim().charAt(0).toUpperCase();
     }
@@ -8905,7 +8915,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const sessionBadge = document.getElementById('waTemplateSessionBadge');
 
             if (recipientNameEl) recipientNameEl.textContent = name;
-            if (recipientPhoneEl) recipientPhoneEl.textContent = phone;
+            if (recipientPhoneEl) recipientPhoneEl.textContent = window.maskPhoneForDisplay(phone);
             if (recipientAvatarEl) {
                 recipientAvatarEl.textContent = (name || 'U').trim().charAt(0).toUpperCase();
             }
