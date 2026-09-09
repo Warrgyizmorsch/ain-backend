@@ -63,6 +63,15 @@
                     <i class="fa fa-phone fs-8 text-white"></i>
                 </button>
 
+                <!-- Row 2, Col 2b: Twilio Call Button -->
+                <x-call-button
+                    :phone="$lead->user->mobile_no ?? $lead->mobile"
+                    :countrycode="$lead->user->countrycode ?? $lead->countrycode"
+                    :name="$lead->user->name ?? $lead->user_name"
+                    :id="'lead' . $lead->id"
+                    class="btn btn-sm btn-icon p-0 d-inline-flex align-items-center justify-content-center shadow-xs"
+                    style="width: 28px; height: 28px; border-radius: 6px; background-color:#25d366; border-color:#25d366;" />
+
                 <!-- Row 2, Col 3: Assign Type Switch -->
                 <div class="form-check form-switch m-0 p-0 d-flex align-items-center justify-content-center" title="Assign Type (AIN / Let's Learn)">
                     <input
@@ -343,9 +352,10 @@
         @endphp
 
         @if(!empty($leadUserMobile))
+            @php $leadDisplayMobile = mask_phone_for_display($lead->user->countrycode ?? $lead->countrycode ?? null, $leadUserMobile); @endphp
             <div class="d-inline-flex align-items-center justify-content-center gap-1 my-1">
-                <span class="badge badge-light-danger fs-7 fw-bold">{{ $leadUserMobile }}</span>
-                <button type="button" class="btn btn-icon btn-sm btn-active-light-danger p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Mobile" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $leadUserMobile }}', 'Mobile number copied!');">
+                <span class="badge badge-light-danger fs-7 fw-bold">{{ $leadDisplayMobile }}</span>
+                <button type="button" class="btn btn-icon btn-sm btn-active-light-danger p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Mobile" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $leadDisplayMobile }}', 'Mobile number copied!');">
                     <i class="fa fa-clone fs-8 text-danger"></i>
                 </button>
             </div><br>

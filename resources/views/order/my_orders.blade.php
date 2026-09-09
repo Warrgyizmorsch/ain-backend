@@ -126,7 +126,7 @@
 												@endif
 												@if(!empty($order->user->mobile_no))
 													<div class="d-inline-flex align-items-center my-1">
-														<span class="badge badge-light-danger fs-7 fw-bold">{{ $order->user->mobile_no }}</span>
+														<span class="badge badge-light-danger fs-7 fw-bold">{{ mask_phone_for_display($order->user->countrycode, $order->user->mobile_no) }}</span>
 														<button type="button" class="btn btn-icon btn-sm btn-active-light-danger ms-1 p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Mobile" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $order->user->mobile_no }}', 'Mobile number copied!');">
 															<i class="fa fa-clone fs-8 text-danger"></i>
 														</button>
@@ -326,21 +326,11 @@
 											
                                             
 
-                                            <!-- Include jQuery library -->
-											<a href="#" onclick="showConfirmationclick('{{ $order->id }}')" id="clickToCallBtn{{$order->id}}" class="btn btn-icon btn-bg-success btn-active-color-light btn-sm me-1">
-												<span class="svg-icon svg-icon-3">
-													<i class="fa fa-phone fa-lg"></i>
-												</span>
-											</a>
-
-											<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
-											<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-
-											<script>
-												function showConfirmationclick(orderId) {
-													openRingfySoftphone(@js($order->id), @js(optional($order->user)->countrycode), @js(optional($order->user)->mobile_no));
-												}
-											</script>
+											<x-call-button
+												:phone="optional($order->user)->mobile_no ?? ''"
+												:countrycode="optional($order->user)->countrycode ?? ''"
+												:name="optional($order->user)->name ?? 'Customer'"
+												:id="'order' . $order->id" />
 
 										<a href="#" id="clickToDownload{{$order->order_id}}" class="btn btn-icon btn-bg-danger btn-active-color-dark btn-sm me-1 download-btn{{$order->id}}" onclick="downloadFiles(this)">
 											<span class="svg-icon svg-icon-3">

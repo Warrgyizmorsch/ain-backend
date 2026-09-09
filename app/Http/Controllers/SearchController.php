@@ -39,7 +39,13 @@ class SearchController extends Controller
                         })
                         ->take(10)
                         ->get();
-    
+
+        $results->transform(function ($user) {
+            $user->mobile_no = mask_phone_for_display($user->countrycode, $user->mobile_no);
+            $user->countrycode = null;
+            return $user;
+        });
+
         return response()->json($results);
     }
 

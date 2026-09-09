@@ -384,13 +384,7 @@ class OrderController extends Controller
             'projectStatusCounts' => ProjectStatusCount::all()
         ];
         $totalOrders = $ordersQuery->count();
-        $totalWordCount = 0;
-
-        foreach ($ordersQuery->get() as $order) {
-            if (is_numeric($order->pages)) {
-                $totalWordCount += $order->pages;
-            }
-        }
+        $totalWordCount = (int) $ordersQuery->clone()->where('pages', 'REGEXP', '^[0-9]+$')->sum('pages');
         if ($request->input('search') || $request->input('status') || $request->input('writer') || $request->input('writerTL') || $request->input('uid') || $request->input('user') || $request->input('date_status') || $request->input('from_date') || $request->input('to_date') || $request->input('SubWriter') || $request->input('college') || $request->input('extra') || $request->input('secondary_mobile') || $request->input('paper_type')) {
             if ($request->input('uid')) {
                 $ordersQuery->where('uid', $request->input('uid'));
@@ -1330,7 +1324,7 @@ class OrderController extends Controller
 
                 '<td>
                                 ' . $order->user->name . '
-                                <span class="badge badge-light-danger fs-7 fw-bold">' . $order->user->mobile_no . '</span>                                
+                                <span class="badge badge-light-danger fs-7 fw-bold">' . $this->formatPhoneDisplay($order->user->countrycode, $order->user->mobile_no) . '</span>
                                 </td> '
 
                 : '') . '
@@ -1499,11 +1493,12 @@ class OrderController extends Controller
         </span>
     </a>
 
-    <a href="#" onclick="showConfirmationclick(' . $order->id . ')" id="clickToCallBtn' . $order->id . '" class="btn btn-icon btn-bg-success btn-active-color-light btn-sm me-1">
-        <span class="svg-icon svg-icon-3">
-            <i class="fa fa-phone fa-lg"></i>
-        </span>
-    </a>';
+    ' . view('components.call-button', [
+                        'phone' => $order->user->mobile_no ?? '',
+                        'countrycode' => $order->user->countrycode ?? '',
+                        'name' => $order->user->name ?? 'Customer',
+                        'id' => 'order' . $order->id,
+                    ])->render() . '';
             }
 
             if (auth()->user()->role_id == '9') {
@@ -1738,6 +1733,11 @@ class OrderController extends Controller
         }
 
         return null;
+    }
+
+    private function formatPhoneDisplay(?string $countryCode, ?string $mobile): string
+    {
+        return mask_phone_for_display($countryCode, $mobile);
     }
 
     private function normalizeSoftphoneNumber(string $countryCode, string $mobile): string

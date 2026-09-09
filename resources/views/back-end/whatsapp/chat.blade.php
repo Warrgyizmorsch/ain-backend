@@ -1193,6 +1193,7 @@
     </div>
 </div>
 
+@push('head')
 <style>
 .wab-crm-border-table {
     border: 1px solid #cbd5e1 !important;
@@ -1214,6 +1215,7 @@
     background-color: #f8fafc !important;
 }
 </style>
+@endpush
 
 {{-- ══════════════════════════════════════════════════
      CHECK LEADS MODAL (AJAX Preloader & On-Demand Load)
@@ -2380,6 +2382,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </div>
 <div class="wab-pp-overlay" id="wabProfileOverlay"></div>
 
+@push('head')
 <style>
 /* ── Google Font ── */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
@@ -5099,6 +5102,7 @@ document.addEventListener('DOMContentLoaded', function() {
 .wa-import-done-title { font-size: 18px; font-weight: 800; color: var(--wa-text-main); margin-bottom: 6px; }
 .wa-import-done-sub   { font-size: 13px; color: var(--wa-text-muted); }
 </style>
+@endpush
 
 {{-- ══════════════════════════════════════════════════
      JAVASCRIPT

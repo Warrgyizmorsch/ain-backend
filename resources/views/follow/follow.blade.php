@@ -235,7 +235,13 @@ function FollowUpUser(checkbox, UserId) {
                                             <td>{{ $loop->index + 1 }}</td>
                                             <td>{{$order->order_id}}</td>
                                             <td>{{$order->user?->name}} <br>
-                                                <span class="badge badge-light-danger fs-7 fw-bold" > + {{$order->user?->countrycode}} {{$order->user?->mobile_no}} </span> <br>
+                                                <span class="badge badge-light-danger fs-7 fw-bold" >{{ mask_phone_for_display($order->user?->countrycode, $order->user?->mobile_no) }}</span>
+                                                <x-call-button
+                                                    :phone="$order->user->mobile_no ?? ''"
+                                                    :countrycode="$order->user->countrycode ?? ''"
+                                                    :name="$order->user->name ?? 'Customer'"
+                                                    :id="'followup' . $order->id" />
+                                                <br>
                                                 <span class="badge badge-light-danger fs-7 fw-bold" >  {{$order->user?->email}}</span>
                                             </td>
                                             <td>{{$order->order_date}}</td>

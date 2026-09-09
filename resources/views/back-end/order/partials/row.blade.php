@@ -48,13 +48,12 @@
                     <i style="color: white;" class="fa fa-edit"></i>
                 </a>
 
-                <!-- Call Customer Button (Ringfy) -->
-                <button type="button"
-                    class="btn btn-icon btn-success btn-sm"
-                    title="Call customer (Ringfy)"
-                    onclick="openRingfySoftphone(@js($order->id), @js(optional($effectiveUser)->countrycode), @js(optional($effectiveUser)->mobile_no))">
-                    <i class="fa fa-phone"></i>
-                </button>
+                <!-- Call Customer Button (Twilio) -->
+                <x-call-button
+                    :phone="optional($effectiveUser)->mobile_no ?? ''"
+                    :countrycode="optional($effectiveUser)->countrycode ?? ''"
+                    :name="optional($effectiveUser)->name ?? 'Customer'"
+                    :id="'orderrow' . $order->id" />
 
                 <!-- Button to Open Unified Payment Page -->
                 <a href="{{ route('orders.payment.form', ['orderId' => $order->id]) }}"
@@ -246,11 +245,11 @@
                     {{ $label }}
                 </span>
                 @php
-                    $displayMobile = ($effectiveUser->countrycode ? ('+' . $effectiveUser->countrycode . ' ') : '') . $effectiveUser->mobile_no;
+                    $displayMobile = mask_phone_for_display($effectiveUser->countrycode, $effectiveUser->mobile_no);
                 @endphp
                 @if(!empty($rawUserMobile))
                     <span class="badge badge-light-danger fs-7 fw-bold">{{ $displayMobile }}</span>
-                    <button type="button" class="btn btn-icon btn-sm btn-active-light-danger p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Mobile" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $rawUserMobile }}', 'Mobile number copied!');">
+                    <button type="button" class="btn btn-icon btn-sm btn-active-light-danger p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Mobile" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $displayMobile }}', 'Mobile number copied!');">
                         <i class="fa fa-clone fs-8 text-danger"></i>
                     </button>
                 @endif

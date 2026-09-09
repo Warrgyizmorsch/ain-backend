@@ -157,9 +157,10 @@
 												<br>
 											@endif
 											@if(!empty($order->user->mobile_no))
+												@php $displayMobile = mask_phone_for_display($order->user->countrycode, $order->user->mobile_no); @endphp
 												<div class="d-inline-flex align-items-center my-1">
-													<span class="badge badge-light-danger fs-7 fw-bold">{{ $order->user->mobile_no}}</span>
-													<button type="button" class="btn btn-icon btn-sm btn-active-light-danger ms-1 p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Mobile" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $order->user->mobile_no }}', 'Mobile number copied!');">
+													<span class="badge badge-light-danger fs-7 fw-bold">{{ $displayMobile }}</span>
+													<button type="button" class="btn btn-icon btn-sm btn-active-light-danger ms-1 p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Mobile" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $displayMobile }}', 'Mobile number copied!');">
 														<i class="fa fa-clone fs-8 text-danger"></i>
 													</button>
 												</div>

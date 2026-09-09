@@ -21,6 +21,31 @@ if (!function_exists('getUserRoleName')) {
     }
 }
 
+if (!function_exists('mask_phone_for_display')) {
+    /**
+     * Show full number only to admins (role_id 1). Everyone else sees
+     * the first 4 and last 4 digits, with the middle masked as ****.
+     */
+    function mask_phone_for_display(?string $countryCode, ?string $mobile): string
+    {
+        $digits = preg_replace('/\D+/', '', (string) $countryCode) . preg_replace('/\D+/', '', (string) $mobile);
+
+        if ($digits === '') {
+            return 'N/A';
+        }
+
+        if (Auth::check() && (int) Auth::user()->role_id === 1) {
+            return $digits;
+        }
+
+        if (strlen($digits) <= 8) {
+            return str_repeat('*', strlen($digits));
+        }
+
+        return substr($digits, 0, 4) . '****' . substr($digits, -4);
+    }
+}
+
 if (!function_exists('logActivity')) {
     function logActivity($module, $action)
     {

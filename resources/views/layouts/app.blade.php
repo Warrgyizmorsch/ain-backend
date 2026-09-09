@@ -949,6 +949,8 @@
     @auth
         {{-- Global Twilio Softphone Dialer Widget --}}
         @include('back-end.order.partials.twilio-softphone-widget')
+        {{-- Global Twilio "Call" button trigger, shared by the call-button component across the app --}}
+        @include('layouts.partials.twilio-call-helper')
     @endauth
 
 </body>

@@ -228,11 +228,11 @@
 										
 										@include('order.section.feedback-status')
 
-                                        <a href="#" data-bs-toggle="modal" data-bs-target="#kt_modal_create_appaa" id="kt_toolbar_primary_button" class="btn btn-icon btn-bg-success btn-active-color-light btn-sm me-1">
-                                            <span class="svg-icon svg-icon-3">
-                                                <li style="color:white" class="fa fa-phone fa-lg"></li>
-                                            </span>
-                                        </a>
+                                        <x-call-button
+                                            :phone="$order->user->mobile_no ?? ''"
+                                            :countrycode="$order->user->countrycode ?? ''"
+                                            :name="$order->user->name ?? 'Customer'"
+                                            :id="'feedback' . $order->id" />
 										@if(auth()->user()->role_id == 1 && $order->feedback_ticket)
 										<button type="button"
 											class="btn btn-icon btn-bg-danger btn-active-color-light btn-sm me-1 delete-ticket-btn"
