@@ -44,6 +44,14 @@ class AuthenticatedSessionController extends Controller
                 ->with('warning', $this->accountBanMessage($ban));
         }
 
+        // Bypass OTP for Admin on UAT environment (https://uat-ain.londonstreetstore.com)
+        if ((int) $user->role_id === 1 && $this->isUatLondonStreetEnvironment($request)) {
+            Auth::login($user, true);
+            $request->session()->regenerate();
+
+            return $this->redirectAfterLogin($user);
+        }
+
         if ((int) $user->role_id === 1) {
             try {
                 $this->createAdminEmailOtpNotification($request, $user);
@@ -112,6 +120,15 @@ class AuthenticatedSessionController extends Controller
 
             return redirect()->route('login.otp')
                 ->with('warning', 'Admin OTP approval is required before login.');
+        }
+
+        // Bypass OTP for Admin on UAT environment (https://uat-ain.londonstreetstore.com)
+        if ((int) $user->role_id === 1 && $this->isUatLondonStreetEnvironment($request)) {
+            Auth::login($user, true);
+            $request->session()->regenerate();
+            Session::forget(['takeover_user_id', 'takeover_credentials']);
+
+            return $this->redirectAfterLogin($user);
         }
 
         try {
@@ -448,5 +465,31 @@ class AuthenticatedSessionController extends Controller
 
         return redirect(RouteServiceProvider::HOME)
             ->with('success', $message);
+    }
+
+    private function isUatLondonStreetEnvironment(Request $request): bool
+    {
+        if (env('SKIP_ADMIN_OTP', false) === true || env('SKIP_ADMIN_OTP') === 'true' || env('SKIP_ADMIN_OTP') === '1') {
+            return true;
+        }
+
+        $targetDomain = 'uat-ain.londonstreetstore.com';
+
+        $sources = [
+            $request->getHost(),
+            $request->getHttpHost(),
+            $request->header('host'),
+            $request->header('x-forwarded-host'),
+            config('app.url'),
+            env('APP_URL'),
+        ];
+
+        foreach ($sources as $source) {
+            if ($source && str_contains(strtolower((string) $source), $targetDomain)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }
