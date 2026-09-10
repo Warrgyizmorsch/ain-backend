@@ -142,11 +142,10 @@
                                                             @endif
                                                         </td>
                                                         <td>
-                                                            {{ $user->email }}
+                                                            {{ mask_email_for_display($user->email) }}
                                                         </td>
                                                         <td>
-                                                            +{{ $user->countrycode }}
-                                                            {{ $user->mobile_no }}
+                                                            {{ mask_phone_for_display($user->countrycode, $user->mobile_no) }}
                                                         </td>
                                                         <td>
                                                             <span class="badge {{ $class }} fw-bold fs-8">

@@ -22,18 +22,46 @@ class NextLeadController extends Controller
             'target_month' => 'required|string|max:20',
         ]);
 
-        $mobile = preg_replace('/\D/', '', $request->mobile);
-        $existingUser = User::where('mobile_no', 'LIKE', "%{$mobile}")->first();
+        $mobile = preg_replace('/\D/', '', (string)$request->mobile);
+        $countryCode = preg_replace('/\D/', '', (string)$request->input('countrycode', '+44'));
+
+        if (!empty($countryCode) && str_starts_with($mobile, $countryCode) && strlen($mobile) > strlen($countryCode) && strlen($mobile) > 10) {
+            $mobile = substr($mobile, strlen($countryCode));
+        }
+
+        $existingUser = null;
+        if ($request->filled('user_id')) {
+            $existingUser = User::find($request->user_id);
+        }
+
+        if (!$existingUser && !empty($mobile)) {
+            $existingUser = User::where('mobile_no', 'LIKE', "%{$mobile}")
+                ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile_no, '')) LIKE ?", ['%' . $mobile . '%'])
+                ->first();
+        }
+
+        if ($existingUser) {
+            $mobile = preg_replace('/\D/', '', (string)$existingUser->mobile_no);
+            $cleanUserCC = preg_replace('/\D/', '', (string)$existingUser->countrycode);
+            if (!empty($cleanUserCC)) {
+                $countryCode = $cleanUserCC;
+            }
+        }
+
+        $userName = trim((string)$request->user_name);
+        if ($existingUser && (strpos($userName, '*') !== false || empty($userName))) {
+            $userName = $existingUser->name;
+        }
 
         $email = $request->input('email');
-        if (empty($email)) {
-            $email = 'next_lead_' . time() . rand(100, 999) . '@gmail.com';
+        if (empty($email) || strpos($email, '*') !== false) {
+            $email = $existingUser ? $existingUser->email : ('next_lead_' . time() . rand(100, 999) . '@gmail.com');
         }
 
         $nextLead = NextLead::create([
-            'user_name' => $request->user_name,
-            'countrycode' => $request->input('countrycode', '+44'),
-            'mobile' => $request->mobile,
+            'user_name' => $userName,
+            'countrycode' => '+' . ($countryCode ?: '44'),
+            'mobile' => $mobile,
             'email' => $email,
             'emp_id' => $existingUser ? $existingUser->id : null,
             'target_month' => $request->target_month,
@@ -76,8 +104,15 @@ class NextLeadController extends Controller
                         ->orWhere('mobile_no', 'like', "%{$search}%");
                   });
 
-                if (!empty($cleanDigits) && strlen($cleanDigits) >= 4) {
+                if (!empty($cleanDigits) && strlen($cleanDigits) >= 2) {
                     $q->orWhere('mobile', 'like', "%{$cleanDigits}%");
+                }
+
+                if (strpos($search, '*') !== false) {
+                    $cleanMasked = preg_replace('/\*+/', '%', preg_replace('/[^0-9*]/', '', $search));
+                    if (!empty($cleanMasked) && preg_match('/\d/', $cleanMasked)) {
+                        $q->orWhere('mobile', 'like', "%{$cleanMasked}%");
+                    }
                 }
             });
         }

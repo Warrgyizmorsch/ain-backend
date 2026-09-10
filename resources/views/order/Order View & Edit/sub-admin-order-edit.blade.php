@@ -124,7 +124,7 @@
 										<td  class="text-center">
 										@if($order->user != null && ($order->user->name != '' || $order->user->name == null))
 											{{ $order->user->name }} <br>	
-											<span class="badge badge-light-danger fs-7 fw-bold">{{ $order->user->mobile_no}}</span>
+											<span class="badge badge-light-danger fs-7 fw-bold">{{ mask_phone_for_display($order->user->countrycode, $order->user->mobile_no) }}</span>
 										@else
 											N/A
 										@endif

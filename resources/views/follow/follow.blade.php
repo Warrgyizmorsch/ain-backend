@@ -1,211 +1,491 @@
 @extends('layouts.app')
 @section('content')
 <style>
-	.shadow-sm {
-    display: none;
-}
-.text-gray-700 {
-    margin-top: revert;
-}
+    .followup-table th, 
+    .followup-table td {
+        border: 1px solid #e4e6ef !important;
+        vertical-align: middle;
+    }
+    .followup-table thead th {
+        background-color: #f5f8fa !important;
+        color: #3f4254 !important;
+        font-weight: 700 !important;
+    }
+    /* Eliminate extra gap between toolbar and filter */
+    #kt_content,
+    .content {
+        padding-top: 0 !important;
+    }
+    .toolbar,
+    #kt_toolbar {
+        margin-bottom: 0 !important;
+    }
+    .follow-filter-card {
+        margin-top: 0 !important;
+    }
+    #searchResultss .user-select-item {
+        cursor: pointer;
+        transition: background-color 0.15s ease-in-out;
+    }
+    #searchResultss .user-select-item:hover {
+        background-color: #f1faff !important;
+    }
+    /* Follow-up History Side Toggle Drawer */
+    .followup-history-drawer {
+        position: fixed !important;
+        top: 0 !important;
+        right: 0 !important;
+        width: 500px !important;
+        max-width: 95vw !important;
+        height: 100vh !important;
+        background: #ffffff !important;
+        box-shadow: -6px 0 35px rgba(0, 0, 0, 0.22) !important;
+        z-index: 100050 !important;
+        display: flex !important;
+        flex-direction: column !important;
+        transform: translateX(100%) !important;
+        transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1) !important;
+        visibility: hidden !important;
+    }
+    .followup-history-drawer.show {
+        transform: translateX(0) !important;
+        visibility: visible !important;
+    }
+    .followup-drawer-backdrop {
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        width: 100vw !important;
+        height: 100vh !important;
+        background: rgba(0, 0, 0, 0.45) !important;
+        backdrop-filter: blur(2px) !important;
+        z-index: 100040 !important;
+        opacity: 0 !important;
+        visibility: hidden !important;
+        transition: opacity 0.25s ease-in-out !important;
+    }
+    .followup-drawer-backdrop.show {
+        opacity: 1 !important;
+        visibility: visible !important;
+    }
 </style>
-    <div class="content d-flex flex-column flex-column-fluid" id="kt_content">
-        <div id="kt_content_container" class="">
-            <div class="toolbar" id="kt_toolbar">
-                <div id="kt_toolbar_container" class="container-fluid d-flex flex-stack">
-                    <div data-kt-swapper="true" data-kt-swapper-mode="prepend" data-kt-swapper-parent="{default: '#kt_content_container', 'lg': '#kt_toolbar_container'}" class="page-title d-flex align-items-center flex-wrap me-3 mb-5 mb-lg-0">
-                        <h1 class="d-flex align-items-center text-dark fw-bolder fs-3 my-1">Order
-                        <span class="h-20px border-gray-200 border-start ms-3 mx-2"></span>
-                        <small class="text-muted fs-7 fw-bold my-1 ms-1">Assignement In Need</small>
-                    </div>
-                    
-                </div>
-	        </div>
 
-			<div class="col-xl-12">
-            <div class="card card-xxl-stretch mb-5 mb-xl-8">
+<div class="content d-flex flex-column flex-column-fluid" id="kt_content">
+    <div id="kt_content_container" class="">
+        <div class="toolbar" id="kt_toolbar">
+            <div id="kt_toolbar_container" class="container-fluid d-flex flex-stack">
+                <div data-kt-swapper="true" data-kt-swapper-mode="prepend"
+                    data-kt-swapper-parent="{default: '#kt_content_container', 'lg': '#kt_toolbar_container'}"
+                    class="page-title d-flex align-items-center flex-wrap me-3 mb-0">
+                    <h1 class="d-flex align-items-center text-dark fw-bolder fs-3 my-1">Follow-Up Orders
+                        <span class="h-20px border-gray-200 border-start ms-3 mx-2"></span>
+                        <small class="text-muted fs-7 fw-bold my-1 ms-1">Assignment In Need</small>
+                    </h1>
+                </div>
+            </div>
+        </div>
+
+        {{-- Filter Box --}}
+        <div class="col-xl-12 mt-2">
+            <div class="card card-xxl-stretch mb-5 mb-xl-8 follow-filter-card">
                 <div class="card-header border-0 pt-5">
                     <h3 class="card-title align-items-start flex-column">
                         <span class="card-label fw-bolder fs-3 mb-1">Filter</span>
                     </h3>
                 </div>
                 <div class="card-body py-3">
-                    <form action="">
-                        <div class="row mb-3">
+                    <form method="GET" action="{{ route('follow-up') }}" id="followUpFilterForm">
+                        <div class="row g-3 mb-3">
                             <div class="col-md-3 fv-row">
-                                <input type="search"   name="search" id="search" class="form-control form-control-solid" placeholder="Serach By OrderCode " >
+                                <label class="form-label fw-bold fs-7">Order Code / Title</label>
+                                <input type="search" name="search" id="search" class="form-control form-control-solid" placeholder="Search By Order Code" value="{{ request('search') }}">
                             </div>
-                            
-                           <!-- 15-march -->
-                            <script>
-                                document.addEventListener('DOMContentLoaded', function() {
-                                    const searchInput = document.getElementById('searchInput');
 
-                                    searchInput.addEventListener('input', function(event) {
-                                        const inputValue = event.target.value;
-                                        const sanitizedValue = inputValue.replace(/\s/g, ''); // Remove spaces
-
-                                        // Update input value without spaces
-                                        if (inputValue !== sanitizedValue) {
-                                            searchInput.value = sanitizedValue;
-                                        }
-                                    });
-                                });
-                            </script>
-
-                                <div class="col-md-3 fv-row">
-                                    <input type="text" list="searchDatalist" id="searchInput" name="user" class="form-control form-control-solid" placeholder="Search..." autocomplete="off">
-                                    <!-- Datalist for displaying search results -->
-                                    <datalist id="searchDatalist"></datalist>
-                                    <!-- Container to display search results -->
-                                    <div id="searchResultss"></div>
-                                    <!-- Hidden field to store the selected value -->
-                                    <input type="hidden" id="selectedValue" name="uid">
+                            <div class="col-md-3 fv-row">
+                                <label class="form-label fw-bold fs-7">Customer (Name / Number / Email)</label>
+                                <div class="position-relative">
+                                    <input type="text" id="searchInput" name="user" class="form-control form-control-solid pe-10" placeholder="Search by Name, Number, Email..." autocomplete="off" value="{{ request('user') }}">
+                                    <!-- In-input preloader spinner -->
+                                    <span id="searchSpinner" class="position-absolute end-0 top-50 translate-middle-y me-3" style="display:none; pointer-events: none; z-index: 10;">
+                                        <span class="spinner-border spinner-border-sm text-primary" role="status" style="width: 1.1rem; height: 1.1rem; border-width: 2px;">
+                                            <span class="visually-hidden">Loading...</span>
+                                        </span>
+                                    </span>
+                                    <!-- Single Custom Dropdown -->
+                                    <div id="searchResultss" class="dropdown-menu w-100 shadow-lg p-0 mt-1" style="display:none; max-height: 260px; overflow-y: auto; z-index: 1050; position: absolute; left: 0; top: 100%; background: #ffffff !important; border: 1px solid #d8dbe0;"></div>
                                 </div>
+                                <input type="hidden" id="selectedValue" name="uid" value="{{ request('uid') }}">
+                            </div>
 
-                                <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-                                <script>
-                                    $(document).ready(function () {
-                                        $('#searchInput').on('input', function () {
-                                            var searchValue = $(this).val();
-
-                                            if (searchValue.length >= 3) {
-                                                $.ajax({
-                                                    url: "{{ route('search-order') }}",
-                                                    type: "GET",
-                                                    data: { user: searchValue },
-                                                    success: function (response) {
-                                                        var results = '';
-                                                        if (response.length > 0) {
-                                                            // Populate the datalist with search results
-                                                            $('#searchDatalist').empty();
-                                                            $.each(response, function (key, value) {
-                                                                // Append each option with email, name, and mobile number
-                                                                $('#searchDatalist').append('<option value="' + value.email + '">' + value.name + ' (' + value.mobile_no + ')</option>');
-                                                            });
-                                                            if(response.length === 1) {
-                                                                // If there is only one result, automatically fill in the search input
-                                                                $('#searchInput').val(response[0].email);
-                                                                // Store the selected value in the hidden field
-                                                                $('#selectedValue').val(response[0].id);
-                                                            }
-                                                        } else {
-                                                            results = '<div>No results found</div>';
-                                                        }
-                                                        $('#searchResultss').html(results);
-                                                    }
-                                                });
-                                            } else {
-                                                $('#searchResultss').empty();
-                                            }
-                                        });
-
-                                        // Handle click on search result
-                                        $('#searchInput').on('input', function() {
-                                            var selectedEmail = $(this).val();
-                                            var selectedOption = $('#searchDatalist option[value="' + selectedEmail + '"]');
-                                            if (selectedOption.length > 0) {
-                                                // If the selected value exists in the datalist, get its associated ID
-                                                var selectedId = selectedOption.data('id');
-                                                $('#selectedValue').val(selectedId);
-                                            } else {
-                                                // If the selected value doesn't exist in the datalist, clear the hidden field
-                                                $('#selectedValue').val('');
-                                            }
-                                        });
-                                    });
-                                </script>
-
-                            <!-- 15-march -->
-                            
-                            <div class="col-lg-3 fv-row fv-plugins-icon-container">
-                                <select name="status" id="status" data-placeholder="Search By writer Name" class="form-select form-select-solid form-select-lg">
-                                    <option value=""></option> <!-- Empty option -->
-                                    <option value="negative but convinced">negative but convinced</option> 
-                                    <option value="negative">negative</option>
-                                    <option value="positive ">positive</option>
-                                    <option value="positive and referral">positive and referral</option>
-                                    <option value="positive and own order ">positive and own order</option>
-                                    <option value="No response">No response</option>
-                                    <!-- Add more options as needed -->
+                            <div class="col-md-2 fv-row">
+                                <label class="form-label fw-bold fs-7">Follow-Up Status</label>
+                                <select name="status" id="status" class="form-select form-select-solid">
+                                    <option value="">All Statuses</option>
+                                    <option value="negative but convinced" {{ request('status') == 'negative but convinced' ? 'selected' : '' }}>negative but convinced</option>
+                                    <option value="negative" {{ request('status') == 'negative' ? 'selected' : '' }}>negative</option>
+                                    <option value="positive" {{ request('status') == 'positive' ? 'selected' : '' }}>positive</option>
+                                    <option value="positive and referral" {{ request('status') == 'positive and referral' ? 'selected' : '' }}>positive and referral</option>
+                                    <option value="positive and own order" {{ request('status') == 'positive and own order' ? 'selected' : '' }}>positive and own order</option>
+                                    <option value="No response" {{ request('status') == 'No response' ? 'selected' : '' }}>No response</option>
                                 </select>
                             </div>
 
-                            <div class="col-md-3 fv-row">
-                                <input type="date" name="fromDate" id="fromDate" class="form-control form-control-solid" placeholder="Search By OrderCode">
-                            </div>
-                            <div class="col-md-3 fv-row">
-                                <input type="date" name="toDate" id="toDate" class="form-control form-control-solid" placeholder="Search By OrderCode">
+                            <div class="col-md-2 fv-row">
+                                <label class="form-label fw-bold fs-7">From Date</label>
+                                <input type="date" name="fromDate" id="fromDate" class="form-control form-control-solid" value="{{ request('fromDate') }}">
                             </div>
 
-                            
-                               
+                            <div class="col-md-2 fv-row">
+                                <label class="form-label fw-bold fs-7">To Date</label>
+                                <input type="date" name="toDate" id="toDate" class="form-control form-control-solid" value="{{ request('toDate') }}">
+                            </div>
+                        </div>
 
-                            
-                            <div class="col-md-3 fv-row fv-plugins-icon-container mt-1">
-                                <a  id="resetFiltersBtn" class="btn btn-sm btn-danger">Reset</a>
-                                <a  onclick="applyFilters()" class="btn btn-sm btn-primary">Search</a>
-                                
+                        <div class="row">
+                            <div class="col-lg-12 d-flex gap-2">
+                                <button type="submit" class="btn btn-sm btn-primary px-5">
+                                    <i class="fa fa-search me-1"></i> Search
+                                </button>
+                                <a href="{{ route('follow-up') }}" class="btn btn-sm btn-danger px-5">Reset</a>
                             </div>
                         </div>
                     </form>
                 </div>
-			</div>
+            </div>
+
             @include('layouts.flash')
 
-			<div class="card card-xl-stretch  mb-xl-">
-				<div class="card-header border-0 pt-5">
-					<h3 class="card-title align-items-start flex-column">
-                         
-						<span class="card-label fw-bolder fs-3 mb-1">All User</span>
-						<span class="text-muted mt-1 fw-bold fs-7"></span>
-					</h3>
-				</div>
-				<div class="card-body py-3">
-					<div class="card-header border-0 pt-5">
-						<h3 class="card-title align-items-start flex-column">
-							<span class="card-label fw-bolder fs-3 mb-1">Orders</span>
-						</h3>
-						
-					</div>
-					<div class="card-body py-3">
-						<div class="table-responsive">
-							<table  class="table table-row-bordered table-row-gray-100 align-middle gs-0 gy-3">
-								<thead class="p-2">
-									<tr class="fw-bolder text-muted bg-light">
-										<th class="min-w-20px text-center">Check</th>
-										<th class="min-w-20px text-center">SR</th>
-										<th class="min-w-20px text-center" >Order Code</th>
-										<th class="min-w-50px">User Details </th>
-										<th class="min-w-50px">Order Date</th>
-										<th class="min-w-30px">Follow Up Date</th>
-										<th style="width: 175px;" class="min-w-100px text-center">Status</th>
-										<th class="min-w-40px">Comments</th>
-										<th class="min-w-40px">Follow Up User</th>
-										
-										<th class="min-w-150px text-center" >Action</th>
-									</tr>
-								</thead>
-                                <div id="loadind" style="display:none"></div>
-								<tbody style="display:none" id="content" class="searchData">
-							
-								</tbody>
-                                @foreach($data['orders'] as $order)
-								<tbody class="allData">
-                                        <tr>
+            {{-- Table Card --}}
+            <div class="card card-xl-stretch mb-xl-8">
+                <div class="card-header border-0 pt-5">
+                    <h3 class="card-title align-items-start flex-column">
+                        <span class="card-label fw-bolder fs-3 mb-1">Orders</span>
+                        <span class="text-muted mt-1 fw-bold fs-7">Total {{ $data['orders']->total() }} orders found</span>
+                    </h3>
+                </div>
+                <div class="card-body py-3">
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-striped table-hover align-middle gs-3 gy-3 border mb-0 followup-table">
+                            <thead>
+                                <tr class="fw-bolder text-dark bg-light border-bottom border-gray-300">
+                                    <th class="w-25px text-center">Check</th>
+                                    <th class="w-30px text-center">SR</th>
+                                    <th class="min-w-100px text-center">Order Code</th>
+                                    <th class="min-w-200px">User Details</th>
+                                    <th class="min-w-90px text-center">Order Date</th>
+                                    <th class="min-w-90px text-center">Follow Up Date</th>
+                                    <th style="width: 140px;" class="text-center">Status</th>
+                                    <th class="min-w-140px">Comments</th>
+                                    <th class="min-w-90px">Follow Up User</th>
+                                    <th class="min-w-70px text-center">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @forelse($data['orders'] as $order)
+                                    <tr>
+                                        <td class="text-center">
+                                            <div class="form-check form-check-sm form-check-custom form-check-solid d-inline-block">
+                                                <input onchange="FollowUpUser(this, {{ $order->user?->id ?? 0 }})" class="form-check-input widget-13-check" type="checkbox" {{ ($order->user?->followup == 1) ? 'checked' : '' }} value="1">
+                                            </div>
+                                        </td>
+                                        <td class="text-center fw-bold">{{ ($data['orders']->currentPage() - 1) * $data['orders']->perPage() + $loop->iteration }}</td>
+                                        <td class="text-center">
+                                            <div class="d-inline-flex align-items-center justify-content-center">
+                                                <span class="fw-bold">{{ $order->order_id }}</span>
+                                                @if(!empty($order->order_id))
+                                                    <button type="button" class="btn btn-icon btn-sm btn-active-light-primary ms-1 p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Order Code" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $order->order_id }}', 'Order code copied!');">
+                                                        <i class="fa fa-clone fs-8 text-muted"></i>
+                                                    </button>
+                                                @endif
+                                            </div>
+                                        </td>
                                         <td>
-    @if($order->user?->followup == 1)
-        <div class="form-check form-check-sm form-check-custom form-check-solid m-5">
-            <input onclick="FollowUpUser(this, {{ $order->user->id }})" class="form-check-input widget-13-check" type="checkbox" checked value="1">
-        </div>
-    @else
-        <div class="form-check form-check-sm form-check-custom form-check-solid m-5">
-            <input onclick="FollowUpUser(this, {{ $order->user?->id }})" class="form-check-input widget-13-check" type="checkbox" value="1">
-        </div>
-    @endif
-</td>
+                                            @if($order->user)
+                                                @php
+                                                    $rawName = $order->user->name ?? '';
+                                                    $rawEmail = $order->user->email ?? '';
+                                                    $rawMobile = $order->user->mobile_no ?? '';
+                                                    $rawCC = $order->user->countrycode ?? '';
+                                                    $cleanCC = preg_replace('/\D+/', '', (string)$rawCC);
+                                                    $maskedEmail = $rawEmail ? mask_email_for_display($rawEmail) : '';
+                                                    $maskedMobile = $rawMobile ? mask_mobile_only($cleanCC, $rawMobile) : '';
+                                                @endphp
 
+                                                <div class="d-flex flex-column gap-1 py-1">
+                                                    {{-- 1. User Name (Top line) --}}
+                                                    @if(!empty($rawName))
+                                                        <div class="d-flex align-items-center">
+                                                            <span class="fw-bolder text-dark fs-6">{{ $rawName }}</span>
+                                                            <button type="button" class="btn btn-icon btn-sm btn-active-light-primary ms-1 p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Name" onclick="event.stopPropagation(); crmCopyToClipboard('{{ addslashes($rawName) }}', 'Customer name copied!');">
+                                                                <i class="fa fa-clone fs-8 text-muted"></i>
+                                                            </button>
+                                                        </div>
+                                                    @endif
+
+                                                    {{-- 2. Email (Below Name) --}}
+                                                    @if(!empty($maskedEmail))
+                                                        <div class="d-flex align-items-center">
+                                                            <span class="text-muted fs-8 text-break">{{ $maskedEmail }}</span>
+                                                            <button type="button" class="btn btn-icon btn-sm btn-active-light-primary ms-1 p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Email" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $maskedEmail }}', 'Email copied!');">
+                                                                <i class="fa fa-clone fs-8 text-muted"></i>
+                                                            </button>
+                                                        </div>
+                                                    @endif
+
+                                                    {{-- 3. Mobile Number with CC, Masking, Copy Button & Attractive Call Icon (Below Email) --}}
+                                                    @if(!empty($maskedMobile))
+                                                        <div class="d-flex align-items-center flex-wrap gap-1 mt-1">
+                                                            @if(!empty($cleanCC))
+                                                                <span class="badge badge-light-primary fs-8 fw-bold py-1 px-2">+{{ $cleanCC }}</span>
+                                                            @endif
+                                                            <span class="badge badge-light-danger fs-7 fw-bold py-1 px-2">{{ $maskedMobile }}</span>
+                                                            <button type="button" class="btn btn-icon btn-sm btn-active-light-danger p-0 flex-shrink-0" style="width: 20px; height: 20px;" title="Copy Mobile" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $maskedMobile }}', 'Mobile number copied!');">
+                                                                <i class="fa fa-clone fs-8 text-danger"></i>
+                                                            </button>
+
+                                                            {{-- Premium Attractive Call Icon Button --}}
+                                                            <a href="#" 
+                                                               id="twilioCallBtnfollowup{{ $order->id }}"
+                                                               onclick="event.preventDefault(); event.stopPropagation(); initiateCustomerCall('{{ $cleanCC . $rawMobile }}', '{{ addslashes($rawName ?: 'Customer') }}');"
+                                                               class="btn btn-icon btn-sm ms-1 shadow-sm call-btn-styled"
+                                                               style="width: 24px; height: 24px; min-width: 24px; border-radius: 6px; background-color: #25D366; color: #ffffff; display: inline-flex; align-items: center; justify-content: center; transition: transform 0.2s ease, background-color 0.2s ease;"
+                                                               onmouseover="this.style.backgroundColor='#1ebd58'; this.style.transform='scale(1.1)';"
+                                                               onmouseout="this.style.backgroundColor='#25D366'; this.style.transform='scale(1)';"
+                                                               title="Call Customer">
+                                                                <i class="fa fa-phone text-white" style="font-size: 11px;"></i>
+                                                            </a>
+                                                        </div>
+                                                    @endif
+                                                </div>
+                                            @else
+                                                <span class="badge badge-light-danger">User Deleted</span>
+                                            @endif
+                                        </td>
+                                        <td class="text-center">{{ $order->order_date }}</td>
+                                        <td class="text-center">{{ $order->followupdate ?? '-' }}</td>
+                                        <td class="text-center">
+                                            @if($order->follow_status == 'negative but convinced' || $order->follow_status == 'negative')    
+                                                <span class="badge badge-light-danger fs-7 fw-bold">{{ $order->follow_status }}</span>
+                                            @elseif($order->follow_status == 'positive' || $order->follow_status == 'positive and referral')
+                                                <span class="badge badge-light-warning fs-7 fw-bold">{{ $order->follow_status }}</span>
+                                            @elseif($order->follow_status == 'positive and own order')
+                                                <span class="badge badge-light-success fs-7 fw-bold">{{ $order->follow_status }}</span>
+                                            @elseif($order->follow_status == 'No response')
+                                                <span class="badge badge-light-primary fs-7 fw-bold">{{ $order->follow_status }}</span>
+                                            @else
+                                                <span class="text-muted fs-8">-</span>
+                                            @endif
+                                        </td>
+                                        <td>
+                                            <div>{{ Str::limit($order->follow_comment, 50) }}</div>
+                                            @if($order->follow_comment || (isset($order->allCommentsByUid) && count($order->allCommentsByUid) > 0))
+                                                <a href="javascript:void(0)" 
+                                                   data-bs-toggle="offcanvas" 
+                                                   data-bs-target="#followupDrawer{{ $order->id }}" 
+                                                   data-toggle-followup-drawer 
+                                                   data-target="#followupDrawer{{ $order->id }}" 
+                                                   class="btn btn-link btn-color-primary p-0 fs-8 fw-bold">
+                                                    More...
+                                                </a>
+                                            @endif
+                                        </td>
+                                        <td>{{ $order->follow_up_user ?? '-' }}</td>
+                                        <td class="text-center"> 
+                                            <a href="#" data-bs-toggle="modal" data-bs-target="#kt_modal_create_appaa_newLeads{{ $order->id }}" class="btn btn-sm btn-icon btn-light-primary" title="Edit Follow-Up">
+                                                <i class="fa fa-edit"></i>
+                                            </a>
+                                        </td>
+                                    </tr>
+                                @empty
+                                    <tr>
+                                        <td colspan="10" class="text-center text-muted py-5">
+                                            No follow-up orders found.
+                                        </td>
+                                    </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {{-- Pagination Links --}}
+                    <div class="m-4">
+                        {{ $data['orders']->links('pagination::bootstrap-4') }}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{-- Modals container --}}
+@foreach($data['orders'] as $order)
+    {{-- Follow-Up History Side Toggle Drawer --}}
+    <div class="offcanvas offcanvas-end followup-history-drawer" tabindex="-1" id="followupDrawer{{ $order->id }}" aria-labelledby="followupDrawerLabel{{ $order->id }}">
+        <div class="offcanvas-header d-flex align-items-center justify-content-between p-5 border-bottom bg-light">
+            <div class="d-flex flex-column">
+                <h5 class="offcanvas-title fw-bolder text-gray-900 fs-5 mb-1" id="followupDrawerLabel{{ $order->id }}">
+                    <i class="fa fa-history text-primary me-2"></i>Follow-Up History
+                </h5>
+                <span class="text-muted fs-8">
+                    Order ID: <strong class="text-dark">{{ $order->order_id }}</strong>
+                    @if(!empty($order->user->name))
+                        • Client: <strong class="text-dark">{{ $order->user->name }}</strong>
+                    @endif
+                </span>
+            </div>
+            <button type="button" class="btn btn-sm btn-icon btn-light-danger btn-close-followup-drawer" data-bs-dismiss="offcanvas" aria-label="Close">
+                <i class="fa fa-times fs-6"></i>
+            </button>
+        </div>
+
+        <div class="offcanvas-body p-5 overflow-auto flex-grow-1" style="background-color: #f9fafb;">
+            @php
+                $commentsList = collect();
+                if (isset($order->allCommentsByUid) && $order->allCommentsByUid->count() > 0) {
+                    $commentsList = $order->allCommentsByUid->sortByDesc('created_at');
+                } elseif (!empty($order->follow_comment)) {
+                    $commentsList = collect([(object)[
+                        'comment' => $order->follow_comment,
+                        'status' => $order->follow_status,
+                        'commented_by' => $order->follow_up_user ?: 'Admin',
+                        'created_at' => $order->followupdate ?: $order->updated_at,
+                    ]]);
+                }
+            @endphp
+
+            @if($commentsList->count() > 0)
+                <div class="timeline-widget">
+                    @foreach($commentsList as $feedback)
+                        @if(!empty($feedback->comment))
+                            @php
+                                $itemStatus = !empty($feedback->status) ? $feedback->status : ($order->follow_status ?: 'Updated');
+                                $statusLower = strtolower(trim($itemStatus));
+                                $statusBadgeClass = 'badge-light-primary text-primary';
+                                $statusIcon = 'fa-info-circle';
+                                if (str_contains($statusLower, 'negative')) {
+                                    $statusBadgeClass = 'badge-light-danger text-danger border border-danger border-dashed';
+                                    $statusIcon = 'fa-times-circle';
+                                } elseif (str_contains($statusLower, 'own order') || $statusLower === 'positive and own order') {
+                                    $statusBadgeClass = 'badge-light-success text-success border border-success border-dashed';
+                                    $statusIcon = 'fa-check-circle';
+                                } elseif (str_contains($statusLower, 'positive')) {
+                                    $statusBadgeClass = 'badge-light-warning text-warning border border-warning border-dashed';
+                                    $statusIcon = 'fa-thumbs-up';
+                                } elseif (str_contains($statusLower, 'no response')) {
+                                    $statusBadgeClass = 'badge-light-info text-info border border-info border-dashed';
+                                    $statusIcon = 'fa-clock-o';
+                                }
+
+                                try {
+                                    $carbonDate = \Carbon\Carbon::parse($feedback->created_at);
+                                    $displayDate = $carbonDate->format('d M Y, h:i A');
+                                    $humanDate = $carbonDate->diffForHumans();
+                                } catch (\Exception $e) {
+                                    $displayDate = $feedback->created_at;
+                                    $humanDate = '';
+                                }
+
+                                $adminName = $feedback->commented_by ?: 'Admin';
+                            @endphp
+                            <div class="card mb-4 shadow-sm border border-gray-200 rounded-3 overflow-hidden bg-white">
+                                <div class="card-header d-flex align-items-center justify-content-between py-3 px-4 bg-light-subtle border-bottom border-gray-100 min-h-auto">
+                                    <div class="d-flex align-items-center gap-2">
+                                        <div class="symbol symbol-30px symbol-circle">
+                                            <span class="symbol-label bg-primary text-white fw-bold fs-8">
+                                                {{ strtoupper(substr($adminName, 0, 1)) }}
+                                            </span>
+                                        </div>
+                                        <div class="d-flex flex-column">
+                                            <div class="d-flex align-items-center gap-1">
+                                                <span class="fs-7 fw-bolder text-gray-900">{{ $adminName }}</span>
+                                                <span class="badge badge-light-secondary fs-9 py-0 px-2 fw-semibold">Staff</span>
+                                            </div>
+                                            <span class="text-muted fs-8">{{ $displayDate }} @if($humanDate)({{ $humanDate }})@endif</span>
+                                        </div>
+                                    </div>
+                                    <span class="badge {{ $statusBadgeClass }} fs-8 fw-bold px-2 py-1 text-capitalize">
+                                        <i class="fa {{ $statusIcon }} me-1 fs-9"></i>{{ $itemStatus }}
+                                    </span>
+                                </div>
+                                <div class="card-body p-4 text-dark fs-7 lh-base" style="white-space: pre-wrap; word-break: break-word;">{{ $feedback->comment }}</div>
+                            </div>
+                        @endif
+                    @endforeach
+                </div>
+            @else
+                <div class="d-flex flex-column align-items-center justify-content-center py-10 text-center">
+                    <div class="symbol symbol-60px symbol-circle bg-light-primary mb-3 d-flex align-items-center justify-content-center">
+                        <i class="fa fa-commenting-o text-primary fs-2"></i>
+                    </div>
+                    <span class="fw-bolder text-gray-800 fs-6 mb-1">No Follow-Up History</span>
+                    <span class="text-muted fs-7">No follow-up comments have been recorded for this lead/order yet.</span>
+                </div>
+            @endif
+        </div>
+
+        <div class="offcanvas-footer p-4 border-top bg-white d-flex align-items-center justify-content-between">
+            <button type="button" class="btn btn-sm btn-light btn-close-followup-drawer" data-bs-dismiss="offcanvas">Close</button>
+            <a href="#" data-bs-toggle="modal" data-bs-target="#kt_modal_create_appaa_newLeads{{ $order->id }}" class="btn btn-sm btn-primary">
+                <i class="fa fa-edit me-1"></i>Edit Follow-Up
+            </a>
+        </div>
+    </div>
+
+    {{-- Edit Status Modal --}}
+    <div class="modal fade" id="kt_modal_create_appaa_newLeads{{ $order->id }}" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered mw-950px">
+            <div class="modal-content rounded">
+                <div class="modal-header pb-0 border-0 justify-content-end">
+                    <div class="btn btn-sm btn-icon btn-active-color-primary" data-bs-dismiss="modal">
+                        <span class="svg-icon svg-icon-1">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
+                                <rect opacity="0.5" x="6" y="17.3137" width="16" height="2" rx="1" transform="rotate(-45 6 17.3137)" fill="black"></rect>
+                                <rect x="7.41422" y="6" width="16" height="2" rx="1" transform="rotate(45 7.41422 6)" fill="black"></rect>
+                            </svg>
+                        </span>
+                    </div>
+                </div>
+                <div class="modal-body scroll-y px-10 px-lg-15 pt-0 pb-15">
+                    <form class="form" method="POST" action="{{ route('follow.update', ['id' => $order->id]) }}">
+                        @csrf
+                        <div class="mb-13 text-center">
+                            <h1 class="mb-3">Status Edit Of Follow Up {{ $order->order_id }}</h1>
+                        </div>
+                        
+                        <div class="row g-9 mb-8 text-start">
+                            <div class="col-md-12 fv-row">
+                                <label class="fs-6 fw-bold mb-2">Follow-Up Status</label>
+                                <select name="follow_up_status" class="form-select form-select-solid form-select-lg">
+                                    <option value=""></option>
+                                    <option {{ old('follow_up_status', $order->follow_status) == 'negative but convinced' ? 'selected' : '' }} value="negative but convinced">negative but convinced</option>
+                                    <option {{ old('follow_up_status', $order->follow_status) == 'negative' ? 'selected' : '' }} value="negative">negative</option>
+                                    <option {{ old('follow_up_status', $order->follow_status) == 'positive' ? 'selected' : '' }} value="positive">positive</option>
+                                    <option {{ old('follow_up_status', $order->follow_status) == 'positive and referral' ? 'selected' : '' }} value="positive and referral">positive and referral</option>
+                                    <option {{ old('follow_up_status', $order->follow_status) == 'positive and own order' ? 'selected' : '' }} value="positive and own order">positive and own order</option>
+                                    <option {{ old('follow_up_status', $order->follow_status) == 'No response' ? 'selected' : '' }} value="No response">No response</option>
+                                </select>
+                            </div>
+
+                            <div class="col-md-12 fv-row">
+                                <label class="fs-6 fw-bold mb-2">Comment</label>
+                                <textarea name="comment" class="form-control form-control-solid" cols="30" rows="3">{{ $order->follow_comment }}</textarea>
+                            </div>
+                        </div>
+                        
+                        <div class="modal-footer">
+                            <button type="submit" class="btn btn-primary">Submit</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+@endforeach
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
 function FollowUpUser(checkbox, UserId) {
+    if (!UserId) return;
     var checkedValue = checkbox.checked ? 1 : 0;
     $.ajax({
         url: '/followUpUser/' + UserId,
@@ -217,332 +497,156 @@ function FollowUpUser(checkbox, UserId) {
             'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
         },
         success: function(response) {
-            if (checkbox.checked) {
-                console.log("Lead with ID " + UserId + " cancelled successfully.");
-            } else {
-                console.log("Lead with ID " + UserId + " restored successfully.");
+            if (typeof toastr !== 'undefined') {
+                toastr.success(response.message || 'Updated successfully');
             }
-            location.reload();
         },
         error: function(xhr, status, error) {
-            console.error("Error: " + error);
+            console.error("Error updating follow-up:", error);
+            if (typeof toastr !== 'undefined') {
+                toastr.error('Failed to update follow-up status');
+            }
         }
     });
 }
-</script>
 
+$(document).ready(function () {
+    let searchTimeout = null;
 
-                                            <td>{{ $loop->index + 1 }}</td>
-                                            <td>{{$order->order_id}}</td>
-                                            <td>{{$order->user?->name}} <br>
-                                                <span class="badge badge-light-danger fs-7 fw-bold" >{{ mask_phone_for_display($order->user?->countrycode, $order->user?->mobile_no) }}</span>
-                                                <x-call-button
-                                                    :phone="$order->user->mobile_no ?? ''"
-                                                    :countrycode="$order->user->countrycode ?? ''"
-                                                    :name="$order->user->name ?? 'Customer'"
-                                                    :id="'followup' . $order->id" />
-                                                <br>
-                                                <span class="badge badge-light-danger fs-7 fw-bold" >  {{$order->user?->email}}</span>
-                                            </td>
-                                            <td>{{$order->order_date}}</td>
+    function doUserSearch() {
+        var searchValue = $('#searchInput').val();
+        clearTimeout(searchTimeout);
 
-                                            <td>{{$order->followupdate}}</td>
-                                            <td>
-                                                @if($order->follow_status == 'negative but convinced' || $order->follow_status == 'negative')    
-                                                    <span class="badge badge-light-danger fs-7 fw-bold">{{$order->follow_status}}</span><br>
-                                                @elseif($order->follow_status == 'positive' || $order->follow_status == 'positive and referral')
-                                                    <span class="badge badge-light-warning fs-7 fw-bold">{{$order->follow_status}}</span><br>
-                                                @elseif($order->follow_status == 'positive and own order')
-                                                    <span class="badge badge-light-success fs-7 fw-bold">{{$order->follow_status}}</span><br>
-                                                @elseif($order->follow_status == 'No response')
-                                                    <span class="badge badge-light-primary fs-7 fw-bold">{{$order->follow_status}}</span><br>
-                                                @endif
+        if (searchValue && searchValue.trim().length >= 2) {
+            var query = searchValue.trim();
+            // Show spinner inside input immediately
+            $('#searchSpinner').show();
+            // Show preloader in dropdown
+            $('#searchResultss').html(
+                '<div class="p-3 text-center text-muted fs-7 d-flex align-items-center justify-content-center gap-2">' +
+                    '<span class="spinner-border spinner-border-sm text-primary" role="status" style="width: 1.1rem; height: 1.1rem; border-width: 2px;"></span>' +
+                    '<span>Searching users...</span>' +
+                '</div>'
+            ).addClass('show').css('display', 'block');
 
-                                            </td>
-                                            <td>
-                                                {{ Str::limit($order->follow_comment, 50) }}  <!-- Displaying a summary or the first 50 characters -->
-                                                @if($order->follow_comment)
-                                                <a href="#" id="{{ $order->order_id }}" data-bs-toggle="modal" data-bs-target="#confirmationModal{{ $order->order_id }}" class="btn btn-icon btn-bg-light btn-active-color-primary btn-sm me-1">
-                                                    More...
-                                                </a>
-                                                @endif
-                                            </td>
+            searchTimeout = setTimeout(function () {
+                $.ajax({
+                    url: "{{ route('search-order') }}",
+                    type: "GET",
+                    data: { user: query },
+                    success: function (response) {
+                        $('#searchSpinner').hide();
+                        var customDropdownHtml = '';
+                        if (response && response.length > 0) {
+                            $.each(response, function (key, value) {
+                                var mobileStr = value.mobile_no ? ' | 📞 ' + value.mobile_no : '';
+                                var emailStr = value.email ? value.email : '';
 
-                                            <div class="modal fade" id="confirmationModal{{ $order->order_id }}" tabindex="-1" role="dialog" aria-labelledby="confirmationModalLabel" aria-hidden="true">
-                                                <div class="modal-dialog" role="document">
-                                                    <div class="modal-content">
-                                                        <div class="modal-header">
-                                                            <h5 class="modal-title" id="confirmationModalLabel">All Comments</h5>
-                                                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                                                        </div>
-                                                        <div class="col-xl-12">
-                                                            <div class="card-body" id="kt_drawer_chat_messenger_body">
-                                                                <div class="scroll-y me-n5 pe-5" data-kt-element="messages" data-kt-scroll="true" data-kt-scroll-activate="true" data-kt-scroll-height="auto" data-kt-scroll-dependencies="#kt_drawer_chat_messenger_header, #kt_drawer_chat_messenger_footer" data-kt-scroll-wrappers="#kt_drawer_chat_messenger_body" data-kt-scroll-offset="0px">
-                                                                    @foreach($order->allCommentsByUid  as $feedback)
-                                                                        @if($feedback->comment != '')
-                                                                            @if($feedback->commented_by != Auth::user()->name)
-                                                                                <div class="d-flex justify-content-start mb-10">
-                                                                                    <div class="d-flex flex-column align-items-start">
-                                                                                        <div class="d-flex align-items-center mb-2">
-                                                                                            <div class="symbol symbol-35px symbol-circle">
-                                                                                                <img alt="Pic" src="assets/media/avatars/blank.png" />                                                                                                
-                                                                                            </div>
-                                                                                            <div class="ms-3">
-                                                                                                @if($feedback->commented_by)
-                                                                                                    <a href="#" class="fs-5 fw-bolder text-gray-900 text-hover-primary me-1">{{ $feedback->commented_by }}</a>
-                                                                                                @endif
-                                                                                            </div>
-                                                                                            <div class="me-3">
-                                                                                                <span class="text-muted fs-7 mb-1">{{ $feedback->created_at }}</span>
-                                                                                            </div>
-                                                                                        </div>
-                                                                                        <div class="p-5 rounded bg-light-info text-dark fw-bold mw-lg-400px text-start" data-kt-element="message-text">{{ $feedback->comment }}</div>
-                                                                                    </div>
-                                                                                </div>
-                                                                            @else
-                                                                                <div class="d-flex justify-content-end mb-10">
-                                                                                    <div class="d-flex flex-column align-items-end">
-                                                                                        <div class="d-flex align-items-center mb-2">
-                                                                                            <div class="me-3">
-                                                                                                <span class="text-muted fs-7 mb-1">{{ $feedback->created_at }}</span>
-                                                                                            </div>
-                                                                                            <div class="symbol symbol-35px symbol-circle">
-                                                                                                <img alt="Pic" src="assets/media/avatars/blank.png" />
-                                                                                            </div>
-                                                                                            <div class="ms-3">
-                                                                                                <a href="#" class="fs-5 fw-bolder text-gray-900 text-hover-primary me-1">You</a>
-                                                                                            </div>
-                                                                                        </div>
-                                                                                        <div class="p-5 rounded bg-light-primary text-dark fw-bold mw-lg-400px text-end" data-kt-element="message-text">{{ $feedback->comment }}</div>
-                                                                                    </div>
-                                                                                </div>
-                                                                            @endif
-                                                                        @endif
-                                                                    @endforeach
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <td>{{$order->follow_up_user}}</td>
-                                            <td class="text-center"> 
-                                                <div class="card-toolbar">
-                                                    <a href="#" data-bs-toggle="modal" data-bs-target="#kt_modal_create_appaa_newLeads{{$order->id}}" id="kt_toolbar_primary_button" class="btn btn-sm btn-light-primary">
-                                                        
-                                                        <li class="fa fa-edit"> </li>
-                                                    </a>
-                                                </div>
+                                customDropdownHtml += '<a href="javascript:void(0)" class="dropdown-item user-select-item p-3 border-bottom text-wrap" ' +
+                                    'data-id="' + value.id + '" data-email="' + emailStr + '" data-name="' + value.name + '" data-mobile="' + (value.mobile_no || '') + '" style="display: block; cursor: pointer;">' +
+                                    '<div class="fw-bolder text-dark fs-6">' + value.name + '</div>' +
+                                    '<div class="text-muted fs-7">' + emailStr + mobileStr + '</div>' +
+                                    '</a>';
+                            });
 
-                                                <div class="modal fade" id="kt_modal_create_appaa_newLeads{{$order->id}}" tabindex="-1" aria-hidden="true">
-                                                    <div class="modal-dialog modal-dialog-centered mw-950px">
-                                                        <div class="modal-content rounded">
-                                                            <div class="modal-header pb-0 border-0 justify-content-end">
-                                                                <div class="btn btn-sm btn-icon btn-active-color-primary" data-bs-dismiss="modal">
-                                                                    <span class="svg-icon svg-icon-1">
-                                                                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
-                                                                            <rect opacity="0.5" x="6" y="17.3137" width="16" height="2" rx="1" transform="rotate(-45 6 17.3137)" fill="black"></rect>
-                                                                            <rect x="7.41422" y="6" width="16" height="2" rx="1" transform="rotate(45 7.41422 6)" fill="black"></rect>
-                                                                        </svg>
-                                                                    </span>
-                                                                </div>
-                                                            </div>
-                                                            <div class="modal-body scroll-y px-10 px-lg-15 pt-0 pb-15">
-                                                                <form id="kt_modal_new_target_form" class="form" method="POST"  action="{{ route('follow.update', ['id' =>  $order->id]) }}">
-                                                                    @csrf
-                                                                    <div class="mb-13 text-center">
-                                                                        <h1 class="mb-3">Status Edit Of Follow Up {{$order->order_id}}</h1>
-                                                                        <div class="text-muted fw-bold fs-5"></div>
-                                                                    </div>
-                                                                    
-                                                                    <div class="row g-9 mb-8 text-start">
-                                                                        <div class="col-md-6 fv-row">
-                                                                            <label class="fs-6 fw-bold mb-2">Follow-Up Status</label>
-                                                                            <select name="follow_up_status" aria-label="Select Service Type" data-control="select2" class="form-select form-select-solid form-select-lg select2-hidden-accessible" data-select2-id="select2-data-16-796922" tabindex="-1" aria-hidden="true">
-                                                                                <option value=""></option>
-                                                                                <option {{ old('follow_up_status', $order->follow_status) == 'negative but convinced' ? 'selected' : '' }} value="negative but convinced">negative but convinced</option>
-                                                                                <option {{ old('follow_up_status', $order->follow_status) == 'negative' ? 'selected' : '' }} value="negative">negative</option>
-                                                                                <option {{ old('follow_up_status', $order->follow_status) == 'positive' ? 'selected' : '' }} value="positive">positive</option>
-                                                                                <option {{ old('follow_up_status', $order->follow_status) == 'positive and referral' ? 'selected' : '' }} value="positive and referral">positive and referral</option>
-                                                                                <option {{ old('follow_up_status', $order->follow_status) == 'positive and own order' ? 'selected' : '' }} value="positive and own order">positive and own order</option>
-                                                                                <option {{ old('follow_up_status', $order->follow_status) == 'No response' ? 'selected' : '' }} value="No response">No response</option>
-                                                                            </select>
-                                                                   
-
-                                                                   
-                                                                    <div class="row g-9 mb-8 text-start">
-                                                                        <div class="col-md-12 fv-row">
-                                                                            <label class="fs-6 fw-bold mb-2">Comment</label>
-                                                                            <textarea name="comment" value="" class="form-control form-control-solid" id="" cols="30" rows="3">{{$order->follow_comment}}</textarea>
-                                                                        </div>
-                                                                        
-                                                                    </div>
-                                                                </div>
-                                                                
-                                                                <div class="modal-footer">
-                                                                    <button type="submit" class="btn btn-primary">Submit</button>
-                                                                </div>
-                                                                </form>
-                                                            </div>
-                                                            
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </td>
-                                        </tr>
-
-									
-								   </tbody>
-                                @endforeach
-							</table>
-						</div>
-					</div>
-
-				</div>
-			</div>
-
-        </div>
-    </div>
-</div>
-
-    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
-    <style>
-        .loading-container {
-            position: relative;
-            height: 100%; /* Adjust this value according to your layout */
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-
-        .loading-spinner {
-            border: 4px solid rgba(0, 0, 0, 0.1);
-            border-top: 4px solid #3498db;
-            border-radius: 50%;
-            width: 30px;
-            height: 30px;
-            animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        .error {
-            color: red;
-        }
-
-        /* Additional styling can be added here */
-    </style>
-     <script>
-    // Function to apply filters
-    function applyFilters() {
-        var $search = $('#search').val();
-        var $status = $('#status').val();
-        var $uid = $('#selectedValue').val();
-        var $fromDate = $('#fromDate').val();
-        var $toDate = $('#toDate').val();
-
-        // Store filter values in sessionStorage
-        var followfilter = {
-            search: $search,
-            status: $status,
-            uid: $uid,
-            fromDate: $fromDate,
-            toDate: $toDate
-        };
-        sessionStorage.setItem('followfilter', JSON.stringify(followfilter));
-
-        // Check if any filter is set
-        var filtersExist = Object.values(followfilter).some(value => value);
-
-        if (filtersExist) {
-            $('.allData').hide();
-            $('.searchData').show();
+                            $('#searchResultss').html(customDropdownHtml).addClass('show').css('display', 'block');
+                        } else {
+                            $('#searchResultss').html('<div class="p-3 text-muted fs-7 text-center">No results found</div>').addClass('show').css('display', 'block');
+                        }
+                    },
+                    error: function () {
+                        $('#searchSpinner').hide();
+                        $('#searchResultss').html('<div class="p-3 text-danger fs-7 text-center">Error loading results</div>').addClass('show').css('display', 'block');
+                    }
+                });
+            }, 150);
         } else {
-            $('.allData').show();
-            $('.searchData').hide();
-        }
-
-        // Use CSRF token for security
-        var CSRF_TOKEN = $('meta[name="csrf-token"]').attr('content');
-
-        // Show loading while waiting for response
-        $('#content').html('<div class="loading-container">Please Wait Data Is Loading......<div class="loading-spinner"></div></div>');
-
-        $.ajax({
-            type: 'get',
-            url: '{{ url('search-fw') }}',
-            data: {
-                '_token': CSRF_TOKEN,
-                ...followfilter
-            },
-            success: function (data) {
-                console.log(data);
-                $('#content').html(data);
-            },
-            error: function (xhr, status, error) {
-                console.log('Error:', error);
+            $('#searchSpinner').hide();
+            $('#searchResultss').removeClass('show').css('display', 'none').empty();
+            if (!searchValue || searchValue.trim().length === 0) {
+                $('#selectedValue').val('');
             }
-        });
+        }
     }
 
-    // Function to reset filters
-    function resetFilters() {
-        sessionStorage.removeItem('followfilter'); // Clear stored filters
-
-        // Clear input values
-        $('input[type=search], input[type=date], input[type=text], input[type=hidden]').val('');
-        $('select').val('').trigger('change');
-
-        // Apply filters
-        applyFilters();
-    }
-
-    // Click event for the reset button
-    $('#resetFiltersBtn').on('click', function() {
-        resetFilters();
+    // Input & Keyup event (typed or pasted)
+    $('#searchInput').on('input keyup', function () {
+        doUserSearch();
     });
 
-    // On document ready, check if there are stored filters and apply them
-    $(document).ready(function() {
-        var storedFilters = sessionStorage.getItem('followfilter');
-        if (storedFilters) {
-            var filters = JSON.parse(storedFilters);
-            $('#search').val(filters.search);
-            $('#status').val(filters.status);
-            $('#selectedValue').val(filters.uid);
-            $('#fromDate').val(filters.fromDate);
-            $('#toDate').val(filters.toDate);
-            applyFilters();
+    // Paste event support with instant response
+    $('#searchInput').on('paste', function () {
+        $('#searchSpinner').show();
+        setTimeout(function () {
+            doUserSearch();
+        }, 50);
+    });
+
+    // Focus event
+    $('#searchInput').on('focus', function () {
+        var val = $(this).val();
+        if (val && val.trim().length >= 2) {
+            doUserSearch();
         }
     });
-</script>
 
+    // Handle selection from visible custom dropdown
+    $(document).on('click', '#searchResultss .user-select-item', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        var selectedId = $(this).attr('data-id');
+        var selectedEmail = $(this).attr('data-email');
+        var selectedName = $(this).attr('data-name');
+        var selectedMobile = $(this).attr('data-mobile');
+        var label = selectedName + (selectedMobile ? ' (' + selectedMobile + ')' : (selectedEmail ? ' (' + selectedEmail + ')' : ''));
 
-<script>
-function FollowUpUser(checkbox, UserId) {
-    $.ajax({
-        url: 'followUpUser/' + UserId,
-        method: 'PUT',
-        headers: {
-            'X-CSRF-TOKEN': $('meta[name="csrf-token"]').att('content')
-        },
-        success: function(response) {
-            if (checkbox.checked) {
-                console.log("Lead with ID " + UserId "cancelledsuccessfully.");
-              
-            } else {
-                console.log("Lead with ID " + UserId "restoredsuccessfully.");
-              
-            }
-        },
-        error: function(xhr, status, error) {
-            console.error("Error: " + error);
+        $('#searchInput').val(label);
+        $('#selectedValue').val(selectedId);
+        $('#searchResultss').removeClass('show').css('display', 'none').empty();
+    });
+
+    // Close dropdown on outside click
+    $(document).on('click', function (e) {
+        if (!$(e.target).closest('#searchInput, #searchResultss').length) {
+            $('#searchResultss').removeClass('show').css('display', 'none');
         }
     });
-}
+
+    // Enter key closes dropdown
+    $('#searchInput').on('keypress', function (e) {
+        if (e.which === 13) {
+            $('#searchResultss').removeClass('show').css('display', 'none');
+        }
+    });
+
+    // Side Toggle Drawer Handlers
+    $(document).on('click', '[data-toggle-followup-drawer]', function (e) {
+        e.preventDefault();
+        var targetId = $(this).data('target');
+        $('.followup-history-drawer').removeClass('show');
+        $(targetId).addClass('show');
+        $('#followupDrawerBackdrop').addClass('show');
+        $('body').css('overflow', 'hidden');
+    });
+
+    $(document).on('click', '.btn-close-followup-drawer, #followupDrawerBackdrop', function (e) {
+        e.preventDefault();
+        $('.followup-history-drawer').removeClass('show');
+        $('#followupDrawerBackdrop').removeClass('show');
+        $('body').css('overflow', '');
+    });
+
+    $(document).keyup(function(e) {
+        if (e.key === "Escape") {
+            $('.followup-history-drawer').removeClass('show');
+            $('#followupDrawerBackdrop').removeClass('show');
+            $('body').css('overflow', '');
+        }
+    });
+});
 </script>
-                                           
+
+{{-- Side Toggle Drawer Backdrop --}}
+<div id="followupDrawerBackdrop" class="followup-drawer-backdrop"></div>
+
 @endsection

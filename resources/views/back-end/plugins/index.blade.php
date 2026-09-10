@@ -92,6 +92,9 @@
                         <button type="button" class="btn btn-sm btn-light-success flex-fill" data-bs-toggle="modal" data-bs-target="#twilioTestCallModal">
                             <i class="fa fa-phone-volume me-1"></i> Test Call
                         </button>
+                        <a href="{{ route('plugins.twilio.call.history') }}" class="btn btn-sm btn-light-warning flex-fill">
+                            <i class="fa fa-history me-1"></i> Call History
+                        </a>
                     </div>
                 </div>
             </div>

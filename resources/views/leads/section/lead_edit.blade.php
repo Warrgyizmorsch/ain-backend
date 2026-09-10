@@ -45,32 +45,37 @@
                             <label class=" fs-6 fw-bold mb-2">Email</label>
                             <!-- <input type="text"  class="form-control form-control-solid" placeholder="" value="{{ $lead->user->email }}" name="email"> -->
                            
-                            <input type="text" class="form-control form-control-solid" placeholder="" value="{{ $lead->user->email }}" readonly name="email" id="emailInput" >
+                            @php
+                                $isSuperAdmin = auth()->check() && (int)auth()->user()->role_id === 1;
+                            @endphp
+                            <input type="text" class="form-control form-control-solid" placeholder="" value="{{ mask_email_for_display($lead->user->email) }}" readonly name="email" id="emailInput" >
                             <input type="hidden" class="form-control form-control-solid" placeholder="" value="" name="id" id="id" >
                         </div>
                     </div>
                     <div class="row g-9 mb-8 text-start order-container" data-order-id="{{$lead->id}}">
                     <div class="col-md-2 fv-row">
                             <label class="fs-6 fw-bold mb-2">Country Code</label>
-                            <input type="text" class="form-control form-control-solid" placeholder="" value="{{$lead->user->countrycode}}" name="country_code" id="country_primary">
+                            <input type="text" readonly class="form-control form-control-solid" placeholder="" value="{{$lead->user->countrycode}}" name="country_code" id="country_primary">
                         </div>
                         <div class="col-md-3 fv-row text-start">
                             <label class="fs-6 fw-bold mb-2">Mobile Number</label>
-                            <input type="text" class="form-control form-control-solid" placeholder="" value="{{$lead->user->mobile_no}}" name="mobile" id="primary">
+                            <input type="text" readonly class="form-control form-control-solid" placeholder="" value="{{ mask_mobile_only($lead->user->countrycode, $lead->user->mobile_no) }}" name="mobile" id="primary">
                         </div>
+                        @if($isSuperAdmin)
                         <div class="col-md-2 fv-row d-flex align-items-end justify-content-center">
                             <!-- Button with double-sided arrow icon -->
                             <button type="button" class="btn btn-primary swapButton" id="swapButton{{$lead->id}}">
                                 <i class="fas fa-exchange-alt"></i> <!-- Font Awesome double-sided arrow icon -->
                             </button>
                         </div>
+                        @endif
                         <div class="col-md-2 fv-row">
                             <label class="fs-6 fw-bold mb-2">Country Code</label>
-                            <input type="text" class="form-control form-control-solid" placeholder="" value="{{$lead->user->countrycode2}}" name="country_code2">
+                            <input type="text" @if(!$isSuperAdmin) readonly @endif class="form-control form-control-solid" placeholder="" value="{{$lead->user->countrycode2}}" name="country_code2">
                         </div>
                         <div class="col-md-3 fv-row text-start">
                             <label class="fs-6 fw-bold mb-2">Mobile Number-2</label>
-                            <input type="text" class="form-control form-control-solid" placeholder="" value="{{$lead->user->mobile_no2}}" name="mobile2">
+                            <input type="text" @if(!$isSuperAdmin) readonly @endif class="form-control form-control-solid" placeholder="" value="{{ mask_mobile_only($lead->user->countrycode2, $lead->user->mobile_no2) }}" name="mobile2">
                         </div>
                         
                     </div>

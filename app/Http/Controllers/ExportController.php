@@ -226,14 +226,71 @@ class ExportController extends Controller
     
         // Apply filters if provided
         if ($searchTerm) {
-            $leadsQuery->where(function ($query) use ($searchTerm) {
+            $searchUserIds = find_user_ids_by_search_term($searchTerm);
+            $cleanSearchMasked = preg_replace('/\*+/', '%', preg_replace('/[^0-9*]/', '', $searchTerm));
+            $cleanSearchDigits = preg_replace('/\D+/', '', $searchTerm);
+
+            $leadsQuery->where(function ($query) use ($searchTerm, $searchUserIds, $cleanSearchMasked, $cleanSearchDigits) {
                 $query->where('order_id', 'like', '%' . $searchTerm . '%')
                     ->orWhere('project_title', 'like', '%' . $searchTerm . '%');
+
+                if (!empty($searchUserIds)) {
+                    $query->orWhereIn('emp_id', $searchUserIds);
+                }
+
+                if (strpos($searchTerm, '*') !== false && !empty($cleanSearchMasked) && preg_match('/\d/', $cleanSearchMasked)) {
+                    $query->orWhere('mobile', 'like', '%' . $cleanSearchMasked . '%')
+                        ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile, '')) LIKE ?", ['%' . $cleanSearchMasked . '%']);
+                }
+
+                if (!empty($cleanSearchDigits) && strlen($cleanSearchDigits) >= 4) {
+                    $last10 = strlen($cleanSearchDigits) >= 10 ? substr($cleanSearchDigits, -10) : $cleanSearchDigits;
+                    $query->orWhere('mobile', 'like', '%' . $cleanSearchDigits . '%')
+                        ->orWhere('mobile', 'like', '%' . $last10 . '%')
+                        ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile, '')) LIKE ?", ['%' . $cleanSearchDigits . '%']);
+                }
+
+                if (strpos($searchTerm, '@') !== false) {
+                    $cleanEmail = preg_replace('/\*+/', '%', $searchTerm);
+                    $query->orWhere('email', 'like', '%' . $cleanEmail . '%');
+                }
             });
         }
     
         if ($userDetail) {
-            $leadsQuery->where('emp_id', $userDetail);
+            if (is_numeric($userDetail)) {
+                $leadsQuery->where('emp_id', $userDetail);
+            } else {
+                $matchingUserIds = find_user_ids_by_search_term((string)$userDetail);
+                $cleanUserMasked = preg_replace('/\*+/', '%', preg_replace('/[^0-9*]/', '', (string)$userDetail));
+                $cleanUserDigits = preg_replace('/\D+/', '', (string)$userDetail);
+
+                $leadsQuery->where(function ($query) use ($userDetail, $matchingUserIds, $cleanUserMasked, $cleanUserDigits) {
+                    if (!empty($matchingUserIds)) {
+                        $query->whereIn('emp_id', $matchingUserIds);
+                    }
+
+                    if (strpos((string)$userDetail, '*') !== false && !empty($cleanUserMasked) && preg_match('/\d/', $cleanUserMasked)) {
+                        $query->orWhere('mobile', 'like', '%' . $cleanUserMasked . '%')
+                            ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile, '')) LIKE ?", ['%' . $cleanUserMasked . '%']);
+                    }
+
+                    if (!empty($cleanUserDigits) && strlen($cleanUserDigits) >= 4) {
+                        $last10 = strlen($cleanUserDigits) >= 10 ? substr($cleanUserDigits, -10) : $cleanUserDigits;
+                        $query->orWhere('mobile', 'like', '%' . $cleanUserDigits . '%')
+                            ->orWhere('mobile', 'like', '%' . $last10 . '%')
+                            ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile, '')) LIKE ?", ['%' . $cleanUserDigits . '%']);
+                    }
+
+                    if (strpos((string)$userDetail, '@') !== false) {
+                        $cleanEmail = preg_replace('/\*+/', '%', (string)$userDetail);
+                        $query->orWhere('email', 'like', '%' . $cleanEmail . '%');
+                    } else {
+                        $query->orWhere('user_name', 'like', '%' . $userDetail . '%')
+                            ->orWhere('email', 'like', '%' . $userDetail . '%');
+                    }
+                });
+            }
         }
     
         if ($status) {
@@ -250,18 +307,17 @@ class ExportController extends Controller
             }
         }
     
-        if ($fromDate) {
-            if ($uptoDate) {
-                $leadsQuery->whereBetween('created_at', [$fromDate, $uptoDate]);
+        $dateField = ($dateStatus === 'Deadline') ? 'deadline' : 'create_at';
+        if ($fromDate && $uptoDate) {
+            if ($dateField === 'create_at') {
+                $leadsQuery->whereBetween('create_at', [$fromDate . ' 00:00:00', $uptoDate . ' 23:59:59']);
             } else {
-                $leadsQuery->whereDate('created_at', $fromDate);
-            }
-        } elseif ($dateStatus) {
-            if ($uptoDate) {
                 $leadsQuery->whereBetween('deadline', [$fromDate, $uptoDate]);
-            } else {
-                $leadsQuery->whereDate('deadline', $dateStatus);
             }
+        } elseif ($fromDate) {
+            $leadsQuery->whereDate($dateField, '>=', $fromDate);
+        } elseif ($uptoDate) {
+            $leadsQuery->whereDate($dateField, '<=', $uptoDate);
         }
     
         // Fetch the leads

@@ -101,9 +101,9 @@
                             <td>
                                 @if($order->user)
                                     <div class="fw-bold text-gray-800">{{ $order->user->name }}</div>
-                                    <div class="text-muted fs-8">{{ $order->user->email }}</div>
+                                    <div class="text-muted fs-8">{{ mask_email_for_display($order->user->email) }}</div>
                                     <div class="badge badge-light-danger fs-8">
-                                        +{{ $order->user->countrycode }} {{ $order->user->mobile_no }}
+                                        {{ mask_phone_for_display($order->user->countrycode, $order->user->mobile_no) }}
                                     </div>
                                 @else
                                     <span class="badge badge-light-danger">User Deleted</span>

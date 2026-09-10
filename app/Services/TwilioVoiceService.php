@@ -188,12 +188,15 @@ class TwilioVoiceService
             'callerId' => $formattedCallerId,
         ]);
 
+        $statusCallbackUrl    = url('api/twilio/status-callback');
+        $recordingCallbackUrl = url('api/twilio/recording-callback');
+
         // Case 1: Outbound call initiated from browser to an external phone number
         if (!empty($cleanTo) && !str_starts_with($cleanTo, 'client:') && $formattedTo !== $formattedCallerId && strlen($cleanTo) >= 7) {
             return '<?xml version="1.0" encoding="UTF-8"?>'
                 . '<Response>'
-                . '<Dial callerId="' . htmlspecialchars($formattedCallerId) . '" answerOnBridge="true">'
-                . '<Number>' . htmlspecialchars($formattedTo) . '</Number>'
+                . '<Dial callerId="' . htmlspecialchars($formattedCallerId) . '" answerOnBridge="true" record="record-from-answer-dual" recordingStatusCallback="' . htmlspecialchars($recordingCallbackUrl) . '">'
+                . '<Number statusCallback="' . htmlspecialchars($statusCallbackUrl) . '" statusCallbackEvent="initiated ringing answered completed">' . htmlspecialchars($formattedTo) . '</Number>'
                 . '</Dial>'
                 . '</Response>';
         }
@@ -202,11 +205,12 @@ class TwilioVoiceService
         return '<?xml version="1.0" encoding="UTF-8"?>'
             . '<Response>'
             . '<Say voice="alice">Connecting to customer support, please hold.</Say>'
-            . '<Dial timeout="30">'
-            . '<Client>agent_12641</Client>'
-            . '<Client>agent_1</Client>'
-            . '<Client>agent_admin</Client>'
+            . '<Dial timeout="30" record="record-from-answer" recordingStatusCallback="' . htmlspecialchars($recordingCallbackUrl) . '" action="' . htmlspecialchars($statusCallbackUrl) . '">'
+            . '<Client statusCallback="' . htmlspecialchars($statusCallbackUrl) . '" statusCallbackEvent="initiated ringing answered completed">agent_12641</Client>'
+            . '<Client statusCallback="' . htmlspecialchars($statusCallbackUrl) . '" statusCallbackEvent="initiated ringing answered completed">agent_1</Client>'
+            . '<Client statusCallback="' . htmlspecialchars($statusCallbackUrl) . '" statusCallbackEvent="initiated ringing answered completed">agent_admin</Client>'
             . '</Dial>'
+            . '<Say voice="alice">No agent was available to take your call. Please try again later.</Say>'
             . '</Response>';
     }
 

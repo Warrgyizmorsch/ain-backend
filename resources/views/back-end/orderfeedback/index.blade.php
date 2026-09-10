@@ -3,10 +3,18 @@
 @section('content')
 
 <style>
-    .content { padding: 0 !important; }
-    #kt_content { margin-top: -20px; }
+    /* Eliminate Metronic toolbar-fixed empty gap */
+    #kt_content,
+    .content {
+        padding-top: 0 !important;
+    }
+    .toolbar,
+    #kt_toolbar {
+        margin-bottom: 0 !important;
+    }
 
     .feedback-card {
+        margin-top: 0 !important;
         border-radius: 10px;
         border: 1px solid #e4e6ef;
         box-shadow: 0 4px 14px rgba(0,0,0,0.04);
@@ -150,66 +158,97 @@
         opacity: 1;
         color: #009ef7;
     }
+
+    #searchResultss .user-select-item {
+        cursor: pointer;
+        transition: background-color 0.15s ease-in-out;
+    }
+    #searchResultss .user-select-item:hover {
+        background-color: #f1faff !important;
+    }
 </style>
 
-<div id="kt_content">
+<div class="content d-flex flex-column flex-column-fluid" id="kt_content">
+    <div id="kt_content_container" class="">
+        <div class="toolbar" id="kt_toolbar">
+            <div id="kt_toolbar_container" class="container-fluid d-flex flex-stack">
+                <div data-kt-swapper="true" data-kt-swapper-mode="prepend"
+                    data-kt-swapper-parent="{default: '#kt_content_container', 'lg': '#kt_toolbar_container'}"
+                    class="page-title d-flex align-items-center flex-wrap me-3 mb-0">
+                    <h1 class="d-flex align-items-center text-dark fw-bolder fs-3 my-1">Order Feedback
+                        <span class="h-20px border-gray-200 border-start ms-3 mx-2"></span>
+                        <small class="text-muted fs-7 fw-bold my-1 ms-1">Delivered Orders</small>
+                    </h1>
+                </div>
+            </div>
+        </div>
 
-    <div class="card card-xl-stretch mb-5 feedback-card">
+        <div class="col-xl-12 mt-2">
+            <div class="card card-xl-stretch mb-5 feedback-card">
         <div class="card-header">
             <h3 class="card-title fw-bolder mb-0">Delivered Order Feedback</h3>
         </div>
 
-        <div class="card-body py-3">
+        <div class="card-body py-3">            <form method="GET" action="{{ url()->current() }}" class="filter-box" id="orderFeedbackFilterForm">
+                <div class="row g-3 mb-3">
+                    <div class="col-md-3 fv-row">
+                        <label class="form-label fw-bold fs-7">Order Code / Title</label>
+                        <input type="search" name="search" id="search" class="form-control form-control-solid" placeholder="Search By Order Code / Title" value="{{ request('search') }}">
+                    </div>
 
-            <form method="GET" action="{{ url()->current() }}" class="filter-box">
-                <div class="row g-3 align-items-end">
+                    <div class="col-md-3 fv-row">
+                        <label class="form-label fw-bold fs-7">Customer (Name / Number / Email)</label>
+                        <div class="position-relative">
+                            <input type="text" id="searchInput" name="user" class="form-control form-control-solid pe-10" placeholder="Search by Name, Number, Email..." autocomplete="off" value="{{ request('user') ?: (request('uid') ? (is_numeric(request('uid')) ? optional(\App\Models\User::find(request('uid')))->name : request('uid')) : '') }}">
+                            <!-- In-input preloader spinner -->
+                            <span id="searchSpinner" class="position-absolute end-0 top-50 translate-middle-y me-3" style="display:none; pointer-events: none; z-index: 10;">
+                                <span class="spinner-border spinner-border-sm text-primary" role="status" style="width: 1.1rem; height: 1.1rem; border-width: 2px;">
+                                    <span class="visually-hidden">Loading...</span>
+                                </span>
+                            </span>
+                            <!-- Single Custom Dropdown (No datalist) -->
+                            <div id="searchResultss" class="dropdown-menu w-100 shadow-lg p-0 mt-1" style="display:none; max-height: 260px; overflow-y: auto; z-index: 1050; position: absolute; left: 0; top: 100%; background: #ffffff !important; border: 1px solid #d8dbe0;"></div>
+                        </div>
+                        <input type="hidden" id="selectedValue" name="uid" value="{{ request('uid') }}">
+                    </div>
 
-                    <div class="col-md-2">
-                        <label class="form-label fw-bold">Feedback Status</label>
-                        <select name="feedback_status" class="form-control">
+                    <div class="col-md-2 fv-row">
+                        <label class="form-label fw-bold fs-7">Feedback Status</label>
+                        <select name="feedback_status" class="form-select form-select-solid">
                             <option value="">All</option>
                             <option value="no" {{ request('feedback_status') == 'no' ? 'selected' : '' }}>No</option>
                             <option value="yes" {{ request('feedback_status') == 'yes' ? 'selected' : '' }}>Yes</option>
                         </select>
                     </div>
 
-                    <div class="col-md-2">
-                        <label class="form-label fw-bold">Order From</label>
-                        <input type="date"
-                               name="order_date_from"
-                               class="form-control"
-                               value="{{ request('order_date_from') }}">
+                    <div class="col-md-2 fv-row">
+                        <label class="form-label fw-bold fs-7">Order From</label>
+                        <input type="date" name="order_date_from" class="form-control form-control-solid" value="{{ request('order_date_from') }}">
                     </div>
 
-                    <div class="col-md-2">
-                        <label class="form-label fw-bold">Order To</label>
-                        <input type="date"
-                               name="order_date_to"
-                               class="form-control"
-                               value="{{ request('order_date_to') }}">
+                    <div class="col-md-2 fv-row">
+                        <label class="form-label fw-bold fs-7">Order To</label>
+                        <input type="date" name="order_date_to" class="form-control form-control-solid" value="{{ request('order_date_to') }}">
+                    </div>
+                </div>
+
+                <div class="row g-3">
+                    <div class="col-md-3 fv-row">
+                        <label class="form-label fw-bold fs-7">Delivery From</label>
+                        <input type="date" name="feedback_date_from" class="form-control form-control-solid" value="{{ request('feedback_date_from') }}">
                     </div>
 
-                    <div class="col-md-2">
-                        <label class="form-label fw-bold">Delivery From</label>
-                        <input type="date"
-                               name="feedback_date_from"
-                               class="form-control"
-                               value="{{ request('feedback_date_from') }}">
+                    <div class="col-md-3 fv-row">
+                        <label class="form-label fw-bold fs-7">Delivery To</label>
+                        <input type="date" name="feedback_date_to" class="form-control form-control-solid" value="{{ request('feedback_date_to') }}">
                     </div>
 
-                    <div class="col-md-2">
-                        <label class="form-label fw-bold">Delivery To</label>
-                        <input type="date"
-                               name="feedback_date_to"
-                               class="form-control"
-                               value="{{ request('feedback_date_to') }}">
+                    <div class="col-md-6 d-flex align-items-end gap-2">
+                        <button type="submit" class="btn btn-sm btn-primary px-5">
+                            <i class="fa fa-search me-1"></i> Search
+                        </button>
+                        <a href="{{ url()->current() }}" class="btn btn-sm btn-danger px-5">Reset</a>
                     </div>
-
-                    <div class="col-md-2 d-flex gap-2">
-                        <button type="submit" class="btn btn-primary w-100">Filter</button>
-                        <a href="{{ url()->current() }}" class="btn btn-light-danger">Reset</a>
-                    </div>
-
                 </div>
             </form>
 
@@ -252,32 +291,96 @@
                                 $status = strtolower($order->feedback_status ?? '');
                                 $isYes = in_array($status, ['yes', 'completed']);
                                 $isFailedOrder = (int) ($order->is_fail ?? 0) === 1;
+                                $orderCode = $order->order_code ?? $order->order_id ?? '';
                             @endphp
 
                             <tr>
                                 <td class="text-center order-id-cell">
                                     @if($isFailedOrder)
                                         <span class="failed-order-box">
-                                            {{ $order->order_code ?? $order->order_id ?? 'N/A' }}<br>
+                                            <span class="d-inline-flex align-items-center justify-content-center">
+                                                <span>{{ $orderCode ?: 'N/A' }}</span>
+                                                @if(!empty($orderCode))
+                                                    <button type="button" class="btn btn-icon btn-sm btn-active-light-danger ms-1 p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Order Code" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $orderCode }}', 'Order code copied!');">
+                                                        <i class="fa fa-clone fs-8 text-danger"></i>
+                                                    </button>
+                                                @endif
+                                            </span><br>
                                             <span class="fs-8">Fail Order</span>
                                             @if($order->failed_at)
                                                 <br><span class="fs-9">{{ \Carbon\Carbon::parse($order->failed_at)->format('d M Y h:i A') }}</span>
                                             @endif
                                         </span>
                                     @else
-                                        <strong>{{ $order->order_code ?? $order->order_id ?? 'N/A' }}</strong>
+                                        <div class="d-inline-flex align-items-center justify-content-center">
+                                            <strong class="text-primary">{{ $orderCode ?: 'N/A' }}</strong>
+                                            @if(!empty($orderCode))
+                                                <button type="button" class="btn btn-icon btn-sm btn-active-light-primary ms-1 p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Order Code" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $orderCode }}', 'Order code copied!');">
+                                                    <i class="fa fa-clone fs-8 text-muted"></i>
+                                                </button>
+                                            @endif
+                                        </div>
                                     @endif
                                 </td>
 
                                 <td class="user-info-box">
                                     @if($user)
-                                        <strong>{{ $user->name ?? 'N/A' }}</strong>
-                                        <span>{{ $user->email ?? 'N/A' }}</span><br>
+                                        @php
+                                            $rawName = $user->name ?? '';
+                                            $rawEmail = $user->email ?? '';
+                                            $rawMobile = $user->mobile_no ?? $user->mobile ?? '';
+                                            $rawCC = $user->countrycode ?? $user->country_code ?? '';
+                                            $cleanCC = preg_replace('/\D+/', '', (string)$rawCC);
+                                            $maskedEmail = $rawEmail ? mask_email_for_display($rawEmail) : '';
+                                            $maskedMobile = $rawMobile ? mask_mobile_only($cleanCC, $rawMobile) : '';
+                                        @endphp
 
-                                        <span class="badge badge-light-danger fs-7 fw-bold mt-1">
-                                            +{{ $user->countrycode ?? $user->country_code ?? '' }}
-                                            {{ $user->mobile_no ?? $user->mobile ?? '' }}
-                                        </span>
+                                        <div class="d-flex flex-column gap-1 py-1">
+                                            {{-- 1. User Name (Top line) --}}
+                                            @if(!empty($rawName))
+                                                <div class="d-flex align-items-center">
+                                                    <span class="fw-bolder text-dark fs-6">{{ $rawName }}</span>
+                                                    <button type="button" class="btn btn-icon btn-sm btn-active-light-primary ms-1 p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Name" onclick="event.stopPropagation(); crmCopyToClipboard('{{ addslashes($rawName) }}', 'Customer name copied!');">
+                                                        <i class="fa fa-clone fs-8 text-muted"></i>
+                                                    </button>
+                                                </div>
+                                            @endif
+
+                                            {{-- 2. Email (Below Name) --}}
+                                            @if(!empty($maskedEmail))
+                                                <div class="d-flex align-items-center">
+                                                    <span class="text-muted fs-8 text-break">{{ $maskedEmail }}</span>
+                                                    <button type="button" class="btn btn-icon btn-sm btn-active-light-primary ms-1 p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Email" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $maskedEmail }}', 'Email copied!');">
+                                                        <i class="fa fa-clone fs-8 text-muted"></i>
+                                                    </button>
+                                                </div>
+                                            @endif
+
+                                            {{-- 3. Mobile Number with CC, Masking, Copy Button & Attractive Call Icon (Below Email) --}}
+                                            @if(!empty($maskedMobile))
+                                                <div class="d-flex align-items-center flex-wrap gap-1 mt-1">
+                                                    @if(!empty($cleanCC))
+                                                        <span class="badge badge-light-primary fs-8 fw-bold py-1 px-2">+{{ $cleanCC }}</span>
+                                                    @endif
+                                                    <span class="badge badge-light-danger fs-7 fw-bold py-1 px-2">{{ $maskedMobile }}</span>
+                                                    <button type="button" class="btn btn-icon btn-sm btn-active-light-danger p-0 flex-shrink-0" style="width: 20px; height: 20px;" title="Copy Mobile" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $maskedMobile }}', 'Mobile number copied!');">
+                                                        <i class="fa fa-clone fs-8 text-danger"></i>
+                                                    </button>
+
+                                                    {{-- Premium Attractive Call Icon Button --}}
+                                                    <a href="#" 
+                                                       id="twilioCallBtnfeedback{{ $order->id }}"
+                                                       onclick="event.preventDefault(); event.stopPropagation(); initiateCustomerCall('{{ $cleanCC . $rawMobile }}', '{{ addslashes($rawName ?: 'Customer') }}');"
+                                                       class="btn btn-icon btn-sm ms-1 shadow-sm call-btn-styled"
+                                                       style="width: 24px; height: 24px; min-width: 24px; border-radius: 6px; background-color: #25D366; color: #ffffff; display: inline-flex; align-items: center; justify-content: center; transition: transform 0.2s ease, background-color 0.2s ease;"
+                                                       onmouseover="this.style.backgroundColor='#1ebd58'; this.style.transform='scale(1.1)';"
+                                                       onmouseout="this.style.backgroundColor='#25D366'; this.style.transform='scale(1)';"
+                                                       title="Call Customer">
+                                                        <i class="fa fa-phone text-white" style="font-size: 11px;"></i>
+                                                    </a>
+                                                </div>
+                                            @endif
+                                        </div>
                                     @else
                                         <span class="badge badge-light-danger">User Deleted</span>
                                     @endif
@@ -336,7 +439,11 @@
         </div>
     </div>
 </div>
+        </div>
+    </div>
+</div>
 
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
     function toggleFeedback(orderId, newStatus, btn) {
         btn.disabled = true;
@@ -382,6 +489,114 @@
             btn.innerText = newStatus === 'yes' ? 'No' : 'Yes';
         });
     }
+
+    $(document).ready(function () {
+        let searchTimeout = null;
+
+        function doFeedbackUserSearch() {
+            var searchValue = $('#searchInput').val();
+            clearTimeout(searchTimeout);
+
+            if (searchValue && searchValue.trim().length >= 2) {
+                var query = searchValue.trim();
+                $('#searchSpinner').show();
+                $('#searchResultss').html(
+                    '<div class="p-3 text-center text-muted fs-7 d-flex align-items-center justify-content-center gap-2">' +
+                        '<span class="spinner-border spinner-border-sm text-primary" role="status" style="width: 1.1rem; height: 1.1rem; border-width: 2px;"></span>' +
+                        '<span>Searching users...</span>' +
+                    '</div>'
+                ).addClass('show').css('display', 'block');
+
+                searchTimeout = setTimeout(function () {
+                    $.ajax({
+                        url: "{{ route('search-order') }}",
+                        type: "GET",
+                        data: { user: query },
+                        success: function (response) {
+                            $('#searchSpinner').hide();
+                            var customDropdownHtml = '';
+                            if (response && response.length > 0) {
+                                $.each(response, function (key, value) {
+                                    var mobileStr = value.mobile_no ? ' | 📞 ' + value.mobile_no : '';
+                                    var emailStr = value.email ? value.email : '';
+
+                                    customDropdownHtml += '<a href="javascript:void(0)" class="dropdown-item user-select-item p-3 border-bottom text-wrap" ' +
+                                        'data-id="' + value.id + '" data-email="' + emailStr + '" data-name="' + value.name + '" data-mobile="' + (value.mobile_no || '') + '" style="display: block; cursor: pointer;">' +
+                                        '<div class="fw-bolder text-dark fs-6">' + value.name + '</div>' +
+                                        '<div class="text-muted fs-7">' + emailStr + mobileStr + '</div>' +
+                                        '</a>';
+                                });
+
+                                $('#searchResultss').html(customDropdownHtml).addClass('show').css('display', 'block');
+                            } else {
+                                $('#searchResultss').html('<div class="p-3 text-muted fs-7 text-center">No results found</div>').addClass('show').css('display', 'block');
+                            }
+                        },
+                        error: function () {
+                            $('#searchSpinner').hide();
+                            $('#searchResultss').html('<div class="p-3 text-danger fs-7 text-center">Error loading results</div>').addClass('show').css('display', 'block');
+                        }
+                    });
+                }, 150);
+            } else {
+                $('#searchSpinner').hide();
+                $('#searchResultss').removeClass('show').css('display', 'none').empty();
+                if (!searchValue || searchValue.trim().length === 0) {
+                    $('#selectedValue').val('');
+                }
+            }
+        }
+
+        // Input & Keyup event (typed)
+        $('#searchInput').on('input keyup', function () {
+            doFeedbackUserSearch();
+        });
+
+        // Paste event with instant spinner
+        $('#searchInput').on('paste', function () {
+            $('#searchSpinner').show();
+            setTimeout(function () {
+                doFeedbackUserSearch();
+            }, 50);
+        });
+
+        // Focus event
+        $('#searchInput').on('focus', function () {
+            var val = $(this).val();
+            if (val && val.trim().length >= 2) {
+                doFeedbackUserSearch();
+            }
+        });
+
+        // Dropdown selection (ONLY one dropdown, NO datalist)
+        $(document).on('click', '#searchResultss .user-select-item', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            var selectedId = $(this).attr('data-id');
+            var selectedEmail = $(this).attr('data-email');
+            var selectedName = $(this).attr('data-name');
+            var selectedMobile = $(this).attr('data-mobile');
+            var label = selectedName + (selectedMobile ? ' (' + selectedMobile + ')' : (selectedEmail ? ' (' + selectedEmail + ')' : ''));
+
+            $('#searchInput').val(label);
+            $('#selectedValue').val(selectedId);
+            $('#searchResultss').removeClass('show').css('display', 'none').empty();
+        });
+
+        // Outside click closes dropdown
+        $(document).on('click', function (e) {
+            if (!$(e.target).closest('#searchInput, #searchResultss').length) {
+                $('#searchResultss').removeClass('show').css('display', 'none');
+            }
+        });
+
+        // Enter key closes dropdown
+        $('#searchInput').on('keypress', function (e) {
+            if (e.which === 13) {
+                $('#searchResultss').removeClass('show').css('display', 'none');
+            }
+        });
+    });
 </script>
 
 @endsection

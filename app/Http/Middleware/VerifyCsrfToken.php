@@ -25,5 +25,8 @@ class VerifyCsrfToken extends Middleware
         'emails/sync',
         'api/*',
         'webhook/emails/inbound',
+        'admin/plugins/twilio/voice',
+        'admin/plugins/twilio/status-callback',
+        'admin/plugins/twilio/recording-callback',
     ];
 }

@@ -100,17 +100,16 @@
 												$userAssignedLabelIds = $userAssignedLabels->pluck('id')->all();
 												$rawUserMobile = $order->user->mobile_no ?: '';
 												$rawUserEmail = $order->user->email ?: '';
+												$displayMobile = mask_phone_for_display($order->user->countrycode, $order->user->mobile_no);
+												$displayEmail  = mask_email_for_display($order->user->email);
 											@endphp
-											<div class="d-flex align-items-center justify-content-center gap-1">
+											<div class="d-flex align-items-center justify-content-center">
 												<span class="fw-bold">{{ $order->user->name }}</span>
-												<button type="button" class="btn btn-icon btn-sm btn-light-success p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Assign Labels" data-user-label-button="{{ $order->user->id }}" data-labels='@json($userAssignedLabelIds)' onclick="event.stopPropagation(); openUserLabelModal({{ $order->user->id }}, @js($order->user->name), @js($rawUserMobile), @js($rawUserEmail), JSON.parse(this.dataset.labels || '[]'))">
-													<i class="fa fa-tag fs-8 text-success"></i>
-												</button>
 											</div>
 											@if(!empty($order->user->email))
 												<div class="d-inline-flex align-items-center my-1">
-													<span class="text-gray-600 fs-8 text-break">{{ $order->user->email }}</span>
-													<button type="button" class="btn btn-icon btn-sm btn-active-light-primary ms-1 p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Email" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $order->user->email }}', 'Email copied!');">
+													<span class="text-gray-600 fs-8 text-break">{{ $displayEmail }}</span>
+													<button type="button" class="btn btn-icon btn-sm btn-active-light-primary ms-1 p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Email" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $displayEmail }}', 'Email copied!');">
 														<i class="fa fa-clone fs-8 text-muted"></i>
 													</button>
 												</div>
@@ -133,6 +132,12 @@
 														<span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:{{ $lbl->color }};"></span>{{ $lbl->name }}
 													</span>
 												@endforeach
+											</div>
+
+											<div class="d-flex justify-content-center align-items-center gap-2 mt-2">
+												<button type="button" class="btn btn-icon btn-sm btn-light-success" title="Assign Labels" data-user-label-button="{{ $order->user->id }}" data-labels='@json($userAssignedLabelIds)' onclick="openUserLabelModal({{ $order->user->id }}, @js($order->user->name), @js($displayMobile ?? ''), @js($displayEmail ?? ''), JSON.parse(this.dataset.labels || '[]'))">
+													<i class="fa fa-tag text-success fs-7"></i>
+												</button>
 											</div>
 										@else
 											N/A

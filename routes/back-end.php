@@ -134,6 +134,10 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/dialer-window', [PluginController::class, 'dialerWindow'])->name('dialer.window');
         Route::post('/twilio/auto-fix-keys', [PluginController::class, 'autoFixKeys'])->name('twilio.autofix');
         Route::post('/toggle-status', [PluginController::class, 'toggleStatus'])->name('toggle');
+        // Call History & Logging
+        Route::get('/twilio/call-history', [PluginController::class, 'callHistory'])->name('twilio.call.history');
+        Route::post('/twilio/log-call', [PluginController::class, 'logCall'])->name('twilio.log.call');
+        Route::post('/twilio/status-callback', [PluginController::class, 'statusCallback'])->name('twilio.status.callback');
     });
 
 

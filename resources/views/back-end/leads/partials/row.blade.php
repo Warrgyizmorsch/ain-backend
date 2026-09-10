@@ -64,13 +64,23 @@
                 </button>
 
                 <!-- Row 2, Col 2b: Twilio Call Button -->
-                <x-call-button
-                    :phone="$lead->user->mobile_no ?? $lead->mobile"
-                    :countrycode="$lead->user->countrycode ?? $lead->countrycode"
-                    :name="$lead->user->name ?? $lead->user_name"
-                    :id="'lead' . $lead->id"
-                    class="btn btn-sm btn-icon p-0 d-inline-flex align-items-center justify-content-center shadow-xs"
-                    style="width: 28px; height: 28px; border-radius: 6px; background-color:#25d366; border-color:#25d366;" />
+                @php
+                    $leadPhone = $lead->user->mobile_no ?? $lead->mobile ?? '';
+                    $leadCC = preg_replace('/\D+/', '', (string)($lead->user->countrycode ?? $lead->countrycode ?? ''));
+                    $leadName = addslashes($lead->user->name ?? $lead->user_name ?? 'Customer');
+                @endphp
+                @if($leadPhone)
+                <a href="#"
+                   id="twilioCallBtnlead{{ $lead->id }}"
+                   onclick="event.preventDefault(); event.stopPropagation(); initiateCustomerCall('{{ $leadCC . $leadPhone }}', '{{ $leadName }}');"
+                   class="btn btn-sm btn-icon p-0 d-inline-flex align-items-center justify-content-center shadow-xs"
+                   style="width:28px;height:28px;border-radius:6px;background-color:#25D366;color:#ffffff;transition:transform 0.2s ease,background-color 0.2s ease;"
+                   onmouseover="this.style.backgroundColor='#1ebd58';this.style.transform='scale(1.1)';"
+                   onmouseout="this.style.backgroundColor='#25D366';this.style.transform='scale(1)';"
+                   title="Call via Twilio">
+                    <i class="fa fa-phone text-white" style="font-size:12px;"></i>
+                </a>
+                @endif
 
                 <!-- Row 2, Col 3: Assign Type Switch -->
                 <div class="form-check form-switch m-0 p-0 d-flex align-items-center justify-content-center" title="Assign Type (AIN / Let's Learn)">
@@ -347,13 +357,20 @@
     @endif
 
         @php
-            $leadUserMobile = $lead->user->mobile_no ?? null;
+            $leadUserMobile = $lead->user->mobile_no ?? $lead->mobile ?? null;
+            $leadCountryCode = $lead->user->countrycode ?? $lead->countrycode ?? null;
             $leadUserEmail = $lead->user->email ?? $lead->email ?? null;
         @endphp
 
         @if(!empty($leadUserMobile))
-            @php $leadDisplayMobile = mask_phone_for_display($lead->user->countrycode ?? $lead->countrycode ?? null, $leadUserMobile); @endphp
+            @php 
+                $leadDisplayMobile = mask_mobile_only($leadCountryCode, $leadUserMobile); 
+                $cleanLeadCC = preg_replace('/\D+/', '', (string)$leadCountryCode);
+            @endphp
             <div class="d-inline-flex align-items-center justify-content-center gap-1 my-1">
+                @if(!empty($cleanLeadCC))
+                    <span class="badge badge-light-primary fs-8 fw-bold">+{{ $cleanLeadCC }}</span>
+                @endif
                 <span class="badge badge-light-danger fs-7 fw-bold">{{ $leadDisplayMobile }}</span>
                 <button type="button" class="btn btn-icon btn-sm btn-active-light-danger p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Mobile" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $leadDisplayMobile }}', 'Mobile number copied!');">
                     <i class="fa fa-clone fs-8 text-danger"></i>
@@ -362,9 +379,10 @@
         @endif
 
         @if(!empty($leadUserEmail))
+            @php $leadDisplayEmail = mask_email_for_display($leadUserEmail); @endphp
             <div class="d-inline-flex align-items-center justify-content-center my-1">
-                <span class="fs-7 fw-bold text-gray-700 text-break">{{ $leadUserEmail }}</span>
-                <button type="button" class="btn btn-icon btn-sm btn-active-light-primary ms-1 p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Email" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $leadUserEmail }}', 'Email copied!');">
+                <span class="fs-7 fw-bold text-gray-700 text-break">{{ $leadDisplayEmail }}</span>
+                <button type="button" class="btn btn-icon btn-sm btn-active-light-primary ms-1 p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Email" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $leadDisplayEmail }}', 'Email copied!');">
                     <i class="fa fa-clone fs-8 text-muted"></i>
                 </button>
             </div><br>

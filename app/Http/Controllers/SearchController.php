@@ -23,25 +23,56 @@ class SearchController extends Controller
 
     public function search(Request $request)
     {
-        $query = $request->input('user');
+        $query = trim((string)$request->input('user'));
     
-        if (!$query || strlen(trim($query)) < 2) {
+        if (!$query || strlen($query) < 2) {
             return response()->json([]);
         }
 
+        $hasAsterisk = strpos($query, '*') !== false;
+        $userIds = find_user_ids_by_search_term($query);
+        $cleanDigits = preg_replace('/\D+/', '', $query);
+        $pattern = $hasAsterisk ? preg_replace('/\*+/', '%', preg_replace('/[^0-9*]/', '', $query)) : '';
+        $cleanPattern = ltrim($pattern, '0');
+
         // Fetch data from the database based on the query, limiting to 10 results
-        $results = User::select('id', 'name', 'email', 'mobile_no', 'countrycode')
-                        ->where(function($q) use ($query) {
-                            $q->where('name', 'like', "%$query%")
-                                ->orWhere('email', 'like', "%$query%")
-                                ->orWhere('mobile_no', 'like', "%$query%")
-                                ->orWhere('mobile_no2', 'like', "%$query%");
+        $results = User::select('id', 'name', 'email', 'mobile_no', 'mobile_no2', 'countrycode')
+                        ->where(function($q) use ($query, $userIds, $cleanDigits, $hasAsterisk, $pattern, $cleanPattern) {
+                            if (!empty($userIds)) {
+                                $q->whereIn('id', $userIds);
+                            }
+                            $q->orWhere('name', 'like', "%$query%")
+                                ->orWhere('email', 'like', "%$query%");
+                            if ($hasAsterisk) {
+                                if (!empty($cleanPattern) && preg_match('/\d/', $cleanPattern)) {
+                                    $q->orWhere('mobile_no', 'like', "%$cleanPattern%")
+                                      ->orWhere('mobile_no2', 'like', "%$cleanPattern%")
+                                      ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile_no, '')) LIKE ?", ["%$cleanPattern%"])
+                                      ->orWhereRaw("CONCAT(IFNULL(countrycode2, ''), IFNULL(mobile_no2, '')) LIKE ?", ["%$cleanPattern%"]);
+                                }
+                            } else if (strlen($cleanDigits) >= 2) {
+                                $q->orWhere('mobile_no', 'like', "%$cleanDigits%")
+                                  ->orWhere('mobile_no2', 'like', "%$cleanDigits%")
+                                  ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile_no, '')) LIKE ?", ["%$cleanDigits%"]);
+                            }
                         })
                         ->take(10)
                         ->get();
 
         $results->transform(function ($user) {
-            $user->mobile_no = mask_phone_for_display($user->countrycode, $user->mobile_no);
+            $user->masked_mobile = mask_mobile_only($user->countrycode, $user->mobile_no);
+            $user->masked_email = mask_email_for_display($user->email);
+
+            $displayName = (string)$user->name;
+            if (preg_match('/^user\d{7,}$/i', $displayName)) {
+                $user->display_name = 'user' . mask_mobile_only(null, substr($displayName, 4));
+            } else {
+                $user->display_name = $displayName;
+            }
+
+            $user->mobile_no = $user->masked_mobile;
+            $user->email = $user->masked_email;
+            $user->name = $user->display_name;
             $user->countrycode = null;
             return $user;
         });
@@ -58,30 +89,82 @@ class SearchController extends Controller
             return response()->json([]);
         }
 
+        $hasAsterisk = strpos($query, '*') !== false;
+        $userIds = find_user_ids_by_search_term($query);
         $cleanDigits = preg_replace('/\D/', '', $query);
         $withoutLeadingZero = !empty($cleanDigits) ? ltrim($cleanDigits, '0') : '';
+        $pattern = $hasAsterisk ? preg_replace('/\*+/', '%', preg_replace('/[^0-9*]/', '', $query)) : '';
+        $cleanPattern = ltrim($pattern, '0');
 
         $results = User::select('id', 'name', 'email', 'mobile_no', 'mobile_no2', 'countrycode')
             ->where('flag', 0)
-            ->where(function ($userQuery) use ($query, $cleanDigits, $withoutLeadingZero) {
-                $userQuery->where('name', 'like', "%{$query}%")
-                    ->orWhere('email', 'like', "%{$query}%")
-                    ->orWhere('mobile_no', 'like', "%{$query}%")
-                    ->orWhere('mobile_no2', 'like', "%{$query}%");
+            ->where(function ($userQuery) use ($query, $cleanDigits, $withoutLeadingZero, $userIds, $hasAsterisk, $pattern, $cleanPattern) {
+                if (!empty($userIds)) {
+                    $userQuery->whereIn('id', $userIds);
+                }
+                $userQuery->orWhere('name', 'like', "%{$query}%")
+                    ->orWhere('email', 'like', "%{$query}%");
 
-                if (!empty($cleanDigits) && strlen($cleanDigits) >= 5) {
-                    $userQuery->orWhere('mobile_no', 'like', "%{$cleanDigits}%")
-                        ->orWhere('mobile_no2', 'like', "%{$cleanDigits}%");
+                if ($hasAsterisk) {
+                    if (!empty($cleanPattern) && preg_match('/\d/', $cleanPattern)) {
+                        $userQuery->orWhere('mobile_no', 'like', "%{$cleanPattern}%")
+                            ->orWhere('mobile_no2', 'like', "%{$cleanPattern}%")
+                            ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile_no, '')) LIKE ?", ["%{$cleanPattern}%"])
+                            ->orWhereRaw("CONCAT(IFNULL(countrycode2, ''), IFNULL(mobile_no2, '')) LIKE ?", ["%{$cleanPattern}%"]);
+                        if ($pattern !== $cleanPattern) {
+                            $userQuery->orWhere('mobile_no', 'like', "%{$pattern}%")
+                                ->orWhere('mobile_no2', 'like', "%{$pattern}%");
+                        }
+                    }
+                } else {
+                    $userQuery->orWhere('mobile_no', 'like', "%{$query}%")
+                        ->orWhere('mobile_no2', 'like', "%{$query}%");
 
-                    if (!empty($withoutLeadingZero)) {
-                        $userQuery->orWhere('mobile_no', 'like', "%{$withoutLeadingZero}%")
-                            ->orWhere('mobile_no2', 'like', "%{$withoutLeadingZero}%");
+                    if (!empty($cleanDigits) && strlen($cleanDigits) >= 2) {
+                        $userQuery->orWhere('mobile_no', 'like', "%{$cleanDigits}%")
+                            ->orWhere('mobile_no2', 'like', "%{$cleanDigits}%")
+                            ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile_no, '')) LIKE ?", ["%{$cleanDigits}%"]);
+
+                        if (!empty($withoutLeadingZero)) {
+                            $userQuery->orWhere('mobile_no', 'like', "%{$withoutLeadingZero}%")
+                                ->orWhere('mobile_no2', 'like', "%{$withoutLeadingZero}%")
+                                ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile_no, '')) LIKE ?", ["%{$withoutLeadingZero}%"]);
+                        }
                     }
                 }
             })
             ->orderByDesc('id')
             ->limit(20)
             ->get();
+
+        $results->transform(function ($user) {
+            $cleanCC = preg_replace('/\D+/', '', (string)$user->countrycode);
+            $cleanMob = preg_replace('/\D+/', '', (string)$user->mobile_no);
+
+            $user->masked_mobile = mask_mobile_only($user->countrycode, $user->mobile_no);
+            $user->masked_mobile2 = mask_mobile_only(null, $user->mobile_no2);
+            $user->masked_email = mask_email_for_display($user->email);
+
+            $displayName = (string)$user->name;
+            if (preg_match('/^user\d{7,}$/i', $displayName)) {
+                $numPart = substr($displayName, 4);
+                $user->display_name = 'user' . mask_mobile_only(null, $numPart);
+            } else {
+                $user->display_name = $displayName;
+            }
+
+            $user->countrycode = !empty($cleanCC) ? ('+' . $cleanCC) : '+44';
+            $user->raw_mobile = $cleanMob;
+
+            if (auth()->check() && auth()->user()->role_id != 1) {
+                $user->mobile_no = $user->masked_mobile;
+                $user->mobile_no2 = $user->masked_mobile2;
+                $user->email = $user->masked_email;
+                $user->name = $user->display_name;
+            }
+
+            return $user;
+        });
 
         return response()->json($results);
     }
@@ -350,12 +433,16 @@ class SearchController extends Controller
         $fromDate = $request->input('fromDate');
         $toDate = $request->input('toDate');
     
-        $orders = Order::query();
+        $orders = Order::with('user');
     
         if ($searchTerm) {
-            $orders->where(function($query) use ($searchTerm) {
+            $searchUserIds = find_user_ids_by_search_term($searchTerm);
+            $orders->where(function($query) use ($searchTerm, $searchUserIds) {
                 $query->where('order_id', 'like', '%' . $searchTerm . '%')
                       ->orWhere('title', 'like', '%' . $searchTerm . '%');
+                if (!empty($searchUserIds)) {
+                    $query->orWhereIn('uid', $searchUserIds);
+                }
             });
         }
     
@@ -435,20 +522,60 @@ class SearchController extends Controller
 
                     $output .= '<td>' .  $index++. '</td>
                         <td>
-                            ' . $order->order_id . '
-                        </td>   
-                        <td>' . ($order->user ? $order->user->name . '<br><span class="badge badge-light-danger fs-7 fw-bold"> + ' . $order->user->countrycode . ' ' . $order->user->mobile_no . '</span> <br><span class="badge badge-light-danger fs-7 fw-bold">' . $order->user->email . '</span>' : '') . '</td>
-                        <td>' . $order->order_date . '</td>
-                            <td>' . $order->followupdate . '</td>
-                                
-                            <td>' . ($order->follow_status == 'negative but convinced' || $order->follow_status == 'negative' ? '<span class="badge badge-light-danger fs-7 fw-bold">' . $order->follow_status . '</span><br>' : ($order->follow_status == 'positive' || $order->follow_status == 'positive and referral' ? '<span class="badge badge-light-warning fs-7 fw-bold">' . $order->follow_status . '</span><br>' : ($order->follow_status == 'positive and own order' ? '<span class="badge badge-light-success fs-7 fw-bold">' . $order->follow_status . '</span><br>' : ($order->follow_status == 'No response' ? '<span class="badge badge-light-primary fs-7 fw-bold">' . $order->follow_status . '</span><br>' : '')))) . '</td>
-                      
-                            <td>' . $order->follow_comment . '
-                            ' . ($order->follow_comment ? '<a href="#" id="' . $order->order_id . '" data-bs-toggle="modal" data-bs-target="#confirmationModal' . $order->order_id . '" class="btn btn-icon btn-bg-light btn-active-color-primary btn-sm me-1">More...</a>' : '') . '
-                            </td>
-                            <td>' . $order->follow_up_user . '</td>
+                            <div class="d-inline-flex align-items-center">
+                                <span>' . e($order->order_id) . '</span>
+                                ' . (!empty($order->order_id) ? '<button type="button" class="btn btn-icon btn-sm btn-active-light-primary ms-1 p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Order Code" onclick="event.stopPropagation(); crmCopyToClipboard(\'' . e($order->order_id) . '\', \'Order code copied!\');"><i class="fa fa-clone fs-8 text-muted"></i></button>' : '') . '
+                            </div>
+                        </td>';
 
-                            <td class="text-center">
+                    if ($order->user) {
+                        $rawName = $order->user->name ?? '';
+                        $rawEmail = $order->user->email ?? '';
+                        $rawMobile = $order->user->mobile_no ?? '';
+                        $rawCC = $order->user->countrycode ?? '';
+                        $cleanCC = preg_replace('/\D+/', '', (string)$rawCC);
+                        $maskedEmail = $rawEmail ? mask_email_for_display($rawEmail) : '';
+                        $maskedMobile = $rawMobile ? mask_mobile_only($cleanCC, $rawMobile) : '';
+
+                        $userHtml = '';
+                        if (!empty($rawName)) {
+                            $userHtml .= '<div class="d-inline-flex align-items-center">
+                                <span class="fw-bold">' . e($rawName) . '</span>
+                                <button type="button" class="btn btn-icon btn-sm btn-active-light-primary ms-1 p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Name" onclick="event.stopPropagation(); crmCopyToClipboard(\'' . e(addslashes($rawName)) . '\', \'Customer name copied!\');"><i class="fa fa-clone fs-8 text-muted"></i></button>
+                            </div>';
+                        }
+
+                        if (!empty($maskedEmail)) {
+                            $userHtml .= '<div class="d-inline-flex align-items-center my-1">
+                                <span class="text-gray-600 fs-8 text-break">' . e($maskedEmail) . '</span>
+                                <button type="button" class="btn btn-icon btn-sm btn-active-light-primary ms-1 p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Email" onclick="event.stopPropagation(); crmCopyToClipboard(\'' . e($maskedEmail) . '\', \'Email copied!\');"><i class="fa fa-clone fs-8 text-muted"></i></button>
+                            </div>';
+                        }
+
+                        if (!empty($maskedMobile)) {
+                            $callHtml = '';
+                            if (!empty($rawMobile)) {
+                                $callHtml = '<a href="#" onclick="event.preventDefault(); initiateCustomerCall(\'' . e($cleanCC . $rawMobile) . '\', \'' . e(addslashes($rawName ?: 'Customer')) . '\');" title="Call via Twilio" class="btn btn-icon btn-bg-success btn-active-color-light btn-sm me-1"><span class="svg-icon svg-icon-3"><i class="fa fa-phone fa-lg"></i></span></a>';
+                            }
+                            $userHtml .= '<div class="d-inline-flex align-items-center gap-1 my-1">
+                                ' . (!empty($cleanCC) ? '<span class="badge badge-light-primary fs-8 fw-bold">+' . e($cleanCC) . '</span>' : '') . '
+                                <span class="badge badge-light-danger fs-7 fw-bold">' . e($maskedMobile) . '</span>
+                                <button type="button" class="btn btn-icon btn-sm btn-active-light-danger p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Mobile" onclick="event.stopPropagation(); crmCopyToClipboard(\'' . e($maskedMobile) . '\', \'Mobile number copied!\');"><i class="fa fa-clone fs-8 text-danger"></i></button>
+                                ' . $callHtml . '
+                            </div>';
+                        }
+
+                        $output .= '<td>' . $userHtml . '</td>';
+                    } else {
+                        $output .= '<td><span class="badge badge-light-danger">User Deleted</span></td>';
+                    }
+
+                    $output .= '<td>' . $order->order_date . '</td>
+                        <td>' . $order->followupdate . '</td>
+                        <td>' . ($order->follow_status == 'negative but convinced' || $order->follow_status == 'negative' ? '<span class="badge badge-light-danger fs-7 fw-bold">' . $order->follow_status . '</span><br>' : ($order->follow_status == 'positive' || $order->follow_status == 'positive and referral' ? '<span class="badge badge-light-warning fs-7 fw-bold">' . $order->follow_status . '</span><br>' : ($order->follow_status == 'positive and own order' ? '<span class="badge badge-light-success fs-7 fw-bold">' . $order->follow_status . '</span><br>' : ($order->follow_status == 'No response' ? '<span class="badge badge-light-primary fs-7 fw-bold">' . $order->follow_status . '</span><br>' : '')))) . '</td>
+                        <td>' . $order->follow_comment . ' ' . ($order->follow_comment ? '<a href="#" id="' . $order->order_id . '" data-bs-toggle="modal" data-bs-target="#confirmationModal' . $order->order_id . '" class="btn btn-icon btn-bg-light btn-active-color-primary btn-sm me-1">More...</a>' : '') . '</td>
+                        <td>' . $order->follow_up_user . '</td>
+                        <td class="text-center">
                                 <div class="card-toolbar">
                                     <a href="#" data-bs-toggle="modal" data-bs-target="#kt_modal_create_appaa_newLeads' . $order->id . '" id="kt_toolbar_primary_button" class="btn btn-sm btn-light-primary">
                                         <li class="fa fa-edit"></li>

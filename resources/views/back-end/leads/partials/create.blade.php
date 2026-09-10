@@ -27,9 +27,18 @@
 
                                 <div class="col-md-3">
                                     <label class="fs-7 fw-bold">Email</label>
-                                    <input type="email"
-                                        name="email"
-                                        class="form-control form-control-sm form-control-solid">
+                                    @if(auth()->check() && auth()->user()->role_id == 1)
+                                        <input type="email"
+                                            name="email"
+                                            id="email"
+                                            class="form-control form-control-sm form-control-solid">
+                                    @else
+                                        <input type="hidden" name="email" id="email_real" value="">
+                                        <input type="text"
+                                            id="email_display"
+                                            class="form-control form-control-sm form-control-solid"
+                                            autocomplete="off">
+                                    @endif
 
                                     <input type="hidden" name="id" id="id">
                                 </div>
@@ -38,19 +47,31 @@
                                     <label class="fs-7 fw-bold">Country Code</label>
                                     <input type="text"
                                         name="countrycode"
+                                        id="countrycode"
                                         class="form-control form-control-sm form-control-solid"
+                                        value="{{ request('countrycode', '44') }}"
                                         required>
                                 </div>
 
                                 <div class="col-md-3 position-relative">
                                     <label class="fs-7 fw-bold">Mobile</label>
                                     <div class="position-relative">
-                                        <input type="{{ auth()->user()->role_id == 1 ? 'text' : 'password' }}"
-                                            name="mobile"
-                                            id="mobile"
-                                            class="form-control form-control-sm form-control-solid pe-10"
-                                            autocomplete="off"
-                                            required>
+                                        @if(auth()->check() && auth()->user()->role_id == 1)
+                                            <input type="text"
+                                                name="mobile"
+                                                id="mobile"
+                                                class="form-control form-control-sm form-control-solid pe-10"
+                                                autocomplete="off"
+                                                required>
+                                        @else
+                                            <input type="hidden" name="mobile" id="mobile_real" value="">
+                                            <input type="text"
+                                                id="mobile"
+                                                class="form-control form-control-sm form-control-solid pe-10"
+                                                placeholder="e.g. 74****3326"
+                                                autocomplete="off"
+                                                required>
+                                        @endif
                                         <span id="mobile_lookup_loader"
                                             class="spinner-border spinner-border-sm text-primary position-absolute top-50 end-0 translate-middle-y me-3"
                                             role="status"
@@ -573,7 +594,9 @@
 <script>
 $(document).ready(function () {
 
+    const isSuperAdmin = (loggedInRoleId == 1);
     let mobileTimer = null;
+    let rawDigitsBuffer = '';
     const $mobileResult = $('#mobile_user_result');
     const $mobileLoader = $('#mobile_lookup_loader');
 
@@ -586,25 +609,82 @@ $(document).ready(function () {
             .replace(/'/g, '&#039;');
     }
 
+    function maskDigits(digits) {
+        if (!digits) return '';
+        let d = String(digits).replace(/\D/g, '');
+        if (d.length === 11 && d.startsWith('0')) d = d.slice(1);
+        const len = d.length;
+        if (len <= 2) return d;
+        if (len <= 6) return d.slice(0, 2) + '*'.repeat(len - 2);
+        if (len <= 9) return d.slice(0, 2) + '*'.repeat(4) + d.slice(6);
+        return d.slice(0, 2) + '*'.repeat(Math.max(6, len - 6)) + d.slice(-4);
+    }
+
+    function parsePhoneInput(raw) {
+        if (!raw) return { countryCode: '', mobile: '' };
+        let cleaned = String(raw).trim();
+        let hasPlus = cleaned.startsWith('+');
+        let digits = cleaned.replace(/\D/g, '');
+
+        let countryCode = '';
+        let mobile = digits;
+
+        if (hasPlus) {
+            if (digits.startsWith('44') && digits.length > 10) {
+                countryCode = '44';
+                mobile = digits.slice(2);
+            } else if (digits.startsWith('91') && digits.length > 10) {
+                countryCode = '91';
+                mobile = digits.slice(2);
+            } else if (digits.startsWith('1') && digits.length > 10) {
+                countryCode = '1';
+                mobile = digits.slice(1);
+            } else if (digits.length > 10) {
+                countryCode = digits.slice(0, digits.length - 10);
+                mobile = digits.slice(-10);
+            }
+        } else {
+            if (digits.length === 12 && (digits.startsWith('44') || digits.startsWith('91'))) {
+                countryCode = digits.slice(0, 2);
+                mobile = digits.slice(2);
+            } else if (digits.length > 10) {
+                let curCC = $('input[name="countrycode"]').val().replace(/\D/g, '');
+                if (curCC && digits.startsWith(curCC) && digits.length > curCC.length + 6) {
+                    countryCode = curCC;
+                    mobile = digits.slice(curCC.length);
+                }
+            }
+        }
+
+        return { countryCode, mobile };
+    }
+
     function resetUserFields() {
         $('input[name="user_name"]').val('').prop('readonly', false);
-        $('input[name="countrycode"]').val('').prop('readonly', false);
-        $('input[name="email"]').val('').prop('readonly', false);
+        $('input[name="countrycode"]').val('44').prop('readonly', false);
         $('input[name="id"]').val('');
         $('#refer_id').val('');
         $('#refer_search').val('').prop('readonly', false);
+
+        if (isSuperAdmin) {
+            $('input[name="email"]').val('').prop('readonly', false);
+        } else {
+            $('#email_real').val('');
+            $('#email_display').val('').prop('readonly', false);
+        }
     }
 
     function fillReferUser(referUser) {
         if (referUser) {
             $('#refer_id').val(referUser.id);
+            let displayEmail = isSuperAdmin ? (referUser.email || '') : (window.maskEmailForDisplay ? window.maskEmailForDisplay(referUser.email || '') : referUser.email || '');
             $('#refer_search').val(
                 (referUser.name || '') + ' - ' +
                 window.maskPhoneForDisplay(referUser.mobile_no || '') + ' - ' +
-                (referUser.email || '')
+                displayEmail
             );
 
-            $('#refer_search').prop('readonly', loggedInRoleId != 1);
+            $('#refer_search').prop('readonly', !isSuperAdmin);
         } else {
             $('#refer_id').val('');
             $('#refer_search').val('').prop('readonly', false);
@@ -617,11 +697,31 @@ $(document).ready(function () {
             return;
         }
 
-        $('input[name="user_name"]').val(user.name || '').prop('readonly', true);
-        $('input[name="countrycode"]').val(user.countrycode || '').prop('readonly', true);
-        $('input[name="email"]').val(user.email || '').prop('readonly', true);
+        let displayName = user.display_name || user.name || '';
+        $('input[name="user_name"]').val(displayName).prop('readonly', true);
+        if (user.countrycode) {
+            let cleanCC = String(user.countrycode).replace(/\D/g, '');
+            $('input[name="countrycode"]').val(cleanCC || '44').prop('readonly', true);
+        }
         $('input[name="id"]').val(user.id || '');
-        $('#mobile').val(user.mobile_no || $('#mobile').val());
+
+        if (isSuperAdmin) {
+            $('input[name="email"]').val(user.email || '').prop('readonly', true);
+            if (user.mobile_no) {
+                $('#mobile').val(user.mobile_no);
+            }
+        } else {
+            let cleanUserMobile = user.raw_mobile || String(user.mobile_no || '').replace(/\D/g, '');
+            rawDigitsBuffer = cleanUserMobile;
+            $('#mobile_real').val(cleanUserMobile);
+            let maskedMob = user.masked_mobile || maskDigits(cleanUserMobile);
+            $('#mobile').val(maskedMob);
+
+            $('#email_real').val(user.email || '');
+            let maskedEmail = user.masked_email || (window.maskEmailForDisplay ? window.maskEmailForDisplay(user.email || '') : (user.email || ''));
+            $('#email_display').val(maskedEmail).prop('readonly', true);
+        }
+
         fillReferUser(referUser || user.refer_user || null);
     }
 
@@ -633,12 +733,16 @@ $(document).ready(function () {
 
         let html = '';
         users.forEach(function (user) {
+            let displayEmail = isSuperAdmin ? (user.email || '') : (user.masked_email || (window.maskEmailForDisplay ? window.maskEmailForDisplay(user.email || '') : (user.email || '')));
+            let displayPhone = user.masked_mobile || (user.mobile_no || '');
+            let displayName = user.display_name || user.name || 'No Name';
+            let cc = String(user.countrycode || '44').replace(/\D/g, '');
             html += `
                 <div class="mobile-user-item px-3 py-2 border-bottom"
                     style="cursor:pointer;"
                     data-user='${escapeHtml(JSON.stringify(user))}'>
-                    <strong>${escapeHtml(user.name || 'No Name')}</strong><br>
-                    <small>${escapeHtml(window.maskPhoneForDisplay((user.countrycode || '') + (user.mobile_no || '')))} | ${escapeHtml(user.email || '')}</small>
+                    <strong>${escapeHtml(displayName)}</strong><br>
+                    <small><span class="badge badge-light-primary fs-9 py-0 px-1 me-1">+${escapeHtml(cc || '44')}</span> ${escapeHtml(displayPhone)} | ${escapeHtml(displayEmail)}</small>
                 </div>
             `;
         });
@@ -646,15 +750,10 @@ $(document).ready(function () {
         $mobileResult.html(html).show();
     }
 
-    $('#mobile').on('keyup input', function () {
-
-        let mobile = $(this).val().replace(/\D/g, '');
-        $(this).val(mobile);
-
+    function doLookup(searchQuery) {
         clearTimeout(mobileTimer);
 
-        if (mobile.length < 5) {
-            resetUserFields();
+        if (!searchQuery || searchQuery.length < 2) {
             $mobileLoader.hide();
             $mobileResult.hide().html('');
             return;
@@ -664,14 +763,12 @@ $(document).ready(function () {
         $mobileResult.hide().html('');
 
         mobileTimer = setTimeout(function () {
-
             $.ajax({
                 type: 'GET',
                 url: '{{ url("userData") }}',
                 data: {
-                    mobile: mobile
+                    mobile: searchQuery
                 },
-
                 success: function (data) {
                     $mobileLoader.hide();
                     renderMobileDropdown(data.users || []);
@@ -681,28 +778,208 @@ $(document).ready(function () {
                         if ((data.users || []).length <= 1) {
                             $mobileResult.hide();
                         }
-                    } else {
-                        resetUserFields();
                     }
                 },
-
                 error: function (error) {
                     $mobileLoader.hide();
                     console.log('UserData Error:', error);
                 }
             });
-
         }, 300);
+    }
 
+    function clearLeadMobileInput() {
+        rawDigitsBuffer = '';
+        $('#mobile_real').val('');
+        $('#mobile').val('');
+        resetUserFields();
+        $mobileLoader.hide();
+        $mobileResult.hide().html('');
+    }
+
+    if (isSuperAdmin) {
+        $('#mobile').on('keyup input', function () {
+            let mobile = $(this).val().replace(/\D/g, '');
+            $(this).val(mobile);
+            if (mobile.length < 4) {
+                resetUserFields();
+                $mobileLoader.hide();
+                $mobileResult.hide().html('');
+                return;
+            }
+            doLookup(mobile);
+        });
+    } else {
+        // Paste handling for non-admin: immediate masking + countrycode separation
+        $('#mobile').on('paste', function (e) {
+            e.preventDefault();
+            let text = (e.originalEvent.clipboardData || window.clipboardData).getData('text') || '';
+            text = text.trim();
+            if (!text) return;
+
+            if (text.startsWith('+44') || (text.startsWith('44') && text.length > 10)) {
+                $('input[name="countrycode"]').val('44');
+                text = text.replace(/^\+?44/, '').trim();
+            } else if (text.startsWith('+91') || (text.startsWith('91') && text.length > 10)) {
+                $('input[name="countrycode"]').val('91');
+                text = text.replace(/^\+?91/, '').trim();
+            }
+
+            if (text.includes('*')) {
+                let cleanMasked = text.replace(/[^0-9*]/g, '');
+                if (cleanMasked.startsWith('0')) cleanMasked = cleanMasked.slice(1);
+                let parts = cleanMasked.split(/\*+/);
+                let startPart = parts[0] || '';
+                let endPart = parts[parts.length - 1] || '';
+                let displayVal = cleanMasked;
+                if (startPart.length >= 2 && endPart.length >= 4) {
+                    displayVal = startPart.slice(0, 2) + '******' + endPart.slice(-4);
+                }
+
+                rawDigitsBuffer = displayVal;
+                $('#mobile_real').val('');
+                $(this).val(displayVal);
+                doLookup(displayVal);
+                return;
+            }
+
+            let parsed = parsePhoneInput(text);
+            if (parsed.countryCode) {
+                $('input[name="countrycode"]').val(parsed.countryCode);
+            }
+            let cleanDigits = parsed.mobile.replace(/\D/g, '');
+            if (cleanDigits.length === 11 && cleanDigits.startsWith('0')) {
+                cleanDigits = cleanDigits.slice(1);
+            }
+            rawDigitsBuffer = cleanDigits;
+            $('#mobile_real').val(cleanDigits);
+            $(this).val(maskDigits(cleanDigits));
+            doLookup(cleanDigits);
+        });
+
+        // Keydown handling for non-admin: dynamic keystroke masking (start 2, middle *, last 4)
+        $('#mobile').on('keydown', function (e) {
+            const el = this;
+            const val = $(el).val();
+            const selStart = el.selectionStart;
+            const selEnd = el.selectionEnd;
+            const hasSelection = (selEnd - selStart) > 0;
+            const isAllSelected = (selStart === 0 && selEnd >= val.length);
+            const isExistingCustomerSelected = ($('input[name="id"]').val() !== '' && $('input[name="id"]').val() !== '0');
+
+            // Delete key support
+            if (e.key === 'Delete') {
+                e.preventDefault();
+                if (isAllSelected || hasSelection || isExistingCustomerSelected) {
+                    clearLeadMobileInput();
+                    return;
+                }
+                if (selStart >= rawDigitsBuffer.length) return;
+                rawDigitsBuffer = rawDigitsBuffer.slice(0, selStart) + rawDigitsBuffer.slice(selStart + 1);
+                $('#mobile_real').val(rawDigitsBuffer);
+                $(el).val(maskDigits(rawDigitsBuffer));
+                if (rawDigitsBuffer.length < 2) {
+                    resetUserFields();
+                    $mobileLoader.hide();
+                    $mobileResult.hide().html('');
+                } else {
+                    doLookup(rawDigitsBuffer);
+                }
+                return;
+            }
+
+            // Backspace key support
+            if (e.key === 'Backspace') {
+                e.preventDefault();
+                if (isAllSelected || hasSelection || isExistingCustomerSelected) {
+                    clearLeadMobileInput();
+                    return;
+                }
+                rawDigitsBuffer = rawDigitsBuffer.slice(0, -1);
+                $('#mobile_real').val(rawDigitsBuffer);
+                $(el).val(maskDigits(rawDigitsBuffer));
+                if (rawDigitsBuffer.length < 2) {
+                    resetUserFields();
+                    $mobileLoader.hide();
+                    $mobileResult.hide().html('');
+                } else {
+                    doLookup(rawDigitsBuffer);
+                }
+                return;
+            }
+
+            if (['Tab', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'Enter', 'Escape'].includes(e.key)) {
+                return;
+            }
+
+            if (e.ctrlKey || e.metaKey) {
+                return; // allow Ctrl+C, Ctrl+A, Ctrl+V
+            }
+
+            if (/^[0-9]$/.test(e.key)) {
+                e.preventDefault();
+                if (isAllSelected || isExistingCustomerSelected) {
+                    resetUserFields();
+                    rawDigitsBuffer = e.key;
+                } else {
+                    if (rawDigitsBuffer.length < 15) {
+                        rawDigitsBuffer += e.key;
+                    }
+                }
+                $('#mobile_real').val(rawDigitsBuffer);
+                $(el).val(maskDigits(rawDigitsBuffer));
+                if (rawDigitsBuffer.length >= 2) {
+                    doLookup(rawDigitsBuffer);
+                }
+            } else {
+                e.preventDefault();
+            }
+        });
+
+        $('#mobile').on('input', function () {
+            let val = $(this).val();
+            if (val === '') {
+                clearLeadMobileInput();
+            }
+        });
+
+        $('#email_display').on('input', function () {
+            let val = $(this).val();
+            if (!val.includes('*')) {
+                $('#email_real').val(val);
+            }
+        });
+    }
+
+    // Submit safeguard: guarantees clean unmasked digits sent to database
+    $('#kt_modal_new_target_form').on('submit', function (e) {
+        if (!isSuperAdmin) {
+            let realMobile = $('#mobile_real').val().replace(/\D/g, '');
+            let displayVal = $('#mobile').val().trim();
+
+            if (!realMobile && displayVal && !displayVal.includes('*')) {
+                realMobile = displayVal.replace(/\D/g, '');
+                $('#mobile_real').val(realMobile);
+            }
+
+            if (!realMobile || realMobile.length < 5) {
+                e.preventDefault();
+                alert('Please enter a valid mobile number.');
+                return false;
+            }
+
+            let displayEmail = $('#email_display').val().trim();
+            if (!$('#email_real').val() && displayEmail && !displayEmail.includes('*')) {
+                $('#email_real').val(displayEmail);
+            }
+        }
     });
 
     $(document).on('click', '.mobile-user-item', function () {
         let user = $(this).data('user');
-
         if (typeof user === 'string') {
-            user = JSON.parse(user);
+            try { user = JSON.parse(user); } catch (e) {}
         }
-
         fillUser(user);
         $mobileResult.hide();
     });

@@ -198,7 +198,11 @@
             </div>
             <h4 id="callDisplayName" class="fw-bolder mb-1">Customer</h4>
             <div id="callDisplayNumber" class="text-muted fs-6 mb-2">--</div>
-            <div id="callTimer" class="badge bg-success fs-6 px-3 py-2 mb-4">00:00</div>
+            <div class="d-flex justify-content-center align-items-center gap-2 mb-4">
+                <div id="callTimer" class="badge bg-success fs-6 px-3 py-2">00:00</div>
+                <span id="dialerHoldBadge" class="badge bg-warning text-dark fs-8 px-2 py-1 d-none"><i class="fa fa-pause me-1"></i> HOLD</span>
+                <span id="dialerMuteBadge" class="badge bg-danger text-white fs-8 px-2 py-1 d-none"><i class="fa fa-microphone-slash me-1"></i> MUTED</span>
+            </div>
 
             <div class="d-flex justify-content-center gap-3 mb-4">
                 <button type="button" id="muteBtn" class="btn btn-dark p-3 rounded-circle" onclick="toggleMute()" title="Mute">
@@ -243,9 +247,56 @@
     let activeCall = null;
     let incomingCall = null;
     let timerInterval = null;
-    let seconds = 0;
     let isMuted = false;
     let isHeld = false;
+    let seconds = 0;
+
+    const isSuperAdmin = {{ Auth::check() && (int) Auth::user()->role_id === 1 ? 'true' : 'false' }};
+
+    function crmMaskPhone(phone) {
+        if (!phone || typeof phone !== 'string') return phone || '';
+        const str = phone.trim();
+        if (!str || str.length < 5) return str;
+        if (isSuperAdmin) return str;
+
+        let prefix = '';
+        let digits = str;
+        if (str.startsWith('+')) {
+            const ccMatch = str.match(/^(\+\d{1,3})/);
+            if (ccMatch) {
+                prefix = ccMatch[1] + ' ';
+                digits = str.slice(ccMatch[1].length);
+            }
+        }
+        if (digits.length <= 4) return str;
+        const visible_start = digits.slice(0, 2);
+        const visible_end   = digits.slice(-2);
+        const masked_mid    = '*'.repeat(Math.max(4, digits.length - 4));
+        return prefix + visible_start + masked_mid + visible_end;
+    }
+
+    function formatTwilioCallError(err, phoneNumber) {
+        if (!err) return 'Call disconnected unexpectedly.';
+        const code = err.code || err.statusCode || '';
+        const msg = String(err.message || '');
+
+        if (code === 31005 || msg.includes('31005') || msg.includes('HANGUP')) {
+            return `The destination phone number <strong>${phoneNumber || 'dialed'}</strong> is invalid, disconnected, or rejected by the telecom carrier network.<br><br><span class="badge bg-danger fs-8">Twilio Error 31005 / 13224 (Invalid Phone Number)</span><br><br><small class="text-muted">Please verify that the customer's phone number is active and reachable.</small>`;
+        }
+        if (code === 21211 || code === 13224) {
+            return `The phone number format is invalid or does not exist on the telecom network.`;
+        }
+        if (code === 21408) {
+            return `Calls to this country code are restricted in your Twilio Voice Geographic Permissions.`;
+        }
+        if (code === 31000 || code === 31002) {
+            return `Unable to connect to the Twilio voice gateway.<br><br><small class="text-muted">Please check your internet connection or try dialing again.</small>`;
+        }
+        if (code === 31008) {
+            return `Call was cancelled before it could be connected.`;
+        }
+        return msg || 'Call could not be completed.';
+    }
 
     async function initDevice() {
         try {
@@ -282,7 +333,7 @@
 
             device.on('incoming', (call) => {
                 incomingCall = call;
-                $('#incomingCallerNumber').text(call.parameters?.From || 'Incoming Caller');
+                $('#incomingCallerNumber').text(crmMaskPhone(call.parameters?.From || 'Incoming Caller'));
                 $('#dialerView').addClass('d-none');
                 $('#activeCallView').addClass('d-none');
                 $('#incomingView').removeClass('d-none');
@@ -309,6 +360,27 @@
         inp.val(inp.val().slice(0, -1));
     }
 
+    let currentCallData = null;
+    let incomingCallData = null;
+
+    function postCallLog(data) {
+        $.ajax({
+            url: "{{ route('plugins.twilio.log.call') }}",
+            type: "POST",
+            headers: {
+                'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+            },
+            data: data,
+            dataType: 'json',
+            success: function(res) {
+                console.log('Dialer window call log synced:', res);
+            },
+            error: function(err) {
+                console.warn('Dialer window call log sync error:', err);
+            }
+        });
+    }
+
     async function makeCall() {
         const phone = $('#phoneInput').val().trim();
         if (!phone) {
@@ -325,40 +397,142 @@
         $('#incomingView').addClass('d-none');
         $('#activeCallView').removeClass('d-none');
         $('#callDisplayName').text('Customer');
-        $('#callDisplayNumber').text(phone);
+        $('#callDisplayNumber').text(crmMaskPhone(phone));
         $('#callTimer').text('Calling...');
+
+        currentCallData = {
+            direction: 'outbound',
+            to_number: phone,
+            customer_name: 'Customer',
+            started_at: new Date().toISOString(),
+            call_sid: null
+        };
 
         try {
             activeCall = await device.connect({ params: { To: phone } });
-            activeCall.on('accept', () => startTimer());
-            activeCall.on('disconnect', () => endCallUI());
+
+            activeCall.on('accept', () => {
+                startTimer();
+                if (currentCallData) {
+                    currentCallData.call_sid = activeCall.parameters?.CallSid || null;
+                    postCallLog({
+                        call_sid: currentCallData.call_sid,
+                        direction: 'outbound',
+                        to_number: currentCallData.to_number,
+                        customer_name: currentCallData.customer_name,
+                        status: 'in-progress',
+                        started_at: currentCallData.started_at
+                    });
+                }
+            });
+
+            activeCall.on('disconnect', () => {
+                const dur = seconds || 0;
+                const finalStatus = dur > 0 ? 'completed' : 'no-answer';
+                postCallLog({
+                    call_sid: currentCallData?.call_sid || activeCall.parameters?.CallSid || null,
+                    direction: 'outbound',
+                    to_number: currentCallData?.to_number || phone,
+                    customer_name: currentCallData?.customer_name || 'Customer',
+                    status: finalStatus,
+                    duration: dur,
+                    started_at: currentCallData?.started_at,
+                    ended_at: new Date().toISOString()
+                });
+                endCallUI();
+            });
+
             activeCall.on('error', (err) => {
-                Swal.fire('Call Error', err.message || 'Call failed', 'error');
+                postCallLog({
+                    call_sid: currentCallData?.call_sid || null,
+                    direction: 'outbound',
+                    to_number: currentCallData?.to_number || phone,
+                    customer_name: currentCallData?.customer_name || 'Customer',
+                    status: 'failed',
+                    duration: seconds || 0,
+                    started_at: currentCallData?.started_at,
+                    ended_at: new Date().toISOString()
+                });
+                Swal.fire({
+                    title: 'Call Unsuccessful',
+                    html: formatTwilioCallError(err, currentCallData?.to_number || phone),
+                    icon: 'error',
+                    confirmButtonText: 'OK'
+                });
                 endCallUI();
             });
         } catch (err) {
-            Swal.fire('Call Failed', err.message || 'Could not connect', 'error');
+            postCallLog({
+                direction: 'outbound',
+                to_number: phone,
+                customer_name: 'Customer',
+                status: 'failed',
+                duration: 0,
+                started_at: currentCallData?.started_at,
+                ended_at: new Date().toISOString()
+            });
+            Swal.fire({
+                title: 'Call Unsuccessful',
+                html: formatTwilioCallError(err, phone),
+                icon: 'error',
+                confirmButtonText: 'OK'
+            });
             endCallUI();
         }
     }
 
     function acceptIncoming() {
         if (incomingCall) {
+            incomingCallData.answered = true;
+            currentCallData = { ...incomingCallData };
             incomingCall.accept();
             activeCall = incomingCall;
             incomingCall = null;
+
             $('#incomingView').addClass('d-none');
             $('#activeCallView').removeClass('d-none');
             $('#callDisplayName').text('Incoming Customer');
-            $('#callDisplayNumber').text(activeCall.parameters?.From || '');
+            $('#callDisplayNumber').text(crmMaskPhone(activeCall.parameters?.From || ''));
             startTimer();
 
-            activeCall.on('disconnect', () => endCallUI());
+            postCallLog({
+                call_sid: currentCallData.call_sid,
+                direction: 'inbound',
+                from_number: currentCallData.from_number,
+                customer_name: 'Incoming Customer',
+                status: 'in-progress',
+                started_at: currentCallData.started_at
+            });
+
+            activeCall.on('disconnect', () => {
+                const dur = seconds || 0;
+                postCallLog({
+                    call_sid: currentCallData?.call_sid || activeCall.parameters?.CallSid || null,
+                    direction: 'inbound',
+                    from_number: currentCallData?.from_number || '',
+                    customer_name: 'Incoming Customer',
+                    status: 'completed',
+                    duration: dur,
+                    started_at: currentCallData?.started_at,
+                    ended_at: new Date().toISOString()
+                });
+                endCallUI();
+            });
         }
     }
 
     function rejectIncoming() {
         if (incomingCall) {
+            postCallLog({
+                call_sid: incomingCallData?.call_sid || incomingCall.parameters?.CallSid,
+                direction: 'inbound',
+                from_number: incomingCallData?.from_number || incomingCall.parameters?.From,
+                customer_name: 'Incoming Caller',
+                status: 'missed',
+                duration: 0,
+                started_at: incomingCallData?.started_at,
+                ended_at: new Date().toISOString()
+            });
             incomingCall.reject();
             incomingCall = null;
             endCallUI();
@@ -368,15 +542,33 @@
     function toggleMute() {
         if (activeCall) {
             isMuted = !isMuted;
-            activeCall.mute(isMuted);
-            $('#muteBtn').toggleClass('btn-warning', isMuted).toggleClass('btn-dark', !isMuted);
+            const muteMic = isMuted || isHeld;
+            if (typeof activeCall.mute === 'function') {
+                activeCall.mute(muteMic);
+            }
+            $('#muteBtn').toggleClass('btn-warning text-dark', isMuted).toggleClass('btn-dark', !isMuted);
+            $('#dialerMuteBadge').toggleClass('d-none', !isMuted);
         }
     }
 
     function toggleHold() {
         if (activeCall) {
             isHeld = !isHeld;
-            $('#holdBtn').toggleClass('btn-warning', isHeld).toggleClass('btn-dark', !isHeld);
+            const muteMic = isHeld || isMuted;
+            if (typeof activeCall.mute === 'function') {
+                activeCall.mute(muteMic);
+            }
+            try {
+                if (activeCall.getRemoteStream && activeCall.getRemoteStream()) {
+                    activeCall.getRemoteStream().getAudioTracks().forEach(track => {
+                        track.enabled = !isHeld;
+                    });
+                }
+            } catch(e) {
+                console.warn('Hold remote track toggle error:', e);
+            }
+            $('#holdBtn').toggleClass('btn-warning text-dark', isHeld).toggleClass('btn-dark', !isHeld);
+            $('#dialerHoldBadge').toggleClass('d-none', !isHeld);
         }
     }
 
@@ -402,6 +594,11 @@
         incomingCall = null;
         isMuted = false;
         isHeld = false;
+        $('#muteBtn').removeClass('btn-warning text-dark').addClass('btn-dark');
+        $('#holdBtn').removeClass('btn-warning text-dark').addClass('btn-dark');
+        $('#dialerMuteBadge').addClass('d-none');
+        $('#dialerHoldBadge').addClass('d-none');
+
         $('#activeCallView').addClass('d-none');
         $('#incomingView').addClass('d-none');
         $('#dialerView').removeClass('d-none');

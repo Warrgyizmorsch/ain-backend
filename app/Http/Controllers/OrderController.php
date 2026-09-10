@@ -390,12 +390,18 @@ class OrderController extends Controller
                 $ordersQuery->where('uid', $request->input('uid'));
             } elseif ($request->input('user')) {
                 $userTerm = trim($request->input('user'));
-                $userIds = User::where('name', 'like', '%' . $userTerm . '%')
-                    ->orWhere('email', 'like', '%' . $userTerm . '%')
-                    ->orWhere('mobile_no', 'like', '%' . $userTerm . '%')
-                    ->orWhere('mobile_no2', 'like', '%' . $userTerm . '%')
-                    ->pluck('id')->toArray();
+                $userIds = find_user_ids_by_search_term($userTerm);
                 $ordersQuery->whereIn('uid', $userIds);
+            } elseif ($request->input('search')) {
+                $searchTerm = trim($request->input('search'));
+                $searchUserIds = find_user_ids_by_search_term($searchTerm);
+                $ordersQuery->where(function ($q) use ($searchTerm, $searchUserIds) {
+                    $q->where('order_id', 'like', '%' . $searchTerm . '%')
+                      ->orWhere('title', 'like', '%' . $searchTerm . '%');
+                    if (!empty($searchUserIds)) {
+                        $q->orWhereIn('uid', $searchUserIds);
+                    }
+                });
             }
             $data['orders'] = $ordersQuery->orderByDesc('id')->get();
         } else {
@@ -935,25 +941,27 @@ class OrderController extends Controller
             } else {
 
                 $user = User::find($order->uid);
-                if ($req->filled('user_name')) {
-                    $user->name = $req->input('user_name');
+                if ($user) {
+                    if ($req->filled('user_name')) {
+                        $user->name = $req->input('user_name');
+                    }
+                    if ($req->filled('mobile') && strpos($req->input('mobile'), '*') === false) {
+                        $user->mobile_no = $req->input('mobile');
+                    }
+                    if ($req->filled('country_code') && strpos($req->input('country_code'), '*') === false) {
+                        $user->countrycode = $req->input('country_code');
+                    }
+                    if ($req->filled('mobile2') && strpos($req->input('mobile2'), '*') === false) {
+                        $user->mobile_no2 = $req->input('mobile2');
+                    }
+                    if ($req->filled('country_code2') && strpos($req->input('country_code2'), '*') === false) {
+                        $user->countrycode2 = $req->input('country_code2');
+                    }
+                    if ($req->filled('email') && strpos($req->input('email'), '*') === false) {
+                        $user->email = $req->input('email');
+                    }
+                    $user->save();
                 }
-                if ($req->filled('mobile')) {
-                    $user->mobile_no = $req->input('mobile');
-                }
-                if ($req->filled('country_code')) {
-                    $user->countrycode = $req->input('country_code');
-                }
-                if ($req->filled('mobile2')) {
-                    $user->mobile_no2 = $req->input('mobile2');
-                }
-                if ($req->filled('country_code2')) {
-                    $user->countrycode2 = $req->input('country_code2');
-                }
-                if ($req->filled('email')) {
-                    $user->email = $req->input('email');
-                }
-                $user->save();
             }
         }
 
@@ -990,9 +998,13 @@ class OrderController extends Controller
                 $order->status_date = Carbon::now('Asia/Kolkata');
                 $order->status_by   = auth()->user()->name;
 
+                $resolvedEmail = (strpos($req->input('email', ''), '*') === false && $req->filled('email'))
+                    ? $req->input('email')
+                    : optional($order->user)->email;
+
                 $orderData = [
                     'name' => $req->input('user_name'),
-                    'email' => $req->input('email'),
+                    'email' => $resolvedEmail,
                     'title' => $req->input('title'),
                     'order_code' => $order->order_id,
                     'date'     => $order->delivery_date,
@@ -1162,9 +1174,13 @@ class OrderController extends Controller
         }
 
         if ($searchTerm != '') {
-            $orders->where(function ($query) use ($searchTerm) {
+            $searchUserIds = find_user_ids_by_search_term($searchTerm);
+            $orders->where(function ($query) use ($searchTerm, $searchUserIds) {
                 $query->where('order_id', 'like', '%' . $searchTerm . '%')
                     ->orWhere('title', 'like', '%' . $searchTerm . '%');
+                if (!empty($searchUserIds)) {
+                    $query->orWhereIn('uid', $searchUserIds);
+                }
             });
         }
         if ($selectedDataTextBox) {
@@ -1176,12 +1192,7 @@ class OrderController extends Controller
             $orders->where('uid', $uid);
         } elseif ($userParam != '') {
             $userTerm = trim($userParam);
-            $userIds = User::where('name', 'like', '%' . $userTerm . '%')
-                ->orWhere('email', 'like', '%' . $userTerm . '%')
-                ->orWhere('mobile_no', 'like', '%' . $userTerm . '%')
-                ->orWhere('mobile_no2', 'like', '%' . $userTerm . '%')
-                ->pluck('id')->toArray();
-
+            $userIds = find_user_ids_by_search_term($userTerm);
             $orders->whereIn('uid', $userIds);
         }
 
@@ -2924,12 +2935,71 @@ class OrderController extends Controller
         return redirect()->back()->with('success', 'Order updated successfully');
     }
 
-    public function followUp()
+    public function followUp(Request $request)
     {
-        $data['orders'] = Order::with(['user', 'followUpComments'])->orderBy('writer_deadline', 'desc')->paginate(10);
-        foreach ($data['orders'] as $order) {
-            $order->allCommentsByUid = FollowUpComment::where('uid', $order->uid)->get();
+        $ordersQuery = Order::with(['user', 'followUpComments'])
+            ->where('uid', '!=', '0');
+
+        if ($request->filled('search')) {
+            $searchTerm = trim((string) $request->input('search'));
+            $searchUserIds = find_user_ids_by_search_term($searchTerm);
+            $ordersQuery->where(function ($q) use ($searchTerm, $searchUserIds) {
+                $q->where('order_id', 'like', '%' . $searchTerm . '%')
+                  ->orWhere('title', 'like', '%' . $searchTerm . '%');
+                if (!empty($searchUserIds)) {
+                    $q->orWhereIn('uid', $searchUserIds);
+                }
+            });
         }
+
+        if ($request->filled('uid')) {
+            $ordersQuery->where('uid', $request->input('uid'));
+        } elseif ($request->filled('user')) {
+            $userTerm = trim((string) $request->input('user'));
+            $searchUserIds = find_user_ids_by_search_term($userTerm);
+            if (!empty($searchUserIds)) {
+                $ordersQuery->whereIn('uid', $searchUserIds);
+            } else {
+                $cleanDigits = preg_replace('/\D+/', '', $userTerm);
+                $ordersQuery->whereHas('user', function ($uq) use ($userTerm, $cleanDigits) {
+                    $uq->where('name', 'like', '%' . $userTerm . '%')
+                       ->orWhere('email', 'like', '%' . $userTerm . '%');
+                    if (strlen($cleanDigits) >= 3) {
+                        $uq->orWhere('mobile_no', 'like', '%' . $cleanDigits . '%')
+                           ->orWhere('mobile_no2', 'like', '%' . $cleanDigits . '%');
+                    }
+                });
+            }
+        }
+
+        if ($request->filled('status')) {
+            $ordersQuery->where('follow_status', $request->input('status'));
+        }
+
+        if ($request->filled('fromDate') && $request->filled('toDate')) {
+            $from = min($request->input('fromDate'), $request->input('toDate'));
+            $to = max($request->input('fromDate'), $request->input('toDate'));
+            $ordersQuery->whereBetween('order_date', [$from, $to]);
+        } elseif ($request->filled('fromDate')) {
+            $ordersQuery->whereDate('order_date', '>=', $request->input('fromDate'));
+        } elseif ($request->filled('toDate')) {
+            $ordersQuery->whereDate('order_date', '<=', $request->input('toDate'));
+        }
+
+        $perPage = ($request->filled('search') || $request->filled('user') || $request->filled('uid') || $request->filled('status') || $request->filled('fromDate') || $request->filled('toDate')) ? 100 : 20;
+
+        $orders = $ordersQuery->orderByDesc('id')->paginate($perPage);
+        $orders->appends($request->all());
+
+        $uids = $orders->pluck('uid')->filter()->unique()->values();
+        $commentsByUid = FollowUpComment::whereIn('uid', $uids)->get()->groupBy('uid');
+
+        foreach ($orders as $order) {
+            $order->allCommentsByUid = $commentsByUid->get($order->uid, collect());
+        }
+
+        $data['orders'] = $orders;
+
         return view('follow.follow', compact('data'));
     }
 
@@ -2957,6 +3027,7 @@ class OrderController extends Controller
             'order_id' => $order->id,
             'uid' => $order->uid,
             'comment' => $request->input('comment'),
+            'status' => $request->input('follow_up_status'),
             'commented_by' => auth()->user()->name,
             'created_at' => now(),
             'updated_at' => now(),
@@ -3671,41 +3742,67 @@ class OrderController extends Controller
                         ->orWhere('order_id', 'like', $search . '%');
                 });
             } else {
+                $searchUserIds = find_user_ids_by_search_term($search);
+                $hasAsterisk = strpos($search, '*') !== false;
+                $cleanMaskedPattern = $hasAsterisk ? preg_replace('/\*+/', '%', preg_replace('/[^0-9*]/', '', $search)) : null;
                 $cleanDigits = preg_replace('/\D+/', '', $search);
                 $last10 = strlen($cleanDigits) >= 10 ? substr($cleanDigits, -10) : $cleanDigits;
 
-                $query->where(function ($q) use ($search, $last10) {
+                $query->where(function ($q) use ($search, $searchUserIds, $cleanMaskedPattern, $last10) {
                     $q->where('order_id', 'like', '%' . $search . '%')
-                        ->orWhere('title', 'like', '%' . $search . '%')
-                        ->orWhereHas('user', function ($uq) use ($search, $last10) {
-                            $uq->where('name', 'like', '%' . $search . '%')
+                        ->orWhere('title', 'like', '%' . $search . '%');
+
+                    if (!empty($searchUserIds)) {
+                        $q->orWhereIn('orders.uid', $searchUserIds)
+                          ->orWhereHas('lead', fn($lq) => $lq->whereIn('emp_id', $searchUserIds))
+                          ->orWhereHas('frontendLead', fn($flq) => $flq->whereIn('emp_id', $searchUserIds));
+                    }
+
+                    $q->orWhereHas('user', function ($uq) use ($search, $cleanMaskedPattern, $last10) {
+                        $uq->where('name', 'like', '%' . $search . '%')
+                            ->orWhere('email', 'like', '%' . $search . '%')
+                            ->orWhere('mobile_no', 'like', '%' . $search . '%')
+                            ->orWhere('mobile_no2', 'like', '%' . $search . '%');
+                        if (!empty($cleanMaskedPattern) && strpos($cleanMaskedPattern, '%') !== false) {
+                            $uq->orWhere('mobile_no', 'like', '%' . $cleanMaskedPattern . '%')
+                               ->orWhere('mobile_no2', 'like', '%' . $cleanMaskedPattern . '%')
+                               ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile_no, '')) LIKE ?", ['%' . $cleanMaskedPattern . '%'])
+                               ->orWhereRaw("CONCAT(IFNULL(countrycode2, ''), IFNULL(mobile_no2, '')) LIKE ?", ['%' . $cleanMaskedPattern . '%']);
+                        }
+                        if (!empty($last10) && strlen($last10) >= 4) {
+                            $uq->orWhere('mobile_no', 'like', '%' . $last10 . '%')
+                               ->orWhere('mobile_no2', 'like', '%' . $last10 . '%');
+                        }
+                    })
+                    ->orWhereHas('lead', function ($lq) use ($search, $cleanMaskedPattern, $last10) {
+                        $lq->where('user_name', 'like', '%' . $search . '%')
+                            ->orWhere('mobile', 'like', '%' . $search . '%')
+                            ->orWhere('email', 'like', '%' . $search . '%');
+                        if (!empty($cleanMaskedPattern) && strpos($cleanMaskedPattern, '%') !== false) {
+                            $lq->orWhere('mobile', 'like', '%' . $cleanMaskedPattern . '%')
+                               ->orWhere('mobile2', 'like', '%' . $cleanMaskedPattern . '%');
+                        }
+                        if (!empty($last10) && strlen($last10) >= 4) {
+                            $lq->orWhere('mobile', 'like', '%' . $last10 . '%')
+                               ->orWhere('mobile2', 'like', '%' . $last10 . '%');
+                        }
+                        $lq->orWhereHas('user', function ($luq) use ($search, $cleanMaskedPattern, $last10) {
+                            $luq->where('name', 'like', '%' . $search . '%')
                                 ->orWhere('email', 'like', '%' . $search . '%')
                                 ->orWhere('mobile_no', 'like', '%' . $search . '%')
                                 ->orWhere('mobile_no2', 'like', '%' . $search . '%');
-                            if (!empty($last10)) {
-                                $uq->orWhere('mobile_no', 'like', '%' . $last10 . '%')
-                                   ->orWhere('mobile_no2', 'like', '%' . $last10 . '%');
+                            if (!empty($cleanMaskedPattern) && strpos($cleanMaskedPattern, '%') !== false) {
+                                $luq->orWhere('mobile_no', 'like', '%' . $cleanMaskedPattern . '%')
+                                    ->orWhere('mobile_no2', 'like', '%' . $cleanMaskedPattern . '%')
+                                    ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile_no, '')) LIKE ?", ['%' . $cleanMaskedPattern . '%'])
+                                    ->orWhereRaw("CONCAT(IFNULL(countrycode2, ''), IFNULL(mobile_no2, '')) LIKE ?", ['%' . $cleanMaskedPattern . '%']);
                             }
-                        })
-                        ->orWhereHas('lead', function ($lq) use ($search, $last10) {
-                            $lq->where('user_name', 'like', '%' . $search . '%')
-                                ->orWhere('mobile', 'like', '%' . $search . '%')
-                                ->orWhere('email', 'like', '%' . $search . '%');
-                            if (!empty($last10)) {
-                                $lq->orWhere('mobile', 'like', '%' . $last10 . '%')
-                                   ->orWhere('mobile2', 'like', '%' . $last10 . '%');
+                            if (!empty($last10) && strlen($last10) >= 4) {
+                                $luq->orWhere('mobile_no', 'like', '%' . $last10 . '%')
+                                    ->orWhere('mobile_no2', 'like', '%' . $last10 . '%');
                             }
-                            $lq->orWhereHas('user', function ($luq) use ($search, $last10) {
-                                $luq->where('name', 'like', '%' . $search . '%')
-                                    ->orWhere('email', 'like', '%' . $search . '%')
-                                    ->orWhere('mobile_no', 'like', '%' . $search . '%')
-                                    ->orWhere('mobile_no2', 'like', '%' . $search . '%');
-                                if (!empty($last10)) {
-                                    $luq->orWhere('mobile_no', 'like', '%' . $last10 . '%')
-                                       ->orWhere('mobile_no2', 'like', '%' . $last10 . '%');
-                                }
-                            });
                         });
+                    });
                 });
             }
         }
@@ -3721,25 +3818,26 @@ class OrderController extends Controller
             });
         } elseif ($request->filled('user')) {
             $userTerm = trim((string)$request->user);
+            $userIds = find_user_ids_by_search_term($userTerm);
+            $hasAsterisk = strpos($userTerm, '*') !== false;
+            $cleanMaskedPattern = $hasAsterisk ? preg_replace('/\*+/', '%', preg_replace('/[^0-9*]/', '', $userTerm)) : null;
             $cleanDigits = preg_replace('/\D+/', '', $userTerm);
             $last10 = strlen($cleanDigits) >= 10 ? substr($cleanDigits, -10) : $cleanDigits;
 
-            $userIds = User::where('name', 'like', '%' . $userTerm . '%')
-                ->orWhere('email', 'like', '%' . $userTerm . '%')
-                ->orWhere('mobile_no', 'like', '%' . $userTerm . '%')
-                ->when(!empty($last10) && strlen($last10) >= 4, fn($q) => $q->orWhere('mobile_no', 'like', '%' . $last10 . '%'))
-                ->pluck('id')->toArray();
-
-            $query->where(function ($q) use ($userIds, $userTerm, $last10) {
+            $query->where(function ($q) use ($userIds, $userTerm, $cleanMaskedPattern, $last10) {
                 if (!empty($userIds)) {
                     $q->whereIn('orders.uid', $userIds)
                       ->orWhereHas('lead', fn($lq) => $lq->whereIn('emp_id', $userIds))
                       ->orWhereHas('frontendLead', fn($flq) => $flq->whereIn('emp_id', $userIds));
                 }
-                $q->orWhereHas('lead', function ($lq) use ($userTerm, $last10) {
+                $q->orWhereHas('lead', function ($lq) use ($userTerm, $cleanMaskedPattern, $last10) {
                     $lq->where('user_name', 'like', '%' . $userTerm . '%')
                        ->orWhere('email', 'like', '%' . $userTerm . '%')
                        ->orWhere('mobile', 'like', '%' . $userTerm . '%');
+                    if (!empty($cleanMaskedPattern) && strpos($cleanMaskedPattern, '%') !== false) {
+                        $lq->orWhere('mobile', 'like', '%' . $cleanMaskedPattern . '%')
+                           ->orWhere('mobile2', 'like', '%' . $cleanMaskedPattern . '%');
+                    }
                     if (!empty($last10) && strlen($last10) >= 4) {
                         $lq->orWhere('mobile', 'like', '%' . $last10 . '%')
                            ->orWhere('mobile2', 'like', '%' . $last10 . '%');
@@ -4770,6 +4868,42 @@ class OrderController extends Controller
 
         if ($request->filled('feedback_date_to')) {
             $ordersQuery->whereDate('delivery_date', '<=', $request->feedback_date_to);
+        }
+
+        if ($request->filled('search')) {
+            $search = trim((string) $request->input('search'));
+            $searchUserIds = find_user_ids_by_search_term($search);
+            $ordersQuery->where(function ($q) use ($search, $searchUserIds) {
+                $q->where('order_id', 'like', "%{$search}%")
+                  ->orWhere('title', 'like', "%{$search}%");
+                if (!empty($searchUserIds)) {
+                    $q->orWhereIn('uid', $searchUserIds);
+                }
+            });
+        }
+
+        if ($request->filled('uid') || $request->filled('user')) {
+            $rawUid = trim((string) $request->input('uid'));
+            $rawUser = trim((string) $request->input('user'));
+            $userTerm = $rawUid ?: $rawUser;
+            $searchUserIds = find_user_ids_by_search_term($userTerm);
+            if (is_numeric($rawUid)) {
+                $searchUserIds[] = (int) $rawUid;
+            }
+            if (is_numeric($rawUser)) {
+                $searchUserIds[] = (int) $rawUser;
+            }
+            $searchUserIds = array_values(array_filter(array_unique($searchUserIds)));
+
+            if (!empty($searchUserIds)) {
+                $ordersQuery->whereIn('uid', $searchUserIds);
+            } else {
+                $ordersQuery->whereHas('user', function ($uq) use ($userTerm) {
+                    $uq->where('name', 'like', "%{$userTerm}%")
+                       ->orWhere('email', 'like', "%{$userTerm}%")
+                       ->orWhere('mobile_no', 'like', "%{$userTerm}%");
+                });
+            }
         }
 
         $sortDir = $request->input('sort_dir', 'desc');

@@ -49,11 +49,23 @@
                 </a>
 
                 <!-- Call Customer Button (Twilio) -->
-                <x-call-button
-                    :phone="optional($effectiveUser)->mobile_no ?? ''"
-                    :countrycode="optional($effectiveUser)->countrycode ?? ''"
-                    :name="optional($effectiveUser)->name ?? 'Customer'"
-                    :id="'orderrow' . $order->id" />
+                @php
+                    $rowPhone = optional($effectiveUser)->mobile_no ?? '';
+                    $rowCC = preg_replace('/\D+/', '', (string)(optional($effectiveUser)->countrycode ?? ''));
+                    $rowName = addslashes(optional($effectiveUser)->name ?? 'Customer');
+                @endphp
+                @if($rowPhone)
+                <a href="#"
+                   id="twilioCallBtnorderrow{{ $order->id }}"
+                   onclick="event.preventDefault(); event.stopPropagation(); initiateCustomerCall('{{ $rowCC . $rowPhone }}', '{{ $rowName }}');"
+                   class="btn btn-icon btn-sm"
+                   style="width:28px;height:28px;min-width:28px;border-radius:6px;background-color:#25D366;color:#ffffff;display:inline-flex;align-items:center;justify-content:center;transition:transform 0.2s ease,background-color 0.2s ease;"
+                   onmouseover="this.style.backgroundColor='#1ebd58';this.style.transform='scale(1.1)';"
+                   onmouseout="this.style.backgroundColor='#25D366';this.style.transform='scale(1)';"
+                   title="Call via Twilio">
+                    <i class="fa fa-phone text-white" style="font-size:12px;"></i>
+                </a>
+                @endif
 
                 <!-- Button to Open Unified Payment Page -->
                 <a href="{{ route('orders.payment.form', ['orderId' => $order->id]) }}"
@@ -203,11 +215,8 @@
                 $rawUserMobile = $effectiveUser->mobile_no ?: '';
                 $rawUserEmail = $effectiveUser->email ?: '';
             @endphp
-            <div class="d-flex align-items-center justify-content-center gap-1">
+            <div class="d-flex align-items-center justify-content-center">
                 <span class="fw-bold">{{ $effectiveUser->name }}</span>
-                <button type="button" class="btn btn-icon btn-sm btn-light-success p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Assign Labels" data-user-label-button="{{ $effectiveUser->id }}" data-labels='@json($userAssignedLabelIds)' onclick="event.stopPropagation(); openUserLabelModal({{ $effectiveUser->id }}, @js($effectiveUser->name), @js($rawUserMobile), @js($rawUserEmail), JSON.parse(this.dataset.labels || '[]'))">
-                    <i class="fa fa-tag fs-8 text-success"></i>
-                </button>
             </div>
 
             @if(!empty($effectiveUser->client_review))
@@ -238,15 +247,14 @@
                     $class = "badge-light-info"; 
                     $label = "Beginner"; 
                 } 
+                $displayMobile = mask_phone_for_display($effectiveUser->countrycode, $effectiveUser->mobile_no);
+                $displayEmail  = mask_email_for_display($effectiveUser->email);
             @endphp
 
             <div class="d-inline-flex align-items-center justify-content-center gap-1 my-1">
                 <span class="badge {{ $class }} fw-bold fs-8" style="width: fit-content;">
                     {{ $label }}
                 </span>
-                @php
-                    $displayMobile = mask_phone_for_display($effectiveUser->countrycode, $effectiveUser->mobile_no);
-                @endphp
                 @if(!empty($rawUserMobile))
                     <span class="badge badge-light-danger fs-7 fw-bold">{{ $displayMobile }}</span>
                     <button type="button" class="btn btn-icon btn-sm btn-active-light-danger p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Mobile" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $displayMobile }}', 'Mobile number copied!');">
@@ -257,8 +265,8 @@
 
             @if(!empty($effectiveUser->email))
                 <div class="d-inline-flex align-items-center justify-content-center my-1">
-                    <span class="fs-7 fw-bold text-break">{{ $effectiveUser->email }}</span>
-                    <button type="button" class="btn btn-icon btn-sm btn-active-light-primary ms-1 p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Email" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $effectiveUser->email }}', 'Email copied!');">
+                    <span class="fs-7 fw-bold text-break">{{ $displayEmail }}</span>
+                    <button type="button" class="btn btn-icon btn-sm btn-active-light-primary ms-1 p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Email" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $displayEmail }}', 'Email copied!');">
                         <i class="fa fa-clone fs-8 text-muted"></i>
                     </button>
                 </div><br>
@@ -278,7 +286,7 @@
             @endif
 
             <div class="d-flex justify-content-center align-items-center gap-2 mt-2">
-                <button type="button" class="btn btn-icon btn-sm btn-light-success" title="Assign Labels" data-user-label-button="{{ $effectiveUser->id }}" data-labels='@json($userAssignedLabelIds)' onclick="openUserLabelModal({{ $effectiveUser->id }}, @js($effectiveUser->name), @js($rawUserMobile), @js($rawUserEmail), JSON.parse(this.dataset.labels || '[]'))">
+                <button type="button" class="btn btn-icon btn-sm btn-light-success" title="Assign Labels" data-user-label-button="{{ $effectiveUser->id }}" data-labels='@json($userAssignedLabelIds)' onclick="openUserLabelModal({{ $effectiveUser->id }}, @js($effectiveUser->name), @js($displayMobile), @js($displayEmail), JSON.parse(this.dataset.labels || '[]'))">
                     <i class="fa fa-tag text-success fs-7"></i>
                 </button>
 

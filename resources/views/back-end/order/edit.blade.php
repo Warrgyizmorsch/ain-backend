@@ -52,6 +52,14 @@
                                                 </div>
                                             </div>
                                             @if($order->user)
+                                                @php
+                                                    $isSuperAdmin = auth()->check() && (int)auth()->user()->role_id === 1;
+                                                    $displayEmail = $isSuperAdmin ? $order->user->email : mask_email_for_display($order->user->email);
+                                                    $displayCountry = $order->user->countrycode ?? '';
+                                                    $displayMobile = mask_mobile_only($order->user->countrycode, $order->user->mobile_no);
+                                                    $displayCountry2 = $order->user->countrycode2 ?? '';
+                                                    $displayMobile2 = mask_mobile_only($order->user->countrycode2, $order->user->mobile_no2);
+                                                @endphp
                                                 <div class="row mb-4 text-start">
                                                     <div class="col-md-6 fv-row">
                                                         <label class="fs-6 fw-bold mb-2">User Name</label>
@@ -62,7 +70,7 @@
                                                     <div class="col-md-6 fv-row text-start">
                                                         <label class=" fs-6 fw-bold mb-2">Email</label>
                                                         <input type="text" readonly class="form-input form-input-solid" placeholder=""
-                                                            value="{{$order->user->email}}" name="email" id="emailInput">
+                                                            value="{{ $displayEmail }}" name="email" id="emailInput">
                                                         <input type="hidden" class="form-input form-input-solid" placeholder="" value="" name="id"
                                                             id="id">
                                                     </div>
@@ -71,28 +79,30 @@
                                                     <div class="col-md-2 fv-row">
                                                         <label class="fs-6 fw-bold mb-2">Country Code</label>
                                                         <input type="text" readonly class="form-input form-input-solid" placeholder=""
-                                                            value="{{$order->user->countrycode}}" name="country_code" id="country_primary">
+                                                            value="{{ $displayCountry }}" name="country_code" id="country_primary">
                                                     </div>
                                                     <div class="col-md-3 fv-row text-start">
                                                         <label class="fs-6 fw-bold mb-2">Mobile Number</label>
                                                         <input type="text" readonly class="form-input form-input-solid" placeholder=""
-                                                            value="{{$order->user->mobile_no}}" name="mobile" id="primary">
+                                                            value="{{ $displayMobile }}" name="mobile" id="primary">
                                                     </div>
+                                                    @if($isSuperAdmin)
                                                     <div class="col-md-2 fv-row d-flex align-items-end justify-content-center">
                                                         <!-- Button with double-sided arrow icon -->
                                                         <button type="button" class="btn btn-primary swapButton" id="swapButton{{$order->id}}">
                                                             <i class="fas fa-exchange-alt"></i> <!-- Font Awesome double-sided arrow icon -->
                                                         </button>
                                                     </div>
+                                                    @endif
                                                     <div class="col-md-2 fv-row">
                                                         <label class="fs-6 fw-bold mb-2">Country Code</label>
-                                                        <input type="text" class="form-input form-input-solid" placeholder=""
-                                                            value="{{$order->user->countrycode2}}" name="country_code2">
+                                                        <input type="text" @if(!$isSuperAdmin) readonly @endif class="form-input form-input-solid" placeholder=""
+                                                            value="{{ $displayCountry2 }}" name="country_code2">
                                                     </div>
                                                     <div class="col-md-3 fv-row text-start">
                                                         <label class="fs-6 fw-bold mb-2">Mobile Number-2</label>
-                                                        <input type="text" class="form-input form-input-solid" placeholder=""
-                                                            value="{{$order->user->mobile_no2}}" name="mobile2">
+                                                        <input type="text" @if(!$isSuperAdmin) readonly @endif class="form-input form-input-solid" placeholder=""
+                                                            value="{{ $displayMobile2 }}" name="mobile2">
                                                     </div>
                                                 </div>
                                             @else

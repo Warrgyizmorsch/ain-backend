@@ -71,7 +71,7 @@
         </div>
         <div class="col-md-6">
             <label class="fs-6 fw-bold mb-2">Email</label>
-            <input type="text" class="form-control user-detail" name="email" value="{{ $lead->user->email }}" readonly>
+            <input type="text" class="form-control user-detail" name="email" value="{{ mask_email_for_display($lead->user->email) }}" readonly>
         </div>
         <div class="col-md-2">
             <label class="fs-6 fw-bold mb-2">Country Code</label>
@@ -79,7 +79,7 @@
         </div>
         <div class="col-md-3">
             <label class="fs-6 fw-bold mb-2">Mobile Number</label>
-            <input type="text" class="form-control user-detail" name="mobile" value="{{ $lead->user->mobile_no }}" readonly>
+            <input type="text" class="form-control user-detail" name="mobile" value="{{ mask_mobile_only($lead->user->countrycode, $lead->user->mobile_no) }}" readonly>
         </div>
         <div class="col-md-2 d-flex align-items-end">
             <button type="button" class="btn btn-primary w-100 user-detail" id="swapButton" disabled>
@@ -92,7 +92,7 @@
         </div>
         <div class="col-md-3">
             <label class="fs-6 fw-bold mb-2">Mobile Number 2</label>
-            <input type="text" class="form-control user-detail" name="mobile2" value="{{ $lead->user->mobile_no2 }}" readonly>
+            <input type="text" class="form-control user-detail" name="mobile2" value="{{ mask_mobile_only($lead->user->countrycode2, $lead->user->mobile_no2) }}" readonly>
         </div>
         <div class="col-md-4 position-relative">
             <label class="fs-6 fw-bold mb-2">Referred By</label>

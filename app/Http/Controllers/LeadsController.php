@@ -132,34 +132,70 @@ class LeadsController extends Controller
     public function cancelleads(Request $request)
     {
         $query = Leads::with(['user', 'call.user'])->where('status', 1)->orderByDesc('id');
+
         if ($request->filled('search')) {
-            $query->where('order_id', 'like', '%' . $request->input('search') . '%');
-        }
-        if ($request->filled('uid')) {
-            $user = User::where('email', $request->input('uid'))
-                ->orWhere('mobile_no', 'like', '%' . $request->input('uid') . '%')
-                ->first();
-
-
-
-            $query->where('emp_id', $user->id);
+            $searchTerm = trim((string) $request->input('search'));
+            $query->where(function ($q) use ($searchTerm) {
+                $q->where('order_id', 'like', '%' . $searchTerm . '%')
+                  ->orWhere('project_title', 'like', '%' . $searchTerm . '%');
+            });
         }
 
-        if ($request->filled('additional_filter3')) {
-            if ($request->filled('additional_filter6')) {
-                $query->whereBetween('create_at', [$request->input('additional_filter3'), $request->input('additional_filter6')]);
-            } elseif ($request->filled('additional_filter7')) {
-                $query->whereBetween('deadline', [$request->input('additional_filter3'), $request->input('additional_filter6')]);
-            } else {
-                $query->whereDate('create_at', $request->input('additional_filter3'));
+        if ($request->filled('uid') || $request->filled('user')) {
+            $uidTerm = trim((string) ($request->input('uid') ?: $request->input('user')));
+            $searchUserIds = find_user_ids_by_search_term($uidTerm);
+            if (is_numeric($uidTerm)) {
+                $searchUserIds[] = (int) $uidTerm;
+                $searchUserIds = array_unique($searchUserIds);
             }
+            $cleanSearchMasked = preg_replace('/\*+/', '%', preg_replace('/[^0-9*]/', '', $uidTerm));
+            $cleanDigits = preg_replace('/\D+/', '', $uidTerm);
+
+            $query->where(function ($q) use ($uidTerm, $searchUserIds, $cleanSearchMasked, $cleanDigits) {
+                if (!empty($searchUserIds)) {
+                    $q->whereIn('emp_id', $searchUserIds);
+                }
+                if (is_numeric($uidTerm)) {
+                    $q->orWhere('emp_id', (int) $uidTerm);
+                }
+                if (strpos($uidTerm, '*') !== false && !empty($cleanSearchMasked) && preg_match('/\d/', $cleanSearchMasked)) {
+                    $q->orWhere('mobile', 'like', '%' . $cleanSearchMasked . '%')
+                      ->orWhere('mobile2', 'like', '%' . $cleanSearchMasked . '%')
+                      ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile, '')) LIKE ?", ['%' . $cleanSearchMasked . '%']);
+                } elseif (!empty($cleanDigits) && strlen($cleanDigits) >= 2) {
+                    $q->orWhere('mobile', 'like', '%' . $cleanDigits . '%')
+                      ->orWhere('mobile2', 'like', '%' . $cleanDigits . '%')
+                      ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile, '')) LIKE ?", ['%' . $cleanDigits . '%']);
+                }
+                $q->orWhere('email', 'like', '%' . $uidTerm . '%')
+                  ->orWhere('user_name', 'like', '%' . $uidTerm . '%');
+            });
         }
-        if ($request->filled('search') || $request->filled('uid') || $request->filled('additional_filter3') || $request->input('additional_filter6') || $request->input('additional_filter7')) {
+
+        $dateCol = ($request->input('additional_filter7') === 'Deadline') ? 'deadline' : 'create_at';
+        if ($request->filled('additional_filter3') && $request->filled('additional_filter6')) {
+            $from = min($request->input('additional_filter3'), $request->input('additional_filter6'));
+            $to = max($request->input('additional_filter3'), $request->input('additional_filter6'));
+            if ($dateCol === 'create_at') {
+                $query->whereBetween('create_at', [$from . ' 00:00:00', $to . ' 23:59:59']);
+            } else {
+                $query->whereBetween('deadline', [$from, $to]);
+            }
+        } elseif ($request->filled('additional_filter3')) {
+            $query->whereDate($dateCol, $request->input('additional_filter3'));
+        } elseif ($request->filled('additional_filter6')) {
+            $query->whereDate($dateCol, '<=', $request->input('additional_filter6'));
+        }
+
+        if ($request->filled('search') || $request->filled('uid') || $request->filled('additional_filter3') || $request->filled('additional_filter6') || $request->filled('additional_filter7')) {
             $status1Leads = $query->paginate(200);
         } else {
             $status1Leads = $query->paginate(20);
         }
-        return view('leads.cleads', ['status1Leads' => $status1Leads,]);
+
+        $status1Leads->appends($request->all());
+
+        return view('leads.cleads', ['status1Leads' => $status1Leads]);
     }
 
 
@@ -311,18 +347,52 @@ class LeadsController extends Controller
 
     public function userData(Request $request)
     {
-        $mobile = preg_replace('/\D+/', '', (string) $request->input('mobile'));
+        $rawMobile = trim((string) $request->input('mobile'));
+        $digits = preg_replace('/\D+/', '', $rawMobile);
+        $last10 = strlen($digits) >= 10 ? substr($digits, -10) : '';
+        $pattern = strpos($rawMobile, '*') !== false
+            ? preg_replace('/\*+/', '%', preg_replace('/[^0-9*]/', '', $rawMobile))
+            : '';
 
-        if (strlen($mobile) < 5) {
+        if (strlen($digits) < 2 && (empty($pattern) || !preg_match('/\d/', $pattern))) {
             return response()->json(['user' => null, 'users' => [], 'referUser' => null]);
         }
 
         $users = User::select('id', 'name', 'email', 'countrycode', 'mobile_no', 'countrycode2', 'mobile_no2', 'refer_id')
-            ->where(function ($query) use ($mobile) {
-                $query->where('mobile_no', 'like', '%' . $mobile . '%')
-                    ->orWhere('mobile_no2', 'like', '%' . $mobile . '%');
+            ->where(function ($query) use ($digits, $last10, $pattern) {
+                $hasCondition = false;
+                if (!empty($pattern) && preg_match('/\d/', $pattern)) {
+                    $query->where(function ($q) use ($pattern) {
+                        $q->where('mobile_no', 'like', '%' . $pattern . '%')
+                          ->orWhere('mobile_no2', 'like', '%' . $pattern . '%')
+                          ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile_no, '')) LIKE ?", ['%' . $pattern . '%'])
+                          ->orWhereRaw("CONCAT(IFNULL(countrycode2, ''), IFNULL(mobile_no2, '')) LIKE ?", ['%' . $pattern . '%']);
+                    });
+                    $hasCondition = true;
+                }
+                if (!empty($digits)) {
+                    $method = $hasCondition ? 'orWhere' : 'where';
+                    $query->$method(function ($q) use ($digits, $last10) {
+                        $q->where('mobile_no', 'like', '%' . $digits . '%')
+                          ->orWhere('mobile_no2', 'like', '%' . $digits . '%')
+                          ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile_no, '')) LIKE ?", ['%' . $digits . '%'])
+                          ->orWhereRaw("CONCAT(IFNULL(countrycode2, ''), IFNULL(mobile_no2, '')) LIKE ?", ['%' . $digits . '%']);
+
+                        if (!empty($last10) && $last10 !== $digits) {
+                            $q->orWhere('mobile_no', 'like', '%' . $last10 . '%')
+                              ->orWhere('mobile_no2', 'like', '%' . $last10 . '%')
+                              ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile_no, '')) LIKE ?", ['%' . $last10 . '%'])
+                              ->orWhereRaw("CONCAT(IFNULL(countrycode2, ''), IFNULL(mobile_no2, '')) LIKE ?", ['%' . $last10 . '%']);
+                        }
+                    });
+                }
             })
-            ->orderByRaw('CASE WHEN mobile_no = ? OR mobile_no2 = ? THEN 0 ELSE 1 END', [$mobile, $mobile])
+            ->orderByRaw('CASE 
+                WHEN mobile_no = ? OR mobile_no2 = ? THEN 0
+                WHEN CONCAT(IFNULL(countrycode, ""), IFNULL(mobile_no, "")) = ? THEN 1
+                WHEN ? != "" AND (mobile_no = ? OR mobile_no2 = ?) THEN 2
+                ELSE 3 
+            END', [$digits, $digits, $digits, $last10, $last10, $last10])
             ->limit(10)
             ->get();
 
@@ -335,30 +405,51 @@ class LeadsController extends Controller
             $user->refer_user = $user->refer_id ? $referUsers->get($user->refer_id) : null;
         });
 
-        $userData = $users->first(function ($user) use ($mobile) {
-            return $user->mobile_no === $mobile || $user->mobile_no2 === $mobile;
+        $userData = $users->first(function ($u) use ($digits, $last10, $pattern) {
+            $cleanMob = preg_replace('/\D+/', '', (string)$u->mobile_no);
+            $full = preg_replace('/\D+/', '', ($u->countrycode ?? '') . ($u->mobile_no ?? ''));
+
+            if (!empty($pattern) && preg_match('/\d/', $pattern)) {
+                $regex = '/^' . str_replace('%', '.*', $pattern) . '$/';
+                if (preg_match($regex, $cleanMob) || preg_match($regex, $full)) {
+                    return true;
+                }
+            }
+
+            return $u->mobile_no === $digits
+                || $u->mobile_no2 === $digits
+                || $full === $digits
+                || (!empty($last10) && ($u->mobile_no === $last10 || $u->mobile_no2 === $last10));
         });
 
         if (!$userData && $users->count() === 1) {
             $userData = $users->first();
         }
 
-        $exactMatchCount = $users->filter(function ($user) use ($mobile) {
-            return $user->mobile_no === $mobile || $user->mobile_no2 === $mobile;
-        })->count();
-
-        if ($exactMatchCount > 1) {
-            $userData = null;
-        }
-
-        if ($users->count() > 1 && $exactMatchCount === 0) {
-            $userData = null;
-        }
-
         $referUser = null;
         if ($userData && $userData->refer_id) {
             $referUser = $userData->refer_user;
         }
+
+        $isNonAdmin = Auth::check() && (int) Auth::user()->role_id !== 1;
+        $users->each(function ($user) use ($isNonAdmin) {
+            $user->raw_mobile = preg_replace('/\D+/', '', (string)$user->mobile_no);
+            $user->masked_mobile = mask_mobile_only($user->countrycode, $user->mobile_no);
+            $user->masked_email = mask_email_for_display($user->email);
+
+            $displayName = (string)$user->name;
+            if (preg_match('/^user\d{7,}$/i', $displayName)) {
+                $user->display_name = 'user' . mask_mobile_only(null, substr($displayName, 4));
+            } else {
+                $user->display_name = $displayName;
+            }
+
+            if ($isNonAdmin) {
+                $user->mobile_no = $user->masked_mobile;
+                $user->email = $user->masked_email;
+                $user->name = $user->display_name;
+            }
+        });
 
         return response()->json(['user' => $userData, 'users' => $users, 'referUser' => $referUser]);
     }
@@ -519,8 +610,21 @@ class LeadsController extends Controller
         // =========================
         // USER CREATE / UPDATE
         // =========================
-        $cleanMobile = preg_replace('/\D+/', '', (string) $request->input('mobile'));
-        $countryCode = preg_replace('/\D+/', '', (string) $request->input('countrycode'));
+        $rawMobile = (string) $request->input('mobile');
+        $rawCC = (string) $request->input('countrycode');
+        $cleanMobile = preg_replace('/\D+/', '', $rawMobile);
+        $countryCode = preg_replace('/\D+/', '', $rawCC);
+
+        if (!empty($countryCode) && str_starts_with($cleanMobile, $countryCode) && strlen($cleanMobile) > strlen($countryCode) && strlen($cleanMobile) > 10) {
+            $cleanMobile = substr($cleanMobile, strlen($countryCode));
+        } elseif (empty($countryCode) && strlen($cleanMobile) == 12 && (str_starts_with($cleanMobile, '44') || str_starts_with($cleanMobile, '91'))) {
+            $countryCode = substr($cleanMobile, 0, 2);
+            $cleanMobile = substr($cleanMobile, 2);
+        } elseif (empty($countryCode) && strlen($cleanMobile) > 10) {
+            $countryCode = substr($cleanMobile, 0, strlen($cleanMobile) - 10);
+            $cleanMobile = substr($cleanMobile, -10);
+        }
+
         $fullPhone = $countryCode . $cleanMobile;
 
         $user = null;
@@ -532,12 +636,17 @@ class LeadsController extends Controller
             $user = User::where('mobile_no', $cleanMobile)
                 ->orWhere('mobile_no', $fullPhone)
                 ->orWhere('mobile_no', '+' . $fullPhone)
+                ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile_no, '')) = ?", [$cleanMobile])
+                ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile_no, '')) = ?", [$fullPhone])
                 ->first();
         }
 
         if (!$user) {
-            if ($request->filled('email')) {
-                $existingUser = User::where('email', $request->input('email'))->first();
+            $rawEmail = (string) $request->input('email');
+            $hasRealEmail = $request->filled('email') && strpos($rawEmail, '*') === false && filter_var($rawEmail, FILTER_VALIDATE_EMAIL);
+
+            if ($hasRealEmail) {
+                $existingUser = User::where('email', $rawEmail)->first();
 
                 if ($existingUser) {
                     if ($existingUser->mobile_no == $cleanMobile || $existingUser->mobile_no == $fullPhone) {
@@ -554,10 +663,10 @@ class LeadsController extends Controller
 
             if (!$user) {
                 $user = new User;
-                $user->email = $request->input('email') ?: 'user' . $cleanMobile . '@gmail.com';
+                $user->email = $hasRealEmail ? $rawEmail : ('user' . $cleanMobile . '@gmail.com');
                 $user->mobile_no = $cleanMobile;
-                $user->name = $request->input('user_name') ?: 'user' . $cleanMobile;
-                $user->countrycode = $countryCode ?: '91';
+                $user->name = $request->input('user_name') ?: ('user' . $cleanMobile);
+                $user->countrycode = $countryCode ?: '44';
                 $user->password = Hash::make('user@123');
                 $user->role_id = 2;
                 $user->refer_id = $request->refer_id ?? null;
@@ -566,8 +675,9 @@ class LeadsController extends Controller
         }
 
         if ($user) {
-            if ($request->filled('email')) {
-                $user->email = $request->input('email');
+            $rawEmail = (string) $request->input('email');
+            if ($request->filled('email') && strpos($rawEmail, '*') === false && filter_var($rawEmail, FILTER_VALIDATE_EMAIL)) {
+                $user->email = $rawEmail;
             }
             if ($request->filled('user_name')) {
                 $user->name = $request->input('user_name');
@@ -575,7 +685,7 @@ class LeadsController extends Controller
             if (!empty($countryCode)) {
                 $user->countrycode = $countryCode;
             }
-            if (!empty($cleanMobile) && empty($user->mobile_no)) {
+            if (!empty($cleanMobile) && strpos($rawMobile, '*') === false && strlen($cleanMobile) >= 7) {
                 $user->mobile_no = $cleanMobile;
             }
 
@@ -592,12 +702,6 @@ class LeadsController extends Controller
         }
 
         $userId = $user ? $user->id : 0;
-
-        // =========================
-        // GET LAST ORDER NUMBER
-        // =========================
-        $latestOrder = Order::orderByDesc('id')->first();
-        $newOrderNumber = $latestOrder ? intval(substr($latestOrder->order_id, 3)) : 0;
 
         // =========================
         // NORMALIZE INPUT ARRAYS / SCALARS
@@ -622,6 +726,9 @@ class LeadsController extends Controller
         $creatorId = Auth::id() ?: (auth()->user()?->id ?: 1);
         $lastCreatedLead = null;
         $lastOrderId = null;
+
+        $latestOrder = Order::orderByDesc('id')->first();
+        $newOrderNumber = $latestOrder ? intval(substr($latestOrder->order_id, 3)) : 0;
 
         for ($i = 0; $i < $total; $i++) {
             $newOrderNumber++;
@@ -660,9 +767,10 @@ class LeadsController extends Controller
             $leads->order_id    = $newOrderId;
             $leads->emp_id      = $userId;
             $leads->user_name   = $request->input('user_name') ?: ($user->name ?? null);
-            $leads->email       = $request->input('email') ?: ($user->email ?? null);
-            $leads->mobile      = $cleanMobile ?: ($user->mobile_no ?? null);
-            $leads->countrycode = $countryCode ?: ($user->countrycode ?? null);
+            $rawLeadEmail = (string) $request->input('email');
+            $leads->email       = ($request->filled('email') && strpos($rawLeadEmail, '*') === false) ? $rawLeadEmail : ($user->email ?? null);
+            $leads->mobile      = (!empty($cleanMobile) && strpos($rawMobile, '*') === false) ? $cleanMobile : ($user->mobile_no ?? null);
+            $leads->countrycode = (!empty($countryCode) ? $countryCode : ($user->countrycode ?? '44'));
 
             $leads->project_title = $curTitle ?: 'WhatsApp Lead';
             $leads->module_code   = $curModule;
@@ -694,7 +802,8 @@ class LeadsController extends Controller
             }
 
             $leads->semester = $request->semester ?: 'I Semester';
-            $leads->lead_source = $request->lead_source ?? 7;
+            $leadSourceClean = preg_replace('/\D+/', '', (string)$request->lead_source);
+            $leads->lead_source = !empty($leadSourceClean) ? (int)$leadSourceClean : 7;
             $leads->created_by = $creatorId;
 
             $leads->save();
@@ -895,282 +1004,118 @@ class LeadsController extends Controller
 
     public function search(Request $request)
     {
-        $searchTerm = $request->input('additionalFilter1');
-        $userdtail = $request->input('additionalFilter2');
-        $Status = $request->input('additionalFilter4');
-        $techn = $request->input('additionalFilter5');
-        $fromDate = $request->input('additionalFilter3');
-        $UptoDate = $request->input('additionalFilter6');
-        $datetatus = $request->input('additionalFilter7');
+        $searchTerm = trim((string)($request->input('additionalFilter1') ?? $request->input('search') ?? ''));
+        $userId = trim((string)($request->input('additionalFilter2') ?? $request->input('uid') ?? ''));
+        $userText = trim((string)($request->input('userText') ?? $request->input('user') ?? ''));
+        $Status = trim((string)($request->input('additionalFilter4') ?? $request->input('status') ?? ''));
+        $techn = trim((string)($request->input('additionalFilter5') ?? $request->input('techn') ?? ''));
+        $fromDate = trim((string)($request->input('additionalFilter3') ?? $request->input('from_date') ?? ''));
+        $UptoDate = trim((string)($request->input('additionalFilter6') ?? $request->input('to_date') ?? ''));
+        $datetatus = trim((string)($request->input('additionalFilter7') ?? $request->input('date_status') ?? ''));
 
-        $leads = Leads::query();
+        $leads = Leads::with(['user', 'call.user']);
 
-        if ($searchTerm != '') {
-            $leads->where(function ($query) use ($searchTerm) {
+        if ($searchTerm !== '') {
+            $searchUserIds = find_user_ids_by_search_term($searchTerm);
+            $cleanSearchMasked = preg_replace('/\*+/', '%', preg_replace('/[^0-9*]/', '', $searchTerm));
+            $cleanSearchDigits = preg_replace('/\D+/', '', $searchTerm);
+
+            $leads->where(function ($query) use ($searchTerm, $searchUserIds, $cleanSearchMasked, $cleanSearchDigits) {
                 $query->where('order_id', 'like', '%' . $searchTerm . '%')
                     ->orWhere('project_title', 'like', '%' . $searchTerm . '%');
-            });
-        }
 
-        if ($Status != '') {
-            $leads->where('l_status',  $Status);
-        }
-
-        if ($techn != '') {
-
-            if ($techn == 'Technical') {
-                $leads->where('tech',  'on');
-            } elseif ($techn == 'Resit') {
-                $leads->where('resit',  'on');
-            } elseif ($techn == 'First') {
-                $leads->where('service_type',  'First Class Work');
-            }
-        }
-
-        if ($userdtail != '') {
-            // Assuming $leads is an instance of a database query builder
-
-            $leads->where(function ($query) use ($userdtail) {
-                $query->where('emp_id', $userdtail);
-            });
-        }
-
-        if ($fromDate != '') {
-            if ($UptoDate != '') {
-                $leads->whereBetween('create_at', [$fromDate, $UptoDate]);
-            } else {
-                $leads->whereDate('create_at', $fromDate);
-            }
-        } elseif ($datetatus != '') {
-            if ($fromDate != '' && $UptoDate != '') {
-                $leads->whereBetween('deadline', [$fromDate, $UptoDate]);
-            } elseif ($fromDate != '') {
-                $leads->where('deadline', $fromDate);
-            } else {
-                // Assuming $datetatus is a date string in a valid format, such as 'Y-m-d'
-                $leads->whereDate('deadline', $datetatus);
-            }
-        }
-
-        $leads->orderBy('id', 'desc')->where('status', 0);
-
-        $output = '';
-        $index = 1;
-
-        foreach ($leads->get() as $lead) {
-            $output .= "
-            <tr>
-                <td>{$index}</td>
-                
-                <td class='icon-container my-auto d-flex '>
-               
-                " . ($lead->flag == '1' ? "
-                
-                    <div class='form-check form-check-sm form-check-custom form-check-solid m-5'>
-                        <input class='form-check-input widget-13-check' type='checkbox' id='{$lead->id}'  checked onchange='checkedLead(this, {$lead->id})'>
-                    </div>
-               
-                " : '') . "
-                
-                  " . ($lead->flag == '0' ? "
-                
-                    <div class='form-check form-check-sm form-check-custom form-check-solid m-5'>
-                        <input class='form-check-input widget-13-check' type='checkbox' id='{$lead->id}'   onchange='checkedLead(this, {$lead->id})'>
-                    </div>
-               
-                " : '') . "
-                    <div class='form-check form-switch my-auto'>
-                        <input class='form-check-input' type='checkbox' id='{$lead->id}' role='switch' checked onchange='handleChange(this, {$lead->id})'>
-                    </div>
-                   
-                    <button type='button' class='btn btn-icon btn-bg-warning btn-active-color-light btn-sm me-1' data-bs-toggle='modal' data-bs-target='#leadCallModal{$lead->id}'>Call</button>";
-
-            // Add modal HTML here for each lead
-            $output .= "
-                        <style>
-                            /* Style for modal dialog */
-                            .modal-content {
-                                height: 100%;
-                            }
-                            .modal-dialog.modal-dialog-end {
-                                margin: 0;
-                                position: fixed;
-                                right: 0;
-                                top: 0;
-                                height: 100%;
-                                width: 40%; /* Set your desired width */
-                                max-width: 100%;
-                                z-index: 1050;
-                                transform: translateX(100%);
-                                transition: transform 0.3s ease;
-                            }
-                    
-                            /* Style for modal dialog when it's shown */
-                            .modal.show .modal-dialog.modal-dialog-end {
-                                transform: translateX(0);
-                            }
-                            /* Style for modal body */
-                            .modal-body {
-                                overflow-y: auto; /* Make the modal body vertically scrollable */
-                                max-height: calc(100vh - 200px); /* Set max height to avoid modal extending beyond viewport */
-                            }
-                        </style>
-    
-
-
-                        <div class='modal fade' id='leadCallModal{$lead->id}' tabindex='-1' aria-labelledby='leadCallModalLabel' aria-hidden='true'>
-                            <div class='modal-dialog  modal-dialog-end'>
-                                <div class='modal-content'>
-                                    <div class='modal-header' >
-                                        <div class='card-title' >
-                                            <!--begin::User-->
-                                            <div class='d-flex justify-content-center flex-column me-3'>
-                                                <a href='#' class='fs-4 fw-bolder text-gray-900 text-hover-primary me-1 mb-2 lh-1'>$lead->order_id</a>
-                                                <!--begin::Info-->
-                                                <div class='mb-0 lh-1'>
-                                                    <span class='badge badge-success badge-circle w-10px h-10px me-1'></span>
-                                                    <span class='fs-7 fw-bold text-muted'>Active</span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <button type='button' class='btn-close' data-bs-dismiss='modal' aria-label='Close'></button>
-                                    </div>
-                                    <div class='modal-body' data-kt-element='messages{$lead->id}'>";
-
-            // Loop through calls
-            foreach ($lead->call->sortByDesc('created_at') as $call) {
-                if ($call->created_by != Auth::user()->id) {
-                    $output .= "<div class='d-flex justify-content-start mb-10'>
-                                                            <div class='d-flex flex-column align-items-start'>
-                                                                <div class='d-flex align-items-center mb-2'>
-                                                                    <div class='symbol symbol-35px symbol-circle'>";
-
-                    // Check if user photo exists
-                    if ($call->user && $call->user->photo) {
-                        $output .= "<img alt='Pic' src='" . asset($call->user->photo) . "' />";
-                    } else {
-                        $output .= "<img alt='Pic' src='assets/media/avatars/blank.png' />";
-                    }
-
-                    $output .= "</div>
-                                                                    <div class='ms-3'>
-                                                                        <a href='#' class='fs-5 fw-bolder text-gray-900 text-hover-primary me-1'>";
-                    if ($call->user) {
-                        $output .= $call->user->name;
-                    }
-                    $output .= "</a>
-                                                                        <span class='text-muted fs-7 mb-1'>{$call->created_at->diffForHumans()}</span>
-                                                                    </div>
-                                                                </div>
-                                                                <div class='p-5 rounded bg-light-info text-dark fw-bold mw-lg-400px text-start' data-kt-element='message-text'>{$call->description}</div>
-                                                            </div>
-                                                        </div>";
-                } else {
-                    $output .= "<div class='d-flex justify-content-end mb-10'>
-                                                            <div class='d-flex flex-column align-items-end'>
-                                                                <div class='d-flex align-items-center mb-2'>
-                                                                    <div class='me-3'>
-                                                                        <span class='text-muted fs-7 mb-1'>{$call->created_at->diffForHumans()}</span>
-                                                                        <a href='#' class='fs-5 fw-bolder text-gray-900 text-hover-primary ms-1'>You</a>
-                                                                    </div>
-                                                                    <div class='symbol symbol-35px symbol-circle'>";
-
-                    // Check if user photo exists
-                    if ($call->user && $call->user->photo) {
-                        $output .= "<img src='" . asset(Auth::user()->photo) . "' />";
-                    } else {
-                        $output .= "<img alt='Pic' src='assets/media/avatars/blank.png' />";
-                    }
-
-                    $output .= "</div>
-                                                                </div>
-                                                                <div class='p-5 rounded bg-light-primary text-dark fw-bold mw-lg-400px text-end' data-kt-element='message-text'>{$call->description}</div>
-                                                            </div>
-                                                        </div>";
+                if (!empty($searchUserIds)) {
+                    $query->orWhereIn('emp_id', $searchUserIds);
                 }
-            }
 
-            $output .= "</div>
-                                    <div class='modal-footer'>
-                                        <textarea class='form-control form-control-flush mb-3' rows='1' id='description{$lead->id}'  placeholder='Type a message'></textarea>
-                                        <input type='hidden' name='lead_id' value='{$lead->id}' id='lead_id{$lead->id}'>
-                                        <div class='d-flex flex-stack text-end' style='margin-right:auto;'>
-                                            <button class='btn btn-primary'  onclick='sendData({$lead->id},$(`#description{$lead->id}`).val())'>Send</button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    ";
+                if (strpos($searchTerm, '*') !== false && !empty($cleanSearchMasked) && preg_match('/\d/', $cleanSearchMasked)) {
+                    $query->orWhere('mobile', 'like', '%' . $cleanSearchMasked . '%')
+                        ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile, '')) LIKE ?", ['%' . $cleanSearchMasked . '%']);
+                }
 
+                if (!empty($cleanSearchDigits) && strlen($cleanSearchDigits) >= 4) {
+                    $last10 = strlen($cleanSearchDigits) >= 10 ? substr($cleanSearchDigits, -10) : $cleanSearchDigits;
+                    $query->orWhere('mobile', 'like', '%' . $cleanSearchDigits . '%')
+                        ->orWhere('mobile', 'like', '%' . $last10 . '%')
+                        ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile, '')) LIKE ?", ['%' . $cleanSearchDigits . '%']);
+                }
 
-
-            $output .= "  <a target='_blank' href='/leadedit.{$lead->id}' 
-                    
-                    class='btn btn-icon btn-bg-secondary btn-active-color-primary btn-sm me-1'>
-                        <span class='svg-icon svg-icon-3'>
-                            <svg xmlns='http://www.w3.org/2000/svg' width='24' height='24'
-                                viewBox='0 0 24 24' fill='none'>
-                                <path opacity='0.3'
-                                    d='M21.4 8.35303L19.241 10.511L13.485 4.755L15.643 2.59595C16.0248 2.21423 16.5426 1.99988 17.0825 1.99988C17.6224 1.99988 18.1402 2.21423 18.522 2.59595L21.4 5.474C21.7817 5.85581 21.9962 6.37355 21.9962 6.91345C21.9962 7.45335 21.7817 7.97122 21.4 8.35303ZM3.68699 21.932L9.88699 19.865L4.13099 14.109L2.06399 20.309C1.98815 20.5354 1.97703 20.7787 2.03189 21.0111C2.08674 21.2436 2.2054 21.4561 2.37449 21.6248C2.54359 21.7934 2.75641 21.9115 2.989 21.9658C3.22158 22.0201 3.4647 22.0084 3.69099 21.932H3.68699Z'
-                                    fill='black'></path>
-                                <path
-                                    d='M5.574 21.3L3.692 21.928C3.46591 22.0032 3.22334 22.0141 2.99144 21.9594C2.75954 21.9046 2.54744 21.7864 2.3789 21.6179C2.21036 21.4495 2.09202 21.2375 2.03711 21.0056C1.9822 20.7737 1.99289 20.5312 2.06799 20.3051L2.696 18.422L5.574 21.3ZM4.13499 14.105L9.891 19.861L19.245 10.507L13.489 4.75098L4.13499 14.105Z'
-                                    fill='black'></path>
-                            </svg>
-                        </span>
-                    </a>
-
-                    <a  href='javascript:void(0);' id='clickToCallBtn{$lead->id}' href='#' data-bs-toggle='modal' 
-                        id='kt_toolbar_primary_button'
-                        class='btn btn-icon btn-bg-success btn-active-color-light btn-sm me-1'>
-                        <span class='svg-icon svg-icon-3'>
-                            <li class='fa fa-phone fa-lg'></li>
-                        </span>
-                    </a>
-
-                    <form action='/convertleads/{$lead->id}'method='post'>
-                    " . csrf_field() . "
-                        <button type='submit' class='btn btn-icon btn-bg-secondary btn-active-color-light btn-sm me-1'>
-                            <span class='svg-icon svg-icon-3'>C</span>
-                        </button>
-                    </form>
-                </a>
-                 <a href='#' id='clickToDownload{$lead->order_id}' class='btn btn-icon btn-bg-danger btn-active-color-dark btn-sm me-1 download-btn{{$lead->id}}' onclick='downloadFiles(this)' >
-                    <span class='svg-icon svg-icon-3'>
-                        <i class='fa fa-download fa-lg'></i>
-                    </span>
-                </a>
-                </td>
-                <td class='text-center'>{$lead->order_id}  <br>
-                    " . ($lead->resit == 'on' ? '<span class="badge badge-light-danger fs-7 fw-bold">Resit</span>' : '') . "
-                    " . ($lead->service_type == 'First Class Work' ? '<span class="badge badge-light-info fs-7 fw-bold">First Class Word</span>' : '') . "
-                </td>
-                <td>
-                    
-
-                    " . ($lead->user != '' ?   $lead->user->name : '') . "
-                " . ($lead->user != '' ? '<span class="badge badge-light-danger fs-7 fw-bold">' . $lead->user->mobile_no . '</span>' : '') . "
-                </td>
-                <td>" . \Carbon\Carbon::parse($lead->create_at)->format('d M Y') . "</td>
-                <td class='text-center'>{$lead->project_title}  <br>Semester : {$lead->semester}
-                " . ($lead->tech == 'on' ? '<span class="badge badge-light-success fs-7 fw-bold">Technical</span>' : '') . "
-                " . ($lead->module_code != '' ? '<span class="badge badge-light-danger fs-7 fw-bold">' . $lead->module_code . '</span>' : '') . "
-                
-                </td>
-                <td>{$lead->pages}
-                </td>
-                <td>{$lead->price}</td>
-                <td>" . $lead->deadline . "
-                 <br>
-                  " . ($lead->draft_required == 'Yes' ? '<span class="badge badge-light-success fs-7 fw-bold">' . $lead->draft_date . ' (' . $lead->draft_time . ')</span>' : '') . "
-                 
-                </td>
-            </tr>";
-            $index++;
+                if (strpos($searchTerm, '@') !== false) {
+                    $cleanEmail = preg_replace('/\*+/', '%', $searchTerm);
+                    $query->orWhere('email', 'like', '%' . $cleanEmail . '%');
+                }
+            });
         }
 
-        return $output;
+        if ($Status !== '') {
+            $leads->where('l_status', $Status);
+        }
+
+        if ($techn !== '') {
+            if ($techn === 'Technical') {
+                $leads->where('tech', 'on');
+            } elseif ($techn === 'Resit') {
+                $leads->where('resit', 'on');
+            } elseif ($techn === 'First') {
+                $leads->where('service_type', 'First Class Work');
+            }
+        }
+
+        $customerQuery = $userId !== '' && is_numeric($userId) ? (int)$userId : ($userText !== '' ? $userText : ($userId !== '' ? $userId : ''));
+        if ($customerQuery !== '') {
+            if (is_numeric($customerQuery) && $userId !== '' && is_numeric($userId)) {
+                $leads->where('emp_id', $customerQuery);
+            } else {
+                $matchingUserIds = find_user_ids_by_search_term((string)$customerQuery);
+                $cleanUserMasked = preg_replace('/\*+/', '%', preg_replace('/[^0-9*]/', '', (string)$customerQuery));
+                $cleanUserDigits = preg_replace('/\D+/', '', (string)$customerQuery);
+
+                $leads->where(function ($query) use ($customerQuery, $matchingUserIds, $cleanUserMasked, $cleanUserDigits) {
+                    if (!empty($matchingUserIds)) {
+                        $query->whereIn('emp_id', $matchingUserIds);
+                    }
+
+                    if (strpos((string)$customerQuery, '*') !== false && !empty($cleanUserMasked) && preg_match('/\d/', $cleanUserMasked)) {
+                        $query->orWhere('mobile', 'like', '%' . $cleanUserMasked . '%')
+                            ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile, '')) LIKE ?", ['%' . $cleanUserMasked . '%']);
+                    }
+
+                    if (!empty($cleanUserDigits) && strlen($cleanUserDigits) >= 4) {
+                        $last10 = strlen($cleanUserDigits) >= 10 ? substr($cleanUserDigits, -10) : $cleanUserDigits;
+                        $query->orWhere('mobile', 'like', '%' . $cleanUserDigits . '%')
+                            ->orWhere('mobile', 'like', '%' . $last10 . '%')
+                            ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile, '')) LIKE ?", ['%' . $cleanUserDigits . '%']);
+                    }
+
+                    if (strpos((string)$customerQuery, '@') !== false) {
+                        $cleanEmail = preg_replace('/\*+/', '%', (string)$customerQuery);
+                        $query->orWhere('email', 'like', '%' . $cleanEmail . '%');
+                    } else {
+                        $query->orWhere('user_name', 'like', '%' . $customerQuery . '%')
+                            ->orWhere('email', 'like', '%' . $customerQuery . '%');
+                    }
+                });
+            }
+        }
+
+        $dateField = ($datetatus === 'Deadline') ? 'deadline' : 'create_at';
+        if ($fromDate !== '' && $UptoDate !== '') {
+            if ($dateField === 'create_at') {
+                $leads->whereBetween('create_at', [$fromDate . ' 00:00:00', $UptoDate . ' 23:59:59']);
+            } else {
+                $leads->whereBetween('deadline', [$fromDate, $UptoDate]);
+            }
+        } elseif ($fromDate !== '') {
+            $leads->whereDate($dateField, '>=', $fromDate);
+        } elseif ($UptoDate !== '') {
+            $leads->whereDate($dateField, '<=', $UptoDate);
+        }
+
+        $leads->orderBy('id', 'desc')->where('status', 0)->where('is_converted', 0);
+
+        $results = $leads->get();
+
+        return view('leads.section.lead-rows-ajax', ['leads' => $results])->render();
     }
     public function leadEditPage($id)
     {
@@ -1887,30 +1832,58 @@ class LeadsController extends Controller
             } else {
                 $searchTerm = trim($request->input('search') ?? $request->input('order') ?? $request->input('user') ?? '');
                 if ($searchTerm !== '') {
-                    $cleanDigits = preg_replace('/\D+/', '', $searchTerm);
-                    $last10 = strlen($cleanDigits) >= 10 ? substr($cleanDigits, -10) : $cleanDigits;
+                    $searchUserIds = find_user_ids_by_search_term($searchTerm);
+                    $cleanSearchMasked = preg_replace('/\*+/', '%', preg_replace('/[^0-9*]/', '', $searchTerm));
+                    $cleanSearchDigits = preg_replace('/\D+/', '', $searchTerm);
+                    $last10 = strlen($cleanSearchDigits) >= 10 ? substr($cleanSearchDigits, -10) : $cleanSearchDigits;
 
-                    $query->where(function ($q) use ($searchTerm, $last10) {
+                    $query->where(function ($q) use ($searchTerm, $searchUserIds, $cleanSearchMasked, $cleanSearchDigits, $last10) {
                         $q->where('order_id', 'like', '%' . $searchTerm . '%')
                             ->orWhere('project_title', 'like', '%' . $searchTerm . '%')
-                            ->orWhere('email', 'like', '%' . $searchTerm . '%')
-                            ->orWhere('user_name', 'like', '%' . $searchTerm . '%')
-                            ->orWhere('mobile', 'like', '%' . $searchTerm . '%');
+                            ->orWhere('user_name', 'like', '%' . $searchTerm . '%');
 
-                        if (!empty($last10)) {
-                            $q->orWhere('mobile', 'like', '%' . $last10 . '%')
-                              ->orWhere('mobile2', 'like', '%' . $last10 . '%');
+                        if (!empty($searchUserIds)) {
+                            $q->orWhereIn('emp_id', $searchUserIds);
                         }
 
-                        $q->orWhereHas('user', function ($uq) use ($searchTerm, $last10) {
-                            $uq->where('name', 'like', '%' . $searchTerm . '%')
-                              ->orWhere('email', 'like', '%' . $searchTerm . '%')
-                              ->orWhere('mobile_no', 'like', '%' . $searchTerm . '%')
-                              ->orWhere('mobile_no2', 'like', '%' . $searchTerm . '%');
+                        if (strpos($searchTerm, '*') !== false && !empty($cleanSearchMasked) && preg_match('/\d/', $cleanSearchMasked)) {
+                            $q->orWhere('mobile', 'like', '%' . $cleanSearchMasked . '%')
+                              ->orWhere('mobile2', 'like', '%' . $cleanSearchMasked . '%')
+                              ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile, '')) LIKE ?", ['%' . $cleanSearchMasked . '%']);
+                        }
 
-                            if (!empty($last10)) {
-                                $uq->orWhere('mobile_no', 'like', '%' . $last10 . '%')
-                                   ->orWhere('mobile_no2', 'like', '%' . $last10 . '%');
+                        if (!empty($cleanSearchDigits) && strlen($cleanSearchDigits) >= 4) {
+                            $q->orWhere('mobile', 'like', '%' . $cleanSearchDigits . '%')
+                              ->orWhere('mobile', 'like', '%' . $last10 . '%')
+                              ->orWhere('mobile2', 'like', '%' . $cleanSearchDigits . '%')
+                              ->orWhere('mobile2', 'like', '%' . $last10 . '%')
+                              ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile, '')) LIKE ?", ['%' . $cleanSearchDigits . '%']);
+                        }
+
+                        if (strpos($searchTerm, '@') !== false) {
+                            $cleanEmail = preg_replace('/\*+/', '%', $searchTerm);
+                            $q->orWhere('email', 'like', '%' . $cleanEmail . '%');
+                        } else {
+                            $q->orWhere('email', 'like', '%' . $searchTerm . '%');
+                        }
+
+                        $q->orWhereHas('user', function ($uq) use ($searchTerm, $cleanSearchDigits, $last10, $cleanSearchMasked) {
+                            $uq->where('name', 'like', '%' . $searchTerm . '%')
+                              ->orWhere('email', 'like', '%' . $searchTerm . '%');
+
+                            if (strpos($searchTerm, '*') !== false && !empty($cleanSearchMasked) && preg_match('/\d/', $cleanSearchMasked)) {
+                                $uq->orWhere('mobile_no', 'like', '%' . $cleanSearchMasked . '%')
+                                   ->orWhere('mobile_no2', 'like', '%' . $cleanSearchMasked . '%')
+                                   ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile_no, '')) LIKE ?", ['%' . $cleanSearchMasked . '%'])
+                                   ->orWhereRaw("CONCAT(IFNULL(countrycode2, ''), IFNULL(mobile_no2, '')) LIKE ?", ['%' . $cleanSearchMasked . '%']);
+                            }
+
+                            if (!empty($cleanSearchDigits) && strlen($cleanSearchDigits) >= 4) {
+                                $uq->orWhere('mobile_no', 'like', '%' . $cleanSearchDigits . '%')
+                                   ->orWhere('mobile_no', 'like', '%' . $last10 . '%')
+                                   ->orWhere('mobile_no2', 'like', '%' . $cleanSearchDigits . '%')
+                                   ->orWhere('mobile_no2', 'like', '%' . $last10 . '%')
+                                   ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile_no, '')) LIKE ?", ['%' . $cleanSearchDigits . '%']);
                             }
                         });
                     });
@@ -2178,30 +2151,58 @@ class LeadsController extends Controller
         $rawSearchTerms = array_unique(array_filter($searchTermsToApply));
 
         foreach ($rawSearchTerms as $searchTerm) {
-            $cleanDigits = preg_replace('/\D+/', '', $searchTerm);
-            $last10 = strlen($cleanDigits) >= 10 ? substr($cleanDigits, -10) : $cleanDigits;
+            $searchUserIds = find_user_ids_by_search_term($searchTerm);
+            $cleanSearchMasked = preg_replace('/\*+/', '%', preg_replace('/[^0-9*]/', '', $searchTerm));
+            $cleanSearchDigits = preg_replace('/\D+/', '', $searchTerm);
+            $last10 = strlen($cleanSearchDigits) >= 10 ? substr($cleanSearchDigits, -10) : $cleanSearchDigits;
 
-            $query->where(function ($q) use ($searchTerm, $last10) {
+            $query->where(function ($q) use ($searchTerm, $searchUserIds, $cleanSearchMasked, $cleanSearchDigits, $last10) {
                 $q->where('order_id', 'like', '%' . $searchTerm . '%')
                     ->orWhere('project_title', 'like', '%' . $searchTerm . '%')
-                    ->orWhere('email', 'like', '%' . $searchTerm . '%')
-                    ->orWhere('user_name', 'like', '%' . $searchTerm . '%')
-                    ->orWhere('mobile', 'like', '%' . $searchTerm . '%');
+                    ->orWhere('user_name', 'like', '%' . $searchTerm . '%');
 
-                if (!empty($last10) && strlen($last10) >= 4) {
-                    $q->orWhere('mobile', 'like', '%' . $last10 . '%')
-                      ->orWhere('mobile2', 'like', '%' . $last10 . '%');
+                if (!empty($searchUserIds)) {
+                    $q->orWhereIn('emp_id', $searchUserIds);
                 }
 
-                $q->orWhereHas('user', function ($uq) use ($searchTerm, $last10) {
-                    $uq->where('name', 'like', '%' . $searchTerm . '%')
-                      ->orWhere('email', 'like', '%' . $searchTerm . '%')
-                      ->orWhere('mobile_no', 'like', '%' . $searchTerm . '%')
-                      ->orWhere('mobile_no2', 'like', '%' . $searchTerm . '%');
+                if (strpos($searchTerm, '*') !== false && !empty($cleanSearchMasked) && preg_match('/\d/', $cleanSearchMasked)) {
+                    $q->orWhere('mobile', 'like', '%' . $cleanSearchMasked . '%')
+                      ->orWhere('mobile2', 'like', '%' . $cleanSearchMasked . '%')
+                      ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile, '')) LIKE ?", ['%' . $cleanSearchMasked . '%']);
+                }
 
-                    if (!empty($last10) && strlen($last10) >= 4) {
-                        $uq->orWhere('mobile_no', 'like', '%' . $last10 . '%')
-                           ->orWhere('mobile_no2', 'like', '%' . $last10 . '%');
+                if (!empty($cleanSearchDigits) && strlen($cleanSearchDigits) >= 2) {
+                    $q->orWhere('mobile', 'like', '%' . $cleanSearchDigits . '%')
+                      ->orWhere('mobile', 'like', '%' . $last10 . '%')
+                      ->orWhere('mobile2', 'like', '%' . $cleanSearchDigits . '%')
+                      ->orWhere('mobile2', 'like', '%' . $last10 . '%')
+                      ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile, '')) LIKE ?", ['%' . $cleanSearchDigits . '%']);
+                }
+
+                if (strpos($searchTerm, '@') !== false) {
+                    $cleanEmail = preg_replace('/\*+/', '%', $searchTerm);
+                    $q->orWhere('email', 'like', '%' . $cleanEmail . '%');
+                } else {
+                    $q->orWhere('email', 'like', '%' . $searchTerm . '%');
+                }
+
+                $q->orWhereHas('user', function ($uq) use ($searchTerm, $cleanSearchDigits, $last10, $cleanSearchMasked) {
+                    $uq->where('name', 'like', '%' . $searchTerm . '%')
+                      ->orWhere('email', 'like', '%' . $searchTerm . '%');
+
+                    if (strpos($searchTerm, '*') !== false && !empty($cleanSearchMasked) && preg_match('/\d/', $cleanSearchMasked)) {
+                        $uq->orWhere('mobile_no', 'like', '%' . $cleanSearchMasked . '%')
+                           ->orWhere('mobile_no2', 'like', '%' . $cleanSearchMasked . '%')
+                           ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile_no, '')) LIKE ?", ['%' . $cleanSearchMasked . '%'])
+                           ->orWhereRaw("CONCAT(IFNULL(countrycode2, ''), IFNULL(mobile_no2, '')) LIKE ?", ['%' . $cleanSearchMasked . '%']);
+                    }
+
+                    if (!empty($cleanSearchDigits) && strlen($cleanSearchDigits) >= 2) {
+                        $uq->orWhere('mobile_no', 'like', '%' . $cleanSearchDigits . '%')
+                           ->orWhere('mobile_no', 'like', '%' . $last10 . '%')
+                           ->orWhere('mobile_no2', 'like', '%' . $cleanSearchDigits . '%')
+                           ->orWhere('mobile_no2', 'like', '%' . $last10 . '%')
+                           ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile_no, '')) LIKE ?", ['%' . $cleanSearchDigits . '%']);
                     }
                 });
             });

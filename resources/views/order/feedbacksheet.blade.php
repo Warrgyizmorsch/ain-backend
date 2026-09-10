@@ -81,10 +81,20 @@
                                                 @endif
                                             </span><br>
                                         @else
-    									    {{ $order->order_id}}<br>
+                                            <div class="d-flex align-items-center justify-content-center gap-1">
+                                                <span class="fw-bold">{{ $order->order_id }}</span>
+                                                <button type="button" class="btn btn-icon btn-sm p-0 border-0 bg-transparent copy-btn" title="Copy Order Code" onclick="fbCopyText('{{ $order->order_id }}', this)" style="width:18px;height:18px;line-height:1">
+                                                    <i class="fa fa-copy text-muted" style="font-size:13px;"></i>
+                                                </button>
+                                            </div>
                                         @endif
 										@if($order->feedback_ticket)
-									<span class="badge badge-light-danger fs-7 fw-bold text-nowrap">{{ $order->feedback_ticket }}</span>
+                                            <div class="d-flex align-items-center justify-content-center gap-1 mt-1">
+                                                <span class="badge badge-light-danger fs-7 fw-bold text-nowrap">{{ $order->feedback_ticket }}</span>
+                                                <button type="button" class="btn btn-icon btn-sm p-0 border-0 bg-transparent copy-btn" title="Copy Ticket Number" onclick="fbCopyText('{{ $order->feedback_ticket }}', this)" style="width:18px;height:18px;line-height:1">
+                                                    <i class="fa fa-copy text-muted" style="font-size:13px;"></i>
+                                                </button>
+                                            </div>
 										@php
 											$ticketDate = $order->feedback_date ?: optional($order->feedback->sortBy('created_at')->first())->created_at;
 										@endphp
@@ -209,7 +219,7 @@
 									</td>
 
                                     <td class="text-center">
-										<div class="icon-container my-auto d-flex justify-content-center">
+										<div class="icon-container my-auto d-flex align-items-center justify-content-center flex-wrap gap-1">
                                         <a href="#"  style="background-color:black" data-kt-drawer-toggle="#kt_drawer_chat{{ $order->order_id }}" id="kt_drawer_chat_toggle{{ $order->order_id }}" class="btn btn-icon btn-bg-secondary btn-active-color-primary btn-sm me-1">
                                             <span class="svg-icon svg-icon-3">
                                             <li style="color:white" class="fa fa-edit"></li>
@@ -228,11 +238,23 @@
 										
 										@include('order.section.feedback-status')
 
-                                        <x-call-button
-                                            :phone="$order->user->mobile_no ?? ''"
-                                            :countrycode="$order->user->countrycode ?? ''"
-                                            :name="$order->user->name ?? 'Customer'"
-                                            :id="'feedback' . $order->id" />
+                                        @php
+                                            $fbPhone = $order->user->mobile_no ?? '';
+                                            $fbCC = preg_replace('/\D+/', '', (string)($order->user->countrycode ?? ''));
+                                            $fbName = addslashes($order->user->name ?? 'Customer');
+                                        @endphp
+                                        @if($fbPhone)
+                                        <a href="#"
+                                           id="twilioCallBtnfeedback{{ $order->id }}"
+                                           onclick="event.preventDefault(); event.stopPropagation(); initiateCustomerCall('{{ $fbCC . $fbPhone }}', '{{ $fbName }}');"
+                                           class="btn btn-icon btn-sm me-1 shadow-sm"
+                                           style="width:28px;height:28px;min-width:28px;border-radius:6px;background-color:#25D366;color:#ffffff;display:inline-flex;align-items:center;justify-content:center;transition:transform 0.2s ease,background-color 0.2s ease;"
+                                           onmouseover="this.style.backgroundColor='#1ebd58';this.style.transform='scale(1.1)';"
+                                           onmouseout="this.style.backgroundColor='#25D366';this.style.transform='scale(1)';"
+                                           title="Call via Twilio">
+                                            <i class="fa fa-phone text-white" style="font-size:12px;"></i>
+                                        </a>
+                                        @endif
 										@if(auth()->user()->role_id == 1 && $order->feedback_ticket)
 										<button type="button"
 											class="btn btn-icon btn-bg-danger btn-active-color-light btn-sm me-1 delete-ticket-btn"
@@ -355,6 +377,26 @@
     }
 </style>
 <script>
+    function fbCopyText(text, btn) {
+        navigator.clipboard.writeText(text).then(function() {
+            var icon = btn.querySelector('i');
+            icon.classList.remove('fa-copy', 'text-muted');
+            icon.classList.add('fa-check', 'text-success');
+            setTimeout(function() {
+                icon.classList.remove('fa-check', 'text-success');
+                icon.classList.add('fa-copy', 'text-muted');
+            }, 1500);
+        }).catch(function() {
+            // fallback
+            var ta = document.createElement('textarea');
+            ta.value = text;
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+        });
+    }
+
     $(document).ready(function() {
         // --- Team Alpha Click ---
         $('#teamAlphaBtn').on('click', function() {

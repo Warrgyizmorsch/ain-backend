@@ -115,16 +115,13 @@
                                         </td>
                                            <td>
                                            @if($orderData->user)
-                                         
-                                            {{$orderData->user->email}} <br>
-                                       
-                                            @endif 
+                                                {{ mask_email_for_display($orderData->user->email) }} <br>
+                                           @endif 
                                         </td>
                                            <td>
                                            @if($orderData->user)
-                                           
-                                            {{$orderData->user->mobile_no}} 
-                                            @endif 
+                                                {{ mask_phone_for_display($orderData->user->countrycode, $orderData->user->mobile_no) }}
+                                           @endif 
                                         </td>
                                         <td><?php
                                             $status_date = $orderData->status_date;

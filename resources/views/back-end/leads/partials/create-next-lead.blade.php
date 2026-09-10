@@ -12,6 +12,7 @@
             <div class="modal-body scroll-y px-10 pt-4 pb-8">
                 <form id="createNextLeadForm" method="POST" action="{{ route('nextlead.store') }}">
                     @csrf
+                    <input type="hidden" name="user_id" id="next_lead_user_id" value="">
                     <div class="row g-4 mb-4">
                         <!-- Country Code -->
                         <div class="col-md-4">
@@ -23,7 +24,12 @@
                         <div class="col-md-8 position-relative">
                             <label class="form-label fs-7 fw-bold required">Mobile Number</label>
                             <div class="position-relative">
-                                <input type="text" name="mobile" id="next_lead_mobile" class="form-control form-control-sm form-control-solid pe-10" placeholder="Enter Mobile Number" required autocomplete="off">
+                                @if(auth()->check() && auth()->user()->role_id == 1)
+                                    <input type="text" name="mobile" id="next_lead_mobile" class="form-control form-control-sm form-control-solid pe-10" placeholder="Enter Mobile Number" required autocomplete="off">
+                                @else
+                                    <input type="hidden" name="mobile" id="next_lead_mobile_real" value="">
+                                    <input type="text" id="next_lead_mobile" class="form-control form-control-sm form-control-solid pe-10" placeholder="e.g. 74****3326" required autocomplete="off">
+                                @endif
                                 <span id="next_lead_lookup_loader" class="spinner-border spinner-border-sm text-primary position-absolute top-50 end-0 translate-middle-y me-3" style="display:none;"></span>
                             </div>
                             <div id="next_lead_mobile_user_result" class="bg-white border rounded shadow-sm position-absolute w-100 mt-1" style="display:none; z-index:9999; max-height:220px; overflow-y:auto;"></div>
@@ -41,7 +47,12 @@
                         <!-- Email -->
                         <div class="col-md-6">
                             <label class="form-label fs-7 fw-bold">Email Address</label>
-                            <input type="email" name="email" id="next_lead_email" class="form-control form-control-sm form-control-solid" placeholder="Optional / Auto-generated">
+                            @if(auth()->check() && auth()->user()->role_id == 1)
+                                <input type="email" name="email" id="next_lead_email" class="form-control form-control-sm form-control-solid" placeholder="Optional / Auto-generated">
+                            @else
+                                <input type="hidden" name="email" id="next_lead_email_real" value="">
+                                <input type="text" id="next_lead_email_display" class="form-control form-control-sm form-control-solid" placeholder="Optional / Auto-generated">
+                            @endif
                         </div>
                     </div>
 

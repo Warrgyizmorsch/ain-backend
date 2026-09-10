@@ -14,6 +14,7 @@ class FollowUpComment extends Model
         'order_id',
         'uid',
         'comment',
+        'status',
         'commented_by',
     ];
 

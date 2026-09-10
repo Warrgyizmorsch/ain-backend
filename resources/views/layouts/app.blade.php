@@ -18,11 +18,31 @@
     <script>
         window.canViewFullPhone = @json(auth()->check() && auth()->user()->role_id == 1);
         window.maskPhoneForDisplay = function (phone) {
-            if (window.canViewFullPhone) return phone || '';
-            const digits = String(phone || '').replace(/\D+/g, '');
-            if (!digits) return '';
-            if (digits.length <= 6) return '*'.repeat(digits.length);
-            return digits.slice(0, 2) + '*'.repeat(digits.length - 6) + digits.slice(-4);
+            if (!phone) return '';
+            if (window.canViewFullPhone) return phone;
+            const str = String(phone).trim();
+            if (str.includes('*')) return str;
+            const digits = str.replace(/\D+/g, '');
+            let d = digits;
+            if ((d.startsWith('44') || d.startsWith('91')) && d.length > 10) {
+                d = d.slice(2);
+            }
+            if (d.length === 11 && d.startsWith('0')) d = d.slice(1);
+            if (d.length <= 4) return d.slice(0, 1) + '*'.repeat(d.length - 1);
+            if (d.length <= 6) return d.slice(0, 2) + '*'.repeat(d.length - 2);
+            return d.slice(0, 2) + '*'.repeat(Math.max(6, d.length - 6)) + d.slice(-4);
+        };
+        window.maskEmailForDisplay = function (email) {
+            if (window.canViewFullPhone) return email || '';
+            const str = String(email || '').trim();
+            if (!str) return '';
+            const parts = str.split('@');
+            if (parts.length !== 2) return str;
+            const name = parts[0];
+            const domain = parts[1];
+            if (name.length <= 2) return name[0] + '***@' + domain;
+            if (name.length <= 4) return name[0] + '***' + name.slice(-1) + '@' + domain;
+            return name.slice(0, 2) + '****' + name.slice(-2) + '@' + domain;
         };
     </script>
 

@@ -38,8 +38,10 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
 });
 
-// Twilio Voice Webhook (TwiML Voice Application)
+// Twilio Voice Webhook (TwiML Voice Application) & Status Callbacks
 Route::match(['GET', 'POST'], '/twilio/voice', [PluginController::class, 'handleTwilioVoiceWebhook'])->name('api.twilio.voice');
+Route::match(['GET', 'POST'], '/twilio/status-callback', [PluginController::class, 'statusCallback'])->name('api.twilio.status.callback');
+Route::match(['GET', 'POST'], '/twilio/recording-callback', [PluginController::class, 'statusCallback'])->name('api.twilio.recording.callback');
 
 // Route::get('/webhooks/whatsapp', [WhatsAppWebhookController::class, 'verify']);
 Route::post('/webhooks/whatsapp', [WhatsAppWebhookController::class, 'receive']);

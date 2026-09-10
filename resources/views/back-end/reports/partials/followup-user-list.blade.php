@@ -19,25 +19,67 @@
 
             <tbody>
                 @forelse($users as $key => $user)
+                    @php
+                        $rawName = $user->name ?? '';
+                        $rawEmail = $user->email ?? '';
+                        $rawMobile = $user->mobile_no ?? '';
+                        $rawCC = $user->countrycode ?? '';
+                        $cleanCC = preg_replace('/\D+/', '', (string)$rawCC);
+                        $maskedEmail = $rawEmail ? mask_email_for_display($rawEmail) : '';
+                        $maskedMobile = $rawMobile ? mask_mobile_only($cleanCC, $rawMobile) : '';
+                        $orderId = $user->order_id ?? '';
+                    @endphp
                     <tr>
                         <td>{{ $key + 1 }}</td>
 
                         <td class="fw-bold text-gray-800">
-                            {{ $user->name ?? 'N/A' }}
+                            <div class="d-inline-flex align-items-center">
+                                <span>{{ $rawName ?: 'N/A' }}</span>
+                                @if(!empty($rawName))
+                                    <button type="button" class="btn btn-icon btn-sm btn-active-light-primary ms-1 p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Name" onclick="event.stopPropagation(); crmCopyToClipboard('{{ addslashes($rawName) }}', 'Customer name copied!');">
+                                        <i class="fa fa-clone fs-8 text-muted"></i>
+                                    </button>
+                                @endif
+                            </div>
                         </td>
 
                         <td>
-                            <span class="badge badge-light-danger">
-                                +{{ $user->countrycode }} {{ $user->mobile_no }}
-                            </span>
+                            @if(!empty($maskedMobile))
+                                <div class="d-inline-flex align-items-center gap-1">
+                                    <span class="badge badge-light-danger">
+                                        @if(!empty($cleanCC))+{{ $cleanCC }} @endif{{ $maskedMobile }}
+                                    </span>
+                                    <button type="button" class="btn btn-icon btn-sm btn-active-light-danger p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Mobile" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $maskedMobile }}', 'Mobile number copied!');">
+                                        <i class="fa fa-clone fs-8 text-danger"></i>
+                                    </button>
+                                </div>
+                            @else
+                                <span class="text-muted">N/A</span>
+                            @endif
                         </td>
 
-                        <td>{{ $user->email ?? 'N/A' }}</td>
+                        <td>
+                            @if(!empty($maskedEmail))
+                                <div class="d-inline-flex align-items-center">
+                                    <span class="text-gray-600 fs-8">{{ $maskedEmail }}</span>
+                                    <button type="button" class="btn btn-icon btn-sm btn-active-light-primary ms-1 p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Email" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $maskedEmail }}', 'Email copied!');">
+                                        <i class="fa fa-clone fs-8 text-muted"></i>
+                                    </button>
+                                </div>
+                            @else
+                                <span class="text-muted">N/A</span>
+                            @endif
+                        </td>
 
                         <td>
-                            <span class="badge badge-light-primary">
-                                {{ $user->order_id ?? 'N/A' }}
-                            </span>
+                            <div class="d-inline-flex align-items-center">
+                                <span class="badge badge-light-primary">{{ $orderId ?: 'N/A' }}</span>
+                                @if(!empty($orderId))
+                                    <button type="button" class="btn btn-icon btn-sm btn-active-light-primary ms-1 p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Order ID" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $orderId }}', 'Order ID copied!');">
+                                        <i class="fa fa-clone fs-8 text-muted"></i>
+                                    </button>
+                                @endif
+                            </div>
                         </td>
 
                         <td>

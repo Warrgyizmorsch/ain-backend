@@ -169,7 +169,11 @@ if (typeof Twilio === 'undefined' || !Twilio.Device) {
             </div>
             <h5 class="text-white fw-bold mb-1" id="twilioActiveCallName">Dialing...</h5>
             <div class="text-muted fs-7 mb-2" id="twilioActiveCallNumber">+1...</div>
-            <div class="badge badge-light-success fs-7 mb-4 px-3 py-1" id="twilioActiveCallTimer">00:00</div>
+            <div class="d-flex justify-content-center align-items-center gap-2 mb-4">
+                <div class="badge badge-light-success fs-7 px-3 py-1" id="twilioActiveCallTimer">00:00</div>
+                <span class="badge badge-warning fs-8 px-2 py-1 d-none" id="twilioCallHoldBadge"><i class="fa fa-pause me-1"></i> ON HOLD</span>
+                <span class="badge badge-danger fs-8 px-2 py-1 d-none" id="twilioCallMuteBadge"><i class="fa fa-microphone-slash me-1"></i> MUTED</span>
+            </div>
 
             <!-- In-Call Actions (Mute, Hold, End Call) -->
             <div class="d-flex justify-content-center align-items-center gap-3 mt-3">
@@ -248,7 +252,65 @@ if (typeof Twilio === 'undefined' || !Twilio.Device) {
 
 <!-- Softphone JavaScript Controller -->
 <script>
+
+// Global phone masking helper - matches PHP mask_mobile_only() pattern
+// Shows: +CC + first 2 digits + ******* + last 2 digits
+function crmMaskPhone(phone) {
+    if (!phone || typeof phone !== 'string') return phone || '';
+    const str = phone.trim();
+    if (!str || str.length < 5) return str;
+
+    // Super Admin (role_id 1) sees full unmasked phone number
+    const isSuperAdmin = {{ Auth::check() && (int) Auth::user()->role_id === 1 ? 'true' : 'false' }};
+    if (isSuperAdmin) {
+        return str;
+    }
+
+    // Separate country code prefix (+xx or +xxx) from digits
+    let prefix = '';
+    let digits = str;
+    if (str.startsWith('+')) {
+        const ccMatch = str.match(/^(\+\d{1,3})/);
+        if (ccMatch) {
+            prefix = ccMatch[1] + ' ';
+            digits = str.slice(ccMatch[1].length);
+        }
+    }
+
+    // Keep first 2 + mask middle + last 2
+    if (digits.length <= 4) return str;
+    const visible_start = digits.slice(0, 2);
+    const visible_end   = digits.slice(-2);
+    const masked_mid    = '*'.repeat(Math.max(4, digits.length - 4));
+    return prefix + visible_start + masked_mid + visible_end;
+}
+
+// User-friendly Twilio error message formatter in English
+function formatTwilioCallError(err, phoneNumber) {
+    if (!err) return 'Call disconnected unexpectedly.';
+    const code = err.code || err.statusCode || '';
+    const msg = String(err.message || '');
+
+    if (code === 31005 || msg.includes('31005') || msg.includes('HANGUP')) {
+        return `The destination phone number <strong>${phoneNumber || 'dialed'}</strong> is invalid, disconnected, or rejected by the telecom carrier network.<br><br><span class="badge badge-light-danger fs-8">Twilio Error 31005 / 13224 (Invalid Phone Number)</span><br><br><small class="text-muted">Please verify that the customer's phone number is active and reachable.</small>`;
+    }
+    if (code === 21211 || code === 13224) {
+        return `The phone number format is invalid or does not exist on the telecom network.`;
+    }
+    if (code === 21408) {
+        return `Calls to this country code are restricted in your Twilio Voice Geographic Permissions.`;
+    }
+    if (code === 31000 || code === 31002) {
+        return `Unable to connect to the Twilio voice gateway.<br><br><small class="text-muted">Please check your internet connection or try dialing again.</small>`;
+    }
+    if (code === 31008) {
+        return `Call was cancelled before it could be connected.`;
+    }
+    return msg || 'Call could not be completed.';
+}
+
 class TwilioSoftphoneController {
+
     constructor() {
         this.device = null;
         this.activeCall = null;
@@ -406,8 +468,16 @@ class TwilioSoftphoneController {
         $('#twilioActiveCallView').removeClass('d-none');
 
         $('#twilioActiveCallName').text(displayName || 'Customer');
-        $('#twilioActiveCallNumber').text(phone);
+        $('#twilioActiveCallNumber').text(crmMaskPhone(phone));
         $('#twilioActiveCallTimer').text('Calling...');
+
+        this.currentCallData = {
+            direction: 'outbound',
+            to_number: phone,
+            customer_name: displayName || 'Customer',
+            started_at: new Date().toISOString(),
+            call_sid: null
+        };
 
         try {
             const params = { To: phone };
@@ -415,58 +485,151 @@ class TwilioSoftphoneController {
             this.setupCallEvents(call);
         } catch (err) {
             console.error('Call Connect Failed:', err);
+            this.postCallLog({
+                direction: 'outbound',
+                to_number: phone,
+                customer_name: displayName || 'Customer',
+                status: 'failed',
+                duration: 0,
+                started_at: this.currentCallData?.started_at,
+                ended_at: new Date().toISOString()
+            });
             this.endCallUI();
-            Swal.fire('Call Failed', err.message || 'Could not connect call.', 'error');
+            Swal.fire({
+                title: 'Call Unsuccessful',
+                html: formatTwilioCallError(err, this.currentCallData?.to_number || ''),
+                icon: 'error',
+                confirmButtonText: 'OK'
+            });
         }
     }
 
     setupCallEvents(call) {
         this.activeCall = call;
 
-        call.on('ringing', (hasEarlyMedia) => {
+        call.on('ringing', () => {
             $('#twilioActiveCallTimer').text('Ringing...');
         });
 
         call.on('accept', () => {
             $('#twilioActiveCallTimer').text('00:00');
             this.startTimer();
+            if (this.currentCallData) {
+                this.currentCallData.call_sid = call.parameters?.CallSid || null;
+                this.postCallLog({
+                    call_sid: this.currentCallData.call_sid,
+                    direction: this.currentCallData.direction || 'outbound',
+                    from_number: this.currentCallData.from_number || '',
+                    to_number: this.currentCallData.to_number || '',
+                    customer_name: this.currentCallData.customer_name || 'Customer',
+                    status: 'in-progress',
+                    started_at: this.currentCallData.started_at
+                });
+            }
         });
 
         call.on('disconnect', () => {
+            const duration = this.callSeconds || 0;
+            const finalStatus = duration > 0 ? 'completed' : 'no-answer';
+            this.postCallLog({
+                call_sid: this.currentCallData?.call_sid || call.parameters?.CallSid || null,
+                direction: this.currentCallData?.direction || 'outbound',
+                from_number: this.currentCallData?.from_number || '',
+                to_number: this.currentCallData?.to_number || '',
+                customer_name: this.currentCallData?.customer_name || 'Customer',
+                status: finalStatus,
+                duration: duration,
+                started_at: this.currentCallData?.started_at,
+                ended_at: new Date().toISOString()
+            });
             this.endCallUI();
         });
 
         call.on('error', (err) => {
             console.error('Active Call Error:', err);
+            this.postCallLog({
+                call_sid: this.currentCallData?.call_sid || null,
+                direction: this.currentCallData?.direction || 'outbound',
+                from_number: this.currentCallData?.from_number || '',
+                to_number: this.currentCallData?.to_number || '',
+                customer_name: this.currentCallData?.customer_name || 'Customer',
+                status: 'failed',
+                duration: this.callSeconds || 0,
+                started_at: this.currentCallData?.started_at,
+                ended_at: new Date().toISOString()
+            });
             this.endCallUI();
-            Swal.fire('Call Error', err.message || 'Call disconnected.', 'error');
+            Swal.fire({
+                title: 'Call Unsuccessful',
+                html: formatTwilioCallError(err, this.currentCallData?.to_number || ''),
+                icon: 'error',
+                confirmButtonText: 'OK'
+            });
         });
     }
 
     handleIncoming(call) {
         this.incomingCall = call;
+        const from = call.parameters?.From || 'Incoming Customer';
+        this.incomingCallData = {
+            direction: 'inbound',
+            from_number: from,
+            customer_name: 'Incoming Caller',
+            call_sid: call.parameters?.CallSid || null,
+            started_at: new Date().toISOString(),
+            answered: false
+        };
+
         $('#twilioSoftphoneBox').show();
         $('#twilioDialpadView').addClass('d-none');
         $('#twilioActiveCallView').addClass('d-none');
         $('#twilioIncomingCallView').removeClass('d-none');
-
-        const from = call.parameters?.From || 'Incoming Customer';
-        $('#twilioIncomingFromNumber').text(from);
+        $('#twilioIncomingFromNumber').text(crmMaskPhone(from));
 
         call.on('disconnect', () => {
+            if (this.incomingCallData && !this.incomingCallData.answered) {
+                this.postCallLog({
+                    call_sid: this.incomingCallData.call_sid || call.parameters?.CallSid,
+                    direction: 'inbound',
+                    from_number: this.incomingCallData.from_number,
+                    customer_name: 'Incoming Caller',
+                    status: 'missed',
+                    duration: 0,
+                    started_at: this.incomingCallData.started_at,
+                    ended_at: new Date().toISOString()
+                });
+            }
             this.endCallUI();
         });
+
         call.on('cancel', () => {
+            if (this.incomingCallData && !this.incomingCallData.answered) {
+                this.postCallLog({
+                    call_sid: this.incomingCallData.call_sid || call.parameters?.CallSid,
+                    direction: 'inbound',
+                    from_number: this.incomingCallData.from_number,
+                    customer_name: 'Incoming Caller',
+                    status: 'missed',
+                    duration: 0,
+                    started_at: this.incomingCallData.started_at,
+                    ended_at: new Date().toISOString()
+                });
+            }
             this.endCallUI();
         });
     }
 
     acceptIncoming() {
         if (this.incomingCall) {
+            this.incomingCallData.answered = true;
+            this.currentCallData = {
+                ...this.incomingCallData,
+                direction: 'inbound',
+            };
             $('#twilioIncomingCallView').addClass('d-none');
             $('#twilioActiveCallView').removeClass('d-none');
             $('#twilioActiveCallName').text('Customer');
-            $('#twilioActiveCallNumber').text(this.incomingCall.parameters.From || '');
+            $('#twilioActiveCallNumber').text(crmMaskPhone(this.incomingCall.parameters?.From || ''));
             this.incomingCall.accept();
             this.setupCallEvents(this.incomingCall);
             this.incomingCall = null;
@@ -475,6 +638,16 @@ class TwilioSoftphoneController {
 
     rejectIncoming() {
         if (this.incomingCall) {
+            this.postCallLog({
+                call_sid: this.incomingCallData?.call_sid || this.incomingCall.parameters?.CallSid,
+                direction: 'inbound',
+                from_number: this.incomingCallData?.from_number || this.incomingCall.parameters?.From,
+                customer_name: 'Incoming Caller',
+                status: 'missed',
+                duration: 0,
+                started_at: this.incomingCallData?.started_at,
+                ended_at: new Date().toISOString()
+            });
             this.incomingCall.reject();
             this.incomingCall = null;
             this.endCallUI();
@@ -484,15 +657,33 @@ class TwilioSoftphoneController {
     toggleMute() {
         if (this.activeCall) {
             this.isMuted = !this.isMuted;
-            this.activeCall.mute(this.isMuted);
-            $('#twilioMuteBtn').toggleClass('bg-warning', this.isMuted);
+            const muteMic = this.isMuted || this.isHeld;
+            if (typeof this.activeCall.mute === 'function') {
+                this.activeCall.mute(muteMic);
+            }
+            $('#twilioMuteBtn').toggleClass('bg-warning text-dark', this.isMuted);
+            $('#twilioCallMuteBadge').toggleClass('d-none', !this.isMuted);
         }
     }
 
     toggleHold() {
         if (this.activeCall) {
             this.isHeld = !this.isHeld;
-            $('#twilioHoldBtn').toggleClass('bg-warning', this.isHeld);
+            const muteMic = this.isHeld || this.isMuted;
+            if (typeof this.activeCall.mute === 'function') {
+                this.activeCall.mute(muteMic);
+            }
+            try {
+                if (this.activeCall.getRemoteStream && this.activeCall.getRemoteStream()) {
+                    this.activeCall.getRemoteStream().getAudioTracks().forEach(track => {
+                        track.enabled = !this.isHeld;
+                    });
+                }
+            } catch(e) {
+                console.warn('Hold remote track toggle error:', e);
+            }
+            $('#twilioHoldBtn').toggleClass('bg-warning text-dark', this.isHeld);
+            $('#twilioCallHoldBadge').toggleClass('d-none', !this.isHeld);
         }
     }
 
@@ -514,14 +705,34 @@ class TwilioSoftphoneController {
         }, 1000);
     }
 
+    postCallLog(data) {
+        $.ajax({
+            url: "{{ route('plugins.twilio.log.call') }}",
+            type: "POST",
+            headers: {
+                'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+            },
+            data: data,
+            dataType: 'json',
+            success: function(res) {
+                console.log('Call log synced successfully:', res);
+            },
+            error: function(err) {
+                console.warn('Call log sync error:', err);
+            }
+        });
+    }
+
     endCallUI() {
         clearInterval(this.callTimerInterval);
         this.activeCall = null;
         this.incomingCall = null;
         this.isMuted = false;
         this.isHeld = false;
-        $('#twilioMuteBtn').removeClass('bg-warning');
-        $('#twilioHoldBtn').removeClass('bg-warning');
+        $('#twilioMuteBtn').removeClass('bg-warning text-dark');
+        $('#twilioHoldBtn').removeClass('bg-warning text-dark');
+        $('#twilioCallMuteBadge').addClass('d-none');
+        $('#twilioCallHoldBadge').addClass('d-none');
 
         $('#twilioActiveCallView').addClass('d-none');
         $('#twilioIncomingCallView').addClass('d-none');

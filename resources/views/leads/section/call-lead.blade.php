@@ -24,7 +24,7 @@
         <div class="card-body" id="kt_drawer_chat_messenger_body">
             <div class="scroll-y me-n5 pe-5" data-kt-element="messages{{$lead->id}}" data-kt-scroll="true" data-kt-scroll-activate="true" data-kt-scroll-height="auto" data-kt-scroll-dependencies="#kt_drawer_chat_messenger_header, #kt_drawer_chat_messenger_footer" data-kt-scroll-wrappers="#kt_drawer_chat_messenger_body" data-kt-scroll-offset="0px">
                  @foreach($lead->call->sortByDesc('created_at') as $call)
-                    @if($call->created_by != Auth::user()->id)
+                    @if($call->created_by != Auth::id())
                     <div class="d-flex justify-content-start mb-10">
                         <div class="d-flex flex-column align-items-start">
                             <div class="d-flex align-items-center mb-2">
@@ -59,8 +59,8 @@
                                 </div>
                                 <div class="symbol symbol-35px symbol-circle">
                                 
-                                    @if($call->user->photo)
-                                    <img  src="{{ asset(Auth::user()->photo) }}" />
+                                    @if(optional(Auth::user())->photo)
+                                    <img src="{{ asset(Auth::user()->photo) }}" />
                                     @else
                                     <img alt="Pic" src="assets/media/avatars/blank.png" />
                                     @endif

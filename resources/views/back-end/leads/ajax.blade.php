@@ -42,6 +42,8 @@
         $('#selectedValue').val('');
         $('#searchInput').val('');
         $('#lead_source').val('').trigger('change');
+        $('#lead_group_id').val('').trigger('change');
+        $('#searchResultss').hide().empty();
     }
 
     $('#load-more').on('click', function() {
@@ -116,6 +118,26 @@
         });
     }
 
+    // Toggle Filter Body
+    $('#toggleFilterBtn').on('click', function () {
+        $('#filterBody').slideToggle(300, function() {
+            if ($('#filterBody').is(':visible')) {
+                $('#toggleFilterBtn').text('Hide Filters').removeClass('btn-primary').addClass('btn-danger');
+            } else {
+                $('#toggleFilterBtn').text('Show Filters').removeClass('btn-danger').addClass('btn-primary');
+            }
+        });
+    });
+
+    // Reset Filters Button
+    $(document).on('click', '#resetFiltersBtn', function(e) {
+        e.preventDefault();
+        localStorage.removeItem('lead_filters');
+        clearLeadFilters();
+        $(this).hide();
+        applyFilters({});
+    });
+
     $(document).on('click', '#applyButton', function(e) {
         e.preventDefault();
 
@@ -153,6 +175,7 @@
             return;
         }
 
+        $('#resetFiltersBtn').show();
         localStorage.setItem('lead_filters', JSON.stringify(filters));
         applyFilters(filters);
     });
@@ -164,47 +187,73 @@
         }
     });
 
-    let searchUserTimer = null;
-    $(document).on('input', '#searchInput', function () {
+    // Customer Autocomplete Custom Dropdown
+    let leadSearchTimeout = null;
+
+    $('#searchInput').on('input focus', function() {
         var searchValue = $(this).val().trim();
-        clearTimeout(searchUserTimer);
+        clearTimeout(leadSearchTimeout);
 
         if (searchValue.length >= 2) {
-            searchUserTimer = setTimeout(function () {
+            $('#searchResultss').html(
+                '<div class="p-3 text-center text-muted fs-7 d-flex align-items-center justify-content-center gap-2">' +
+                    '<div class="spinner-border spinner-border-sm text-primary" role="status"></div>' +
+                    '<span>Searching users...</span>' +
+                '</div>'
+            ).show();
+
+            leadSearchTimeout = setTimeout(function() {
                 $.ajax({
-                    url: "{{ url('/search-user') }}",
+                    url: "{{ route('search-order') }}",
                     type: "GET",
-                    data: { user: searchValue, query: searchValue, term: searchValue },
-                    success: function (response) {
-                        $('#searchDatalist').empty();
-                        if (Array.isArray(response) && response.length > 0) {
-                            $.each(response, function (key, value) {
-                                $('#searchDatalist').append('<option data-id="' + value.id + '" value="' + (value.email || value.name || value.mobile_no) + '">' + (value.name || '') + ' (' + (value.mobile_no || '') + ' - ' + (value.email || '') + ')</option>');
+                    data: {
+                        user: searchValue
+                    },
+                    success: function(response) {
+                        var resultsHtml = '';
+                        if (response && response.length > 0) {
+                            $.each(response, function(key, value) {
+                                var mobileStr = value.mobile_no ? ' | 📞 ' + value.mobile_no : '';
+                                resultsHtml += '<a href="javascript:void(0)" class="dropdown-item user-select-item p-3 border-bottom text-wrap" ' +
+                                    'data-id="' + value.id + '" data-email="' + (value.email || '') + '" data-name="' + (value.name || '') + '">' +
+                                    '<div class="fw-bolder text-dark fs-6">' + (value.name || 'No Name') + '</div>' +
+                                    '<div class="text-muted fs-7">' + (value.email || '') + mobileStr + '</div>' +
+                                    '</a>';
                             });
+                        } else {
+                            resultsHtml = '<div class="p-3 text-muted fs-7 text-center">No results found</div>';
                         }
+                        $('#searchResultss').html(resultsHtml).show();
+                    },
+                    error: function() {
+                        $('#searchResultss').html('<div class="p-3 text-danger fs-7 text-center">Error loading results</div>').show();
                     }
                 });
-            }, 300);
+            }, 250);
         } else {
-            $('#searchDatalist').empty();
-            $('#selectedValue').val('');
+            $('#searchResultss').hide().empty();
+            if (searchValue.length === 0) {
+                $('#selectedValue').val('');
+            }
         }
     });
 
-    $(document).on('input change', '#searchInput', function() {
-        var selectedVal = $(this).val().trim();
-        if (!selectedVal) {
-            $('#selectedValue').val('');
-            return;
-        }
-        var selectedOption = $('#searchDatalist option').filter(function () {
-            return $(this).val() === selectedVal;
-        });
-        if (selectedOption.length > 0) {
-            var selectedId = selectedOption.attr('data-id') || selectedOption.data('id');
-            $('#selectedValue').val(selectedId);
-        } else {
-            $('#selectedValue').val('');
+    // Handle click on custom dropdown item
+    $(document).on('click', '#searchResultss .user-select-item', function(e) {
+        e.preventDefault();
+        var selectedId = $(this).attr('data-id');
+        var selectedEmail = $(this).attr('data-email');
+        var selectedName = $(this).attr('data-name');
+
+        $('#searchInput').val(selectedName + (selectedEmail ? ' (' + selectedEmail + ')' : ''));
+        $('#selectedValue').val(selectedId);
+        $('#searchResultss').hide().empty();
+    });
+
+    // Close dropdown on clicking outside
+    $(document).on('click', function(e) {
+        if (!$(e.target).closest('#searchInput, #searchResultss').length) {
+            $('#searchResultss').hide();
         }
     });
 
@@ -245,6 +294,12 @@
                 group_id: ''
             };
 
+            if (searchParam || uidParam) {
+                $('#filterBody').show();
+                $('#toggleFilterBtn').text('Hide Filters').removeClass('btn-primary').addClass('btn-danger');
+                $('#resetFiltersBtn').show();
+            }
+
             $('#load-more-wrapper').hide();
             applyFilters(urlFilters);
             return;
@@ -253,24 +308,35 @@
         let savedLeadFilters = localStorage.getItem('lead_filters');
 
         if (savedLeadFilters) {
-            const filters = JSON.parse(savedLeadFilters);
+            try {
+                const filters = JSON.parse(savedLeadFilters);
+                const hasFormFilters = !!(filters.order || filters.user || filters.status || filters.type || filters.date_from || filters.date_to || filters.date_type || filters.assign_type || filters.selectedValue || filters.lead_source || filters.group_id);
 
-            $('#search_order').val(filters.order);
-            $('#searchInput').val(filters.user);
-            $('#status_filter').val(filters.status).trigger('change');
-            $('#lead_status_tab').val(filters.lead_status_tab);
-            $('#type_filter').val(filters.type).trigger('change');
-            $('#date_from').val(filters.date_from);
-            $('#date_to').val(filters.date_to);
-            $('#date_type').val(filters.date_type).trigger('change');
-            $('#assign_type').val(filters.assign_type).trigger('change');
-            $('#selectedValue').val(filters.selectedValue);
-            $('#lead_source').val(filters.lead_source).trigger('change');
-            $('#lead_group_id').val(filters.group_id).trigger('change');
-            setActiveLeadTab(filters.lead_status_tab || 'All');
-            $('#load-more-wrapper').hide();
+                $('#search_order').val(filters.order || '');
+                $('#searchInput').val(filters.user || '');
+                $('#status_filter').val(filters.status || '').trigger('change');
+                $('#lead_status_tab').val(filters.lead_status_tab || '');
+                $('#type_filter').val(filters.type || '').trigger('change');
+                $('#date_from').val(filters.date_from || '');
+                $('#date_to').val(filters.date_to || '');
+                $('#date_type').val(filters.date_type || '').trigger('change');
+                $('#assign_type').val(filters.assign_type || '').trigger('change');
+                $('#selectedValue').val(filters.selectedValue || '');
+                $('#lead_source').val(filters.lead_source || '').trigger('change');
+                $('#lead_group_id').val(filters.group_id || '').trigger('change');
+                setActiveLeadTab(filters.lead_status_tab || 'All');
+                $('#load-more-wrapper').hide();
 
-            applyFilters(filters);
+                if (hasFormFilters) {
+                    $('#filterBody').show();
+                    $('#toggleFilterBtn').text('Hide Filters').removeClass('btn-primary').addClass('btn-danger');
+                    $('#resetFiltersBtn').show();
+                }
+
+                applyFilters(filters);
+            } catch (e) {
+                console.error('Error loading saved filters:', e);
+            }
         }
     });
 </script>
@@ -326,7 +392,7 @@
             title: 'Are you sure?',
             text: 'Do you want to convert this lead?',
             html: `
-            <select id="convert_type" class="form-select form-select-solid"  margin-top:10px;">
+            <select id="convert_type" class="form-select form-select-solid" style="margin-top:10px;">
                 <option value="">Select Type</option>
                 <option value="Original">Original</option>
                 <option value="Discounted">Discounted</option>
@@ -479,57 +545,7 @@
         }
     }
 </script>
-<script>
-    $(document).ready(function() {
-        $('#searchInput').on('input', function() {
-            var searchValue = $(this).val();
 
-            if (searchValue.length >= 3) {
-                $.ajax({
-                    url: "{{ route('search-order') }}",
-                    type: "GET",
-                    data: {
-                        user: searchValue
-                    },
-                    success: function(response) {
-                        var results = '';
-                        if (response.length > 0) {
-                            $('#searchDatalist').empty();
-                            $.each(response, function(key, value) {
-                                $('#searchDatalist').append('<option value="' + value.email + '" data-id="' + value.id + '">' + value.name + ' (' + value.mobile_no + ')</option>');
-                            });
-                            if (response.length === 1) {
-                                $('#searchInput').val(response[0].email);
-                                $('#selectedValue').val(response[0].id);
-                            }
-                        } else {
-                            results = '<div>No results found</div>';
-                        }
-                        $('#searchResultss').html(results);
-
-                        var selectedOption = $('#searchDatalist option[value="' + searchValue + '"]');
-                        if (selectedOption.length > 0) {
-                            var selectedId = selectedOption.attr('data-id') || selectedOption.data('id');
-                            $('#selectedValue').val(selectedId);
-                        }
-                    }
-                });
-            } else {
-                $('#searchResultss').empty();
-                $('#selectedValue').val('');
-            }
-        });
-
-        $('#searchInput').on('change blur', function() {
-            var selectedEmail = $(this).val();
-            var selectedOption = $('#searchDatalist option[value="' + selectedEmail + '"]');
-            if (selectedOption.length > 0) {
-                var selectedId = selectedOption.attr('data-id') || selectedOption.data('id');
-                $('#selectedValue').val(selectedId);
-            }
-        });
-    });
-</script>
 
 <script>
     function loadTemplates(userId) {
@@ -706,7 +722,8 @@ function filterByStatusTab(status, element) {
     if (status === 'All') {
         localStorage.removeItem('lead_filters');
         clearLeadFilters();
-        window.location.href = "{{ route('lead.index') }}";
+        $('#resetFiltersBtn').hide();
+        applyFilters({});
         return;
     }
 

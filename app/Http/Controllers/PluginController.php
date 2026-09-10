@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Order;
 use App\Models\PluginSetting;
+use App\Models\TwilioCallLog;
 use App\Services\TwilioVoiceService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -271,7 +272,7 @@ class PluginController extends Controller
     {
         $validated = $request->validate([
             'plugin_key' => ['required', 'string'],
-            'is_active' => ['required', 'boolean'],
+            'is_active'  => ['required', 'boolean'],
         ]);
 
         $plugin = PluginSetting::where('plugin_key', $validated['plugin_key'])->first();
@@ -284,9 +285,144 @@ class PluginController extends Controller
         $plugin->save();
 
         return response()->json([
-            'success' => true,
-            'message' => "Plugin status updated to " . ($plugin->is_active ? 'Active' : 'Inactive'),
+            'success'   => true,
+            'message'   => "Plugin status updated to " . ($plugin->is_active ? 'Active' : 'Inactive'),
             'is_active' => $plugin->is_active,
         ]);
+    }
+
+    /**
+     * Log a call event from the browser softphone (JS posts here on call start/end).
+     */
+    public function logCall(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'call_sid'      => ['nullable', 'string', 'max:64'],
+            'direction'     => ['nullable', 'string', 'in:outbound,inbound'],
+            'status'        => ['nullable', 'string', 'max:30'],
+            'from_number'   => ['nullable', 'string', 'max:50'],
+            'to_number'     => ['nullable', 'string', 'max:50'],
+            'customer_name' => ['nullable', 'string', 'max:200'],
+            'duration'      => ['nullable', 'integer', 'min:0'],
+            'started_at'    => ['nullable', 'string'],
+            'ended_at'      => ['nullable', 'string'],
+            'recording_url' => ['nullable', 'string'],
+            'notes'         => ['nullable', 'string'],
+        ]);
+
+        $user = Auth::user();
+
+        // Upsert by call_sid if provided, else always insert
+        if (!empty($data['call_sid'])) {
+            $log = TwilioCallLog::firstOrNew(['call_sid' => $data['call_sid']]);
+        } else {
+            $log = new TwilioCallLog();
+        }
+
+        $log->fill([
+            'call_sid'       => $data['call_sid'] ?? $log->call_sid,
+            'direction'      => $data['direction'] ?? $log->direction ?? 'outbound',
+            'status'         => $data['status'] ?? $log->status ?? 'initiated',
+            'from_number'    => $data['from_number'] ?? $log->from_number,
+            'to_number'      => $data['to_number'] ?? $log->to_number,
+            'customer_name'  => $data['customer_name'] ?? $log->customer_name,
+            'duration'       => max((int) ($data['duration'] ?? 0), (int) ($log->duration ?? 0)),
+            'agent_user_id'  => $log->agent_user_id ?: $user?->id,
+            'agent_identity' => $log->agent_identity ?: ($user ? 'agent_' . $user->id : null),
+            'started_at'     => !empty($data['started_at']) ? \Carbon\Carbon::parse($data['started_at']) : ($log->started_at ?: now()),
+            'ended_at'       => !empty($data['ended_at'])   ? \Carbon\Carbon::parse($data['ended_at'])   : $log->ended_at,
+            'recording_url'  => $data['recording_url'] ?? $log->recording_url,
+            'notes'          => $data['notes'] ?? $log->notes,
+        ]);
+        $log->save();
+
+        return response()->json(['success' => true, 'id' => $log->id]);
+    }
+
+    /**
+     * Twilio Status & Recording Callback webhook — receives call updates directly from Twilio.
+     */
+    public function statusCallback(Request $request): Response
+    {
+        $callSid   = $request->input('CallSid') ?: $request->input('DialCallSid');
+        $rawStatus = strtolower((string) ($request->input('CallStatus') ?: $request->input('DialCallStatus') ?: 'completed'));
+        $duration  = (int) ($request->input('CallDuration') ?: $request->input('DialCallDuration') ?: 0);
+        $from      = $request->input('From', '');
+        $to        = $request->input('To', '');
+        $dirInput  = strtolower((string) $request->input('Direction', ''));
+        $direction = str_contains($dirInput, 'inbound') ? 'inbound' : 'outbound';
+
+        // Map status
+        $status = match($rawStatus) {
+            'in-progress', 'in_progress' => 'in-progress',
+            'completed'                  => 'completed',
+            'busy'                       => ($direction === 'inbound') ? 'missed' : 'no-answer',
+            'no-answer', 'no_answer'     => ($direction === 'inbound') ? 'missed' : 'no-answer',
+            'canceled', 'cancelled'      => ($direction === 'inbound') ? 'missed' : 'cancelled',
+            'failed'                     => 'failed',
+            'ringing'                    => 'ringing',
+            default                      => $rawStatus,
+        };
+
+        if ($callSid) {
+            $log = TwilioCallLog::firstOrNew(['call_sid' => $callSid]);
+            $log->status    = $status;
+            $log->duration  = max((int) ($log->duration ?? 0), $duration);
+            if (empty($log->from_number) && !empty($from)) $log->from_number = $from;
+            if (empty($log->to_number) && !empty($to))     $log->to_number   = $to;
+            if (empty($log->direction))                     $log->direction   = $direction;
+
+            if ($request->filled('RecordingUrl')) {
+                $recordingUrl = $request->input('RecordingUrl');
+                if (!str_ends_with($recordingUrl, '.mp3')) {
+                    $recordingUrl .= '.mp3';
+                }
+                $log->recording_url = $recordingUrl;
+            }
+            if ($request->filled('RecordingSid')) {
+                $log->recording_sid = $request->input('RecordingSid');
+            }
+
+            if (in_array($status, ['completed', 'failed', 'no-answer', 'missed', 'cancelled'])) {
+                $log->ended_at = now();
+            }
+            $log->save();
+        }
+
+        return response('', 204);
+    }
+
+    /**
+     * Call History page — list all call logs.
+     */
+    public function callHistory(Request $request): View
+    {
+        $query = TwilioCallLog::with('agent')->orderByDesc('created_at');
+
+        if ($request->filled('status')) {
+            $query->where('status', $request->input('status'));
+        }
+        if ($request->filled('direction')) {
+            $query->where('direction', $request->input('direction'));
+        }
+        if ($request->filled('date_from')) {
+            $query->whereDate('created_at', '>=', $request->input('date_from'));
+        }
+        if ($request->filled('date_to')) {
+            $query->whereDate('created_at', '<=', $request->input('date_to'));
+        }
+        if ($request->filled('search')) {
+            $s = '%' . $request->input('search') . '%';
+            $query->where(function($q) use ($s) {
+                $q->where('customer_name', 'like', $s)
+                  ->orWhere('from_number', 'like', $s)
+                  ->orWhere('to_number', 'like', $s)
+                  ->orWhere('call_sid', 'like', $s);
+            });
+        }
+
+        $logs = $query->paginate(30)->withQueryString();
+
+        return view('back-end.plugins.call-history', compact('logs'));
     }
 }

@@ -99,7 +99,11 @@ function triggerTwilioCall(orderId, customerName, countryCode, mobile) {
     }
 
     currentTwilioTargetPhone = formattedPhone;
-    $('#twilio_modal_customer_phone').text(formattedPhone.trim() || 'No phone provided');
+    $('#twilio_modal_customer_phone').text(
+        (typeof crmMaskPhone === 'function')
+            ? crmMaskPhone(formattedPhone.trim() || '')
+            : (formattedPhone.trim() || 'No phone provided')
+    );
     
     $('#twilioOrderCallAlert').addClass('d-none').html('');
     $('#twilioCallSubmitBtn').prop('disabled', false);

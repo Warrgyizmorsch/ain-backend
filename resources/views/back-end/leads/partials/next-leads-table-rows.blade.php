@@ -1,17 +1,23 @@
 @forelse($nextLeads as $index => $item)
     @php
         $formattedMonth = \Carbon\Carbon::createFromFormat('Y-m', $item->target_month)->format('F Y');
+        $displayMobile = mask_mobile_only($item->countrycode, $item->mobile);
+        $displayEmail = mask_email_for_display($item->email);
+        $cleanCC = preg_replace('/\D+/', '', (string)$item->countrycode);
     @endphp
     <tr>
         <td class="text-center fw-bold fs-7">{{ $index + 1 }}</td>
         <td class="text-center">
             <span class="fw-bold text-gray-800">{{ $item->user_name }}</span>
             <br>
-            <span class="text-muted fs-8">{{ $item->email }}</span>
+            <span class="text-muted fs-8">{{ $displayEmail }}</span>
         </td>
         <td class="text-center">
             <div class="d-inline-flex align-items-center gap-1">
-                <span class="badge badge-light-dark fs-8 fw-semibold">{{ $item->countrycode }} {{ $item->mobile }}</span>
+                @if(!empty($cleanCC))
+                    <span class="badge badge-light-primary fs-8 fw-bold">+{{ $cleanCC }}</span>
+                @endif
+                <span class="badge badge-light-danger fs-7 fw-bold">{{ $displayMobile }}</span>
                 <button type="button" class="btn btn-icon btn-xs btn-light-success p-1 ms-1"
                     title="Call customer via Webphone"
                     onclick="openRingfySoftphone(null, @js($item->countrycode), @js($item->mobile))">

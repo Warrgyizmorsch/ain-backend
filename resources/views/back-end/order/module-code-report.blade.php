@@ -242,8 +242,8 @@
                                                             <div class="mt-1">
                                                                 <span class="badge {{ $class }} fw-bold fs-8">{{ $label }}</span>
                                                             </div>
-                                                            <div class="text-muted fs-7 mt-1">+{{ $order->user->countrycode }} {{ $order->user->mobile_no }}</div>
-                                                            <div class="text-muted fs-7">{{ $order->user->email }}</div>
+                                                            <div class="text-muted fs-7 mt-1">{{ mask_phone_for_display($order->user->countrycode, $order->user->mobile_no) }}</div>
+                                                            <div class="text-muted fs-7">{{ mask_email_for_display($order->user->email) }}</div>
                                                         @else
                                                             <span class="badge badge-light-danger fs-7 fw-bold">User Was Deleted</span>
                                                         @endif
