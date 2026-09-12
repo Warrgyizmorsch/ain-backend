@@ -211,7 +211,6 @@ class EmailService
                 $message->to($recipients)
                         ->from($fromEmail, $fromName)
                         ->replyTo($fromEmail, $fromName)
-                        ->returnPath($fromEmail)
                         ->subject($subject)
                         ->html($bodyHtml)
                         ->text($bodyPlain ?: strip_tags($bodyHtml));
