@@ -553,7 +553,7 @@ class EmailController extends Controller
             \Log::error('Send Email Controller Error: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
-                'error' => 'Email delivery failed. Check the selected account connection and application logs.',
+                'error' => 'Email delivery failed: ' . $e->getMessage(),
             ], 500);
         }
     }
