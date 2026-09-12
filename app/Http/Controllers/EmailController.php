@@ -671,7 +671,7 @@ class EmailController extends Controller
     }
 
     /**
-     * Trigger Manual Sync via AJAX
+     * Trigger Sync via AJAX / Auto-Polling
      */
     public function sync(Request $request)
     {
@@ -679,19 +679,39 @@ class EmailController extends Controller
         if ($request->filled('account_id')) {
             $account = EmailConfiguration::whereKey($request->integer('account_id'))
                 ->where('is_active', true)
-                ->firstOrFail();
+                ->first();
         }
+
         $accountId = $account?->id;
-        $dispatchKey = 'email-sync-dispatch-'.($accountId ?: 'all');
+        $dispatchKey = 'email-sync-lock-'.($accountId ?: 'all');
 
-        if (Cache::add($dispatchKey, true, now()->addSeconds(8))) {
-            $this->startEmailSyncProcess($accountId);
+        if (!Cache::add($dispatchKey, true, now()->addSeconds(6))) {
+            return response()->json([
+                'status' => 'busy',
+                'message' => 'Sync already in progress.',
+                'synced_count' => 0,
+            ], 200);
         }
 
-        return response()->json([
-            'status' => 'accepted',
-            'message' => 'Incoming email sync is running in the background.',
-        ], 202);
+        try {
+            // Direct synchronous IMAP socket sync — works on shared cPanel without requiring exec()
+            $result = $this->emailService->syncImap($account);
+
+            return response()->json([
+                'status' => $result['status'] ?? 'success',
+                'message' => $result['message'] ?? 'Incoming email sync completed.',
+                'synced_count' => $result['synced_count'] ?? 0,
+            ]);
+        } catch (\Throwable $e) {
+            \Log::error('Email sync error: ' . $e->getMessage());
+            return response()->json([
+                'status' => 'error',
+                'message' => $e->getMessage(),
+                'synced_count' => 0,
+            ], 200);
+        } finally {
+            Cache::forget($dispatchKey);
+        }
     }
 
     private function startEmailSyncProcess(?int $accountId): void

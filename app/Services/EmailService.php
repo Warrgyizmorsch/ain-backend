@@ -475,7 +475,14 @@ class EmailService
 
             try {
                 $scheme = $account->incoming_encryption === 'ssl' ? 'ssl://' : 'tcp://';
-                $socket = @fsockopen($scheme . $host, $port, $errno, $errstr, 12);
+                $context = stream_context_create([
+                    'ssl' => [
+                        'allow_self_signed' => true,
+                        'verify_peer' => false,
+                        'verify_peer_name' => false,
+                    ],
+                ]);
+                $socket = @stream_socket_client($scheme . $host . ':' . $port, $errno, $errstr, 12, STREAM_CLIENT_CONNECT, $context);
                 if (!$socket) {
                     $failures[] = "{$account->name}: {$errstr} ({$errno})";
                     continue;
@@ -506,8 +513,7 @@ class EmailService
 
                 $settings = $account->settings ?: [];
                 if (!array_key_exists('last_imap_uid', $settings)) {
-                    // First connection establishes the mailbox baseline. Historical
-                    // messages are intentionally not imported; only later UIDs are new.
+                    // First connection: fetch all UIDs, start sync from the last 20 messages
                     fputs($socket, "TAG3 UID SEARCH ALL\r\n");
                     $initialUids = [];
                     while ($line = fgets($socket)) {
@@ -516,12 +522,11 @@ class EmailService
                         }
                         if (str_starts_with($line, 'TAG3 ')) break;
                     }
-                    $settings['last_imap_uid'] = empty($initialUids) ? 0 : max($initialUids);
+                    $maxUid = empty($initialUids) ? 0 : max($initialUids);
+                    // Fetch up to the last 20 recent messages on baseline
+                    $settings['last_imap_uid'] = max(0, $maxUid - 20);
                     $settings['imap_baselined_at'] = now()->toIso8601String();
                     $account->update(['settings' => $settings]);
-                    fputs($socket, "TAG_OUT LOGOUT\r\n");
-                    fclose($socket);
-                    continue;
                 }
 
                 $lastUid = (int) ($settings['last_imap_uid'] ?? 0);
