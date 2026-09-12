@@ -17,7 +17,7 @@ class EmailConfigurationSeeder extends Seeder
             [
                 'name' => 'Writer',
                 'email_address' => 'assignmentinneedhelp@gmail.com',
-                'from_name' => 'Writer',
+                'from_name' => 'Assignment In Need',
                 'driver' => 'smtp',
                 'host' => 'smtp.gmail.com',
                 'port' => 465,
@@ -37,7 +37,7 @@ class EmailConfigurationSeeder extends Seeder
             [
                 'name' => 'Client',
                 'email_address' => 'order@assignnmentinneed.com',
-                'from_name' => 'Client',
+                'from_name' => 'Assignment In Need',
                 'driver' => 'smtp',
                 'host' => 'smtp.gmail.com',
                 'port' => 465,
