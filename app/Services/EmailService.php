@@ -206,7 +206,7 @@ class EmailService
 
         // Send via Laravel Mail / SMTP
         try {
-            Mail::send([], [], function ($message) use ($toEmail, $fromEmail, $fromName, $subject, $bodyHtml, $bodyPlain, $data, $messageId, $inReplyTo, $savedAttachments) {
+            $sentMessage = Mail::send([], [], function ($message) use ($toEmail, $fromEmail, $fromName, $subject, $bodyHtml, $bodyPlain, $data, $messageId, $inReplyTo, $savedAttachments) {
                 $recipients = array_map('trim', explode(',', $toEmail));
                 $message->to($recipients)
                         ->from($fromEmail, $fromName)
@@ -228,7 +228,6 @@ class EmailService
 
                 // Custom Headers
                 $headers = $message->getHeaders();
-                $headers->addIdHeader('Message-ID', trim($messageId, '<>'));
                 if ($inReplyTo) {
                     $headers->addTextHeader('In-Reply-To', $inReplyTo);
                     $headers->addTextHeader('References', $inReplyTo);
@@ -245,7 +244,12 @@ class EmailService
                 }
             });
 
-            $emailMsg->update(['status' => 'sent']);
+            $actualId = $sentMessage ? $sentMessage->getMessageId() : null;
+            $updateData = ['status' => 'sent'];
+            if ($actualId) {
+                $updateData['message_id'] = '<' . trim($actualId, '<>') . '>';
+            }
+            $emailMsg->update($updateData);
         } catch (\Exception $e) {
             Log::error('Email SMTP sending failed: '.$e->getMessage(), ['email_message_id' => $emailMsg->id]);
             $emailMsg->update(['status' => 'failed', 'sent_at' => null]);
