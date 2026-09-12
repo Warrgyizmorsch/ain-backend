@@ -52,11 +52,15 @@ class CheckPermission
 
         // ✅ Allow if current route or path starts with any allowed route
         foreach ($allowedRoutes as $allowedRoute) {
-            $pattern = '#^' . preg_quote($allowedRoute, '#') . '(/|$)#';
+            $cleanAllowed = trim((string)$allowedRoute, '/');
+            if ($cleanAllowed === '') continue;
+
+            $pathPattern = '#^' . preg_quote($cleanAllowed, '#') . '(/|$)#i';
+            $routePattern = '#^' . preg_quote(str_replace('/', '.', $cleanAllowed), '#') . '(\.|$|/)#i';
 
             if (
-                ($currentRoute && preg_match($pattern, $currentRoute)) ||
-                preg_match($pattern, $currentPath)
+                preg_match($pathPattern, $currentPath) ||
+                ($currentRoute && (preg_match($routePattern, $currentRoute) || preg_match($pathPattern, $currentRoute)))
             ) {
                 return $next($request);
             }

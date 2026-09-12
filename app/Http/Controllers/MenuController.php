@@ -194,6 +194,10 @@ public function permission(Request $req)
         ]
     );
 
+    // Invalidate cached role routes immediately
+    \Illuminate\Support\Facades\Cache::forget('role-allowed-routes-' . $role);
+    \Illuminate\Support\Facades\Cache::forget('role-allowed-routes-' . (int)$role);
+
     return redirect()->back()->with('success', 'Permission Granted Successfully');
 }
 // function rolePermission(Request $request){
