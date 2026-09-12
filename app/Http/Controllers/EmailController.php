@@ -1176,9 +1176,18 @@ class EmailController extends Controller
             ->limit(10)
             ->get();
 
+        $isSuperAdmin = auth()->check() && (int) auth()->user()->role_id === 1;
+
         $combined = $users->concat($leadEmails)
             ->unique(fn ($item) => strtolower(trim($item->email)))
             ->take(10)
+            ->map(function ($item) use ($isSuperAdmin) {
+                if (!$isSuperAdmin) {
+                    $item->mobile_no = $item->mobile_no ? mask_mobile_only(null, $item->mobile_no) : '';
+                    $item->email = mask_email_for_display($item->email);
+                }
+                return $item;
+            })
             ->values();
 
         return response()->json([

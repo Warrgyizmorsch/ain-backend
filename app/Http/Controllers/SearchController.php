@@ -60,19 +60,26 @@ class SearchController extends Controller
                         ->get();
 
         $results->transform(function ($user) {
-            $user->masked_mobile = mask_mobile_only($user->countrycode, $user->mobile_no);
-            $user->masked_email = mask_email_for_display($user->email);
+            $isSuperAdmin = auth()->check() && (int) auth()->user()->role_id === 1;
 
-            $displayName = (string)$user->name;
-            if (preg_match('/^user\d{7,}$/i', $displayName)) {
-                $user->display_name = 'user' . mask_mobile_only(null, substr($displayName, 4));
+            if (!$isSuperAdmin) {
+                $user->masked_mobile = mask_mobile_only($user->countrycode, $user->mobile_no);
+                $user->masked_email = mask_email_for_display($user->email);
+
+                $displayName = (string)$user->name;
+                if (preg_match('/^user\d{7,}$/i', $displayName)) {
+                    $user->display_name = 'user' . mask_mobile_only(null, substr($displayName, 4));
+                } else {
+                    $user->display_name = $displayName;
+                }
+
+                $user->mobile_no = $user->masked_mobile;
+                $user->email = $user->masked_email;
+                $user->name = $user->display_name;
             } else {
-                $user->display_name = $displayName;
+                $user->display_name = (string)$user->name;
             }
 
-            $user->mobile_no = $user->masked_mobile;
-            $user->email = $user->masked_email;
-            $user->name = $user->display_name;
             $user->countrycode = null;
             return $user;
         });

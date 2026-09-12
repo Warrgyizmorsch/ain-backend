@@ -137,10 +137,6 @@
                 </div><br>
             @endif
             @if($order->team?->team_name)
-                @php
-                    $orderRawEmail = optional($effectiveUser)->email ?? '';
-                    $writeEmailUrl = route('emails.index', array_filter(['account_id' => 3, 'search' => $orderRawEmail]));
-                @endphp
                 <div class="d-inline-flex align-items-center justify-content-center gap-1 mb-1">
                     @if($roleId == 1)
                         <span 
@@ -156,11 +152,6 @@
                             {{ $order->team->team_name }}
                         </span>
                     @endif
-                    <a href="{{ $writeEmailUrl }}" target="_blank" class="btn btn-icon btn-sm crm-btn-email" style="width: 20px !important; height: 20px !important; min-width: 20px !important;" title="Write Email: {{ $orderRawEmail ?: 'Open Write Email Channel' }}">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 16 16">
-                            <path d="M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2zm2-1a1 1 0 0 0-1 1v.217l7 4.2 7-4.2V4a1 1 0 0 0-1-1zm13 2.383-4.708 2.825L15 11.105zm-.034 6.876-5.64-3.471L8 9.583l-1.326-.795-5.64 3.47A1 1 0 0 0 2 13h12a1 1 0 0 0 .966-.741M1 11.105l4.708-2.897L1 5.383z"/>
-                        </svg>
-                    </a>
                 </div><br>
             @endif
 
@@ -256,8 +247,13 @@
                     $class = "badge-light-info"; 
                     $label = "Beginner"; 
                 } 
-                $displayMobile = mask_phone_for_display($effectiveUser->countrycode, $effectiveUser->mobile_no);
-                $displayEmail  = mask_email_for_display($effectiveUser->email);
+                $isSuperAdmin = (int) ($roleId ?? optional(auth()->user())->role_id) === 1;
+                $displayMobile = $isSuperAdmin 
+                    ? trim(($effectiveUser->countrycode ? '+'.$effectiveUser->countrycode.' ' : '') . $effectiveUser->mobile_no)
+                    : mask_phone_for_display($effectiveUser->countrycode, $effectiveUser->mobile_no);
+                $displayEmail = $isSuperAdmin 
+                    ? $effectiveUser->email 
+                    : mask_email_for_display($effectiveUser->email);
             @endphp
 
             <div class="d-inline-flex align-items-center justify-content-center gap-1 my-1">

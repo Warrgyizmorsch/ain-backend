@@ -28,6 +28,17 @@ if (!function_exists('mask_phone_for_display')) {
      */
     function mask_phone_for_display(?string $countryCode, ?string $mobile): string
     {
+        if (Auth::check() && (int) Auth::user()->role_id === 1) {
+            $mobileStr = trim((string) $mobile);
+            if ($mobileStr === '') {
+                return '';
+            }
+            $cleanCC = preg_replace('/\D+/', '', (string) $countryCode);
+            if (!empty($cleanCC)) {
+                return '+' . $cleanCC . ' ' . $mobileStr;
+            }
+            return $mobileStr;
+        }
         return mask_mobile_only($countryCode, $mobile);
     }
 }
@@ -43,6 +54,11 @@ if (!function_exists('mask_mobile_only')) {
         $mobileStr = trim((string) $mobile);
         if ($mobileStr === '') {
             return '';
+        }
+
+        // Show full unmasked number for Super Admin (role_id 1)
+        if (Auth::check() && (int) Auth::user()->role_id === 1) {
+            return $mobileStr;
         }
 
         // If it already has asterisks and has digits at end, preserve it;
@@ -87,6 +103,11 @@ if (!function_exists('mask_raw_phone')) {
         $phoneStr = trim((string) $phone);
         if ($phoneStr === '') {
             return '';
+        }
+
+        // Show full unmasked phone for Super Admin (role_id 1)
+        if (Auth::check() && (int) Auth::user()->role_id === 1) {
+            return $phoneStr;
         }
 
         if (strpos($phoneStr, '*') !== false) {
