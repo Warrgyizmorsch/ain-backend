@@ -66,6 +66,13 @@ class EmailService
                 'mail.mailers.smtp.password' => $account->password,
                 'mail.from.address' => $fromEmail,
                 'mail.from.name' => $fromName,
+                'mail.mailers.smtp.stream' => [
+                    'ssl' => [
+                        'allow_self_signed' => true,
+                        'verify_peer' => false,
+                        'verify_peer_name' => false,
+                    ],
+                ],
             ]);
             Mail::purge('smtp');
         }
