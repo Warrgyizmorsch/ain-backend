@@ -118,7 +118,8 @@ class EmailService
             $threadId = $existingMsg ? $existingMsg->thread_id : (string) Str::uuid();
         }
 
-        $messageId = '<' . Str::random(24) . '.' . time() . '@' . (request()->getHost() ?? 'ain-backend.com') . '>';
+        $fromDomain = substr(strrchr($fromEmail, "@"), 1) ?: (request()->getHost() ?? 'ain-backend.com');
+        $messageId = '<' . Str::random(24) . '.' . time() . '@' . $fromDomain . '>';
 
         // If updating an existing draft
         if (!empty($data['draft_id'])) {
@@ -205,12 +206,15 @@ class EmailService
 
         // Send via Laravel Mail / SMTP
         try {
-            Mail::send([], [], function ($message) use ($toEmail, $fromEmail, $fromName, $subject, $bodyHtml, $data, $messageId, $inReplyTo, $savedAttachments) {
+            Mail::send([], [], function ($message) use ($toEmail, $fromEmail, $fromName, $subject, $bodyHtml, $bodyPlain, $data, $messageId, $inReplyTo, $savedAttachments) {
                 $recipients = array_map('trim', explode(',', $toEmail));
                 $message->to($recipients)
                         ->from($fromEmail, $fromName)
+                        ->replyTo($fromEmail, $fromName)
+                        ->returnPath($fromEmail)
                         ->subject($subject)
-                        ->html($bodyHtml);
+                        ->html($bodyHtml)
+                        ->text($bodyPlain ?: strip_tags($bodyHtml));
 
                 if (!empty($data['cc'])) {
                     $ccList = array_map('trim', explode(',', $data['cc']));
