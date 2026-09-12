@@ -56,25 +56,38 @@ class EmailService
 
         // Dynamically configure SMTP mailer for this account
         if ($account && !empty($account->host) && !empty($account->username) && !empty($account->password)) {
+            $encryption = $account->encryption === 'none' ? null : ($account->encryption ?: ((int) $account->port === 465 ? 'ssl' : 'tls'));
             config([
                 'mail.default' => 'smtp',
                 'mail.mailers.smtp.transport' => 'smtp',
                 'mail.mailers.smtp.host' => $account->host,
                 'mail.mailers.smtp.port' => (int) $account->port,
-                'mail.mailers.smtp.encryption' => $account->encryption === 'none' ? null : ($account->encryption ?: 'tls'),
+                'mail.mailers.smtp.encryption' => $encryption,
                 'mail.mailers.smtp.username' => $account->username,
                 'mail.mailers.smtp.password' => $account->password,
                 'mail.from.address' => $fromEmail,
                 'mail.from.name' => $fromName,
-                'mail.mailers.smtp.stream' => [
-                    'ssl' => [
-                        'allow_self_signed' => true,
-                        'verify_peer' => false,
-                        'verify_peer_name' => false,
-                    ],
-                ],
             ]);
             Mail::purge('smtp');
+
+            // Explicitly set stream options on Symfony Mailer's SocketStream to bypass cPanel / proxy certificate mismatch
+            try {
+                $transport = Mail::mailer('smtp')->getSymfonyTransport();
+                if ($transport instanceof \Symfony\Component\Mailer\Transport\Smtp\EsmtpTransport) {
+                    $stream = $transport->getStream();
+                    if ($stream instanceof \Symfony\Component\Mailer\Transport\Smtp\Stream\SocketStream) {
+                        $stream->setStreamOptions([
+                            'ssl' => [
+                                'allow_self_signed' => true,
+                                'verify_peer' => false,
+                                'verify_peer_name' => false,
+                            ],
+                        ]);
+                    }
+                }
+            } catch (\Throwable $e) {
+                Log::warning("Could not set SMTP stream options: " . $e->getMessage());
+            }
         }
 
         // Thread resolution
