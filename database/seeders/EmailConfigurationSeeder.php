@@ -56,6 +56,12 @@ class EmailConfigurationSeeder extends Seeder
             ],
         ];
 
+        // Purge old configurations so only Assignment Help and Write Email exist
+        EmailConfiguration::whereNotIn('email_address', [
+            'assignmentinneedhelp@gmail.com',
+            'order@assignnmentinneed.com'
+        ])->delete();
+
         // If setting assignmentinneedhelp@gmail.com as default, ensure others aren't marked default
         EmailConfiguration::where('email_address', '!=', 'assignmentinneedhelp@gmail.com')
             ->update(['is_default' => false]);
