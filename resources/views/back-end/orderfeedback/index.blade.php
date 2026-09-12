@@ -326,13 +326,18 @@
                                 <td class="user-info-box">
                                     @if($user)
                                         @php
+                                            $isSuperAdmin = auth()->check() && (int) auth()->user()->role_id === 1;
                                             $rawName = $user->name ?? '';
                                             $rawEmail = $user->email ?? '';
                                             $rawMobile = $user->mobile_no ?? $user->mobile ?? '';
                                             $rawCC = $user->countrycode ?? $user->country_code ?? '';
                                             $cleanCC = preg_replace('/\D+/', '', (string)$rawCC);
-                                            $maskedEmail = $rawEmail ? mask_email_for_display($rawEmail) : '';
-                                            $maskedMobile = $rawMobile ? mask_mobile_only($cleanCC, $rawMobile) : '';
+                                            $maskedEmail = $isSuperAdmin ? $rawEmail : ($rawEmail ? mask_email_for_display($rawEmail) : '');
+                                            $maskedMobile = $isSuperAdmin ? $rawMobile : ($rawMobile ? mask_mobile_only($cleanCC, $rawMobile) : '');
+
+                                            $orderRawWAPhone = preg_replace('/\D+/', '', (string)($cleanCC . $rawMobile));
+                                            $orderEmailUrl = route('emails.index', array_filter(['account_id' => 2, 'search' => $rawEmail]));
+                                            $orderWhatsAppUrl = !empty($orderRawWAPhone) ? route('whatsapp.chat', ['phone' => $orderRawWAPhone]) : route('whatsapp.chat');
                                         @endphp
 
                                         <div class="d-flex flex-column gap-1 py-1">
@@ -356,7 +361,7 @@
                                                 </div>
                                             @endif
 
-                                            {{-- 3. Mobile Number with CC, Masking, Copy Button & Attractive Call Icon (Below Email) --}}
+                                            {{-- 3. Mobile Number with CC, Masking & Copy Button --}}
                                             @if(!empty($maskedMobile))
                                                 <div class="d-flex align-items-center flex-wrap gap-1 mt-1">
                                                     @if(!empty($cleanCC))
@@ -366,20 +371,36 @@
                                                     <button type="button" class="btn btn-icon btn-sm btn-active-light-danger p-0 flex-shrink-0" style="width: 20px; height: 20px;" title="Copy Mobile" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $maskedMobile }}', 'Mobile number copied!');">
                                                         <i class="fa fa-clone fs-8 text-danger"></i>
                                                     </button>
+                                                </div>
+                                            @endif
 
-                                                    {{-- Premium Attractive Call Icon Button --}}
+                                            {{-- Direct Contact Action Icons: Call, WhatsApp, Email (Client) --}}
+                                            <div class="d-inline-flex align-items-center gap-1 mt-1">
+                                                @if(!empty($rawMobile))
                                                     <a href="#" 
                                                        id="twilioCallBtnfeedback{{ $order->id }}"
                                                        onclick="event.preventDefault(); event.stopPropagation(); initiateCustomerCall('{{ $cleanCC . $rawMobile }}', '{{ addslashes($rawName ?: 'Customer') }}');"
-                                                       class="btn btn-icon btn-sm ms-1 shadow-sm call-btn-styled"
+                                                       class="btn btn-icon btn-sm shadow-sm call-btn-styled"
                                                        style="width: 24px; height: 24px; min-width: 24px; border-radius: 6px; background-color: #25D366; color: #ffffff; display: inline-flex; align-items: center; justify-content: center; transition: transform 0.2s ease, background-color 0.2s ease;"
                                                        onmouseover="this.style.backgroundColor='#1ebd58'; this.style.transform='scale(1.1)';"
                                                        onmouseout="this.style.backgroundColor='#25D366'; this.style.transform='scale(1)';"
-                                                       title="Call Customer">
+                                                       title="Call: {{ $cleanCC . $rawMobile }}">
                                                         <i class="fa fa-phone text-white" style="font-size: 11px;"></i>
                                                     </a>
-                                                </div>
-                                            @endif
+                                                @endif
+
+                                                <a href="{{ $orderWhatsAppUrl }}" target="_blank" class="btn btn-icon btn-sm crm-btn-wa" style="width: 24px !important; height: 24px !important; min-width: 24px !important;" title="WhatsApp: {{ $orderRawWAPhone ?: 'Open Chat' }}">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 16 16">
+                                                        <path d="M13.601 2.326A7.85 7.85 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.364 2.76 1.057 3.965L0 16l4.204-1.102a7.9 7.9 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.9 7.9 0 0 0 13.6 2.326zM7.994 14.521a6.6 6.6 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.56 6.56 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592m3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.73.73 0 0 0-.529.247c-.182.198-.691.677-.691 1.654s.707 2.002.806 2.134c.098.133 1.392 2.123 3.372 2.978.471.204.838.326 1.124.418.473.15.905.129 1.246.078.38-.058 1.17-.479 1.338-.943.166-.464.166-.862.116-.944-.049-.082-.182-.133-.38-.232"/>
+                                                    </svg>
+                                                </a>
+
+                                                <a href="{{ $orderEmailUrl }}" target="_blank" class="btn btn-icon btn-sm crm-btn-email" style="width: 24px !important; height: 24px !important; min-width: 24px !important;" title="Email: {{ $rawEmail ?: 'Open Emails' }}">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 16 16">
+                                                        <path d="M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2zm2-1a1 1 0 0 0-1 1v.217l7 4.2 7-4.2V4a1 1 0 0 0-1-1zm13 2.383-4.708 2.825L15 11.105zm-.034 6.876-5.64-3.471L8 9.583l-1.326-.795-5.64 3.47A1 1 0 0 0 2 13h12a1 1 0 0 0 .966-.741M1 11.105l4.708-2.897L1 5.383z"/>
+                                                    </svg>
+                                                </a>
+                                            </div>
                                         </div>
                                     @else
                                         <span class="badge badge-light-danger">User Deleted</span>

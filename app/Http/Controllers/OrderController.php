@@ -4645,7 +4645,6 @@ class OrderController extends Controller
         ]);
     }
 
-    // feedback Rating
     public function feedbackList(Request $request)
     {
         $query = DB::table('feedbacks')
@@ -4654,10 +4653,16 @@ class OrderController extends Controller
                     'feedbacks.order_id COLLATE utf8mb4_unicode_ci = orders.order_id COLLATE utf8mb4_unicode_ci'
                 );
             })
+            ->leftJoin('users', 'orders.uid', '=', 'users.id')
             ->select(
                 'feedbacks.*',
+                'orders.id as order_primary_id',
                 'orders.is_fail as order_is_fail',
-                'orders.failed_at as order_failed_at'
+                'orders.failed_at as order_failed_at',
+                'users.name as customer_name',
+                'users.email as customer_email',
+                'users.mobile_no as customer_mobile',
+                'users.countrycode as customer_countrycode'
             );
 
         // Search Filter
