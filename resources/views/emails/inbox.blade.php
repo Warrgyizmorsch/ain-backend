@@ -2006,13 +2006,19 @@ function autoSyncLiveInbox() {
         body: JSON.stringify({ account_id: currentAccountId })
     })
     .then(response => response.json())
+    .then(data => {
+        if (data && data.synced_count > 0) {
+            checkEmailUpdates();
+            reloadEmailList(false);
+        }
+    })
     .catch(() => {})
     .finally(() => {
         isSyncing = false;
     });
 }
 
-setTimeout(autoSyncLiveInbox, 3000);
+setTimeout(autoSyncLiveInbox, 2000);
 if (window.Echo && currentAccountId) {
     window.Echo.private(`emails.account.${currentAccountId}`)
         .listen('.email.received', () => {
@@ -2020,7 +2026,7 @@ if (window.Echo && currentAccountId) {
             reloadEmailList(false);
         });
 }
-setInterval(autoSyncLiveInbox, 25000);
+setInterval(autoSyncLiveInbox, 10000);
 
 let lastEmailFingerprint = null;
 let lastKnownEmailId = null;
