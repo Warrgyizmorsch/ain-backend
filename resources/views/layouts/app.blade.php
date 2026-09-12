@@ -17,20 +17,26 @@
     {{-- Phone masking: full numbers are admin-only (role_id 1) --}}
     <script>
         window.canViewFullPhone = @json(auth()->check() && auth()->user()->role_id == 1);
+        window.loggedInRoleId = @json(auth()->check() ? auth()->user()->role_id : null);
         window.maskPhoneForDisplay = function (phone) {
             if (!phone) return '';
-            if (window.canViewFullPhone) return phone;
             const str = String(phone).trim();
             if (str.includes('*')) return str;
             const digits = str.replace(/\D+/g, '');
             let d = digits;
+            let prefix = '';
+            if (str.startsWith('+')) prefix = '+';
             if ((d.startsWith('44') || d.startsWith('91')) && d.length > 10) {
+                prefix = '+' + d.slice(0, 2) + ' ';
                 d = d.slice(2);
+            } else if (d.length > 10) {
+                prefix = '+' + d.slice(0, d.length - 10) + ' ';
+                d = d.slice(-10);
             }
             if (d.length === 11 && d.startsWith('0')) d = d.slice(1);
-            if (d.length <= 4) return d.slice(0, 1) + '*'.repeat(d.length - 1);
-            if (d.length <= 6) return d.slice(0, 2) + '*'.repeat(d.length - 2);
-            return d.slice(0, 2) + '*'.repeat(Math.max(6, d.length - 6)) + d.slice(-4);
+            if (d.length <= 4) return prefix + '*'.repeat(d.length);
+            if (d.length <= 6) return prefix + d.slice(0, 1) + '*'.repeat(d.length - 2) + d.slice(-1);
+            return prefix + d.slice(0, 2) + '*'.repeat(Math.max(4, d.length - 6)) + d.slice(-4);
         };
         window.maskEmailForDisplay = function (email) {
             if (window.canViewFullPhone) return email || '';

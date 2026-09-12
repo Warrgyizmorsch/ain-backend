@@ -160,9 +160,10 @@
                 $cPhone = $c['phone'] ?? '';
                 $rawCName = trim($c['name'] ?? '');
                 $cleanCPhone = preg_replace('/\D+/', '', (string)$cPhone);
+                $cleanCPhone10 = strlen($cleanCPhone) >= 10 ? substr($cleanCPhone, -10) : $cleanCPhone;
                 $cleanCName = preg_replace('/\D+/', '', (string)$rawCName);
-                if (empty($rawCName) || $rawCName === $cPhone || ($cleanCPhone !== '' && $cleanCName === $cleanCPhone) || $rawCName === 'System') {
-                    $cDisplayName = 'Unknown User';
+                if (empty($rawCName) || $rawCName === $cPhone || ($cleanCPhone !== '' && $cleanCName === $cleanCPhone) || ($cleanCPhone10 !== '' && $cleanCName === $cleanCPhone10) || strlen($cleanCName) >= 10 || $rawCName === 'System' || $rawCName === 'Unknown User') {
+                    $cDisplayName = $c['phone_display'] ?? mask_phone_for_display('', $cPhone);
                 } else {
                     $cDisplayName = $rawCName;
                 }
@@ -173,9 +174,9 @@
                 $cIsClosed = !empty($c['is_closed']);
                 $cTemplateRequired = !empty($c['template_required']);
             @endphp
-            <div class="wab-contact-item {{ $c['active'] ? 'is-active' : '' }}" id="wab-contact-card-{{ preg_replace('/\D+/', '', $cPhone) }}" data-name="{{ strtolower($cDisplayName) }}" data-contact-id="{{ $c['id'] }}" data-url="{{ isset($c['phone']) ? route('whatsapp.chat', ['phone' => $c['phone']]) : '' }}" data-phone="{{ $cPhone }}" data-color="{{ $c['color'] }}" data-badge="{{ $c['badge'] ?? 0 }}" data-is-group="{{ !empty($c['is_group']) ? '1' : '0' }}" data-is-archived="{{ $cIsArchived ? '1' : '0' }}" data-is-pinned="{{ $cIsPinned ? '1' : '0' }}" data-is-closed="{{ $cIsClosed ? '1' : '0' }}" data-template-required="{{ $cTemplateRequired ? '1' : '0' }}" data-label-ids="{{ json_encode(array_values(array_map('strval', $cLabelIds ?? []))) }}">
+            <div class="wab-contact-item {{ $c['active'] ? 'is-active' : '' }}" id="wab-contact-card-{{ preg_replace('/\D+/', '', $cPhone) }}" data-name="{{ strtolower($cDisplayName) }}" data-contact-id="{{ $c['id'] }}" data-url="{{ route('whatsapp.chat') }}" data-phone="{{ $cPhone }}" data-phone-display="{{ $c['phone_display'] ?? mask_phone_for_display('', $cPhone) }}" data-color="{{ $c['color'] }}" data-badge="{{ $c['badge'] ?? 0 }}" data-is-group="{{ !empty($c['is_group']) ? '1' : '0' }}" data-is-archived="{{ $cIsArchived ? '1' : '0' }}" data-is-pinned="{{ $cIsPinned ? '1' : '0' }}" data-is-closed="{{ $cIsClosed ? '1' : '0' }}" data-template-required="{{ $cTemplateRequired ? '1' : '0' }}" data-label-ids="{{ json_encode(array_values(array_map('strval', $cLabelIds ?? []))) }}">
                 <div class="wab-avatar" style="background:{{ $c['color'] }}1a;color:{{ $c['color'] }}">
-                    {{ strtoupper(substr($cDisplayName,0,1)) }}
+                    {{ (preg_match('/^\d|\*/', $cDisplayName)) ? '#' : strtoupper(substr($cDisplayName,0,1)) }}
                     <span class="wab-status-badge wab-status--{{ $c['status'] }}"></span>
                 </div>
                 <div class="wab-contact-info">
@@ -270,24 +271,22 @@
     {{-- ── CONVERSATION PANEL ── --}}
     <section class="wab-conversation" style="position:relative">
 
-        @unless($selectedPhone)
-            <div class="wab-blank-chat">
-                <div class="wab-blank-actions">
-                    <button type="button">
-                        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                        <span>Send document</span>
-                    </button>
-                    <button type="button" data-bs-toggle="modal" data-bs-target="#newWaChatModal">
-                        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
-                        <span>Add contact</span>
-                    </button>
-                    <button type="button">
-                        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
-                        <span>Ask AI</span>
-                    </button>
-                </div>
+        <div class="wab-blank-chat {{ $selectedPhone ? 'd-none' : '' }}">
+            <div class="wab-blank-actions">
+                <button type="button">
+                    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                    <span>Send document</span>
+                </button>
+                <button type="button" data-bs-toggle="modal" data-bs-target="#newWaChatModal">
+                    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
+                    <span>Add contact</span>
+                </button>
+                <button type="button">
+                    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+                    <span>Ask AI</span>
+                </button>
             </div>
-        @endunless
+        </div>
 
         {{-- Conv Header --}}
         <div class="wab-conv-header {{ !$selectedPhone ? 'd-none' : '' }}">
@@ -356,8 +355,7 @@
                         <button type="button" id="wabSendTemplateMenuBtn" class="{{ $selectedTemplateRequired ? '' : 'd-none' }}" data-bs-toggle="modal" data-bs-target="#waSendTemplateModal" onclick="openSendTemplateModal()">Send template</button>
                         <button type="button" id="wabPinChatBtn">Pin chat</button>
                         <button type="button" id="wabMarkUnreadBtn">Mark as unread</button>
-                        <button type="button" id="wabArchiveChatBtn">Archive chat</button>
-                        <a href="{{ route('whatsapp.chat') }}" id="wabCloseChatBtn">Close chat</a>
+                        <button type="button" id="wabCloseChatBtn" onclick="window.closeActiveChatRealtime()">Close chat</button>
                     </div>
                 </div>
             </div>
@@ -1238,7 +1236,7 @@
                     <a href="{{ route('leads') }}" target="_blank" id="waLeadsModalViewAllBtn" class="btn btn-sm btn-light py-1 px-3 fs-8 fw-bold" title="Open Leads page for this customer">
                         <i class="fa fa-external-link me-1"></i>View All Leads
                     </a>
-                    <button type="button" class="btn btn-sm btn-success py-1 px-3 fs-8 fw-bold" data-bs-dismiss="modal" data-bs-toggle="modal" data-bs-target="#waCreateLeadModal">
+                    <button type="button" class="btn btn-sm btn-success py-1 px-3 fs-8 fw-bold" data-bs-dismiss="modal" data-bs-toggle="modal" data-bs-target="#kt_modal_create_appaa_newLeads">
                         <i class="fa fa-plus me-1"></i>+ New Lead
                     </button>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
@@ -1259,7 +1257,7 @@
                     <div class="text-muted fs-4 mb-2"><i class="fa fa-folder-open text-gray-400 fs-1"></i></div>
                     <div class="fw-bolder text-dark fs-6">No Leads Found for this Customer</div>
                     <div class="text-muted fs-8 mt-1">No CRM Lead record found for this WhatsApp contact.</div>
-                    <button type="button" class="btn btn-sm btn-primary mt-3" data-bs-dismiss="modal" data-bs-toggle="modal" data-bs-target="#waCreateLeadModal">
+                    <button type="button" class="btn btn-sm btn-primary mt-3" data-bs-dismiss="modal" data-bs-toggle="modal" data-bs-target="#kt_modal_create_appaa_newLeads">
                         <i class="fa fa-plus-circle me-1"></i>Create First Lead
                     </button>
                 </div>
@@ -1531,11 +1529,30 @@
     </div>
 </div>
 
+@php
+    $initialCustomerUser = $customerSummary['user'] ?? null;
+    if (!$initialCustomerUser && !empty($existingUser)) {
+        $initialCustomerUser = [
+            'id' => $existingUser->id,
+            'name' => $existingUser->name,
+            'email' => $existingUser->email,
+            'masked_email' => mask_email_for_display($existingUser->email),
+            'countrycode' => $existingUser->countrycode,
+            'mobile_no' => $existingUser->mobile_no,
+            'masked_mobile' => mask_mobile_only($existingUser->countrycode, $existingUser->mobile_no),
+            'refer_id' => $existingUser->refer_id ?? null,
+        ];
+    }
+@endphp
 <script>
+// Clean raw phone from browser address bar immediately so it is never exposed in URL
+if (window.history && window.history.replaceState && window.location.search.includes('phone=')) {
+    window.history.replaceState({}, document.title, window.location.pathname);
+}
 window.selectedCustomerPhone = @json($selectedPhone ?? '');
-window.currentCustomerUser = @json($existingUser ?? null);
+window.currentCustomerUser = @json($initialCustomerUser);
 window.currentCustomerRefer = @json($customerSummary['refer_user'] ?? null);
-window.currentCustomerName = @json($selectedName ?? '');
+window.currentCustomerName = @json($customerSummary['name'] ?? ($selectedName ?? ''));
 window.leadsLoadedPhone = null;
 window.ordersLoadedPhone = null;
 window.resetLeadsOrdersPhone = function(phone) {
@@ -1544,25 +1561,11 @@ window.resetLeadsOrdersPhone = function(phone) {
     window.ordersLoadedPhone = null;
 };
 
-window.syncCrmNewLeadModal = function(phone, resolvedName, userObj, referUserObj) {
-    const crmNewLeadModal = document.getElementById('kt_modal_create_appaa_newLeads');
-    if (!crmNewLeadModal) return;
-
-    const nameInp = crmNewLeadModal.querySelector('input[name="user_name"]');
-    const emailInp = crmNewLeadModal.querySelector('input[name="email"]');
-    const idInp = crmNewLeadModal.querySelector('input[name="id"]');
-    const ccInp = crmNewLeadModal.querySelector('input[name="countrycode"]');
-    const mobInp = crmNewLeadModal.querySelector('input[name="mobile"]');
-    const referIdInp = crmNewLeadModal.querySelector('#refer_id');
-    const referSearchInp = crmNewLeadModal.querySelector('#refer_search');
-    const mobileUserResult = crmNewLeadModal.querySelector('#mobile_user_result');
-
-    if (mobileUserResult) mobileUserResult.style.display = 'none';
-
-    // Parse Country Code and Mobile Number
-    let defaultCc = '';
-    let defaultMob = phone ? String(phone) : '';
-    const cleanP = (phone ? String(phone) : '').replace(/\D/g, '');
+window.parseChatPhone = function(phone) {
+    let defaultCc = '44';
+    let defaultMob = '';
+    if (!phone) return { cc: defaultCc, mobile: defaultMob };
+    const cleanP = String(phone).replace(/\D/g, '');
     if (cleanP.startsWith('91') && cleanP.length >= 12) {
         defaultCc = '91';
         defaultMob = cleanP.substring(2);
@@ -1578,54 +1581,165 @@ window.syncCrmNewLeadModal = function(phone, resolvedName, userObj, referUserObj
     } else if (cleanP.startsWith('61') && cleanP.length >= 11) {
         defaultCc = '61';
         defaultMob = cleanP.substring(2);
+    } else if (cleanP.startsWith('60') && cleanP.length >= 11) {
+        defaultCc = '60';
+        defaultMob = cleanP.substring(2);
+    } else if (cleanP.startsWith('64') && cleanP.length >= 11) {
+        defaultCc = '64';
+        defaultMob = cleanP.substring(2);
+    } else if (cleanP.startsWith('65') && cleanP.length >= 10) {
+        defaultCc = '65';
+        defaultMob = cleanP.substring(2);
+    } else if (cleanP.startsWith('353') && cleanP.length >= 11) {
+        defaultCc = '353';
+        defaultMob = cleanP.substring(3);
+    } else if (cleanP.length > 10) {
+        defaultCc = cleanP.slice(0, -10);
+        defaultMob = cleanP.slice(-10);
     } else {
-        defaultMob = cleanP.length > 10 ? cleanP.slice(-10) : cleanP;
-        defaultCc = cleanP.length > 10 ? cleanP.slice(0, -10) : '';
+        defaultMob = cleanP;
     }
+    return { cc: defaultCc, mobile: defaultMob };
+};
 
-    const hasUser = userObj && (userObj.id || userObj.mobile_no || userObj.email);
-    const isSystemUser = userObj && userObj.name === 'System';
-    const isSystemResolved = !resolvedName || resolvedName === 'System' || resolvedName === phone;
+window.syncCrmNewLeadModal = function(phone, resolvedName, userObj, referUserObj) {
+    const crmNewLeadModal = document.getElementById('kt_modal_create_appaa_newLeads');
+    if (!crmNewLeadModal) return;
 
-    let candidateName = '';
-    if (hasUser && userObj.name && userObj.name !== 'System' && !userObj.name.startsWith('user')) {
-        candidateName = userObj.name;
-    } else if (!isSystemResolved) {
-        candidateName = resolvedName;
-    }
+    const isSuperAdmin = (typeof window.canViewFullPhone !== 'undefined') ? window.canViewFullPhone : ((typeof loggedInRoleId !== 'undefined') ? (loggedInRoleId == 1) : false);
 
-    let candidateEmail = '';
-    if (hasUser && userObj.email && !userObj.email.startsWith('user') && !userObj.email.includes('example.com')) {
-        candidateEmail = userObj.email;
-    }
+    const nameInp = crmNewLeadModal.querySelector('input[name="user_name"]');
+    const emailRealInp = crmNewLeadModal.querySelector('#email_real') || crmNewLeadModal.querySelector('input[name="email"]');
+    const emailDisplayInp = crmNewLeadModal.querySelector('#email_display');
+    const superAdminEmailInp = crmNewLeadModal.querySelector('input[type="email"][name="email"]') || crmNewLeadModal.querySelector('#email');
+    const idInp = crmNewLeadModal.querySelector('input[name="id"]');
+    const ccInp = crmNewLeadModal.querySelector('input[name="countrycode"]');
+    const mobRealInp = crmNewLeadModal.querySelector('#mobile_real') || crmNewLeadModal.querySelector('input[type="hidden"][name="mobile"]');
+    const mobDisplayInp = crmNewLeadModal.querySelector('#mobile');
+    const referIdInp = crmNewLeadModal.querySelector('#refer_id');
+    const referSearchInp = crmNewLeadModal.querySelector('#refer_search');
+    const mobileUserResult = crmNewLeadModal.querySelector('#mobile_user_result');
+    const mobileLoader = crmNewLeadModal.querySelector('#mobile_lookup_loader');
 
-    if (nameInp) {
-        nameInp.value = candidateName;
-        nameInp.readOnly = false; // Always allow editing name
-    }
-    if (emailInp) {
-        emailInp.value = candidateEmail;
-        emailInp.readOnly = false; // Always allow editing email
-    }
-    if (idInp) {
-        idInp.value = (hasUser && userObj.id) ? userObj.id : '';
-    }
-    if (ccInp) {
-        ccInp.value = (hasUser && userObj.countrycode) ? userObj.countrycode : defaultCc;
-        ccInp.readOnly = false;
-    }
-    if (mobInp) {
-        mobInp.value = (hasUser && userObj.mobile_no) ? userObj.mobile_no : defaultMob;
-        mobInp.readOnly = false;
-    }
+    if (mobileUserResult) mobileUserResult.style.display = 'none';
+    if (mobileLoader) mobileLoader.style.display = 'none';
 
-    if (referUserObj && (referUserObj.id || referUserObj.name)) {
-        if (referIdInp) referIdInp.value = referUserObj.id || '';
-        if (referSearchInp) {
-            referSearchInp.value = `${referUserObj.name || ''} - ${referUserObj.mobile_no || ''} - ${referUserObj.email || ''}`;
-            referSearchInp.readOnly = true;
+    // Parse Country Code and Mobile Number from open chat
+    const parsed = window.parseChatPhone(phone);
+    const hasUser = userObj && (userObj.id || (userObj.mobile_no && userObj.name && userObj.name !== 'System'));
+
+    if (hasUser) {
+        // Customer already exists in DB!
+        const userId = userObj.id || '';
+        const userName = userObj.name || resolvedName || '';
+        const userEmail = (userObj.email && !userObj.email.startsWith('user') && !userObj.email.includes('example.com')) ? userObj.email : (userObj.email || '');
+        const userCc = userObj.countrycode ? String(userObj.countrycode).replace(/\D/g, '') : parsed.cc;
+        const userMob = userObj.mobile_no ? String(userObj.mobile_no).replace(/\D/g, '') : parsed.mobile;
+
+        if (idInp) idInp.value = userId;
+
+        if (nameInp) {
+            nameInp.value = userName;
+            nameInp.readOnly = !isSuperAdmin;
         }
+
+        if (ccInp) {
+            ccInp.value = userCc || '44';
+            ccInp.readOnly = !isSuperAdmin;
+        }
+
+        // Mobile Field (Masked for all users: 63********)
+        if (mobRealInp) mobRealInp.value = userMob;
+        const maskedMob = userObj.masked_mobile || (window.maskPhoneForDisplay ? window.maskPhoneForDisplay(userMob) : userMob);
+        if (mobDisplayInp) {
+            mobDisplayInp.value = maskedMob;
+            mobDisplayInp.readOnly = true;
+            mobDisplayInp.title = 'Existing customer phone number (masked)';
+        }
+        if (typeof window.rawDigitsBuffer !== 'undefined') {
+            window.rawDigitsBuffer = userMob;
+        }
+
+        // Email Field (Masked for all users)
+        if (emailRealInp) emailRealInp.value = userEmail;
+        const maskedEmail = userObj.masked_email || (window.maskEmailForDisplay ? window.maskEmailForDisplay(userEmail) : userEmail);
+        if (emailDisplayInp) {
+            emailDisplayInp.value = maskedEmail;
+            emailDisplayInp.readOnly = true;
+            emailDisplayInp.title = 'Existing customer email (masked)';
+            emailDisplayInp.removeAttribute('required');
+        }
+        if (superAdminEmailInp && superAdminEmailInp !== emailDisplayInp) {
+            superAdminEmailInp.value = maskedEmail;
+            superAdminEmailInp.readOnly = true;
+            superAdminEmailInp.removeAttribute('required');
+        }
+
+        // Refer User
+        if (referUserObj && (referUserObj.id || referUserObj.name)) {
+            if (referIdInp) referIdInp.value = referUserObj.id || '';
+            if (referSearchInp) {
+                const refMob = referUserObj.masked_mobile || (window.maskPhoneForDisplay ? window.maskPhoneForDisplay(referUserObj.mobile_no || '') : referUserObj.mobile_no || '');
+                const refEmail = referUserObj.masked_email || (window.maskEmailForDisplay ? window.maskEmailForDisplay(referUserObj.email || '') : referUserObj.email || '');
+                referSearchInp.value = `${referUserObj.name || ''} - ${refMob} - ${refEmail}`;
+                referSearchInp.readOnly = true;
+            }
+        } else {
+            if (referIdInp) referIdInp.value = '';
+            if (referSearchInp) {
+                referSearchInp.value = '';
+                referSearchInp.readOnly = false;
+            }
+        }
+
     } else {
+        // Customer does NOT exist in DB yet (New customer from WhatsApp chat)
+        if (idInp) idInp.value = '';
+
+        // Country code & mobile from active chat MUST come prefilled!
+        if (ccInp) {
+            ccInp.value = parsed.cc || '44';
+            ccInp.readOnly = false;
+        }
+
+        if (mobRealInp) mobRealInp.value = parsed.mobile;
+        const maskedNewMob = window.maskPhoneForDisplay ? window.maskPhoneForDisplay(parsed.mobile) : parsed.mobile;
+        if (mobDisplayInp) {
+            mobDisplayInp.value = maskedNewMob;
+            mobDisplayInp.readOnly = true;
+            mobDisplayInp.title = 'Phone number pre-filled from chat (masked)';
+        }
+        if (typeof window.rawDigitsBuffer !== 'undefined') {
+            window.rawDigitsBuffer = parsed.mobile;
+        }
+
+        // Name & Email editable so agent can type them in! Email is NOT mandatory!
+        let candidateName = '';
+        const cleanNameDigits = String(resolvedName || '').replace(/\D/g, '');
+        if (resolvedName && resolvedName !== 'Unknown User' && resolvedName !== 'System' && resolvedName !== phone && !resolvedName.includes('*') && cleanNameDigits.length < 8) {
+            candidateName = resolvedName;
+        }
+        if (nameInp) {
+            nameInp.value = candidateName;
+            nameInp.readOnly = false;
+        }
+
+        if (isSuperAdmin) {
+            if (superAdminEmailInp) {
+                superAdminEmailInp.value = '';
+                superAdminEmailInp.readOnly = false;
+                superAdminEmailInp.removeAttribute('required');
+            }
+        } else {
+            if (emailRealInp) emailRealInp.value = '';
+            if (emailDisplayInp) {
+                emailDisplayInp.value = '';
+                emailDisplayInp.readOnly = false;
+                emailDisplayInp.title = '';
+                emailDisplayInp.removeAttribute('required');
+            }
+        }
+
         if (referIdInp) referIdInp.value = '';
         if (referSearchInp) {
             referSearchInp.value = '';
@@ -1782,6 +1896,29 @@ document.addEventListener('DOMContentLoaded', function() {
                     let csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
                     if (!csrfToken) {
                         csrfToken = await window.getFreshCsrfToken();
+                    }
+
+                    const isSuperAdmin = (typeof window.canViewFullPhone !== 'undefined') ? window.canViewFullPhone : false;
+                    if (!isSuperAdmin) {
+                        const mobReal = crmModalEl.querySelector('#mobile_real');
+                        const mobDisp = crmModalEl.querySelector('#mobile');
+                        if (mobReal && mobDisp) {
+                            const dispVal = mobDisp.value.trim();
+                            if (!dispVal.includes('*') && dispVal.length >= 4) {
+                                mobReal.value = dispVal.replace(/\D/g, '');
+                            } else if (!mobReal.value && window.selectedCustomerPhone) {
+                                const parsed = window.parseChatPhone ? window.parseChatPhone(window.selectedCustomerPhone) : null;
+                                if (parsed && parsed.mobile) mobReal.value = parsed.mobile;
+                            }
+                        }
+                        const emReal = crmModalEl.querySelector('#email_real');
+                        const emDisp = crmModalEl.querySelector('#email_display');
+                        if (emReal && emDisp) {
+                            const dispEm = emDisp.value.trim();
+                            if (!dispEm.includes('*')) {
+                                emReal.value = dispEm;
+                            }
+                        }
                     }
 
                     const formData = new FormData(crmLeadForm);
@@ -5167,6 +5304,26 @@ document.addEventListener('DOMContentLoaded', function() {
     const csrfToken     = document.querySelector('meta[name="csrf-token"]')?.content || '';
     let selectedPhone   = body?.dataset.selectedPhone || '';
     window.selectedPhone = selectedPhone;
+    if (selectedPhone) {
+        try { sessionStorage.setItem('wab_active_phone', selectedPhone); } catch(e) {}
+        if (window.history && window.history.replaceState) {
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }
+    } else {
+        try {
+            const cachedPhone = sessionStorage.getItem('wab_active_phone');
+            if (cachedPhone) {
+                setTimeout(() => {
+                    const existingCard = document.querySelector(`.wab-contact-item[data-phone="${cachedPhone}"]`);
+                    if (existingCard) {
+                        existingCard.click();
+                    } else if (typeof switchChat === 'function') {
+                        switchChat(cachedPhone, cachedPhone, '#25d366');
+                    }
+                }, 100);
+            }
+        } catch(e) {}
+    }
     let selectedPhoneChannel = selectedPhone.replace(/\D+/g, '');
     const messagesUrl   = @json(route('whatsapp.chat.messages', [], false));
     const contactListUrl = @json(route('whatsapp.chat.contacts', [], false));
@@ -5573,9 +5730,13 @@ document.addEventListener('DOMContentLoaded', function() {
         // Hide sidebar on mobile
         if (window.innerWidth <= 768 && sidebar) sidebar.classList.add('mobile-hidden');
 
-        // Update browser URL without reloading
-        const newUrl = contactUrl(phone);
-        history.pushState({ phone, name: initialResolvedName, color }, '', newUrl);
+        // Save active phone in sessionStorage for instant reload persistence
+        try {
+            if (phone) sessionStorage.setItem('wab_active_phone', phone);
+        } catch (e) {}
+
+        // Keep browser URL clean without exposing raw phone number
+        history.replaceState({ phone, name: initialResolvedName, color }, '', window.location.pathname);
 
         // Show conversation containers
         document.querySelector('.wab-blank-chat')?.classList.add('d-none');
@@ -5610,6 +5771,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const hiddenPhoneInput = document.querySelector('.wab-conv-footer input[name="phone"]');
         if (hiddenPhoneInput) hiddenPhoneInput.value = phone;
+
+        // Ensure browser address bar does not display raw phone number
+        if (window.history && window.history.replaceState) {
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }
 
         // Update header basics immediately
         updateHeaderBasic(initialResolvedName, phone, color);
@@ -5688,6 +5854,81 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
     }
+
+    /* ── Instant Real-Time Close Chat (No Page Reload / No Refresh) ── */
+    window.closeActiveChatRealtime = function() {
+        // 1. Abort any active chat message load in progress
+        if (chatSwitchAbortController) {
+            chatSwitchAbortController.abort();
+        }
+
+        // 2. Hide top 3-dots chat menu & close dropdowns
+        const menu = document.getElementById('wabChatMenu');
+        if (menu) menu.classList.remove('is-open');
+        const chatMoreWrapper = document.getElementById('wabChatMoreWrapper');
+        if (chatMoreWrapper) chatMoreWrapper.classList.add('d-none');
+        if (typeof closeAllQuickDropdowns === 'function') {
+            closeAllQuickDropdowns();
+        }
+
+        // 3. Hide conversation containers in 0ms instant real-time
+        document.querySelector('.wab-conv-header')?.classList.add('d-none');
+        if (body) {
+            body.classList.add('d-none');
+            body.innerHTML = '';
+            body.dataset.selectedPhone = '';
+            body.dataset.lastMessageId = '0';
+            body.dataset.firstMessageId = '0';
+        }
+        document.getElementById('wabConvFooterForm')?.classList.add('d-none');
+        document.querySelector('.wab-conv-footer')?.classList.add('d-none');
+        document.getElementById('wab24hClosedBanner')?.classList.add('d-none');
+        document.getElementById('waHeaderSendTemplateBtn')?.classList.add('d-none');
+        document.getElementById('wabSendTemplateMenuBtn')?.classList.add('d-none');
+        document.getElementById('wabChatActionButtons')?.classList.add('d-none');
+        document.getElementById('waHeaderCheckLeadsBtn')?.classList.add('d-none');
+        document.getElementById('waHeaderCheckOrdersBtn')?.classList.add('d-none');
+
+        // 4. Show blank welcome placeholder
+        document.querySelector('.wab-blank-chat')?.classList.remove('d-none');
+
+        // 5. Unselect active card in sidebar
+        document.querySelectorAll('.wab-contact-item').forEach(i => i.classList.remove('is-active'));
+
+        // 6. If on mobile, show sidebar list
+        if (window.innerWidth <= 768 && sidebar) {
+            sidebar.classList.remove('mobile-hidden');
+        }
+
+        // 7. Reset active phone variables
+        selectedPhone = '';
+        window.selectedPhone = '';
+        window.selectedCustomerPhone = '';
+        window.selectedCustomerName = '';
+        selectedPhoneChannel = '';
+        lastMessageId = 0;
+        firstMessageId = 0;
+
+        // 8. Clear browser sessionStorage & keep URL bar clean
+        try { sessionStorage.removeItem('wab_active_phone'); } catch (e) {}
+        if (window.history && window.history.replaceState) {
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }
+
+        // 9. Inform server in background without blocking or reloading page
+        fetch(@json(route('whatsapp.chat.close-session', [], false)), {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': csrfToken,
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        }).catch(() => {});
+
+        if (typeof toastr !== 'undefined') {
+            toastr.info('Chat closed');
+        }
+    };
 
     window.initiateCustomerCall = function(phoneToCall = null, nameToCall = null) {
         const phone = phoneToCall || window.selectedCustomerPhone || selectedPhone || document.querySelector('.wab-conv-footer input[name="phone"]')?.value || '';
@@ -5907,34 +6148,70 @@ document.addEventListener('DOMContentLoaded', function() {
                 parsedMobile = cleanP.slice(-10);
             }
 
+            const isSuperAdmin = (typeof window.canViewFullPhone !== 'undefined') ? window.canViewFullPhone : false;
+
             if (customer && customer.user) {
                 if (userIdInput) userIdInput.value = customer.user.id || '';
-                if (nameInput) nameInput.value = customer.user.name || customer.name || fallbackName || '';
-                if (emailInput) emailInput.value = customer.user.email || '';
+                if (nameInput) {
+                    nameInput.value = customer.user.name || customer.name || fallbackName || '';
+                    nameInput.readOnly = !isSuperAdmin;
+                }
+                const userEmail = customer.user.email || '';
+                if (emailInput) {
+                    if (isSuperAdmin) {
+                        emailInput.value = userEmail;
+                        emailInput.readOnly = true;
+                    } else {
+                        emailInput.value = customer.user.masked_email || (window.maskEmailForDisplay ? window.maskEmailForDisplay(userEmail) : userEmail);
+                        emailInput.readOnly = true;
+                    }
+                    emailInput.removeAttribute('required');
+                }
                 if (countryCodeSelect && customer.user.countrycode) countryCodeSelect.value = customer.user.countrycode;
                 else if (countryCodeSelect) countryCodeSelect.value = parsedCode;
-                setLeadMobile(customer.user.mobile_no || parsedMobile);
+
+                const userMob = customer.user.mobile_no || parsedMobile;
+                setLeadMobile(userMob);
+                if (mobileInput) mobileInput.value = userMob;
+                if (mobileDisplayInput) {
+                    mobileDisplayInput.value = customer.user.masked_mobile || (window.maskPhoneForDisplay ? window.maskPhoneForDisplay(userMob) : userMob);
+                    mobileDisplayInput.readOnly = true;
+                }
 
                 if (bannerEl) {
                     bannerEl.className = 'p-2 mb-3 rounded d-flex align-items-center justify-content-between bg-light-success border border-success';
                 }
                 if (bannerTitleEl) bannerTitleEl.textContent = '✓ Existing Registered Customer';
                 if (bannerDescEl) {
-                    bannerDescEl.textContent = `${customer.user.name || 'User'} (${customer.user.email || 'No email'}) - User ID: #${customer.user.id}`;
+                    const dispEmail = customer.user.masked_email || (window.maskEmailForDisplay ? window.maskEmailForDisplay(userEmail) : userEmail);
+                    bannerDescEl.textContent = `${customer.user.name || 'User'} (${dispEmail || 'No email'}) - User ID: #${customer.user.id}`;
                 }
             } else {
                 if (userIdInput) userIdInput.value = '';
-                if (nameInput) nameInput.value = (customer && customer.name && customer.name !== phone) ? customer.name : (fallbackName && fallbackName !== phone ? fallbackName : '');
-                if (emailInput) emailInput.value = '';
+                if (nameInput) {
+                    const cleanCandidate = String((customer && customer.name) || fallbackName || '').replace(/\D/g, '');
+                    nameInput.value = (cleanCandidate.length < 8 && customer && customer.name && customer.name !== phone) ? customer.name : (cleanCandidate.length < 8 && fallbackName && fallbackName !== phone ? fallbackName : '');
+                    nameInput.readOnly = false;
+                }
+                if (emailInput) {
+                    emailInput.value = '';
+                    emailInput.readOnly = false;
+                    emailInput.removeAttribute('required');
+                }
                 if (countryCodeSelect) countryCodeSelect.value = parsedCode;
                 setLeadMobile(parsedMobile);
+                if (mobileInput) mobileInput.value = parsedMobile;
+                if (mobileDisplayInput) {
+                    mobileDisplayInput.value = window.maskPhoneForDisplay ? window.maskPhoneForDisplay(parsedMobile) : parsedMobile;
+                    mobileDisplayInput.readOnly = true;
+                }
 
                 if (bannerEl) {
                     bannerEl.className = 'p-2 mb-3 rounded d-flex align-items-center justify-content-between bg-light-info border border-info';
                 }
                 if (bannerTitleEl) bannerTitleEl.textContent = 'ℹ New Customer from WhatsApp';
                 if (bannerDescEl) {
-                    bannerDescEl.textContent = 'Phone number is pre-filled. Enter name & email to register user and create lead.';
+                    bannerDescEl.textContent = 'Phone number is pre-filled. Enter name & email (optional) to register user and create lead.';
                 }
             }
         }
@@ -6101,8 +6378,9 @@ document.addEventListener('DOMContentLoaded', function() {
         div.id = `wab-contact-card-${cleanPhone}`;
         div.dataset.name = displayName.toLowerCase();
         div.dataset.contactId = c.id;
-        div.dataset.url = c.phone ? `{{ route('whatsapp.chat') }}?phone=${encodeURIComponent(c.phone)}` : '';
+        div.dataset.url = @json(route('whatsapp.chat'));
         div.dataset.phone = c.phone || '';
+        div.dataset.phoneDisplay = c.phone_display || (window.maskPhoneForDisplay ? window.maskPhoneForDisplay(c.phone) : c.phone) || '';
         div.dataset.color = c.color || '#25d366';
         div.dataset.badge = c.badge || 0;
         div.dataset.isGroup = c.is_group ? '1' : '0';
@@ -6199,6 +6477,29 @@ document.addEventListener('DOMContentLoaded', function() {
         return div;
     }
 
+    /* ── Helper to format search query display with masking for phone numbers ── */
+    function maskSearchQueryForDisplay(val) {
+        if (!val) return '';
+        const str = String(val).trim();
+        if (/[a-zA-Z]/.test(str)) {
+            return str;
+        }
+        const digits = str.replace(/\D/g, '');
+        if (digits.length < 7) {
+            return str;
+        }
+        if (typeof window.maskPhoneForDisplay === 'function') {
+            return window.maskPhoneForDisplay(str);
+        }
+        let d = digits;
+        let prefix = str.startsWith('+') ? '+' : '';
+        if (d.length > 10) {
+            prefix = '+' + d.slice(0, d.length - 10) + ' ';
+            d = d.slice(-10);
+        }
+        return prefix + d.slice(0, 2) + '*'.repeat(Math.max(4, d.length - 6)) + d.slice(-4);
+    }
+
     let currentTabFilter = 'all';
     let currentLabelFilter = 'all';
     let contactFilterAbortController = null;
@@ -6249,8 +6550,27 @@ document.addEventListener('DOMContentLoaded', function() {
             if (contactSearchQuery) {
                 const name = (item.dataset.name || '').toLowerCase();
                 const phone = (item.dataset.phone || '').toLowerCase();
-                const q = contactSearchQuery.toLowerCase();
-                matchSearch = name.includes(q) || phone.includes(q);
+                const phoneDisplay = (item.dataset.phoneDisplay || '').toLowerCase();
+                const q = contactSearchQuery.toLowerCase().trim();
+                const cleanPhone = phone.replace(/\D+/g, '');
+                const cleanPhoneDisplay = phoneDisplay.replace(/[^\d*]/g, '');
+
+                if (q.includes('*')) {
+                    const parts = q.split(/\*+/).filter(Boolean);
+                    if (parts.length > 0) {
+                        const pattern = '^.*' + parts.map(p => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('.*') + '.*$';
+                        const reg = new RegExp(pattern, 'i');
+                        matchSearch = reg.test(phone) || reg.test(cleanPhone) || reg.test(phoneDisplay) || reg.test(cleanPhoneDisplay) || reg.test(name);
+                    } else {
+                        matchSearch = true;
+                    }
+                } else {
+                    const cleanQ = q.replace(/\D+/g, '');
+                    matchSearch = name.includes(q) || 
+                                  phone.includes(q) || 
+                                  phoneDisplay.includes(q) || 
+                                  (cleanQ.length >= 3 && cleanPhone.includes(cleanQ));
+                }
             }
 
             if (matchTab && matchLabel && matchSearch) {
@@ -6323,7 +6643,8 @@ document.addEventListener('DOMContentLoaded', function() {
         } else if (showLoader) {
             let loaderTitle = 'Loading chats...';
             if (contactSearchQuery) {
-                loaderTitle = `Searching "${escapeHtml(contactSearchQuery)}"...`;
+                const displaySearch = maskSearchQueryForDisplay(contactSearchQuery);
+                loaderTitle = `Searching "${escapeHtml(displaySearch)}"...`;
             } else if (currentLabelFilter !== 'all') {
                 const activeChip = document.querySelector(`.wab-label-chip.active[data-label-id="${currentLabelFilter}"]`);
                 const labelName = activeChip?.querySelector('.wab-label-chip-name')?.textContent || 'selected label';
@@ -6381,7 +6702,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     let emptySubtitle = 'Try changing your search or filter criteria.';
 
                     if (contactSearchQuery) {
-                        emptyTitle = `No results for "${escapeHtml(contactSearchQuery)}"`;
+                        const displaySearch = maskSearchQueryForDisplay(contactSearchQuery);
+                        emptyTitle = `No results for "${escapeHtml(displaySearch)}"`;
                         emptySubtitle = 'Check spelling or try a phone number.';
                     } else if (currentLabelFilter !== 'all') {
                         const activeChip = document.querySelector(`.wab-label-chip.active[data-label-id="${currentLabelFilter}"]`);
@@ -6464,18 +6786,21 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    /* ── Real-time Debounced Search across whole DB with 0ms local response & live preloader ── */
-    searchInput?.addEventListener('input', function () {
-        const q = this.value.trim();
+    /* ── Real-time Debounced Search across whole DB with 0ms local response, live preloader & Phone Masking ── */
+    let searchRawBuffer = '';
+
+    function executeSearchFromInput() {
+        const q = searchRawBuffer.trim();
         contactSearchQuery = q;
         applyLocalFilter(); // Instant 0ms local response
 
-        // Show live preloader immediately while typing
+        // Show live preloader immediately while typing/pasting with masked query
         const topLoader = document.getElementById('wabSidebarTopLoader');
         const topLoaderText = document.getElementById('wabSidebarTopLoaderText');
+        const displayQ = maskSearchQueryForDisplay(q);
         if (topLoader) {
             if (topLoaderText) {
-                topLoaderText.textContent = q ? `Searching "${q}"...` : 'Loading chats...';
+                topLoaderText.textContent = q ? `Searching "${displayQ}"...` : 'Loading chats...';
             }
             topLoader.classList.remove('d-none');
         }
@@ -6484,6 +6809,75 @@ document.addEventListener('DOMContentLoaded', function() {
         searchDebounceTimer = setTimeout(() => {
             loadContactsServer({ page: 1, append: false, showLoader: true });
         }, 200);
+    }
+
+    // 1. Copy-paste handling: paste full number, display masked version
+    searchInput?.addEventListener('paste', function (e) {
+        e.preventDefault();
+        const text = (e.clipboardData || window.clipboardData).getData('text') || '';
+        searchRawBuffer = text.trim();
+        this.value = maskSearchQueryForDisplay(searchRawBuffer);
+        executeSearchFromInput();
+    });
+
+    // 2. Keyboard typing handling: mask middle digits while preserving raw digits in buffer
+    searchInput?.addEventListener('beforeinput', function (e) {
+        if (e.inputType === 'insertText' && e.data) {
+            e.preventDefault();
+            if (this.selectionStart === 0 && this.selectionEnd === this.value.length) {
+                searchRawBuffer = '';
+            }
+            searchRawBuffer += e.data;
+            this.value = maskSearchQueryForDisplay(searchRawBuffer);
+            executeSearchFromInput();
+        } else if (e.inputType === 'deleteContentBackward') {
+            e.preventDefault();
+            if (this.selectionStart === 0 && this.selectionEnd === this.value.length) {
+                searchRawBuffer = '';
+            } else if (searchRawBuffer.length > 0) {
+                searchRawBuffer = searchRawBuffer.slice(0, -1);
+            }
+            this.value = maskSearchQueryForDisplay(searchRawBuffer);
+            executeSearchFromInput();
+        }
+    });
+
+    // 3. Backspace/Delete keyboard handler
+    searchInput?.addEventListener('keydown', function (e) {
+        if (e.key === 'Backspace' || e.key === 'Delete') {
+            if (this.selectionStart === 0 && this.selectionEnd === this.value.length) {
+                e.preventDefault();
+                searchRawBuffer = '';
+                this.value = '';
+                executeSearchFromInput();
+                return;
+            }
+            if (e.key === 'Backspace') {
+                e.preventDefault();
+                if (searchRawBuffer.length > 0) {
+                    searchRawBuffer = searchRawBuffer.slice(0, -1);
+                }
+                this.value = maskSearchQueryForDisplay(searchRawBuffer);
+                executeSearchFromInput();
+            } else if (e.key === 'Delete') {
+                e.preventDefault();
+                searchRawBuffer = '';
+                this.value = '';
+                executeSearchFromInput();
+            }
+        }
+    });
+
+    // 4. Input fallback (e.g. clear button, autocomplete)
+    searchInput?.addEventListener('input', function () {
+        if (!this.value) {
+            searchRawBuffer = '';
+            executeSearchFromInput();
+        } else if (!this.value.includes('*') && this.value !== searchRawBuffer) {
+            searchRawBuffer = this.value;
+            this.value = maskSearchQueryForDisplay(searchRawBuffer);
+            executeSearchFromInput();
+        }
     });
 
     // Handle browser Back/Forward navigation
@@ -6959,7 +7353,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     function contactUrl(phone) {
-        return @json(route('whatsapp.chat')) + '?phone=' + encodeURIComponent(phone);
+        return @json(route('whatsapp.chat'));
     }
 
     function resolveContactName(name, phone) {
@@ -6967,15 +7361,16 @@ document.addEventListener('DOMContentLoaded', function() {
         const ph = String(phone || '').trim();
         const cleanPh = ph.replace(/\D+/g, '');
         const cleanRaw = raw.replace(/\D+/g, '');
+        const cleanPh10 = cleanPh.length >= 10 ? cleanPh.slice(-10) : cleanPh;
 
-        if (!raw || raw === 'System' || raw === 'null' || raw === 'undefined') {
-            return ph ? 'Unknown User' : 'Select chat';
+        if (!raw || raw === 'System' || raw === 'null' || raw === 'undefined' || raw === 'Unknown User') {
+            return ph ? window.maskPhoneForDisplay(ph) : 'Select chat';
         }
         if (raw === 'Select chat' && !ph) {
             return 'Select chat';
         }
-        if (raw === ph || (cleanPh && cleanRaw === cleanPh)) {
-            return 'Unknown User';
+        if (raw === ph || (cleanPh && cleanRaw === cleanPh) || (cleanPh10 && cleanRaw === cleanPh10) || cleanRaw.length >= 10) {
+            return window.maskPhoneForDisplay(raw || ph);
         }
         return raw;
     }
@@ -6984,6 +7379,7 @@ document.addEventListener('DOMContentLoaded', function() {
     function initials(name) {
         const clean = String(name || '?').trim();
         if (!clean || clean === '?' || clean === 'null' || clean === 'undefined') return 'U';
+        if (clean.includes('*') || /^\d/.test(clean)) return '#';
         return clean.charAt(0).toUpperCase() || 'U';
     }
 
@@ -7874,9 +8270,15 @@ document.addEventListener('DOMContentLoaded', function() {
             sidebar.classList.remove('mobile-hidden');
             return;
         }
-        @if($selectedPhone)
-            window.location.href = '{{ route('whatsapp.chat') }}';
-        @endif
+        if (selectedPhone && typeof window.closeActiveChatRealtime === 'function') {
+            window.closeActiveChatRealtime();
+        }
+    });
+
+    mobileBack?.addEventListener('click', () => {
+        if (typeof window.closeActiveChatRealtime === 'function') {
+            window.closeActiveChatRealtime();
+        }
     });
 
     function toggleSidebarCollapse(e) {

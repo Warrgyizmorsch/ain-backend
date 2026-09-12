@@ -99,8 +99,56 @@
                 </div>
             </div>
         </div>
+        
+        <!-- Multi-Account Email Plugin Card -->
+        <div class="col-md-6 col-xl-4">
+            <div class="card h-100 border shadow-sm plugin-card {{ ($activeEmailAccounts ?? 0) > 0 ? 'border-success' : '' }}">
+                <div class="card-body d-flex flex-column justify-content-between p-6">
+                    <div>
+                        <div class="d-flex align-items-center justify-content-between mb-4">
+                            <div class="symbol symbol-50px symbol-circle bg-light-danger p-3">
+                                <i class="fa fa-envelope text-danger fs-2"></i>
+                            </div>
+                            <span class="badge {{ ($activeEmailAccounts ?? 0) > 0 ? 'badge-light-success' : 'badge-light-danger' }} fs-8">
+                                {{ ($activeEmailAccounts ?? 0) > 0 ? 'Active (' . $activeEmailAccounts . ' Inboxes)' : 'Inactive' }}
+                            </span>
+                        </div>
 
-        <!-- Twilio SMS (Upcoming) -->
+                        <div class="d-flex align-items-center gap-2 mb-2">
+                            <h3 class="fw-bolder text-dark mb-0">Email Client & Inbox</h3>
+                        </div>
+
+                        <p class="text-muted fs-7 mb-4">
+                            Multi-account SMTP & IMAP email management, Gmail-style threaded inbox, real-time message sync, rich HTML composer & one-click socket connection testing.
+                        </p>
+
+                        <div class="bg-light rounded p-3 mb-4 fs-8 text-muted">
+                            <div class="d-flex justify-content-between mb-1">
+                                <span>Configured Inboxes:</span>
+                                <strong class="text-dark">{{ $emailAccountsCount ?? 0 }} Accounts</strong>
+                            </div>
+                            <div class="d-flex justify-content-between mb-1">
+                                <span>Active Accounts:</span>
+                                <span class="badge badge-light-success">{{ $activeEmailAccounts ?? 0 }} Active</span>
+                            </div>
+                            <div class="d-flex justify-content-between">
+                                <span>Sync Protocol:</span>
+                                <strong class="text-dark">IMAP / SMTP Socket (Zero-ext)</strong>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-flex flex-wrap gap-2 pt-2 border-top">
+                        <a href="{{ route('emails.index') }}" class="btn btn-sm btn-light-primary flex-fill">
+                            <i class="fa fa-inbox me-1"></i> Open Inbox
+                        </a>
+                        <a href="{{ route('emails.settings') }}" class="btn btn-sm btn-light-success flex-fill">
+                            <i class="fa fa-cog me-1"></i> Settings &amp; Test
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
         <div class="col-md-6 col-xl-4">
             <div class="card h-100 border border-dashed shadow-sm plugin-card opacity-75">
                 <div class="card-body d-flex flex-column justify-content-between p-6">

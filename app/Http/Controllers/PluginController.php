@@ -50,10 +50,14 @@ class PluginController extends Controller
 
         $currentUser = Auth::user();
         $currentUserPhone = $currentUser ? ($currentUser->mobile ?? $currentUser->mobile_no ?? '') : '';
+        $emailAccountsCount = \App\Models\EmailConfiguration::count();
+        $activeEmailAccounts = \App\Models\EmailConfiguration::where('is_active', true)->count();
 
         return view('back-end.plugins.index', [
             'twilioPlugin' => $twilioPlugin,
             'currentUserPhone' => $currentUserPhone,
+            'emailAccountsCount' => $emailAccountsCount,
+            'activeEmailAccounts' => $activeEmailAccounts,
         ]);
     }
 

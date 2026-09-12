@@ -45,12 +45,7 @@ if (!function_exists('mask_mobile_only')) {
             return '';
         }
 
-        if (Auth::check() && (int) Auth::user()->role_id === 1) {
-            return $mobileStr;
-        }
-
         // If it already has asterisks and has digits at end, preserve it;
-        // but if it ends with asterisks (e.g. 77******), we don't know the last digits
         if (strpos($mobileStr, '*') !== false) {
             return $mobileStr;
         }
@@ -77,16 +72,15 @@ if (!function_exists('mask_mobile_only')) {
             return substr($digits, 0, 1) . str_repeat('*', $len - 2) . substr($digits, -1);
         }
 
-        // Standard 10-digit format: 2 digits + 6 asterisks + 4 digits = 77******9811
-        return substr($digits, 0, 2) . str_repeat('*', max(6, $len - 6)) . substr($digits, -4);
+        // Standard format: start 2 + asterisks + last 4 = 77******9811
+        return substr($digits, 0, 2) . str_repeat('*', max(4, $len - 6)) . substr($digits, -4);
     }
 }
 
 if (!function_exists('mask_raw_phone')) {
     /**
-     * Masks complete phone numbers (e.g. +15054963739 or 9876543210).
-     * Super Admins (role_id 1) see the full unmasked number.
-     * All other users see masked format: +1 50******39 or 98******10.
+     * Masks complete phone numbers with country code:
+     * e.g. +44 73******3818 or +91 77******9811
      */
     function mask_raw_phone(?string $phone): string
     {
@@ -95,33 +89,37 @@ if (!function_exists('mask_raw_phone')) {
             return '';
         }
 
-        // Super Admin (role_id 1) sees full phone number unmasked
-        if (Auth::check() && (int) Auth::user()->role_id === 1) {
-            return $phoneStr;
-        }
-
-        if (strlen($phoneStr) < 5) {
+        if (strpos($phoneStr, '*') !== false) {
             return $phoneStr;
         }
 
         $prefix = '';
-        $digits = $phoneStr;
-        if (str_starts_with($phoneStr, '+')) {
-            if (preg_match('/^(\+\d{1,3})/', $phoneStr, $m)) {
-                $prefix = $m[1] . ' ';
-                $digits = substr($phoneStr, strlen($m[1]));
+        $digits = preg_replace('/\D+/', '', $phoneStr);
+        if (str_starts_with($phoneStr, '+') && preg_match('/^(\+\d{1,3})/', $phoneStr, $m)) {
+            $prefix = $m[1] . ' ';
+            $cleanCC = preg_replace('/\D+/', '', $m[1]);
+            if (str_starts_with($digits, $cleanCC)) {
+                $digits = substr($digits, strlen($cleanCC));
             }
+        } elseif ((str_starts_with($digits, '91') || str_starts_with($digits, '44')) && strlen($digits) > 10) {
+            $prefix = '+' . substr($digits, 0, 2) . ' ';
+            $digits = substr($digits, 2);
+        } elseif (strlen($digits) > 10) {
+            $prefix = '+' . substr($digits, 0, strlen($digits) - 10) . ' ';
+            $digits = substr($digits, -10);
         }
 
-        if (strlen($digits) <= 4) {
-            return $phoneStr;
+        $len = strlen($digits);
+        if ($len <= 4) {
+            return $prefix . str_repeat('*', $len);
         }
 
-        $start  = substr($digits, 0, 2);
-        $end    = substr($digits, -2);
-        $masked = str_repeat('*', max(4, strlen($digits) - 4));
+        if ($len <= 6) {
+            return $prefix . substr($digits, 0, 1) . str_repeat('*', $len - 2) . substr($digits, -1);
+        }
 
-        return $prefix . $start . $masked . $end;
+        // Country code + start 2 + asterisks + last 4
+        return $prefix . substr($digits, 0, 2) . str_repeat('*', max(4, $len - 6)) . substr($digits, -4);
     }
 }
 

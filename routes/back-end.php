@@ -96,6 +96,7 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/chat/customer-data', [WhatsappController::class, 'customerData'])->name('chat.customer-data');
         Route::get('/chat/templates', [WhatsappController::class, 'getTemplates'])->name('chat.templates');
         Route::post('/chat/send-template', [WhatsappController::class, 'sendTemplate'])->name('chat.send-template');
+        Route::post('/chat/close-session', [WhatsappController::class, 'closeChatSession'])->name('chat.close-session');
     });
 
     Route::prefix('career')->group(function () {
