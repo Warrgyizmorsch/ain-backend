@@ -182,33 +182,61 @@ class RoleOneMenuSeeder extends Seeder
         DB::table('submenus')->where('menus_id', $emailMenuId)->delete();
 
         // =============================================================
-        // 4. SEED INITIAL EMAIL CONFIGS (Account switching done inside Inbox UI)
+        // 4. SEED INITIAL EMAIL CONFIGS (Assignment Help & Write Email)
         // =============================================================
+        // Remove old / legacy accounts (including 'App' / anshulsuthar)
+        EmailConfiguration::whereNotIn('email_address', [
+            'assignmentinneedhelp@gmail.com',
+            'order@assignnmentinneed.com'
+        ])->delete();
+
         EmailConfiguration::updateOrCreate(
-            ['email_address' => 'anshulsuthar.warrgyizmorsch@gmail.com'],
+            ['email_address' => 'assignmentinneedhelp@gmail.com'],
             [
-                'name' => 'App',
-                'from_name' => 'Anshul',
+                'name' => 'Assignment Help',
+                'from_name' => 'Assignment Help',
                 'driver' => 'smtp',
                 'host' => 'smtp.gmail.com',
                 'port' => 587,
                 'encryption' => 'tls',
-                'username' => 'anshulsuthar.warrgyizmorsch@gmail.com',
-                'password' => 'eyfntqaxwfeqofhq',
+                'username' => 'assignmentinneedhelp@gmail.com',
+                'password' => 'bguttdxpipzouwzm',
                 'incoming_protocol' => 'imap',
                 'incoming_host' => 'imap.gmail.com',
                 'incoming_port' => 993,
                 'incoming_encryption' => 'ssl',
-                'incoming_username' => 'anshulsuthar.warrgyizmorsch@gmail.com',
-                'incoming_password' => 'eyfntqaxwfeqofhq',
+                'incoming_username' => 'assignmentinneedhelp@gmail.com',
+                'incoming_password' => 'bguttdxpipzouwzm',
                 'is_default' => true,
                 'is_active' => true,
                 'sort_order' => 1,
             ]
         );
 
-        // Ensure other accounts are not set as default
-        EmailConfiguration::where('email_address', '!=', 'anshulsuthar.warrgyizmorsch@gmail.com')
+        EmailConfiguration::updateOrCreate(
+            ['email_address' => 'order@assignnmentinneed.com'],
+            [
+                'name' => 'Write Email',
+                'from_name' => 'Write Email',
+                'driver' => 'smtp',
+                'host' => 'smtp.gmail.com',
+                'port' => 587,
+                'encryption' => 'tls',
+                'username' => 'order@assignnmentinneed.com',
+                'password' => 'bguttdxpipzouwzm',
+                'incoming_protocol' => 'imap',
+                'incoming_host' => 'imap.gmail.com',
+                'incoming_port' => 993,
+                'incoming_encryption' => 'ssl',
+                'incoming_username' => 'order@assignnmentinneed.com',
+                'incoming_password' => 'bguttdxpipzouwzm',
+                'is_default' => false,
+                'is_active' => true,
+                'sort_order' => 2,
+            ]
+        );
+
+        EmailConfiguration::where('email_address', '!=', 'assignmentinneedhelp@gmail.com')
             ->update(['is_default' => false]);
 
         EmailConfiguration::syncEmailSubmenus();
