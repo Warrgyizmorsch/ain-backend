@@ -58,7 +58,7 @@ class EmailConfiguration extends Model
                     'icon_class' => 'fa fa-envelope',
                     'show_menu' => 'Y',
                     'routes' => 'emails',
-                    'sort_order' => 23,
+                    'sort_order' => 3,
                     'parent_id' => null,
                     'created_at' => now(),
                     'updated_at' => now(),
@@ -71,7 +71,7 @@ class EmailConfiguration extends Model
                     'show_menu' => 'Y',
                     'parent_id' => null,
                     'routes' => 'emails',
-                    'sort_order' => 23,
+                    'sort_order' => 3,
                     'updated_at' => now(),
                 ]);
             }
