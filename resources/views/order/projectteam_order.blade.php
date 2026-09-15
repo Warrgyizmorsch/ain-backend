@@ -72,6 +72,7 @@
 													</button>
 												@endif
 											</div>
+											{!! get_order_duration_gap_badge($order) !!}
 											<br>
                                             @if($order->is_fail == 1)
 												<span class="badge badge-light-danger fs-7 fw-bold">Fail Order</span>

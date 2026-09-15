@@ -221,6 +221,7 @@
                                             <td>{{ $loop->index + 1 }}</td>
                                             <td>
                                             {{ $order->order_id }}
+                                            {!! get_order_duration_gap_badge($order) !!}
                                             <span class="badge badge-light-info fs-7 fw-bold" >  {{ $order->qc_admin }}</span>
 
                                             </td>

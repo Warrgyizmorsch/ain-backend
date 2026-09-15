@@ -1251,7 +1251,7 @@
                                 <div id="threadLabelsChecklist" class="d-flex flex-column gap-1">
                                     @foreach(($allLabels ?? []) as $lbl)
                                         <label class="form-check form-check-custom form-check-solid d-flex align-items-center gap-2 p-1.5 rounded hover-bg-light cursor-pointer mb-0">
-                                            <input class="form-check-input label-assign-checkbox" type="checkbox" value="{{ $lbl->id }}" id="label-chk-{{ $lbl->id }}" onchange="toggleActiveThreadLabel({{ $lbl->id }}, this.checked)">
+                                            <input class="form-check-input label-assign-checkbox" type="checkbox" value="{{ $lbl->id }}" id="label-chk-{{ $lbl->id }}" data-name="{{ $lbl->name }}" data-color="{{ $lbl->color }}" onchange="toggleActiveThreadLabel({{ $lbl->id }}, this.checked)">
                                             <span class="badge px-2 py-1 fs-8 fw-bold" style="background-color: {{ $lbl->color }}; color: #ffffff;">{{ $lbl->name }}</span>
                                         </label>
                                     @endforeach
@@ -1514,6 +1514,7 @@ let emailFolderHtmlCache = @json($folderHtmlCache ?? []);
 let activeThreadId = null;
 let activeEmailData = null;
 let inlineComposerMode = 'reply';
+const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '{{ csrf_token() }}';
 let composeQuill = null;
 let inlineQuill = null;
 let replyQuill = null;

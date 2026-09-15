@@ -442,7 +442,16 @@
                     @php $lastRenderedDate = $messageDate; @endphp
                 @endif
                 <div class="wab-msg-row {{ $message->direction === 'inbound' ? 'wab-incoming' : 'wab-outgoing' }}" data-message-id="{{ $message->id }}">
-                    <div class="wab-msg-bubble {{ $messageMediaType ? 'wab-bubble--media wab-bubble--' . $messageMediaType : '' }}">
+                    <div class="wab-msg-bubble {{ $messageMediaType ? 'wab-bubble--media wab-bubble--' . $messageMediaType : '' }}" data-copy-text="{{ $message->message ?: ($message->media_name ?: $message->media_url) }}">
+                        <button type="button" class="wab-copy-msg-btn" title="Copy message" aria-label="Copy message" data-copy-text="{{ $message->message ?: ($message->media_name ?: $message->media_url) }}">
+                            <svg class="wab-copy-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                            </svg>
+                            <svg class="wab-copied-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:none;">
+                                <polyline points="20 6 9 17 4 12"></polyline>
+                            </svg>
+                        </button>
                         @if($message->media_url)
                             @php
                                 $messageMediaUrl = $mediaDisplayUrl($message->media_url);
@@ -494,7 +503,7 @@
                                 <div class="wab-media-caption">{{ $message->message }}</div>
                             @endif
                         @else
-                            {{ $message->message }}
+                            <span class="wab-msg-text">{{ $message->message }}</span>
                         @endif
                         <div class="wab-msg-meta">
                             <span class="wab-msg-time">{{ optional($message->created_at)->format('H:i') }}</span>
@@ -3421,7 +3430,7 @@ document.addEventListener('DOMContentLoaded', function() {
 /* ── Bubble ── */
 .wab-msg-bubble {
     position: relative;
-    padding: 9px 12px 28px;
+    padding: 9px 28px 28px 12px;
     border-radius: 8px;
     font-size: 14px;
     line-height: 1.5;
@@ -3457,6 +3466,69 @@ document.addEventListener('DOMContentLoaded', function() {
     border-left: 0;
 }
 
+/* ── Copy Message Button ── */
+.wab-copy-msg-btn {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 22px;
+    height: 22px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.88);
+    backdrop-filter: blur(4px);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 4px;
+    color: #54656f;
+    cursor: pointer;
+    opacity: 0;
+    visibility: hidden;
+    transform: scale(0.9);
+    transition: opacity 0.15s ease, transform 0.15s ease, background 0.15s ease, color 0.15s ease;
+    z-index: 4;
+    padding: 0;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+.wab-msg-bubble:hover .wab-copy-msg-btn,
+.wab-copy-msg-btn.is-active,
+.wab-copy-msg-btn:focus-visible {
+    opacity: 1;
+    visibility: visible;
+    transform: scale(1);
+}
+.wab-copy-msg-btn:hover {
+    background: #ffffff;
+    color: #111b21;
+    border-color: rgba(0, 0, 0, 0.18);
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.14);
+}
+.wab-copy-msg-btn.wab-copied {
+    opacity: 1 !important;
+    visibility: visible !important;
+    transform: scale(1) !important;
+    background: #e8f5e9 !important;
+    border-color: #81c784 !important;
+    color: #16a34a !important;
+}
+.wab-copy-msg-btn .wab-copied-icon {
+    display: none;
+}
+.wab-copy-msg-btn.wab-copied .wab-copy-icon {
+    display: none !important;
+}
+.wab-copy-msg-btn.wab-copied .wab-copied-icon {
+    display: inline-block !important;
+}
+
+@media (hover: none) and (pointer: coarse) {
+    .wab-copy-msg-btn {
+        opacity: 0.75;
+        visibility: visible;
+        transform: scale(1);
+    }
+}
+
 /* ── Message Meta ── */
 .wab-msg-meta {
     position: absolute;
@@ -3470,12 +3542,12 @@ document.addEventListener('DOMContentLoaded', function() {
 .wab-link { color: #0066cc; text-decoration: underline; }
 
 .wab-bubble--media {
-    padding: 5px 5px 28px;
+    padding: 5px 5px 28px !important;
     min-width: 180px;
     max-width: 330px;
 }
 .wab-bubble--audio {
-    padding: 0 0 24px;
+    padding: 0 0 24px !important;
     background: transparent !important;
     box-shadow: none;
     min-width: 292px;
@@ -6334,11 +6406,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
             const hasMedia = Boolean(msg.media_url);
             const mediaClass = mediaTypeClass(msg.media_type);
+            const copyContent = msg.message || msg.media_name || msg.media_url || '';
             const row = document.createElement('div');
             row.className = `wab-msg-row ${msg.direction === 'inbound' ? 'wab-incoming' : 'wab-outgoing'}`;
             row.dataset.messageId = msg.id;
             row.innerHTML = `
-                <div class="wab-msg-bubble ${hasMedia ? `wab-bubble--media ${mediaClass ? `wab-bubble--${mediaClass}` : ''}` : ''}">
+                <div class="wab-msg-bubble ${hasMedia ? `wab-bubble--media ${mediaClass ? `wab-bubble--${mediaClass}` : ''}` : ''}" data-copy-text="${escapeHtml(copyContent)}">
+                    ${copyButtonMarkup(copyContent)}
                     ${messageContentMarkup(msg)}
                     <div class="wab-msg-meta">
                         <span class="wab-msg-time">${escapeHtml(msg.time || '')}</span>
@@ -6897,6 +6971,19 @@ document.addEventListener('DOMContentLoaded', function() {
         }[char]));
     }
 
+    function copyButtonMarkup(text) {
+        const safe = escapeHtml(text || '');
+        return `<button type="button" class="wab-copy-msg-btn" title="Copy message" aria-label="Copy message" data-copy-text="${safe}">
+            <svg class="wab-copy-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+            </svg>
+            <svg class="wab-copied-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:none;">
+                <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+        </button>`;
+    }
+
     function normalizeMessageStatus(status) {
         const value = String(status || 'sent').toLowerCase();
 
@@ -7056,7 +7143,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const caption = String(message.message || '').trim();
 
         if (!message.media_url) {
-            return escapeHtml(message.message || '');
+            return `<span class="wab-msg-text">${escapeHtml(message.message || '')}</span>`;
         }
 
         const url = escapeHtml(message.media_url);
@@ -7167,12 +7254,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
             const hasMedia = Boolean(message.media_url);
             const mediaClass = mediaTypeClass(message.media_type);
+            const copyContent = message.message || message.media_name || message.media_url || '';
             const row = document.createElement('div');
             row.className = `wab-msg-row ${message.direction === 'inbound' ? 'wab-incoming' : 'wab-outgoing'}`;
             row.dataset.messageId = message.id;
             if (message.wa_message_id) row.dataset.waMessageId = message.wa_message_id;
             row.innerHTML = `
-                <div class="wab-msg-bubble ${hasMedia ? `wab-bubble--media ${mediaClass ? `wab-bubble--${mediaClass}` : ''}` : ''}">
+                <div class="wab-msg-bubble ${hasMedia ? `wab-bubble--media ${mediaClass ? `wab-bubble--${mediaClass}` : ''}` : ''}" data-copy-text="${escapeHtml(copyContent)}">
+                    ${copyButtonMarkup(copyContent)}
                     ${messageContentMarkup(message)}
                     <div class="wab-msg-meta">
                         <span class="wab-msg-time">${escapeHtml(message.time || '')}</span>
@@ -7240,12 +7329,14 @@ document.addEventListener('DOMContentLoaded', function() {
         ensureDateBadge(message);
 
         const mediaClass = mediaTypeClass(message.media_type);
+        const copyContent = message.message || message.media_name || message.media_url || '';
         const row = document.createElement('div');
         row.className = `wab-msg-row ${message.direction === 'inbound' ? 'wab-incoming' : 'wab-outgoing'}`;
         row.dataset.messageId = message.id;
         if (message.wa_message_id) row.dataset.waMessageId = message.wa_message_id;
         row.innerHTML = `
-            <div class="wab-msg-bubble ${hasMedia ? `wab-bubble--media ${mediaClass ? `wab-bubble--${mediaClass}` : ''}` : ''}">
+            <div class="wab-msg-bubble ${hasMedia ? `wab-bubble--media ${mediaClass ? `wab-bubble--${mediaClass}` : ''}` : ''}" data-copy-text="${escapeHtml(copyContent)}">
+                ${copyButtonMarkup(copyContent)}
                 ${messageContentMarkup(message)}
                 <div class="wab-msg-meta">
                     <span class="wab-msg-time">${escapeHtml(message.time || '')}</span>
@@ -8492,6 +8583,104 @@ document.addEventListener('DOMContentLoaded', function() {
         if (selectedPhone) pollMessages();
         refreshContactsSidebar();
     });
+
+    // ── WhatsApp Message Copy to Clipboard ──
+    document.addEventListener('click', function (e) {
+        const copyBtn = e.target.closest('.wab-copy-msg-btn');
+        if (!copyBtn) return;
+        e.preventDefault();
+        e.stopPropagation();
+
+        let textToCopy = copyBtn.getAttribute('data-copy-text');
+
+        if (!textToCopy) {
+            const bubble = copyBtn.closest('.wab-msg-bubble');
+            if (bubble) {
+                textToCopy = bubble.getAttribute('data-copy-text');
+                if (!textToCopy) {
+                    const captionEl = bubble.querySelector('.wab-media-caption');
+                    if (captionEl && captionEl.textContent.trim()) {
+                        textToCopy = captionEl.textContent.trim();
+                    } else {
+                        const textEl = bubble.querySelector('.wab-msg-text');
+                        if (textEl) {
+                            textToCopy = textEl.innerText.trim();
+                        } else {
+                            const clone = bubble.cloneNode(true);
+                            clone.querySelectorAll('.wab-msg-meta, .wab-copy-msg-btn, video, audio, .wab-voice-card, .wab-media-img-link').forEach(el => el.remove());
+                            textToCopy = clone.innerText.trim();
+                        }
+                    }
+
+                    if (!textToCopy) {
+                        const docName = bubble.querySelector('.wab-media-doc-name')?.textContent?.trim();
+                        const mediaLink = bubble.querySelector('a[href]')?.getAttribute('href') || bubble.querySelector('audio, video')?.getAttribute('src');
+                        textToCopy = docName || mediaLink || '';
+                    }
+                }
+            }
+        }
+
+        if (!textToCopy) {
+            if (typeof toastr !== 'undefined') {
+                toastr.warning('No text to copy in this message');
+            }
+            return;
+        }
+
+        copyTextToClipboard(textToCopy, function (success) {
+            if (success) {
+                copyBtn.classList.add('wab-copied');
+                copyBtn.setAttribute('title', 'Copied!');
+                if (typeof toastr !== 'undefined') {
+                    toastr.success('Message copied to clipboard', '', { timeOut: 1500 });
+                }
+                setTimeout(() => {
+                    copyBtn.classList.remove('wab-copied');
+                    copyBtn.setAttribute('title', 'Copy message');
+                }, 1800);
+            } else {
+                if (typeof toastr !== 'undefined') {
+                    toastr.error('Failed to copy message');
+                }
+            }
+        });
+    });
+
+    function copyTextToClipboard(text, callback) {
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(text).then(() => {
+                if (callback) callback(true);
+            }).catch(err => {
+                console.warn('Clipboard API error, trying fallback:', err);
+                fallbackCopyText(text, callback);
+            });
+        } else {
+            fallbackCopyText(text, callback);
+        }
+    }
+
+    function fallbackCopyText(text, callback) {
+        try {
+            const textArea = document.createElement('textarea');
+            textArea.value = text;
+            textArea.style.position = 'fixed';
+            textArea.style.top = '-9999px';
+            textArea.style.left = '-9999px';
+            textArea.style.opacity = '0';
+            textArea.setAttribute('readonly', '');
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            textArea.setSelectionRange(0, 99999);
+            const successful = document.execCommand('copy');
+            document.body.removeChild(textArea);
+            if (callback) callback(successful);
+        } catch (err) {
+            console.error('Fallback copy failed:', err);
+            if (callback) callback(false);
+        }
+    }
 
 })();
 </script>

@@ -186,6 +186,13 @@ if (!function_exists('mask_email_for_display')) {
     }
 }
 
+if (!function_exists('mask_email_contact')) {
+    function mask_email_contact(?string $email): string
+    {
+        return mask_email_for_display($email);
+    }
+}
+
 if (!function_exists('find_user_ids_by_search_term')) {
     /**
      * Finds matching user IDs whether the search term is a full phone number,
@@ -233,7 +240,7 @@ if (!function_exists('find_user_ids_by_search_term')) {
         // 3. Clean digits (full phone number, last 10, with/without countrycode) - only when NOT masked
         if (!$hasAsterisk) {
             $cleanDigits = preg_replace('/\D+/', '', $term);
-            if (strlen($cleanDigits) >= 2) {
+            if (strlen($cleanDigits) >= 7) {
                 $last10 = strlen($cleanDigits) >= 10 ? substr($cleanDigits, -10) : $cleanDigits;
                 $withoutZero = ltrim($cleanDigits, '0');
 
@@ -255,7 +262,15 @@ if (!function_exists('find_user_ids_by_search_term')) {
             $query->orWhere('id', (int) $term);
         }
 
-        return $query->pluck('id')->toArray();
+        $ids = $query->pluck('id')->toArray();
+        if (is_numeric($term)) {
+            $intId = (int) $term;
+            if (!in_array($intId, $ids)) {
+                $ids[] = $intId;
+            }
+        }
+
+        return $ids;
     }
 }
 
@@ -276,6 +291,89 @@ if (!function_exists('logActivity')) {
         } catch (\Exception $e) {
             return ['status' => false, 'msg' => $e->getMessage()];
             // ignore error
+        }
+    }
+}
+
+if (!function_exists('get_order_duration_gap_badge')) {
+    /**
+     * Calculate gap (in days) between order_date and delivery_date (deadline)
+     * and render styled label badge under order code.
+     *
+     * NOTE: Only shown for orders with status 'Initiated' or 'Other'.
+     *
+     * Ranges:
+     * - <= 2 Days : < 2 Days (Red)
+     * - 3-5 Days  : 3-5 Days (Warning/Yellow)
+     * - 6-15 Days : 6-15 Days (Primary/Blue)
+     * - > 15 Days : 15 Days and Above (Success/Green)
+     */
+    function get_order_duration_gap_badge($orderOrDate, $deliveryDate = null, $customStatus = null): string
+    {
+        try {
+            $orderDate = null;
+            $endDate = null;
+            $status = $customStatus;
+
+            if (is_object($orderOrDate)) {
+                $status = $customStatus ?? ($orderOrDate->projectstatus ?? ($orderOrDate->status ?? ''));
+                $orderDate = $orderOrDate->order_date ?? ($orderOrDate->created_at ?? null);
+                $endDate = $deliveryDate ?? ($orderOrDate->delivery_date ?? ($orderOrDate->deadline ?? null));
+
+                // Also check optional lead / frontendLead if attached
+                if (empty($orderDate) && isset($orderOrDate->lead)) {
+                    $orderDate = $orderOrDate->lead->created_at ?? ($orderOrDate->lead->create_at ?? null);
+                }
+                if (empty($endDate) && isset($orderOrDate->lead)) {
+                    $endDate = $orderOrDate->lead->deadline ?? null;
+                }
+                if (empty($endDate) && isset($orderOrDate->frontendLead)) {
+                    $endDate = $orderOrDate->frontendLead->deadline ?? null;
+                }
+            } elseif (is_array($orderOrDate)) {
+                $status = $customStatus ?? ($orderOrDate['projectstatus'] ?? ($orderOrDate['status'] ?? ''));
+                $orderDate = $orderOrDate['order_date'] ?? ($orderOrDate['created_at'] ?? null);
+                $endDate = $deliveryDate ?? ($orderOrDate['delivery_date'] ?? ($orderOrDate['deadline'] ?? null));
+            } else {
+                $orderDate = $orderOrDate;
+                $endDate = $deliveryDate;
+            }
+
+            // Only display for orders with status 'Initiated' or 'Other'
+            $cleanStatus = strtolower(trim((string)$status));
+            if (!in_array($cleanStatus, ['initiated', 'other'])) {
+                return '';
+            }
+
+            if (empty($orderDate) || empty($endDate)) {
+                return '';
+            }
+
+            $start = \Carbon\Carbon::parse($orderDate)->startOfDay();
+            $end = \Carbon\Carbon::parse($endDate)->startOfDay();
+            $days = (int) $start->diffInDays($end, false);
+
+            if ($days <= 2) {
+                $text = '&lt; 2 Days';
+                $badgeClass = 'badge-light-danger text-danger';
+                $border = 'border: 1px solid rgba(241, 65, 108, 0.3);';
+            } elseif ($days >= 3 && $days <= 5) {
+                $text = '3-5 Days';
+                $badgeClass = 'badge-light-warning text-warning';
+                $border = 'border: 1px solid rgba(255, 199, 0, 0.3);';
+            } elseif ($days >= 6 && $days <= 15) {
+                $text = '6-15 Days';
+                $badgeClass = 'badge-light-primary text-primary';
+                $border = 'border: 1px solid rgba(0, 158, 247, 0.3);';
+            } else {
+                $text = '15 Days and Above';
+                $badgeClass = 'badge-light-success text-success';
+                $border = 'border: 1px solid rgba(80, 205, 137, 0.3);';
+            }
+
+            return '<div class="mt-1"><span class="badge ' . $badgeClass . ' fs-8 fw-bold" style="' . $border . ' border-radius: 5px; padding: 3px 8px;" title="Duration: ' . $days . ' Days (' . $start->format('d M Y') . ' to ' . $end->format('d M Y') . ')">' . $text . '</span></div>';
+        } catch (\Throwable $e) {
+            return '';
         }
     }
 }

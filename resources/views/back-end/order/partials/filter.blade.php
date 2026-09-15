@@ -1,26 +1,51 @@
 <div class="card card-xxl-stretch mb-5 mb-xl-8">
-    <div class="card-header border-0 pt-5">
-        {{-- <h3 class="card-title align-items-start flex-column">
-            <span id="filter-total" class="card-label fw-bolder fs-3 mb-1">Filter</span>
-        </h3> --}}
-        <div class="d-flex align-items-center gap-3">
-            <h3 class="card-title align-items-start flex-column mb-0">
-                <span id="filter-total" class="card-label fw-bolder fs-3 mb-1">
+    <div class="card-header border-0 pt-4 pb-2 px-6 d-flex align-items-center justify-content-between flex-nowrap" style="min-height: 54px; overflow-x: auto;">
+        <div class="d-flex align-items-center flex-nowrap gap-2 flex-shrink-0">
+            <h3 class="card-title align-items-center mb-0 me-2 flex-shrink-0" style="min-width: 155px;">
+                <span id="filter-total" class="card-label fw-bolder text-gray-800" style="font-size: 14px; letter-spacing: -0.2px; white-space: nowrap; transition: opacity 0.2s ease;">
                     Filter
                 </span>
             </h3>
 
-            <button type="button" id="toggleFilterBtn" class="btn btn-sm btn-primary">
+            <button type="button" id="toggleFilterBtn" class="btn btn-sm btn-primary py-1.5 px-3 fs-8 fw-bold flex-shrink-0" style="border-radius: 6px;">
                 Show Filters
             </button>
+            <button type="button" id="toggleDeadlineGapBtn" class="btn btn-sm flex-shrink-0">
+                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="me-1" style="vertical-align: -1px;">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <polyline points="12 6 12 12 16 14"></polyline>
+                </svg>
+                <span>Deadline Type</span>
+            </button>
+
+            <!-- Inline sliding buttons between Deadline Type and Team-Alpha -->
+            <div id="deadlineGapContainer" class="flex-shrink-0" style="display: none;">
+                <div class="d-inline-flex align-items-center gap-1 p-1 rounded-3 bg-white border border-gray-300 shadow-sm">
+                    <button type="button" class="btn btn-sm deadline-gap-btn deadline-gap-danger py-1 px-2.5 fs-8" data-gap="<2">
+                        &lt; 2 Days
+                    </button>
+                    <button type="button" class="btn btn-sm deadline-gap-btn deadline-gap-warning py-1 px-2.5 fs-8" data-gap="3-5">
+                        3-5 Days
+                    </button>
+                    <button type="button" class="btn btn-sm deadline-gap-btn deadline-gap-primary py-1 px-2.5 fs-8" data-gap="6-15">
+                        6-15 Days
+                    </button>
+                    <button type="button" class="btn btn-sm deadline-gap-btn deadline-gap-success py-1 px-2.5 fs-8" data-gap="15+">
+                        15 Days & Above
+                    </button>
+                    <button type="button" class="btn deadline-gap-clear-btn" title="Clear Deadline Filter"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="2.5" y1="2.5" x2="9.5" y2="9.5"></line><line x1="9.5" y1="2.5" x2="2.5" y2="9.5"></line></svg></button>
+                </div>
+            </div>
         </div>
         @if(empty($hideOrderQuickFilters))
-        <div class="card-toolbar gap-2">
-            <a href="javascript:void(0)" id="teamAlphaBtn" class="btn btn-sm btn-info">
-                Team-Alpha {{ $alphaCount ?? 0 }}
+        <div class="d-flex align-items-center gap-2 flex-shrink-0 ms-3">
+            <a href="javascript:void(0)" id="teamAlphaBtn" class="team-quick-btn team-alpha-btn">
+                <span>Alpha</span>
+                <span class="team-badge">{{ $alphaCount ?? 0 }}</span>
             </a>
-            <a href="javascript:void(0)" id="teamGigaBtn" class="btn btn-sm btn-dark">
-                Team-Giga {{ $gigaCount ?? 0 }}
+            <a href="javascript:void(0)" id="teamGigaBtn" class="team-quick-btn team-giga-btn">
+                <span>Giga</span>
+                <span class="team-badge">{{ $gigaCount ?? 0 }}</span>
             </a>
         </div>
         @endif
@@ -338,6 +363,7 @@
                     <input type="hidden" id="today_deadline_filter" value="">
                     <input type="hidden" id="yesterday_deadline_filter" value="">
                     <input type="hidden" id="today_writer_deadline_filter" value="">
+                    <input type="hidden" id="duration_gap_filter" value="">
                     <a href="javascript:void(0)" id="writerQueryBtn" class="btn btn-sm btn-secondary">
                         Writer Query
                     </a>
@@ -384,6 +410,257 @@
 </div>
 
 <style>
+    .deadline-gap-btn {
+        height: 26px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 6px !important;
+        font-weight: 600;
+        font-size: 11.5px !important;
+        padding: 0 10px !important;
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        border: 1px solid transparent;
+        cursor: pointer;
+        user-select: none;
+        white-space: nowrap;
+        line-height: 1;
+    }
+    .deadline-gap-danger {
+        background-color: #fff5f8 !important;
+        border-color: #fca5a5 !important;
+        color: #e11d48 !important;
+    }
+    .deadline-gap-danger:hover {
+        background-color: #ffe4e6 !important;
+        border-color: #f43f5e !important;
+        color: #be123c !important;
+        transform: translateY(-1px);
+    }
+    .deadline-gap-danger.active {
+        background: linear-gradient(135deg, #f43f5e, #e11d48) !important;
+        border-color: #e11d48 !important;
+        color: #ffffff !important;
+        box-shadow: 0 3px 9px rgba(225, 29, 72, 0.4) !important;
+        transform: translateY(-1px);
+    }
+
+    .deadline-gap-warning {
+        background-color: #fffbeb !important;
+        border-color: #fde68a !important;
+        color: #d97706 !important;
+    }
+    .deadline-gap-warning:hover {
+        background-color: #fef3c7 !important;
+        border-color: #f59e0b !important;
+        color: #b45309 !important;
+        transform: translateY(-1px);
+    }
+    .deadline-gap-warning.active {
+        background: linear-gradient(135deg, #f59e0b, #d97706) !important;
+        border-color: #d97706 !important;
+        color: #ffffff !important;
+        box-shadow: 0 3px 9px rgba(217, 119, 6, 0.4) !important;
+        transform: translateY(-1px);
+    }
+
+    .deadline-gap-primary {
+        background-color: #eff6ff !important;
+        border-color: #bfdbfe !important;
+        color: #2563eb !important;
+    }
+    .deadline-gap-primary:hover {
+        background-color: #dbeafe !important;
+        border-color: #3b82f6 !important;
+        color: #1d4ed8 !important;
+        transform: translateY(-1px);
+    }
+    .deadline-gap-primary.active {
+        background: linear-gradient(135deg, #3b82f6, #2563eb) !important;
+        border-color: #2563eb !important;
+        color: #ffffff !important;
+        box-shadow: 0 3px 9px rgba(37, 99, 235, 0.4) !important;
+        transform: translateY(-1px);
+    }
+
+    .deadline-gap-success {
+        background-color: #ecfdf5 !important;
+        border-color: #a7f3d0 !important;
+        color: #059669 !important;
+    }
+    .deadline-gap-success:hover {
+        background-color: #d1fae5 !important;
+        border-color: #10b981 !important;
+        color: #047857 !important;
+        transform: translateY(-1px);
+    }
+    .deadline-gap-success.active {
+        background: linear-gradient(135deg, #10b981, #059669) !important;
+        border-color: #059669 !important;
+        color: #ffffff !important;
+        box-shadow: 0 3px 9px rgba(5, 150, 105, 0.4) !important;
+        transform: translateY(-1px);
+    }
+
+    .deadline-gap-clear-btn {
+        width: 0;
+        height: 26px !important;
+        min-height: 26px !important;
+        max-height: 26px !important;
+        border-radius: 6px !important;
+        background-color: #fee2e2 !important;
+        border: 0 solid #fca5a5 !important;
+        color: #dc2626 !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        text-align: center !important;
+        opacity: 0;
+        padding: 0 !important;
+        margin: 0 !important;
+        overflow: hidden;
+        pointer-events: none;
+        cursor: pointer;
+        font-size: 0 !important;
+        line-height: 1 !important;
+        box-sizing: border-box !important;
+        vertical-align: middle !important;
+        outline: none !important;
+        transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease, margin 0.25s ease, border-width 0.25s ease;
+    }
+    .deadline-gap-clear-btn.is-visible {
+        width: 26px !important;
+        min-width: 26px !important;
+        max-width: 26px !important;
+        opacity: 1 !important;
+        margin-left: 3px !important;
+        border-width: 1px !important;
+        pointer-events: auto !important;
+    }
+    .deadline-gap-clear-btn svg {
+        width: 12px !important;
+        height: 12px !important;
+        stroke: #dc2626;
+        display: block !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        transform: none !important;
+        transition: stroke 0.2s ease;
+        flex-shrink: 0 !important;
+    }
+    .deadline-gap-clear-btn:hover {
+        background-color: #dc2626 !important;
+        border-color: #dc2626 !important;
+        color: #ffffff !important;
+        transform: scale(1.05);
+    }
+    .deadline-gap-clear-btn:hover svg {
+        stroke: #ffffff !important;
+    }
+
+    .team-quick-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 700;
+        transition: all 0.2s ease;
+        text-decoration: none !important;
+    }
+    .team-alpha-btn {
+        background-color: #eff6ff !important;
+        border: 1px solid #bfdbfe !important;
+        color: #1d4ed8 !important;
+    }
+    .team-alpha-btn:hover, .team-alpha-btn.quick-filter-active {
+        background-color: #dbeafe !important;
+        border-color: #3b82f6 !important;
+        color: #1e40af !important;
+        transform: translateY(-1px);
+        box-shadow: 0 3px 8px rgba(59, 130, 246, 0.25);
+    }
+    .team-alpha-btn .team-badge {
+        background: #3b82f6;
+        color: #ffffff;
+        border-radius: 4px;
+        padding: 2px 6px;
+        font-size: 10px;
+        font-weight: 700;
+    }
+
+    .team-giga-btn {
+        background-color: #f8fafc !important;
+        border: 1px solid #cbd5e1 !important;
+        color: #1e293b !important;
+    }
+    .team-giga-btn:hover, .team-giga-btn.quick-filter-active {
+        background-color: #e2e8f0 !important;
+        border-color: #64748b !important;
+        color: #0f172a !important;
+        transform: translateY(-1px);
+        box-shadow: 0 3px 8px rgba(30, 41, 59, 0.2);
+    }
+    .team-giga-btn .team-badge {
+        background: #1e293b;
+        color: #ffffff;
+        border-radius: 4px;
+        padding: 2px 6px;
+        font-size: 10px;
+        font-weight: 700;
+    }
+
+    #toggleDeadlineGapBtn {
+        border-radius: 6px !important;
+        font-weight: 700;
+        font-size: 12px;
+        padding: 6px 14px;
+        background: #fff8dd !important;
+        border: 1px solid #ffd54f !important;
+        color: #8c6000 !important;
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        display: inline-flex;
+        align-items: center;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    #toggleDeadlineGapBtn svg {
+        stroke: #ff9800;
+        transition: stroke 0.2s ease;
+    }
+    #toggleDeadlineGapBtn:hover {
+        background: #ffecb3 !important;
+        border-color: #ffc107 !important;
+        color: #634300 !important;
+        box-shadow: 0 3px 8px rgba(255, 193, 7, 0.28);
+        transform: translateY(-1px);
+    }
+    #toggleDeadlineGapBtn.active {
+        background: linear-gradient(135deg, #ffb300, #f57c00) !important;
+        border-color: #f57c00 !important;
+        color: #ffffff !important;
+        box-shadow: 0 4px 12px rgba(245, 124, 0, 0.35) !important;
+    }
+    #toggleDeadlineGapBtn.active svg {
+        stroke: #ffffff !important;
+    }
+
+    #deadlineGapContainer {
+        display: none;
+        vertical-align: middle;
+        animation: fadeInSlideRight 0.25s ease-out;
+    }
+    @keyframes fadeInSlideRight {
+        from {
+            opacity: 0;
+            transform: translateX(-12px);
+        }
+        to {
+            opacity: 1;
+            transform: translateX(0);
+        }
+    }
+
     .quick-filter-active {
         border: 2px solid #50CD89 !important;
         box-shadow: 0 0 10px rgba(80, 205, 137, 0.7) !important;
@@ -677,6 +954,19 @@ resetFilters();
         if ($('#filter_team_id').val() === '2') {
             $('#teamGigaBtn').addClass('quick-filter-active');
         }
+
+        const activeGap = $('#duration_gap_filter').val();
+        $('.deadline-gap-btn').removeClass('active').each(function() {
+            const gap = $(this).data('gap');
+            if (activeGap && activeGap === gap) {
+                $(this).addClass('active');
+            }
+        });
+        if (activeGap) {
+            $('.deadline-gap-clear-btn').addClass('is-visible');
+        } else {
+            $('.deadline-gap-clear-btn').removeClass('is-visible');
+        }
     }
 
     $(document).on('click', '#overdueBtn', function(e) {
@@ -929,7 +1219,8 @@ resetFilters();
             holdBtn: $('#holdBtn').val(),
             today_deadline_filter: $('#today_deadline_filter').val(),
             yesterday_deadline_filter: $('#yesterday_deadline_filter').val(),
-            today_writer_deadline_filter: $('#today_writer_deadline_filter').val()
+            today_writer_deadline_filter: $('#today_writer_deadline_filter').val(),
+            duration_gap: $('#duration_gap_filter').val()
             
         };
         // localStorage.setItem('order_filters', JSON.stringify(filters));
@@ -937,16 +1228,10 @@ resetFilters();
 
 
 
-        const allEmpty = Object.values(filters).every(val => !val || val.trim() === "");
+        const allEmpty = Object.values(filters).every(val => !val || String(val).trim() === "");
 
         if (allEmpty) {
-            Swal.fire({
-                icon: 'warning',
-                title: 'No Filters Applied',
-                text: 'Please fill at least one filter to search.',
-                confirmButtonColor: '#3085d6',
-                confirmButtonText: 'OK'
-            });
+            resetFilters(false);
             return;
         }
 
@@ -960,7 +1245,7 @@ resetFilters();
         fetchData(false);
     }
 
-    function resetFilters() {
+    function resetFilters(hideDeadlineBar = true) {
         // localStorage.removeItem('order_filters');
         localStorage.removeItem(filterStorageKey);
         // Clear filter values
@@ -968,6 +1253,14 @@ resetFilters();
         $('#searchResultss').hide().empty();
         $('select').val('').trigger('change');
         $('#filter_team_id').val('');
+        $('#duration_gap_filter').val('');
+        $('.deadline-gap-btn').removeClass('active');
+        $('.deadline-gap-clear-btn').removeClass('is-visible');
+
+        if (hideDeadlineBar) {
+            $('#deadlineGapContainer').hide();
+            $('#toggleDeadlineGapBtn').removeClass('btn-warning').addClass('btn-light-warning text-dark');
+        }
 
         // Reset state
         offset = 0;
@@ -977,11 +1270,11 @@ resetFilters();
 
         highlightActiveQuickFilters();
 
-         runningTotals = {
-        total_amount: 0,
-        total_paid: 0,
-        total_due: 0
-    };
+        runningTotals = {
+            total_amount: 0,
+            total_paid: 0,
+            total_due: 0
+        };
 
         // 🔄 Hide AJAX data, show initial blade-rendered data
         $('#lead-rows').hide().empty();
@@ -1110,6 +1403,12 @@ resetFilters();
                     $('#today_deadline_filter').val(filters.today_deadline_filter || '');
                     $('#yesterday_deadline_filter').val(filters.yesterday_deadline_filter || '');
                     $('#today_writer_deadline_filter').val(filters.today_writer_deadline_filter || '');
+                    $('#duration_gap_filter').val(filters.duration_gap || '');
+
+                    if (filters.duration_gap) {
+                        $('#deadlineGapContainer').show();
+                        $('#toggleDeadlineGapBtn').removeClass('btn-light-warning text-dark').addClass('btn-warning text-dark');
+                    }
 
                     // Auto-open filter section so user can see restored active filters
                     $('#filterBody').show();
@@ -1292,6 +1591,47 @@ resetFilters();
                    .removeClass('btn-primary')
                    .addClass('btn-danger');
         }
+    });
+
+    $('#toggleDeadlineGapBtn').on('click', function () {
+        const container = $('#deadlineGapContainer');
+        if (container.is(':visible')) {
+            container.fadeOut(150);
+            $(this).removeClass('active');
+        } else {
+            container.css('display', 'inline-flex').hide().fadeIn(200);
+            $(this).addClass('active');
+        }
+    });
+
+    $(document).on('click', '.deadline-gap-btn', function(e) {
+        e.preventDefault();
+        const gap = $(this).data('gap');
+        if ($('#duration_gap_filter').val() === gap) {
+            // Toggle off
+            $('#duration_gap_filter').val('');
+            $('.deadline-gap-btn').removeClass('active');
+            $('.deadline-gap-clear-btn').removeClass('is-visible');
+        } else {
+            $('#duration_gap_filter').val(gap);
+            $('.deadline-gap-btn').removeClass('active');
+            $(this).addClass('active');
+            $('.deadline-gap-clear-btn').addClass('is-visible');
+            $('#deadline_status').val('').trigger('change');
+            $('#today_deadline_filter').val('');
+            $('#yesterday_deadline_filter').val('');
+            $('#today_writer_deadline_filter').val('');
+            $('#status').val('').trigger('change');
+        }
+        applyFilters();
+    });
+
+    $(document).on('click', '.deadline-gap-clear-btn', function(e) {
+        e.preventDefault();
+        $('#duration_gap_filter').val('');
+        $('.deadline-gap-btn').removeClass('active');
+        $(this).removeClass('is-visible');
+        applyFilters();
     });
 
 });

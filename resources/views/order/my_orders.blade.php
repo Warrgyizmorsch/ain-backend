@@ -85,6 +85,7 @@
 													</button>
 												@endif
 											</div>
+											{!! get_order_duration_gap_badge($order) !!}
 											@if($order->team?->team_name)
 												<div class="d-inline-flex align-items-center justify-content-center gap-1 mb-1">
 													<span class="badge badge-light-primary fs-7 fw-bold">{{ $order->team->team_name }}</span>
@@ -116,6 +117,13 @@
 												<div class="d-flex align-items-center justify-content-center">
 													<span class="fw-bold">{{ $order->user->name }}</span>
 												</div>
+												<div class="d-inline-flex align-items-center justify-content-center gap-1 my-1">
+													<span class="badge badge-light-dark fs-8 fw-bold">ID: {{ $order->user->id }}</span>
+													<button type="button" class="btn btn-icon btn-sm btn-active-light-dark p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy User ID" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $order->user->id }}', 'User ID copied!');">
+														<i class="fa fa-clone fs-8 text-muted"></i>
+													</button>
+												</div>
+												<br>
 												@if(!empty($order->user->email))
 													<div class="d-inline-flex align-items-center my-1">
 														<span class="text-gray-600 fs-8 text-break">{{ $displayEmail }}</span>
@@ -172,6 +180,14 @@
 												</div>
 											@else
 												User Was Deleted
+												@if(!empty($order->uid))
+													<div class="d-inline-flex align-items-center justify-content-center gap-1 my-1">
+														<span class="badge badge-light-dark fs-8 fw-bold">ID: {{ $order->uid }}</span>
+														<button type="button" class="btn btn-icon btn-sm btn-active-light-dark p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy User ID" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $order->uid }}', 'User ID copied!');">
+															<i class="fa fa-clone fs-8 text-muted"></i>
+														</button>
+													</div>
+												@endif
 											@endif
 										</td>
 										

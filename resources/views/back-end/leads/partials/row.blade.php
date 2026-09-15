@@ -326,6 +326,17 @@
         @endphp
 
         <div class="fw-bold">{{ $lead->user->name ?? 'No Name' }}</div>
+        @php
+            $rowUserId = $lead->user->id ?? $lead->emp_id ?? null;
+        @endphp
+        @if(!empty($rowUserId))
+            <div class="d-inline-flex align-items-center gap-1 my-1">
+                <span class="badge badge-light-dark fs-8 fw-bold">ID: {{ $rowUserId }}</span>
+                <button type="button" class="btn btn-icon btn-sm btn-active-light-dark p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy User ID" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $rowUserId }}', 'User ID copied!');">
+                    <i class="fa fa-clone fs-8 text-muted"></i>
+                </button>
+            </div><br>
+        @endif
         @if($lead->user)<span data-user-group-badges="{{ $lead->user->id }}">@foreach($lead->user->groups as $group)<span class="badge badge-light-primary fs-8 me-1">{{ $group->name }}</span>@endforeach</span><br>@endif
 
         <span class="badge badge-light-primary fs-8 fw-bold ms-1">

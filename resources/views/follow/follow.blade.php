@@ -198,8 +198,12 @@
                                                     </button>
                                                 @endif
                                             </div>
+                                            {!! get_order_duration_gap_badge($order) !!}
                                         </td>
                                         <td>
+                                            @php
+                                                $followUpUserId = $order->user ? $order->user->id : ($order->uid ?? null);
+                                            @endphp
                                             @if($order->user)
                                                 @php
                                                     $isSuperAdmin = auth()->check() && (int) auth()->user()->role_id === 1;
@@ -212,6 +216,7 @@
                                                     $maskedMobile = $isSuperAdmin ? $rawMobile : ($rawMobile ? mask_mobile_only($cleanCC, $rawMobile) : '');
 
                                                     $orderRawWAPhone = preg_replace('/\D+/', '', (string)($cleanCC . $rawMobile));
+                                                    $orderRawEmail = $rawEmail;
                                                     $orderEmailUrl = route('emails.index', array_filter(['account_id' => 2, 'search' => $rawEmail]));
                                                     $orderWhatsAppUrl = !empty($orderRawWAPhone) ? route('whatsapp.chat', ['phone' => $orderRawWAPhone]) : route('whatsapp.chat');
                                                 @endphp
@@ -222,6 +227,16 @@
                                                         <div class="d-flex align-items-center">
                                                             <span class="fw-bolder text-dark fs-6">{{ $rawName }}</span>
                                                             <button type="button" class="btn btn-icon btn-sm btn-active-light-primary ms-1 p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Name" onclick="event.stopPropagation(); crmCopyToClipboard('{{ addslashes($rawName) }}', 'Customer name copied!');">
+                                                                <i class="fa fa-clone fs-8 text-muted"></i>
+                                                            </button>
+                                                        </div>
+                                                    @endif
+
+                                                    {{-- User ID Badge & Copy Button --}}
+                                                    @if(!empty($followUpUserId))
+                                                        <div class="d-inline-flex align-items-center gap-1">
+                                                            <span class="badge badge-light-dark fs-8 fw-bold">ID: {{ $followUpUserId }}</span>
+                                                            <button type="button" class="btn btn-icon btn-sm btn-active-light-dark p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy User ID" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $followUpUserId }}', 'User ID copied!');">
                                                                 <i class="fa fa-clone fs-8 text-muted"></i>
                                                             </button>
                                                         </div>
@@ -280,6 +295,14 @@
                                                 </div>
                                             @else
                                                 <span class="badge badge-light-danger">User Deleted</span>
+                                                @if(!empty($followUpUserId))
+                                                    <div class="d-inline-flex align-items-center gap-1 mt-1">
+                                                        <span class="badge badge-light-dark fs-8 fw-bold">ID: {{ $followUpUserId }}</span>
+                                                        <button type="button" class="btn btn-icon btn-sm btn-active-light-dark p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy User ID" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $followUpUserId }}', 'User ID copied!');">
+                                                            <i class="fa fa-clone fs-8 text-muted"></i>
+                                                        </button>
+                                                    </div>
+                                                @endif
                                             @endif
                                         </td>
                                         <td class="text-center">{{ $order->order_date }}</td>
@@ -637,6 +660,16 @@ $(document).ready(function () {
     $('#searchInput').on('keypress', function (e) {
         if (e.which === 13) {
             $('#searchResultss').removeClass('show').css('display', 'none');
+        }
+    });
+
+    // Auto-set uid when a pure numeric ID is typed directly (without dropdown selection)
+    $('#followUpFilterForm').on('submit', function () {
+        var userVal = $('#searchInput').val().trim();
+        var hiddenUid = $('#selectedValue').val().trim();
+        // If user typed a pure number and didn't pick from dropdown, treat it as user ID
+        if (userVal && /^\d+$/.test(userVal) && !hiddenUid) {
+            $('#selectedValue').val(userVal);
         }
     });
 

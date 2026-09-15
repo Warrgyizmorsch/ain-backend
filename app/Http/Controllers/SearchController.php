@@ -25,7 +25,7 @@ class SearchController extends Controller
     {
         $query = trim((string)$request->input('user'));
     
-        if (!$query || strlen($query) < 2) {
+        if (!$query || (strlen($query) < 2 && !is_numeric($query))) {
             return response()->json([]);
         }
 
@@ -41,6 +41,9 @@ class SearchController extends Controller
                             if (!empty($userIds)) {
                                 $q->whereIn('id', $userIds);
                             }
+                            if (is_numeric($query)) {
+                                $q->orWhere('id', (int) $query);
+                            }
                             $q->orWhere('name', 'like', "%$query%")
                                 ->orWhere('email', 'like', "%$query%");
                             if ($hasAsterisk) {
@@ -50,7 +53,7 @@ class SearchController extends Controller
                                       ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile_no, '')) LIKE ?", ["%$cleanPattern%"])
                                       ->orWhereRaw("CONCAT(IFNULL(countrycode2, ''), IFNULL(mobile_no2, '')) LIKE ?", ["%$cleanPattern%"]);
                                 }
-                            } else if (strlen($cleanDigits) >= 2) {
+                            } else if (strlen($cleanDigits) >= 7) {
                                 $q->orWhere('mobile_no', 'like', "%$cleanDigits%")
                                   ->orWhere('mobile_no2', 'like', "%$cleanDigits%")
                                   ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile_no, '')) LIKE ?", ["%$cleanDigits%"]);
@@ -108,6 +111,9 @@ class SearchController extends Controller
             ->where(function ($userQuery) use ($query, $cleanDigits, $withoutLeadingZero, $userIds, $hasAsterisk, $pattern, $cleanPattern) {
                 if (!empty($userIds)) {
                     $userQuery->whereIn('id', $userIds);
+                }
+                if (is_numeric($query)) {
+                    $userQuery->orWhere('id', (int) $query);
                 }
                 $userQuery->orWhere('name', 'like', "%{$query}%")
                     ->orWhere('email', 'like', "%{$query}%");
@@ -449,6 +455,9 @@ class SearchController extends Controller
                       ->orWhere('title', 'like', '%' . $searchTerm . '%');
                 if (!empty($searchUserIds)) {
                     $query->orWhereIn('uid', $searchUserIds);
+                }
+                if (is_numeric($searchTerm)) {
+                    $query->orWhere('uid', (int) $searchTerm);
                 }
             });
         }

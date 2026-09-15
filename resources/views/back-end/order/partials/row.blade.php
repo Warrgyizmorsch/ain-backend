@@ -110,6 +110,7 @@
                     <span>T</span>
                 </button>
             </div>
+            {!! get_order_duration_gap_badge($order, $effectiveDeliveryDate) !!}
         </td>
         
         <td id="order-cell-{{ $order->id }}" class="text-center {{ ($order->is_read == 1) ? 'bold-row' : '' }}" style="{{ $orderIdStyle }}">
@@ -208,6 +209,9 @@
         </td>
 
         <td class="text-center">
+            @php
+                $orderUserId = $effectiveUser ? $effectiveUser->id : ($order->uid ?? null);
+            @endphp
             @if($effectiveUser)
             @php
                 $userAssignedLabels = optional($effectiveUser)->labels ?? collect();
@@ -218,6 +222,14 @@
             <div class="d-flex align-items-center justify-content-center">
                 <span class="fw-bold">{{ $effectiveUser->name }}</span>
             </div>
+            @if(!empty($orderUserId))
+                <div class="d-inline-flex align-items-center justify-content-center gap-1 my-1">
+                    <span class="badge badge-light-dark fs-8 fw-bold">ID: {{ $orderUserId }}</span>
+                    <button type="button" class="btn btn-icon btn-sm btn-active-light-dark p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy User ID" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $orderUserId }}', 'User ID copied!');">
+                        <i class="fa fa-clone fs-8 text-muted"></i>
+                    </button>
+                </div><br>
+            @endif
 
             @if(!empty($effectiveUser->client_review))
             <span class="duplicate-info-wrapper">
@@ -335,6 +347,14 @@
 
             @else
             <span class="badge badge-light-danger fs-7 fw-bold">User Was Deleted</span>
+            @if(!empty($orderUserId))
+                <div class="d-inline-flex align-items-center justify-content-center gap-1 my-1">
+                    <span class="badge badge-light-dark fs-8 fw-bold">ID: {{ $orderUserId }}</span>
+                    <button type="button" class="btn btn-icon btn-sm btn-active-light-dark p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy User ID" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $orderUserId }}', 'User ID copied!');">
+                        <i class="fa fa-clone fs-8 text-muted"></i>
+                    </button>
+                </div>
+            @endif
             @endif
         </td>
 

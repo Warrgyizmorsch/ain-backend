@@ -401,6 +401,9 @@ class OrderController extends Controller
                     if (!empty($searchUserIds)) {
                         $q->orWhereIn('uid', $searchUserIds);
                     }
+                    if (is_numeric($searchTerm)) {
+                        $q->orWhere('uid', (int) $searchTerm);
+                    }
                 });
             }
             $data['orders'] = $ordersQuery->orderByDesc('id')->get();
@@ -1181,6 +1184,9 @@ class OrderController extends Controller
                 if (!empty($searchUserIds)) {
                     $query->orWhereIn('uid', $searchUserIds);
                 }
+                if (is_numeric($searchTerm)) {
+                    $query->orWhere('uid', (int) $searchTerm);
+                }
             });
         }
         if ($selectedDataTextBox) {
@@ -1870,7 +1876,7 @@ class OrderController extends Controller
         // $query = Order::with(['feedback' => function ($query) {
         //     $query->orderByDesc('id');
         // }, 'feedback.user'])->where('feedbackissue', '1')->orderByDesc('feedback_date');
-        $query = Order::with(['feedback' => function ($query) {
+        $query = Order::with(['user', 'team', 'feedback' => function ($query) {
             $query->orderByDesc('id');
         }, 'feedback.user'])->where('feedbackissue', '1')->orderByDesc(
             Feedback::select('created_at')
@@ -1899,8 +1905,22 @@ class OrderController extends Controller
         }
 
         if ($req->filled('search')) {
-            $order_id = $req->input('search');
-            $query->where('order_id', $order_id);
+            $search = trim((string) $req->input('search'));
+            $searchUserIds = find_user_ids_by_search_term($search);
+            if (is_numeric($search)) {
+                $searchUserIds[] = (int) $search;
+                $searchUserIds = array_unique($searchUserIds);
+            }
+            $query->where(function ($q) use ($search, $searchUserIds) {
+                $q->where('order_id', $search)
+                  ->orWhere('order_id', 'like', '%' . $search . '%');
+                if (!empty($searchUserIds)) {
+                    $q->orWhereIn('uid', $searchUserIds);
+                }
+                if (is_numeric($search)) {
+                    $q->orWhere('uid', (int) $search);
+                }
+            });
         }
         if ($req->filled('ticket_no')) {
             $ticket_no = $req->input('ticket_no');
@@ -2949,6 +2969,9 @@ class OrderController extends Controller
                 if (!empty($searchUserIds)) {
                     $q->orWhereIn('uid', $searchUserIds);
                 }
+                if (is_numeric($searchTerm)) {
+                    $q->orWhere('uid', (int) $searchTerm);
+                }
             });
         }
 
@@ -3736,13 +3759,26 @@ class OrderController extends Controller
                 ->orWhere('order_id', 'like', $search . '%')
                 ->exists();
 
+            $searchUserIds = find_user_ids_by_search_term($search);
+            if (is_numeric($search)) {
+                $searchUserIds[] = (int) $search;
+                $searchUserIds = array_unique($searchUserIds);
+            }
+
             if ($hasOrderCodeMatch) {
-                $query->where(function ($q) use ($search) {
+                $query->where(function ($q) use ($search, $searchUserIds) {
                     $q->where('order_id', $search)
                         ->orWhere('order_id', 'like', $search . '%');
+                    if (is_numeric($search)) {
+                        $q->orWhere('orders.uid', (int) $search);
+                    }
+                    if (!empty($searchUserIds)) {
+                        $q->orWhereIn('orders.uid', $searchUserIds)
+                          ->orWhereHas('lead', fn($lq) => $lq->whereIn('emp_id', $searchUserIds))
+                          ->orWhereHas('frontendLead', fn($flq) => $flq->whereIn('emp_id', $searchUserIds));
+                    }
                 });
             } else {
-                $searchUserIds = find_user_ids_by_search_term($search);
                 $hasAsterisk = strpos($search, '*') !== false;
                 $cleanMaskedPattern = $hasAsterisk ? preg_replace('/\*+/', '%', preg_replace('/[^0-9*]/', '', $search)) : null;
                 $cleanDigits = preg_replace('/\D+/', '', $search);
@@ -3756,6 +3792,10 @@ class OrderController extends Controller
                         $q->orWhereIn('orders.uid', $searchUserIds)
                           ->orWhereHas('lead', fn($lq) => $lq->whereIn('emp_id', $searchUserIds))
                           ->orWhereHas('frontendLead', fn($flq) => $flq->whereIn('emp_id', $searchUserIds));
+                    }
+
+                    if (is_numeric($search)) {
+                        $q->orWhere('orders.uid', (int) $search);
                     }
 
                     $q->orWhereHas('user', function ($uq) use ($search, $cleanMaskedPattern, $last10) {
@@ -3912,6 +3952,24 @@ class OrderController extends Controller
 
         if ($request->filled('today_writer_deadline_filter')) {
             $query->whereDate('writer_deadline', Carbon::today());
+        }
+
+        if ($request->filled('duration_gap')) {
+            $gap = $request->input('duration_gap');
+            $query->whereIn('orders.projectstatus', ['Initiated', 'Other', 'initiated', 'other']);
+
+            $query->whereNotNull('orders.delivery_date')
+                  ->where('orders.delivery_date', '>', '2000-01-01');
+
+            if ($gap === '<2' || $gap === '1-2' || $gap === '2') {
+                $query->whereRaw('DATEDIFF(orders.delivery_date, COALESCE(orders.order_date, orders.created_at)) <= 2');
+            } elseif ($gap === '3-5') {
+                $query->whereRaw('DATEDIFF(orders.delivery_date, COALESCE(orders.order_date, orders.created_at)) BETWEEN 3 AND 5');
+            } elseif ($gap === '6-15') {
+                $query->whereRaw('DATEDIFF(orders.delivery_date, COALESCE(orders.order_date, orders.created_at)) BETWEEN 6 AND 15');
+            } elseif ($gap === '15+' || $gap === '15-above') {
+                $query->whereRaw('DATEDIFF(orders.delivery_date, COALESCE(orders.order_date, orders.created_at)) > 15');
+            }
         }
 
         switch ($request->extra) {
@@ -4087,7 +4145,7 @@ class OrderController extends Controller
         $filters = $request->all();
 
         // Check if all filters are empty, return a message if so
-        if (empty($filters['search']) && empty($filters['uid']) && empty($filters['user']) && empty($filters['selectedValue']) && empty($filters['group_id']) && empty($filters['status']) && empty($filters['writer']) && empty($filters['dateStatus']) && empty($filters['fromDate']) && empty($filters['toDate']) && empty($filters['from_date']) && empty($filters['to_date']) && empty($filters['WriterTL']) && empty($filters['SubWriter']) && empty($filters['college']) && empty($filters['extra']) && empty($filters['module_code']) &&  empty($filters['paper_type']) && empty($filters['semester']) && empty($filters['month']) && empty($filters['payment']) && empty($filters['deadline_status']) && empty($filters['offer']) && empty($filters['duec']) && empty($filters['marks_filter']) && empty($filters['team_id']) && empty($filters['today_deadline_filter']) && empty($filters['yesterday_deadline_filter']) && empty($filters['today_writer_deadline_filter'])) {
+        if (empty($filters['search']) && empty($filters['uid']) && empty($filters['user']) && empty($filters['selectedValue']) && empty($filters['group_id']) && empty($filters['status']) && empty($filters['writer']) && empty($filters['dateStatus']) && empty($filters['fromDate']) && empty($filters['toDate']) && empty($filters['from_date']) && empty($filters['to_date']) && empty($filters['WriterTL']) && empty($filters['SubWriter']) && empty($filters['college']) && empty($filters['extra']) && empty($filters['module_code']) &&  empty($filters['paper_type']) && empty($filters['semester']) && empty($filters['month']) && empty($filters['payment']) && empty($filters['deadline_status']) && empty($filters['offer']) && empty($filters['duec']) && empty($filters['marks_filter']) && empty($filters['team_id']) && empty($filters['today_deadline_filter']) && empty($filters['yesterday_deadline_filter']) && empty($filters['today_writer_deadline_filter']) && empty($filters['duration_gap'])) {
             return response()->json(['message' => 'No filters applied'], 200);
         }
 
@@ -4657,8 +4715,10 @@ class OrderController extends Controller
             ->select(
                 'feedbacks.*',
                 'orders.id as order_primary_id',
+                'orders.uid as customer_uid',
                 'orders.is_fail as order_is_fail',
                 'orders.failed_at as order_failed_at',
+                'users.id as customer_id',
                 'users.name as customer_name',
                 'users.email as customer_email',
                 'users.mobile_no as customer_mobile',
@@ -4667,11 +4727,22 @@ class OrderController extends Controller
 
         // Search Filter
         if ($request->filled('search')) {
-            $searchTerm = $request->search;
-            $query->where(function ($q) use ($searchTerm) {
+            $searchTerm = trim((string) $request->search);
+            $searchUserIds = find_user_ids_by_search_term($searchTerm);
+            if (is_numeric($searchTerm)) {
+                $searchUserIds[] = (int) $searchTerm;
+                $searchUserIds = array_unique($searchUserIds);
+            }
+            $query->where(function ($q) use ($searchTerm, $searchUserIds) {
                 $q->where('feedbacks.order_id', 'like', '%' . $searchTerm . '%')
                     ->orWhere('feedbacks.experience', 'like', '%' . $searchTerm . '%')
                     ->orWhere('feedbacks.feedback_scope', 'like', '%' . $searchTerm . '%');
+                if (!empty($searchUserIds)) {
+                    $q->orWhereIn('orders.uid', $searchUserIds);
+                }
+                if (is_numeric($searchTerm)) {
+                    $q->orWhere('orders.uid', (int) $searchTerm);
+                }
             });
         }
 
@@ -4883,6 +4954,9 @@ class OrderController extends Controller
                   ->orWhere('title', 'like', "%{$search}%");
                 if (!empty($searchUserIds)) {
                     $q->orWhereIn('uid', $searchUserIds);
+                }
+                if (is_numeric($search)) {
+                    $q->orWhere('uid', (int) $search);
                 }
             });
         }
@@ -5408,7 +5482,7 @@ class OrderController extends Controller
             'projectStatusCounts' => collect()
         ];
 
-        $data['payments'] = Payment::with([
+        $paymentsQuery = Payment::with([
                 'order.user',
                 'order.payment',
                 'order.team',
@@ -5420,11 +5494,56 @@ class OrderController extends Controller
                 'order.additionals'
             ])
             ->where('is_revoked', 1)
-            ->whereHas('order', function ($q) {
+            ->whereHas('order', function ($q) use ($request) {
                 $q->where('uid', '!=', 0);
-            })
-            ->orderByDesc('revoked_at')
-            ->paginate(20);
+
+                if ($request->filled('search')) {
+                    $search = trim((string) $request->search);
+                    $searchUserIds = find_user_ids_by_search_term($search);
+                    if (is_numeric($search)) {
+                        $searchUserIds[] = (int) $search;
+                        $searchUserIds = array_unique($searchUserIds);
+                    }
+                    $q->where(function ($qq) use ($search, $searchUserIds) {
+                        $qq->where('order_id', 'like', "%{$search}%")
+                        ->orWhere('title', 'like', "%{$search}%");
+                        if (!empty($searchUserIds)) {
+                            $qq->orWhereIn('uid', $searchUserIds);
+                        }
+                        if (is_numeric($search)) {
+                            $qq->orWhere('uid', (int) $search);
+                        }
+                    });
+                }
+            });
+
+        if ($request->filled('uid')) {
+            $paymentsQuery->whereHas('order.user', function ($q) use ($request) {
+                $q->where('id', $request->uid);
+            });
+        }
+
+        if ($request->filled('user')) {
+            $user = trim((string) $request->user);
+            $searchUserIds = find_user_ids_by_search_term($user);
+            if (is_numeric($user)) {
+                $searchUserIds[] = (int) $user;
+                $searchUserIds = array_unique($searchUserIds);
+            }
+            $paymentsQuery->whereHas('order.user', function ($q) use ($user, $searchUserIds) {
+                if (!empty($searchUserIds)) {
+                    $q->whereIn('id', $searchUserIds);
+                }
+                if (is_numeric($user)) {
+                    $q->orWhere('id', (int) $user);
+                }
+                $q->orWhere('name', 'like', "%{$user}%")
+                ->orWhere('email', 'like', "%{$user}%")
+                ->orWhere('mobile_no', 'like', "%{$user}%");
+            });
+        }
+
+        $data['payments'] = $paymentsQuery->orderByDesc('revoked_at')->paginate(20);
 
         $now = now();
         $overdueCount = Cache::remember('order_overdue_count', 60, function () use ($now) {
@@ -5481,10 +5600,21 @@ class OrderController extends Controller
                 $q->where('uid', '!=', 0);
 
                 if ($request->filled('search')) {
-                    $search = $request->search;
-                    $q->where(function ($qq) use ($search) {
+                    $search = trim((string) $request->search);
+                    $searchUserIds = find_user_ids_by_search_term($search);
+                    if (is_numeric($search)) {
+                        $searchUserIds[] = (int) $search;
+                        $searchUserIds = array_unique($searchUserIds);
+                    }
+                    $q->where(function ($qq) use ($search, $searchUserIds) {
                         $qq->where('order_id', 'like', "%{$search}%")
                         ->orWhere('title', 'like', "%{$search}%");
+                        if (!empty($searchUserIds)) {
+                            $qq->orWhereIn('uid', $searchUserIds);
+                        }
+                        if (is_numeric($search)) {
+                            $qq->orWhere('uid', (int) $search);
+                        }
                     });
                 }
 
@@ -5548,16 +5678,27 @@ class OrderController extends Controller
             });
 
         if ($request->filled('uid')) {
-            $query->whereHas('order.user', function ($q) use ($request) {
-                $q->where('id', $request->uid);
+            $reqUid = (int) $request->uid;
+            $query->whereHas('order', function ($q) use ($reqUid) {
+                $q->where('uid', $reqUid);
             });
         }
 
         if ($request->filled('user')) {
-            $user = $request->user;
-
-            $query->whereHas('order.user', function ($q) use ($user) {
-                $q->where('name', 'like', "%{$user}%")
+            $user = trim((string) $request->user);
+            $searchUserIds = find_user_ids_by_search_term($user);
+            if (is_numeric($user)) {
+                $searchUserIds[] = (int) $user;
+                $searchUserIds = array_unique($searchUserIds);
+            }
+            $query->whereHas('order.user', function ($q) use ($user, $searchUserIds) {
+                if (!empty($searchUserIds)) {
+                    $q->whereIn('id', $searchUserIds);
+                }
+                if (is_numeric($user)) {
+                    $q->orWhere('id', (int) $user);
+                }
+                $q->orWhere('name', 'like', "%{$user}%")
                 ->orWhere('email', 'like', "%{$user}%")
                 ->orWhere('mobile_no', 'like', "%{$user}%");
             });

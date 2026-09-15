@@ -32,6 +32,7 @@
                     <tr class="fw-bolder text-muted bg-light">
                         <th class="ps-4 min-w-50px">ID</th>
                         <th class="min-w-100px">Order ID</th>
+                        <th class="min-w-150px">User</th>
                         <th class="min-w-150px">Experience</th>
                         <th class="min-w-100px">Scope</th>
                         <th class="min-w-150px">Suggestion</th>
@@ -57,6 +58,25 @@
                                 </span>
                             @else
                                 <span class="badge badge-light-dark">{{ $fb->order_id }}</span>
+                            @endif
+                        </td>
+                        <td>
+                            @php
+                                $customerUserId = $fb->customer_id ?? ($fb->customer_uid ?? null);
+                            @endphp
+                            @if($customerUserId)
+                                <div class="d-flex align-items-center gap-1 mb-1">
+                                    <span class="badge badge-light-dark fs-8 fw-bold">ID: {{ $customerUserId }}</span>
+                                    <button type="button" class="btn btn-icon btn-sm btn-active-light-dark p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy User ID" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $customerUserId }}', 'User ID copied!');">
+                                        <i class="fa fa-copy text-muted" style="font-size:11px;"></i>
+                                    </button>
+                                </div>
+                            @endif
+                            @if(!empty($fb->customer_name))
+                                <div class="fw-bold text-gray-800">{{ $fb->customer_name }}</div>
+                            @endif
+                            @if(!empty($fb->customer_email))
+                                <div class="text-muted fs-8">{{ mask_email_for_display($fb->customer_email) }}</div>
                             @endif
                         </td>
                         <td>{{ $fb->experience ?? 'N/A' }}</td>
@@ -145,7 +165,7 @@
                     </div>
 
                     @empty
-                    <tr><td colspan="7" class="text-center text-danger">No records found.</td></tr>
+                    <tr><td colspan="8" class="text-center text-danger">No records found.</td></tr>
                     @endforelse
                 </tbody>
             </table>

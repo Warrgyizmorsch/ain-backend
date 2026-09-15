@@ -135,9 +135,20 @@ class LeadsController extends Controller
 
         if ($request->filled('search')) {
             $searchTerm = trim((string) $request->input('search'));
-            $query->where(function ($q) use ($searchTerm) {
+            $searchUserIds = find_user_ids_by_search_term($searchTerm);
+            if (is_numeric($searchTerm)) {
+                $searchUserIds[] = (int) $searchTerm;
+                $searchUserIds = array_unique($searchUserIds);
+            }
+            $query->where(function ($q) use ($searchTerm, $searchUserIds) {
                 $q->where('order_id', 'like', '%' . $searchTerm . '%')
                   ->orWhere('project_title', 'like', '%' . $searchTerm . '%');
+                if (!empty($searchUserIds)) {
+                    $q->orWhereIn('emp_id', $searchUserIds);
+                }
+                if (is_numeric($searchTerm)) {
+                    $q->orWhere('emp_id', (int) $searchTerm);
+                }
             });
         }
 
@@ -1027,6 +1038,9 @@ class LeadsController extends Controller
                 if (!empty($searchUserIds)) {
                     $query->orWhereIn('emp_id', $searchUserIds);
                 }
+                if (is_numeric($searchTerm)) {
+                    $query->orWhere('emp_id', (int) $searchTerm);
+                }
 
                 if (strpos($searchTerm, '*') !== false && !empty($cleanSearchMasked) && preg_match('/\d/', $cleanSearchMasked)) {
                     $query->orWhere('mobile', 'like', '%' . $cleanSearchMasked . '%')
@@ -1073,6 +1087,9 @@ class LeadsController extends Controller
                 $leads->where(function ($query) use ($customerQuery, $matchingUserIds, $cleanUserMasked, $cleanUserDigits) {
                     if (!empty($matchingUserIds)) {
                         $query->whereIn('emp_id', $matchingUserIds);
+                    }
+                    if (is_numeric($customerQuery)) {
+                        $query->orWhere('emp_id', (int) $customerQuery);
                     }
 
                     if (strpos((string)$customerQuery, '*') !== false && !empty($cleanUserMasked) && preg_match('/\d/', $cleanUserMasked)) {
@@ -1845,6 +1862,9 @@ class LeadsController extends Controller
                         if (!empty($searchUserIds)) {
                             $q->orWhereIn('emp_id', $searchUserIds);
                         }
+                        if (is_numeric($searchTerm)) {
+                            $q->orWhere('emp_id', (int) $searchTerm);
+                        }
 
                         if (strpos($searchTerm, '*') !== false && !empty($cleanSearchMasked) && preg_match('/\d/', $cleanSearchMasked)) {
                             $q->orWhere('mobile', 'like', '%' . $cleanSearchMasked . '%')
@@ -2163,6 +2183,9 @@ class LeadsController extends Controller
 
                 if (!empty($searchUserIds)) {
                     $q->orWhereIn('emp_id', $searchUserIds);
+                }
+                if (is_numeric($searchTerm)) {
+                    $q->orWhere('emp_id', (int) $searchTerm);
                 }
 
                 if (strpos($searchTerm, '*') !== false && !empty($cleanSearchMasked) && preg_match('/\d/', $cleanSearchMasked)) {

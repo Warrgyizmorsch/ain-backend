@@ -64,62 +64,138 @@
 			<div class="d-flex align-items-stretch flex-shrink-0">
 				<div class="d-flex align-items-center ms-1 ms-lg-3" id="kt_header_user_menu_toggle">
 					<div class="d-flex align-items-center ms-3 me-4">
-						<!--begin::Quick Action '+' Button-->
-						<div class="dropdown me-3">
-							<button type="button" class="btn btn-sm btn-primary d-flex align-items-center gap-1 shadow-sm px-3 py-2 fw-bold" data-bs-toggle="dropdown" aria-expanded="false" title="Quick Actions">
-								<i class="fa fa-plus fs-6 text-white"></i>
-								<span class="d-none d-md-inline ms-1">New</span>
-							</button>
-							<div class="dropdown-menu dropdown-menu-end shadow-lg py-3 rounded-3" style="min-width: 230px; z-index: 1050;">
-								<div class="px-4 py-2 text-uppercase fs-8 text-muted fw-bold border-bottom mb-2">Quick Actions</div>
-								<a href="{{ url('emails') }}?compose=1" class="dropdown-item d-flex align-items-center gap-3 py-2 px-4">
-									<span class="btn btn-icon btn-light-primary btn-sm rounded-circle"><i class="fa fa-envelope fs-6"></i></span>
-									<div>
-										<div class="fw-bold text-gray-800 fs-7">Compose Email</div>
-										<div class="text-muted fs-8">Send new email message</div>
-									</div>
-								</a>
-								<a href="javascript:void(0);" onclick="typeof openRingfyDialer === 'function' ? openRingfyDialer() : null;" class="dropdown-item d-flex align-items-center gap-3 py-2 px-4">
-									<span class="btn btn-icon btn-light-success btn-sm rounded-circle"><i class="fa fa-phone fs-6"></i></span>
-									<div>
-										<div class="fw-bold text-gray-800 fs-7">Make a Call</div>
-										<div class="text-muted fs-8">Open Softphone dialpad</div>
-									</div>
-								</a>
-								<a href="{{ url('lead') }}" class="dropdown-item d-flex align-items-center gap-3 py-2 px-4">
-									<span class="btn btn-icon btn-light-info btn-sm rounded-circle"><i class="fa fa-user-plus fs-6"></i></span>
-									<div>
-										<div class="fw-bold text-gray-800 fs-7">Add Lead</div>
-										<div class="text-muted fs-8">Create new sales lead</div>
-									</div>
-								</a>
-								<a href="{{ url('orders') }}" class="dropdown-item d-flex align-items-center gap-3 py-2 px-4">
-									<span class="btn btn-icon btn-light-warning btn-sm rounded-circle"><i class="fa fa-shopping-cart fs-6"></i></span>
-									<div>
-										<div class="fw-bold text-gray-800 fs-7">Orders</div>
-										<div class="text-muted fs-8">Manage orders</div>
-									</div>
-								</a>
-							</div>
-						</div>
-						<!--end::Quick Action '+' Button-->
+						@php
+							$clientEmailConfig = \App\Models\EmailConfiguration::where('id', 2)->first() 
+								?? \App\Models\EmailConfiguration::where('name', 'like', '%client%')->orWhere('name', 'like', '%assignment%')->first();
+							$writerEmailConfig = \App\Models\EmailConfiguration::where('id', 3)->first() 
+								?? \App\Models\EmailConfiguration::where('name', 'like', '%write%')->first();
 
-						<!--begin::Email Inbox Header Button-->
-						<a href="{{ url('emails') }}" class="btn btn-icon btn-light-info position-relative me-3" title="Email Inbox">
-							<i class="fa fa-envelope fs-4"></i>
-							@if(($globalUnreadEmailCount ?? 0) > 0)
-								<span class="position-absolute top-0 start-100 translate-middle badge badge-circle badge-primary fw-bold fs-9">
-									{{ $globalUnreadEmailCount }}
-								</span>
-							@endif
+							$clientEmailUrl = $clientEmailConfig ? route('emails.index', ['account_id' => $clientEmailConfig->id]) : url('emails');
+							$writerEmailUrl = $writerEmailConfig ? route('emails.index', ['account_id' => $writerEmailConfig->id]) : url('emails');
+						@endphp
+
+						<style>
+							.crm-header-nav-btn {
+								display: inline-flex;
+								align-items: center;
+								gap: 7px;
+								padding: 6px 13px;
+								font-size: 13px;
+								font-weight: 700;
+								border-radius: 6px;
+								text-decoration: none !important;
+								transition: all 0.18s ease-in-out;
+								line-height: 1.3;
+								cursor: pointer;
+								box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+							}
+							.crm-header-nav-btn .crm-nav-icon {
+								display: inline-flex;
+								align-items: center;
+								justify-content: center;
+								font-size: 14px;
+								transition: all 0.18s ease-in-out;
+							}
+							.crm-header-nav-btn .crm-nav-text {
+								font-size: 13px;
+								font-weight: 700;
+								transition: all 0.18s ease-in-out;
+							}
+
+							/* WhatsApp Button */
+							.crm-header-nav-btn.crm-nav-wa {
+								background-color: #e8f8f0;
+								color: #0f5132 !important;
+								border: 1px solid #b7e4c7;
+							}
+							.crm-header-nav-btn.crm-nav-wa .crm-nav-icon svg {
+								fill: #25D366;
+								transition: fill 0.18s ease-in-out;
+							}
+							.crm-header-nav-btn.crm-nav-wa:hover {
+								background-color: #25D366 !important;
+								color: #ffffff !important;
+								border-color: #20ba5a !important;
+								box-shadow: 0 3px 8px rgba(37, 211, 102, 0.35);
+							}
+							.crm-header-nav-btn.crm-nav-wa:hover .crm-nav-icon svg {
+								fill: #ffffff !important;
+							}
+							.crm-header-nav-btn.crm-nav-wa:hover .crm-nav-text {
+								color: #ffffff !important;
+							}
+
+							/* Client Email Button */
+							.crm-header-nav-btn.crm-nav-client {
+								background-color: #f3f0ff;
+								color: #59359a !important;
+								border: 1px solid #dcd2f9;
+							}
+							.crm-header-nav-btn.crm-nav-client .crm-nav-icon i {
+								color: #7239ea;
+								transition: color 0.18s ease-in-out;
+							}
+							.crm-header-nav-btn.crm-nav-client:hover {
+								background-color: #7239ea !important;
+								color: #ffffff !important;
+								border-color: #632ed6 !important;
+								box-shadow: 0 3px 8px rgba(114, 57, 234, 0.35);
+							}
+							.crm-header-nav-btn.crm-nav-client:hover .crm-nav-icon i {
+								color: #ffffff !important;
+							}
+							.crm-header-nav-btn.crm-nav-client:hover .crm-nav-text {
+								color: #ffffff !important;
+							}
+
+							/* Write Email Button */
+							.crm-header-nav-btn.crm-nav-writer {
+								background-color: #eaf6ff;
+								color: #0070ba !important;
+								border: 1px solid #c0e2fc;
+							}
+							.crm-header-nav-btn.crm-nav-writer .crm-nav-icon i {
+								color: #009ef7;
+								transition: color 0.18s ease-in-out;
+							}
+							.crm-header-nav-btn.crm-nav-writer:hover {
+								background-color: #009ef7 !important;
+								color: #ffffff !important;
+								border-color: #008be0 !important;
+								box-shadow: 0 3px 8px rgba(0, 158, 247, 0.35);
+							}
+							.crm-header-nav-btn.crm-nav-writer:hover .crm-nav-icon i {
+								color: #ffffff !important;
+							}
+							.crm-header-nav-btn.crm-nav-writer:hover .crm-nav-text {
+								color: #ffffff !important;
+							}
+						</style>
+
+						<!--begin::WhatsApp Header Button-->
+						<a href="{{ route('whatsapp.chat') }}" class="crm-header-nav-btn crm-nav-wa me-3" title="WhatsApp Chat">
+							<span class="crm-nav-icon">
+								<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+									<path d="M13.601 2.326A7.85 7.85 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.364 2.76 1.057 3.965L0 16l4.204-1.102a7.9 7.9 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.9 7.9 0 0 0 13.6 2.326zM7.994 14.521a6.6 6.6 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.56 6.56 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592m3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.73.73 0 0 0-.529.247c-.182.198-.691.677-.691 1.654s.707 2.002.806 2.134c.098.133 1.392 2.123 3.372 2.978.471.204.838.326 1.124.418.473.15.905.129 1.246.078.38-.058 1.17-.479 1.338-.943.166-.464.166-.862.116-.944-.049-.082-.182-.133-.38-.232"/>
+								</svg>
+							</span>
+							<span class="crm-nav-text">WhatsApp</span>
 						</a>
-						<!--end::Email Inbox Header Button-->
+						<!--end::WhatsApp Header Button-->
 
-						<!--begin::Softphone Call Header Button-->
-						<button type="button" class="btn btn-icon btn-light-success me-3" onclick="typeof openRingfyDialer === 'function' ? openRingfyDialer() : null;" title="Softphone Dialer / Make Call">
-							<i class="fa fa-phone fs-4"></i>
-						</button>
-						<!--end::Softphone Call Header Button-->
+						<!--begin::Client Email Header Button-->
+						<a href="{{ $clientEmailUrl }}" class="crm-header-nav-btn crm-nav-client me-3" title="Client Email (Assignment Help)">
+							<span class="crm-nav-icon"><i class="fa fa-envelope"></i></span>
+							<span class="crm-nav-text">Client Email</span>
+						</a>
+						<!--end::Client Email Header Button-->
+
+						<!--begin::Write Email Header Button-->
+						<a href="{{ $writerEmailUrl }}" class="crm-header-nav-btn crm-nav-writer me-3" title="Write Email (Writer / Order)">
+							<span class="crm-nav-icon"><i class="fa fa-envelope-open-text"></i></span>
+							<span class="crm-nav-text">Write Email</span>
+						</a>
+						<!--end::Write Email Header Button-->
 
 						@if(auth()->check() && auth()->user()->role_id == 1)
 							<div class="dropdown me-3">

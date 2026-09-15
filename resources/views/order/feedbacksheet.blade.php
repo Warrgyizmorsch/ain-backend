@@ -72,6 +72,20 @@
 									@endif
                                     <td class="text-center">{{ $loop->index +1}}</td>
                                     <td class="text-center">
+                                        @php
+                                            $fbUserId = $order->user ? $order->user->id : ($order->uid ?? null);
+                                        @endphp
+                                        @if($fbUserId)
+                                            <div class="d-flex align-items-center justify-content-center gap-1 mb-1">
+                                                <span class="badge badge-light-dark fs-8 fw-bold">ID: {{ $fbUserId }}</span>
+                                                <button type="button" class="btn btn-icon btn-sm p-0 border-0 bg-transparent copy-btn" title="Copy User ID" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $fbUserId }}', 'User ID copied!');" style="width:16px;height:16px;line-height:1">
+                                                    <i class="fa fa-copy text-muted" style="font-size:11px;"></i>
+                                                </button>
+                                            </div>
+                                        @endif
+                                        @if($order->user && !empty($order->user->name))
+                                            <div class="fw-bold text-gray-700 fs-8 mb-1">{{ $order->user->name }}</div>
+                                        @endif
                                         @if($isFailedOrder)
                                             <span class="failed-order-box">
                                                 {{ $order->order_id }}<br>
@@ -88,6 +102,7 @@
                                                 </button>
                                             </div>
                                         @endif
+                                        {!! get_order_duration_gap_badge($order) !!}
 										@if($order->feedback_ticket)
                                             <div class="d-flex align-items-center justify-content-center gap-1 mt-1">
                                                 <span class="badge badge-light-danger fs-7 fw-bold text-nowrap">{{ $order->feedback_ticket }}</span>

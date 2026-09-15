@@ -62,6 +62,7 @@
 									<td>{{ $loop->index + 1 }}</td>
 									<td class="text-center">
 										{{ $order->order_id }}
+										{!! get_order_duration_gap_badge($order) !!}
 										@if($order->is_fail == 1)
 										<br><span class="badge badge-light-danger fs-7 fw-bold m-1">Fail Order</span>
 										@endif
