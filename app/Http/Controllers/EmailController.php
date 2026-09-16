@@ -85,12 +85,38 @@ class EmailController extends Controller
         }
 
         if (!empty($search)) {
-            $query->where(function ($q) use ($search) {
-                $q->where('subject', 'like', "%{$search}%")
-                  ->orWhere('from_email', 'like', "%{$search}%")
-                  ->orWhere('from_name', 'like', "%{$search}%")
-                  ->orWhere('to_email', 'like', "%{$search}%")
-                  ->orWhere('body_plain', 'like', "%{$search}%");
+            $terms = collect(preg_split('/\s+/', trim($search)))->filter()->values();
+            $matchingContactEmails = User::query()
+                ->where(function ($userQuery) use ($search) {
+                    $userQuery->where('name', 'like', "%{$search}%")
+                        ->orWhere('email', 'like', "%{$search}%")
+                        ->orWhere('mobile_no', 'like', "%{$search}%");
+                })
+                ->whereNotNull('email')
+                ->pluck('email')
+                ->filter()
+                ->all();
+
+            $query->where(function ($deepQuery) use ($terms, $matchingContactEmails) {
+                foreach ($terms as $term) {
+                    $deepQuery->where(function ($fieldQuery) use ($term, $matchingContactEmails) {
+                        $like = "%{$term}%";
+                        $fieldQuery->where('subject', 'like', $like)
+                            ->orWhere('from_email', 'like', $like)
+                            ->orWhere('from_name', 'like', $like)
+                            ->orWhere('to_email', 'like', $like)
+                            ->orWhere('to_name', 'like', $like)
+                            ->orWhere('cc', 'like', $like)
+                            ->orWhere('bcc', 'like', $like)
+                            ->orWhere('body_plain', 'like', $like)
+                            ->orWhere('body_html', 'like', $like);
+
+                        if (!empty($matchingContactEmails)) {
+                            $fieldQuery->orWhereIn('from_email', $matchingContactEmails)
+                                ->orWhereIn('to_email', $matchingContactEmails);
+                        }
+                    });
+                }
             });
         }
 
@@ -123,9 +149,11 @@ class EmailController extends Controller
             ->orderByDesc('id')
             ->paginate(20);
 
+        $emailClientContacts = $this->clientContactsForEmails($threads->getCollection());
+
         if ($request->ajax() && $request->boolean('partial')) {
             return response(
-                view('emails._rows', ['emails' => $threads, 'isAppend' => false])->render()
+                view('emails._rows', compact('emailClientContacts') + ['emails' => $threads, 'isAppend' => false])->render()
             )->withHeaders([
                 'Cache-Control' => 'no-store, private',
                 'X-Email-Partial' => 'rows',
@@ -135,7 +163,7 @@ class EmailController extends Controller
         if ($request->ajax() && ($request->get('scroll') == '1' || $request->has('page'))) {
             return response()->json([
                 'success' => true,
-                'html' => view('emails._rows', ['emails' => $threads, 'isAppend' => true])->render(),
+                'html' => view('emails._rows', compact('emailClientContacts') + ['emails' => $threads, 'isAppend' => true])->render(),
                 'has_more' => $threads->hasMorePages(),
                 'current_page' => $threads->currentPage(),
                 'total' => $threads->total(),
@@ -190,6 +218,10 @@ class EmailController extends Controller
             ->limit(200)
             ->get();
 
+        $emailClientContacts = $this->clientContactsForEmails(
+            $cacheSource->concat($threads->getCollection())
+        );
+
         $folderHtmlCache = [];
         foreach (['inbox', 'all', 'sent', 'drafts', 'starred', 'trash'] as $cacheFolder) {
             $folderMessages = $cacheSource->filter(function ($message) use ($cacheFolder) {
@@ -209,6 +241,7 @@ class EmailController extends Controller
             $folderHtmlCache[$cacheFolder] = view('emails._rows', [
                 'emails' => $folderMessages,
                 'isAppend' => false,
+                'emailClientContacts' => $emailClientContacts,
             ])->render();
         }
 
@@ -235,8 +268,36 @@ class EmailController extends Controller
             'unreadCount',
             'folderHtmlCache',
             'allLabels',
-            'threadLabelsMap'
+            'threadLabelsMap',
+            'emailClientContacts'
         ));
+    }
+
+    /**
+     * Match each conversation's external email address to a registered client.
+     * The resulting map lets email rows show WhatsApp only for real clients,
+     * without issuing one user query per row.
+     */
+    private function clientContactsForEmails($emails): \Illuminate\Support\Collection
+    {
+        $addresses = collect($emails)
+            ->map(fn (EmailMessage $email) => $email->customer_email)
+            ->filter()
+            ->map(fn ($email) => strtolower(trim($email)))
+            ->unique()
+            ->values();
+
+        if ($addresses->isEmpty()) {
+            return collect();
+        }
+
+        return User::query()
+            ->whereIn(DB::raw('LOWER(email)'), $addresses->all())
+            ->where('role_id', 2)
+            ->whereNotNull('mobile_no')
+            ->where('mobile_no', '!=', '')
+            ->get(['id', 'email', 'name', 'countrycode', 'mobile_no'])
+            ->keyBy(fn (User $user) => strtolower(trim($user->email)));
     }
 
     /** Lightweight real-time change & new email detector. */
@@ -323,6 +384,18 @@ class EmailController extends Controller
 
         // Fetch labels attached to this thread
         $customerEmail = $email->customer_email;
+        $clientContact = $this->clientContactsForEmails(collect([$email]))->get(strtolower((string) $customerEmail));
+        $clientWhatsAppUrl = null;
+        if ($clientContact) {
+            $mobileDigits = preg_replace('/\D+/', '', (string) $clientContact->mobile_no);
+            $countryDigits = preg_replace('/\D+/', '', (string) $clientContact->countrycode);
+            $whatsAppPhone = $countryDigits && !str_starts_with($mobileDigits, $countryDigits)
+                ? $countryDigits . $mobileDigits
+                : $mobileDigits;
+            if ($whatsAppPhone !== '') {
+                $clientWhatsAppUrl = route('whatsapp.chat', ['phone' => $whatsAppPhone]);
+            }
+        }
         $threadLabelIds = \App\Models\EmailThreadLabel::where('thread_id', $email->thread_id)
             ->when(empty($email->thread_id) && !empty($customerEmail), function($q) use ($customerEmail) {
                 $q->orWhere('email', $customerEmail);
@@ -349,10 +422,12 @@ class EmailController extends Controller
                     'to_name' => $email->to_name,
                     'to_email' => $email->to_email,
                     'customer_email' => $customerEmail,
+                    'client_name' => $clientContact?->name,
+                    'whatsapp_url' => $clientWhatsAppUrl,
                     'cc' => $email->cc,
                     'bcc' => $email->bcc,
                     'subject' => $email->subject,
-                    'body_html' => $email->body_html ?: nl2br(e($email->body_plain)),
+                    'body_html' => $this->formatIsolatedBodyHtml($email->body_html, $email->body_plain),
                     'body_plain' => $email->body_plain,
                     'direction' => $email->direction,
                     'folder' => $email->folder,
@@ -383,7 +458,8 @@ class EmailController extends Controller
                         'to_name' => $msg->to_name,
                         'to_email' => $msg->to_email,
                         'subject' => $msg->subject,
-                        'body_html' => $msg->body_html ?: nl2br(e($msg->body_plain)),
+                        'snippet' => $this->getCleanSnippet($msg, 120),
+                        'body_html' => $this->formatIsolatedBodyHtml($msg->body_html, $msg->body_plain),
                         'body_plain' => $msg->body_plain,
                         'direction' => $msg->direction,
                         'is_starred' => (bool) $msg->is_starred,
@@ -433,7 +509,9 @@ class EmailController extends Controller
             'counts',
             'threadLabels',
             'allLabels',
-            'threadLabelIds'
+            'threadLabelIds',
+            'clientContact',
+            'clientWhatsAppUrl'
         ));
     }
 
@@ -621,9 +699,12 @@ class EmailController extends Controller
     {
         $threadId = $request->input('thread_id');
         $id = $request->input('id');
-        $isRead = $request->input('is_read', true);
+        $ids = $request->input('ids');
+        $isRead = $request->boolean('is_read', true);
 
-        if ($threadId) {
+        if (!empty($ids) && is_array($ids)) {
+            EmailMessage::whereIn('id', $ids)->update(['is_read' => $isRead]);
+        } elseif ($threadId) {
             EmailMessage::where('thread_id', $threadId)->update(['is_read' => $isRead]);
         } elseif ($id) {
             EmailMessage::where('id', $id)->update(['is_read' => $isRead]);
@@ -638,10 +719,23 @@ class EmailController extends Controller
     public function deleteMessage(Request $request)
     {
         $id = $request->input('id');
+        $ids = $request->input('ids');
         $threadId = $request->input('thread_id');
         $permanent = $request->input('permanent', false);
 
-        if ($threadId) {
+        if (!empty($ids) && is_array($ids)) {
+            if ($permanent) {
+                $msgs = EmailMessage::whereIn('id', $ids)->with('attachments')->get();
+                foreach ($msgs as $m) {
+                    foreach ($m->attachments as $att) {
+                        Storage::disk('public')->delete($att->file_path);
+                    }
+                }
+                EmailMessage::whereIn('id', $ids)->delete();
+            } else {
+                EmailMessage::whereIn('id', $ids)->update(['folder' => 'trash']);
+            }
+        } elseif ($threadId) {
             if ($permanent) {
                 $msgs = EmailMessage::where('thread_id', $threadId)->get();
                 foreach ($msgs as $m) {
@@ -667,7 +761,112 @@ class EmailController extends Controller
             }
         }
 
-        return response()->json(['success' => true, 'message' => 'Deleted successfully']);
+        return response()->json(['success' => true, 'message' => 'Conversation moved to Trash']);
+    }
+
+    /**
+     * Gmail Style Archive
+     */
+    public function archive(Request $request)
+    {
+        $ids = $request->input('ids', $request->input('id') ? [$request->input('id')] : []);
+        if (!empty($ids)) {
+            EmailMessage::whereIn('id', (array)$ids)->update(['folder' => 'archive']);
+        }
+        return response()->json(['success' => true, 'message' => 'Conversation archived']);
+    }
+
+    /**
+     * Move selected messages to another folder (inbox, archive, spam, trash)
+     */
+    public function moveToFolder(Request $request)
+    {
+        $ids = $request->input('ids', $request->input('id') ? [$request->input('id')] : []);
+        $folder = $request->input('folder', 'inbox');
+        if (!empty($ids)) {
+            EmailMessage::whereIn('id', (array)$ids)->update(['folder' => $folder]);
+        }
+        return response()->json(['success' => true, 'message' => 'Conversation moved to ' . ucfirst($folder)]);
+    }
+
+    /**
+     * Undo last action (e.g. restore to previous folder)
+     */
+    public function undoAction(Request $request)
+    {
+        $ids = $request->input('ids', []);
+        $restoreFolder = $request->input('folder', 'inbox');
+        if (!empty($ids)) {
+            EmailMessage::whereIn('id', (array)$ids)->update(['folder' => $restoreFolder]);
+        }
+        return response()->json(['success' => true, 'message' => 'Action undone']);
+    }
+
+    /**
+     * Bulk Assign / Remove Labels
+     */
+    public function bulkAssignLabels(Request $request)
+    {
+        $ids = $request->input('ids', []);
+        $labelId = $request->input('label_id');
+        $action = $request->input('action', 'add'); // 'add' or 'remove'
+
+        if (!empty($ids) && $labelId) {
+            $emails = EmailMessage::whereIn('id', $ids)->get();
+            foreach ($emails as $email) {
+                if ($action === 'add') {
+                    \App\Models\EmailThreadLabel::firstOrCreate([
+                        'thread_id' => $email->thread_id ?: ('legacy_' . $email->id),
+                        'label_id' => $labelId,
+                        'email' => $email->customer_email ?: $email->from_email,
+                    ]);
+                } else {
+                    \App\Models\EmailThreadLabel::where('label_id', $labelId)
+                        ->where(function($q) use ($email) {
+                            $q->where('thread_id', $email->thread_id)
+                              ->orWhere('email', $email->customer_email ?: $email->from_email);
+                        })->delete();
+                }
+            }
+        }
+        return response()->json(['success' => true, 'message' => 'Labels updated']);
+    }
+
+    /**
+     * Clean snippet by stripping quoted email replies and email chain headers
+     */
+    protected function getCleanSnippet($msg, $limit = 120)
+    {
+        $plain = $msg->body_plain ?? '';
+        $clean = preg_replace('/(On\s+[\s\S]*?wrote:[\s\S]*|-----Original Message-----[\s\S]*)/iu', '', $plain);
+        $clean = trim(preg_replace('/\s+/', ' ', $clean));
+        if (empty($clean)) {
+            $clean = trim(preg_replace('/\s+/', ' ', strip_tags($msg->body_plain ?: $msg->body_html)));
+        }
+        return \Illuminate\Support\Str::limit($clean, $limit);
+    }
+
+    /**
+     * Format body HTML so that quoted chains starting with 'On ... wrote:' or '-----Original Message-----'
+     * are cleanly isolated in a .gmail_quote container for collapsible Gmail-style trimmed content.
+     */
+    protected function formatIsolatedBodyHtml($html, $plain = null)
+    {
+        $html = $html ?: nl2br(e($plain ?? ''));
+        if (empty($html)) return '';
+
+        if (stripos($html, 'gmail_quote') !== false) {
+            return $html;
+        }
+
+        $pattern = '/(?=(?:<div[^>]*>|<p[^>]*>|<br\s*\/?>|\n|^)\s*(?:On\s+[\s\S]*?wrote:|-----Original Message-----|From:\s+[\s\S]*?Sent:))/iu';
+        $parts = preg_split($pattern, $html, 2);
+
+        if (count($parts) === 2 && !empty(trim(strip_tags($parts[0])))) {
+            return $parts[0] . '<div class="gmail_quote">' . $parts[1] . '</div>';
+        }
+
+        return $html;
     }
 
     /**
@@ -1182,10 +1381,12 @@ class EmailController extends Controller
             ->unique(fn ($item) => strtolower(trim($item->email)))
             ->take(10)
             ->map(function ($item) use ($isSuperAdmin) {
+                $realEmail = $item->email;
+                $item->display_email = $isSuperAdmin ? $realEmail : mask_email_for_display($realEmail);
                 if (!$isSuperAdmin) {
                     $item->mobile_no = $item->mobile_no ? mask_mobile_only(null, $item->mobile_no) : '';
-                    $item->email = mask_email_for_display($item->email);
                 }
+                $item->email = $realEmail;
                 return $item;
             })
             ->values();

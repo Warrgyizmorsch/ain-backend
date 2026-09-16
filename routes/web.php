@@ -90,6 +90,10 @@ Route::prefix('emails')->name('emails.')->middleware(['auth', 'check.permission'
     Route::post('/toggle-star', [\App\Http\Controllers\EmailController::class, 'toggleStar'])->name('star');
     Route::post('/mark-read', [\App\Http\Controllers\EmailController::class, 'markAsRead'])->name('mark-read');
     Route::post('/delete', [\App\Http\Controllers\EmailController::class, 'deleteMessage'])->name('delete');
+    Route::post('/archive', [\App\Http\Controllers\EmailController::class, 'archive'])->name('archive');
+    Route::post('/move-folder', [\App\Http\Controllers\EmailController::class, 'moveToFolder'])->name('move-folder');
+    Route::post('/undo', [\App\Http\Controllers\EmailController::class, 'undoAction'])->name('undo');
+    Route::post('/bulk-labels', [\App\Http\Controllers\EmailController::class, 'bulkAssignLabels'])->name('bulk-labels');
     Route::post('/sync', [\App\Http\Controllers\EmailController::class, 'sync'])->name('sync');
     Route::get('/updates', [\App\Http\Controllers\EmailController::class, 'updates'])->name('updates');
     Route::get('/csrf-token', [\App\Http\Controllers\EmailController::class, 'csrfToken'])->name('csrf-token');

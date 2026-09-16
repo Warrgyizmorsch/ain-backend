@@ -5,24 +5,45 @@
 
 <style>
     :root {
-        --duralux-primary: #3454d1;
-        --duralux-primary-light: #edf2fe;
-        --duralux-primary-hover: #263fb0;
-        --duralux-dark: #0f172a;
-        --duralux-gray: #475569;
-        --duralux-border: #cbd5e1;
-        --duralux-border-light: #e2e8f0;
-        --duralux-bg: #f8fafc;
+        --gmail-blue: #0b57d0;
+        --gmail-blue-hover: #0842a0;
+        --gmail-surface: #ffffff;
+        --gmail-bg: #f6f8fc;
+        --gmail-sidebar: #f6f8fc;
+        --gmail-hover: #eaf1fb;
+        --gmail-active: #d3e3fd;
+        --gmail-active-text: #041e49;
+        --gmail-border: #e0e2e7;
+        --gmail-border-subtle: #f1f3f4;
+        --gmail-text: #1f1f1f;
+        --gmail-text-muted: #5f6368;
+        --gmail-star: #f4b400;
+        --gmail-read-row: #f2f6fc;
+        --gmail-unread-row: #ffffff;
+        --gmail-selected-row: #c2e7ff;
+        --duralux-primary: #0b57d0;
+        --duralux-primary-light: #d3e3fd;
+        --duralux-primary-hover: #0842a0;
+        --duralux-dark: #1f1f1f;
+        --duralux-gray: #5f6368;
+        --duralux-border: #e0e2e7;
+        --duralux-border-light: #f1f3f4;
+        --duralux-bg: #f6f8fc;
         --duralux-white: #ffffff;
-        --duralux-star: #f59e0b;
-        --duralux-unread-bg: #f0f6ff;
-        --duralux-hover-bg: #f1f5f9;
+        --duralux-star: #f4b400;
+        --duralux-unread-bg: #ffffff;
+        --duralux-hover-bg: #eaf1fb;
     }
 
     .header-fixed.toolbar-fixed #kt_wrapper,
     .header-fixed #kt_wrapper,
     #kt_wrapper {
         padding-top: 65px !important;
+        background: #f6f8fc !important;
+    }
+
+    body, #kt_body {
+        background: #f6f8fc !important;
     }
 
     #kt_wrapper .content,
@@ -38,221 +59,266 @@
         display: flex;
         flex-direction: column;
         overflow: hidden;
-        margin: 5px 12px 5px 12px !important;
+        margin: 4px 10px 6px 10px !important;
         padding: 0 !important;
     }
 
     .duralux-email-app {
         display: flex;
         flex: 1;
-        background: #ffffff;
-        border: 1px solid var(--duralux-border);
-        border-radius: 12px;
+        background: #f6f8fc;
+        border: none;
         overflow: hidden;
-        box-shadow: 0 4px 16px rgba(15, 23, 42, 0.05);
         height: 100%;
+        min-height: 0;
     }
 
     /* Left Sidebar */
     .duralux-sidebar {
-        width: 260px;
-        background: #ffffff;
-        border-right: 1px solid var(--duralux-border-light);
+        width: 256px;
+        background: #f6f8fc;
+        border-right: none;
         display: flex;
         flex-direction: column;
         flex-shrink: 0;
+        height: 100%;
         overflow-y: auto;
     }
 
+    .duralux-sidebar::-webkit-scrollbar {
+        width: 4px;
+    }
+    .duralux-sidebar::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 4px;
+    }
+
     .duralux-compose-btn-wrap {
-        padding: 18px 16px 14px 16px;
+        padding: 16px 16px 12px 16px;
     }
 
     .duralux-btn-compose {
-        width: 100%;
-        background: var(--duralux-primary);
-        color: #ffffff !important;
+        background: #c2e7ff !important;
+        color: #001d35 !important;
         border: none;
-        border-radius: 8px;
-        padding: 11px 16px;
-        font-weight: 700;
+        border-radius: 16px;
+        padding: 11px 20px;
+        font-weight: 600;
         font-size: 13.5px;
-        display: flex;
+        display: inline-flex;
         align-items: center;
         justify-content: center;
         gap: 8px;
-        box-shadow: 0 4px 12px rgba(52, 84, 209, 0.25);
-        transition: all 0.2s;
+        box-shadow: 0 1px 3px rgba(60, 64, 67, 0.3);
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        cursor: pointer;
+        text-decoration: none;
     }
 
     .duralux-btn-compose:hover {
-        background: var(--duralux-primary-hover);
+        background: #b3def7 !important;
+        box-shadow: 0 2px 6px rgba(60, 64, 67, 0.2);
         transform: translateY(-1px);
-        box-shadow: 0 6px 16px rgba(52, 84, 209, 0.35);
+        color: #001d35 !important;
     }
 
     .duralux-nav-list {
         list-style: none;
-        padding: 6px 12px;
-        margin: 0;
+        padding: 0;
+        margin: 0 0 16px 0;
     }
 
     .duralux-nav-item {
-        margin-bottom: 3px;
+        margin-bottom: 2px;
     }
 
     .duralux-nav-link {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding: 9px 14px;
-        border-radius: 8px;
-        color: var(--duralux-gray);
-        font-weight: 600;
-        font-size: 13px;
+        padding: 8px 16px 8px 24px;
+        border-radius: 0 24px 24px 0;
+        margin-right: 12px;
+        color: #444746;
+        font-weight: 500;
+        font-size: 13.5px;
         text-decoration: none;
-        transition: all 0.15s;
+        transition: background-color 0.15s ease, color 0.15s ease;
     }
 
     .duralux-nav-link:hover {
-        background: var(--duralux-hover-bg);
-        color: var(--duralux-dark);
+        background: #eaebef;
+        color: var(--gmail-text);
     }
 
     .duralux-nav-link.active {
-        background: var(--duralux-primary-light);
-        color: var(--duralux-primary);
+        background: var(--gmail-active) !important;
+        color: var(--gmail-active-text) !important;
         font-weight: 700;
     }
 
     .duralux-nav-link i {
-        font-size: 15px;
+        font-size: 14px;
         width: 20px;
         text-align: center;
-        margin-right: 10px;
+        margin-right: 12px;
     }
 
     .duralux-badge {
-        font-size: 11px;
+        font-size: 12px;
         font-weight: 700;
-        padding: 2px 7px;
-        border-radius: 10px;
-        background: #e2e8f0;
-        color: #475569;
+        padding: 0;
+        background: transparent;
+        color: #444746;
     }
 
-    .duralux-badge-primary {
-        background: var(--duralux-primary);
-        color: #ffffff;
+    .duralux-badge-primary,
+    .duralux-nav-link.active .duralux-badge {
+        background: transparent;
+        color: #041e49;
+        font-weight: 700;
+        box-shadow: none;
     }
 
     .duralux-section-label {
         font-size: 11px;
         font-weight: 700;
         text-transform: uppercase;
-        color: #94a3b8;
-        padding: 14px 16px 6px 16px;
-        letter-spacing: 0.5px;
+        color: #747775;
+        padding: 12px 24px 6px 24px;
+        letter-spacing: 0.6px;
     }
 
-    /* Main Conversation View Area */
+    /* Main Conversation View Area - Floating Canvas */
     .duralux-main-area {
         flex: 1;
         display: flex;
         flex-direction: column;
         min-width: 0;
         background: #ffffff;
+        border-radius: 16px;
+        border: 1px solid #e0e2e7;
+        margin: 0 8px 8px 0;
+        box-shadow: 0 1px 3px rgba(60, 64, 67, 0.08);
         overflow-y: auto;
     }
 
+    .duralux-main-area::-webkit-scrollbar {
+        width: 6px;
+    }
+    .duralux-main-area::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 4px;
+    }
+
     .duralux-top-bar {
-        height: 60px;
-        border-bottom: 1px solid var(--duralux-border-light);
+        height: 48px;
+        border-bottom: 1px solid var(--gmail-border-subtle);
+        border-radius: 16px 16px 0 0;
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding: 0 24px;
+        padding: 0 16px;
         background: #ffffff;
         position: sticky;
         top: 0;
         z-index: 10;
+        flex-shrink: 0;
     }
 
-    .duralux-btn-back {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        font-weight: 600;
-        font-size: 13.5px;
-        color: var(--duralux-gray);
-        background: transparent;
-        border: 1px solid var(--duralux-border);
-        border-radius: 8px;
-        padding: 6px 14px;
-        text-decoration: none;
-        transition: all 0.2s;
-    }
-
-    .duralux-btn-back:hover {
-        background: var(--duralux-hover-bg);
-        color: var(--duralux-dark);
-    }
-
+    .gmail-icon-btn,
     .duralux-btn-icon {
         width: 34px;
         height: 34px;
-        border-radius: 8px;
-        border: 1px solid var(--duralux-border);
+        border-radius: 50%;
+        border: none;
         background: transparent;
-        color: var(--duralux-gray);
+        color: #444746;
         display: inline-flex;
         align-items: center;
         justify-content: center;
         cursor: pointer;
-        transition: all 0.15s;
+        transition: background-color 0.15s ease, color 0.15s ease;
+        text-decoration: none;
+        font-size: 14px;
     }
 
+    .gmail-icon-btn:hover,
     .duralux-btn-icon:hover {
-        background: var(--duralux-hover-bg);
-        color: var(--duralux-dark);
+        background-color: var(--gmail-hover);
+        color: var(--gmail-text);
     }
 
     .duralux-conversation-content {
         padding: 24px 32px 60px 32px;
-        max-width: 1000px;
+        max-width: 1020px;
         margin: 0 auto;
         width: 100%;
     }
 
     .duralux-subject-header {
         display: flex;
-        align-items: center;
-        justify-content: space-between;
+        flex-direction: column;
+        gap: 8px;
         margin-bottom: 24px;
         padding-bottom: 16px;
-        border-bottom: 1px solid var(--duralux-border-light);
+        border-bottom: 1px solid var(--gmail-border-subtle);
     }
 
     .duralux-subject-title {
         font-size: 22px;
-        font-weight: 800;
-        color: var(--duralux-dark);
+        font-weight: 600;
+        color: var(--gmail-text);
         margin: 0;
-        line-height: 1.3;
+        line-height: 1.35;
+        letter-spacing: -0.2px;
     }
 
     .duralux-message-card {
-        border: 1.5px solid var(--duralux-border-light);
+        border: 1px solid var(--gmail-border);
         border-radius: 12px;
         background: #ffffff;
-        padding: 22px 24px;
-        margin-bottom: 20px;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+        padding: 20px 24px;
+        margin-bottom: 18px;
+        box-shadow: 0 1px 3px rgba(60, 64, 67, 0.08);
+        transition: box-shadow 0.2s ease;
+    }
+
+    .duralux-message-card:hover {
+        box-shadow: 0 2px 8px rgba(60, 64, 67, 0.12);
+    }
+
+    .duralux-message-card.collapsed {
+        padding: 0;
+        border-radius: 8px;
+    }
+    .duralux-message-card.collapsed .duralux-message-expanded-content {
+        display: none !important;
+    }
+    .duralux-message-card.collapsed .duralux-msg-collapsed-strip {
+        display: flex !important;
+    }
+    .duralux-message-card:not(.collapsed) .duralux-msg-collapsed-strip {
+        display: none !important;
+    }
+    .duralux-msg-collapsed-strip {
+        display: none;
+        align-items: center;
+        gap: 14px;
+        padding: 10px 16px;
+        cursor: pointer;
+        user-select: none;
+        border-radius: 8px;
+        transition: background-color 0.15s ease;
+        background: #ffffff;
+    }
+    .duralux-msg-collapsed-strip:hover {
+        background-color: #f2f6fc;
     }
 
     .duralux-avatar {
-        width: 42px;
-        height: 42px;
+        width: 40px;
+        height: 40px;
         border-radius: 50%;
         display: flex;
         align-items: center;
@@ -265,19 +331,39 @@
 
     .duralux-message-body {
         font-size: 14px;
-        line-height: 1.7;
-        color: #334155;
+        line-height: 1.65;
+        color: var(--gmail-text);
         margin-top: 14px;
-        padding-left: 54px;
-        word-break: break-word;
+        padding-left: 52px;
+        word-break: normal;
+        overflow-wrap: break-word;
+        width: calc(100% - 52px);
+        max-width: calc(100% - 52px);
+        box-sizing: border-box;
     }
 
     .duralux-message-body blockquote,
     .duralux-message-body .gmail_quote {
-        border-left: 3px solid #cbd5e1 !important;
-        padding-left: 14px !important;
-        margin: 12px 0 !important;
-        color: #64748b !important;
+        border-left: 2px solid #cbd5e1 !important;
+        background: transparent !important;
+        padding: 0 0 0 10px !important;
+        margin: 8px 0 !important;
+        margin-inline-start: 0 !important;
+        margin-inline-end: 0 !important;
+        border-radius: 0 !important;
+        color: inherit !important;
+    }
+    .duralux-message-body blockquote blockquote,
+    .duralux-message-body .gmail_quote blockquote,
+    .duralux-message-body blockquote .gmail_quote,
+    .duralux-message-body .gmail_quote .gmail_quote {
+        border: none !important;
+        border-left: none !important;
+        padding: 0 !important;
+        padding-left: 0 !important;
+        margin: 0 !important;
+        margin-inline-start: 0 !important;
+        margin-inline-end: 0 !important;
     }
 
     /* Action Pills */
@@ -285,53 +371,105 @@
         display: inline-flex;
         align-items: center;
         gap: 8px;
-        padding: 9px 20px;
+        padding: 8px 22px;
         border-radius: 20px;
-        border: 1.5px solid var(--duralux-border);
+        border: 1px solid #747775;
         background: #ffffff;
-        color: var(--duralux-gray);
-        font-weight: 600;
+        color: var(--gmail-text);
+        font-weight: 500;
         font-size: 13.5px;
         cursor: pointer;
-        transition: all 0.2s;
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
     .duralux-action-pill:hover {
-        background: var(--duralux-primary-light);
-        color: var(--duralux-primary);
-        border-color: var(--duralux-primary);
+        background: #f0f4f9;
+        color: var(--gmail-blue);
+        border-color: var(--gmail-blue);
+        transform: translateY(-1px);
+    }
+
+    /* Gmail Attachment Chips */
+    .gmail-attachment-card {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 14px;
+        background: #f8fafc;
+        border: 1px solid var(--gmail-border);
+        border-radius: 8px;
+        transition: all 0.15s ease;
+    }
+
+    .gmail-attachment-card:hover {
+        background: #f0f4f9;
+        border-color: var(--gmail-blue);
     }
 
     /* Inline Composer Box */
     .duralux-inline-composer {
-        border: 2px solid var(--duralux-border);
+        border: 1px solid #c4c7c5;
         border-radius: 12px;
         background: #ffffff;
         padding: 20px;
         margin-top: 24px;
-        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
-        transition: border-color 0.2s;
+        box-shadow: 0 2px 10px rgba(60, 64, 67, 0.08);
+        transition: all 0.25s ease;
     }
 
     .duralux-inline-composer.focused {
-        border-color: var(--duralux-primary);
+        border-color: var(--gmail-blue);
+        box-shadow: 0 4px 16px rgba(11, 87, 208, 0.15);
     }
 
     .mode-tab-btn {
         background: none;
-        border: none;
-        padding: 6px 14px;
-        font-weight: 700;
-        font-size: 13px;
-        border-radius: 6px;
-        color: var(--duralux-gray);
+        border: 1px solid #dadce0;
+        padding: 5px 16px;
+        font-weight: 600;
+        font-size: 12.5px;
+        border-radius: 16px;
+        color: #444746;
         cursor: pointer;
-        transition: all 0.15s;
+        transition: all 0.15s ease;
     }
 
     .mode-tab-btn.active {
-        background: var(--duralux-primary-light);
-        color: var(--duralux-primary);
+        background: #d3e3fd;
+        color: #041e49;
+        border-color: #d3e3fd;
+    }
+
+    .gmail-compose-input {
+        border: none;
+        border-bottom: 1px solid #e0e2e7;
+        border-radius: 0;
+        padding: 8px 4px;
+        font-size: 13.5px;
+        outline: none;
+        width: 100%;
+        transition: border-color 0.2s;
+    }
+
+    .gmail-compose-input:focus {
+        border-bottom-color: var(--gmail-blue);
+    }
+
+    .btn-gmail-send {
+        background: var(--gmail-blue) !important;
+        color: #ffffff !important;
+        font-weight: 600;
+        font-size: 13.5px;
+        border-radius: 18px !important;
+        padding: 8px 24px !important;
+        border: none !important;
+        box-shadow: 0 1px 3px rgba(60, 64, 67, 0.3);
+        transition: all 0.2s ease;
+    }
+
+    .btn-gmail-send:hover {
+        background: var(--gmail-blue-hover) !important;
+        box-shadow: 0 2px 6px rgba(60, 64, 67, 0.2);
     }
 </style>
 @endpush
@@ -343,9 +481,10 @@
         {{-- Left Sidebar --}}
         <aside class="duralux-sidebar">
             <div class="duralux-compose-btn-wrap">
-                <button type="button" class="duralux-btn-compose" onclick="window.location.href='{{ route('emails.index', ['account_id' => request('account_id')]) }}'">
-                    <i class="fa fa-arrow-left"></i> Back to Inbox
-                </button>
+                <a href="{{ route('emails.index', ['account_id' => request('account_id')]) }}" class="duralux-btn-compose">
+                    <i class="fa fa-arrow-left"></i>
+                    <span>Back to Inbox</span>
+                </a>
             </div>
 
             <div class="duralux-section-label">Mailboxes</div>
@@ -376,12 +515,21 @@
                 </li>
             </ul>
 
-            <div class="duralux-section-label mt-4">Email Channels</div>
+            <div class="duralux-section-label mt-2">
+                <span>Tags & Labels</span>
+                <a href="{{ route('labels.index') }}" target="_blank" title="Manage Labels" class="text-muted"><i class="fa fa-cog"></i></a>
+            </div>
             <ul class="duralux-nav-list">
-                @foreach(($configurations ?? []) as $config)
+                @php
+                    $sidebarLabels = $allLabels ?? \App\Models\WhatsappChatLabel::forEmail()->ordered()->get();
+                @endphp
+                @foreach($sidebarLabels as $lbl)
                     <li class="duralux-nav-item">
-                        <a href="{{ route('emails.index', ['account_id' => $config->id]) }}" class="duralux-nav-link {{ optional($currentAccount ?? null)->id == $config->id ? 'active' : '' }}">
-                            <span class="text-truncate" style="max-width: 170px;"><i class="fa fa-circle text-primary fs-8"></i> {{ $config->name }}</span>
+                        <a href="{{ route('emails.index', ['label_id' => $lbl->id, 'account_id' => request('account_id')]) }}" class="duralux-nav-link">
+                            <span class="text-truncate" style="max-width: 170px;">
+                                <span class="duralux-dot" style="background: {{ $lbl->color }};"></span>
+                                {{ $lbl->name }}
+                            </span>
                         </a>
                     </li>
                 @endforeach
@@ -390,28 +538,27 @@
 
         {{-- Main Email Detail / Conversation Area --}}
         <main class="duralux-main-area" id="mainConversationArea">
-            {{-- Sticky Top Bar --}}
+            {{-- Sticky Top Bar (Gmail Action Toolbar) --}}
             <div class="duralux-top-bar">
-                <div class="d-flex align-items-center gap-3">
-                    <a href="{{ route('emails.index', ['folder' => $email->folder, 'account_id' => request('account_id')]) }}" class="duralux-btn-back">
+                <div class="d-flex align-items-center gap-1">
+                    <a href="{{ route('emails.index', ['folder' => $email->folder, 'account_id' => request('account_id')]) }}" class="gmail-icon-btn" title="Back to {{ ucfirst($email->folder) }}">
                         <i class="fa fa-arrow-left"></i>
-                        <span>Back</span>
                     </a>
-                    <div class="vr h-20px mx-1 text-muted"></div>
-                    <button type="button" class="duralux-btn-icon text-danger" title="Delete Email" onclick="deleteThisEmail({{ $email->id }})">
+                    <div style="width: 1px; height: 20px; background: #e0e2e7; margin: 0 6px;"></div>
+                    <button type="button" class="gmail-icon-btn text-danger" title="Move to Trash" onclick="deleteThisEmail({{ $email->id }})">
                         <i class="fa fa-trash-o"></i>
                     </button>
-                    <button type="button" class="duralux-btn-icon {{ $email->is_starred ? 'text-warning' : '' }}" title="Star Email" onclick="toggleThisStar({{ $email->id }}, this)">
+                    <button type="button" class="gmail-icon-btn {{ $email->is_starred ? 'text-warning' : '' }}" title="Star Email" onclick="toggleThisStar({{ $email->id }}, this)">
                         <i class="fa {{ $email->is_starred ? 'fa-star' : 'fa-star-o' }}"></i>
                     </button>
-                    <button type="button" class="duralux-btn-icon" title="Print" onclick="window.print()">
+                    <button type="button" class="gmail-icon-btn" title="Print Conversation" onclick="window.print()">
                         <i class="fa fa-print"></i>
                     </button>
-                    <div class="dropdown">
-                        <button type="button" class="btn btn-sm btn-light-info fw-bold d-flex align-items-center gap-1" data-bs-toggle="dropdown" id="showLabelsDropdownBtn" title="Manage Labels">
-                            <i class="fa fa-tags me-1"></i> <span class="d-none d-sm-inline">Labels</span> <i class="fa fa-caret-down ms-1"></i>
+                    <div class="dropdown d-inline-block">
+                        <button type="button" class="gmail-icon-btn" data-bs-toggle="dropdown" id="showLabelsDropdownBtn" title="Manage Labels">
+                            <i class="fa fa-tag"></i>
                         </button>
-                        <div class="dropdown-menu dropdown-menu-end p-3 shadow-lg" style="min-width: 220px;" onclick="event.stopPropagation()">
+                        <div class="dropdown-menu dropdown-menu-start p-3 shadow-lg" style="min-width: 230px; border-radius: 12px; border: 1px solid #dadce0;" onclick="event.stopPropagation()">
                             <div class="d-flex align-items-center justify-content-between mb-2">
                                 <h6 class="fs-8 text-muted fw-bold text-uppercase m-0">Assign Labels</h6>
                                 <a href="{{ route('labels.index') }}" target="_blank" class="fs-9 text-primary fw-semibold"><i class="fa fa-cog"></i> Master</a>
@@ -434,7 +581,7 @@
                 </div>
 
                 <div class="d-flex align-items-center gap-2">
-                    <span class="badge bg-light-primary text-primary fw-bold px-3 py-2 fs-8 text-capitalize">
+                    <span class="badge bg-light text-muted fw-semibold px-2.5 py-1.5 fs-8 text-capitalize border">
                         <i class="fa fa-folder-open-o me-1"></i> {{ $email->folder }}
                     </span>
                     <span class="text-muted fs-8">{{ count($threadMessages ?? [$email]) }} message(s)</span>
@@ -445,74 +592,110 @@
             <div class="duralux-conversation-content">
                 {{-- Subject Title Header --}}
                 <div class="duralux-subject-header">
-                    <div class="d-flex align-items-center gap-3">
+                    <div class="d-flex align-items-center flex-wrap gap-2">
                         <h2 class="duralux-subject-title">{{ $email->subject ?: '(No Subject)' }}</h2>
-                        <span class="badge bg-light text-dark border px-2 py-1 fs-8">Inbox</span>
+                        <span class="badge bg-light text-muted border px-2 py-1 fs-8 text-capitalize">{{ $email->folder }}</span>
+                        @if($clientWhatsAppUrl)
+                            <a href="{{ $clientWhatsAppUrl }}"
+                               target="_blank"
+                               class="btn btn-sm btn-light-success d-inline-flex align-items-center gap-1"
+                               title="WhatsApp: {{ $clientContact->name ?: $email->customer_email }}">
+                                <i class="fa fa-whatsapp fs-5"></i>
+                                <span>WhatsApp</span>
+                            </a>
+                        @endif
                     </div>
-                    <div class="d-flex flex-wrap gap-1 mt-2" id="showLabelsBadges">
+                    <div class="d-flex flex-wrap gap-1 mt-1" id="showLabelsBadges">
                         @php
                             $activeThreadLabels = $threadLabels ?? \App\Models\WhatsappChatLabel::whereIn('id', $activeLabelIds)->ordered()->get();
                         @endphp
                         @foreach($activeThreadLabels as $tl)
-                            <span class="badge px-2.5 py-1 fs-8 fw-bold d-inline-flex align-items-center gap-1 shadow-sm" style="background-color: {{ $tl->color }}; color: #ffffff;">
-                                <i class="fa fa-tag text-white opacity-75" style="font-size: 10px;"></i> {{ $tl->name }}
+                            <span class="badge px-2.5 py-1 fs-8 fw-semibold d-inline-flex align-items-center gap-1 shadow-xs" style="background-color: {{ $tl->color }}; color: #ffffff; border-radius: 4px;">
+                                <i class="fa fa-tag text-white opacity-75" style="font-size: 9px;"></i> {{ $tl->name }}
                             </span>
                         @endforeach
                     </div>
                 </div>
 
+                @php
+                    $allThreadMsgs = $threadMessages ?? [$email];
+                    $isMulti = count($allThreadMsgs) > 1;
+                @endphp
                 {{-- Chronological Messages List --}}
-                @foreach(($threadMessages ?? [$email]) as $msg)
+                @foreach($allThreadMsgs as $msg)
                     @php
                         $isOutbound = $msg->direction === 'outbound';
-                        $avatarBg = $isOutbound ? 'background: linear-gradient(135deg, #2563eb, #6366f1);' : 'background: linear-gradient(135deg, #ea580c, #f97316);';
+                        $avatarBg = $isOutbound ? 'background-color: #0b57d0;' : 'background-color: #c026d3;';
                         $avatarLetter = strtoupper(substr($msg->from_name ?: ($msg->from_email ?: 'U'), 0, 1));
+                        $isCollapsed = $isMulti && ($loop->iteration < count($allThreadMsgs));
+                        $cleanMsgSnippet = preg_replace('/(On\s+[\s\S]*?wrote:[\s\S]*|-----Original Message-----[\s\S]*)/iu', '', $msg->body_plain ?? '');
+                        $cleanMsgSnippet = trim(preg_replace('/\s+/', ' ', $cleanMsgSnippet));
+                        if (empty($cleanMsgSnippet)) {
+                            $cleanMsgSnippet = trim(preg_replace('/\s+/', ' ', strip_tags($msg->body_plain ?: $msg->body_html)));
+                        }
+                        $snippet = \Illuminate\Support\Str::limit($cleanMsgSnippet, 120);
                     @endphp
-                    <div class="duralux-message-card" id="msg-card-{{ $msg->id }}">
-                        <div class="d-flex align-items-center justify-content-between">
-                            <div class="d-flex align-items-center gap-3">
-                                <div class="duralux-avatar" style="{{ $avatarBg }}">{{ $avatarLetter }}</div>
-                                <div>
-                                    <div class="fw-bold text-gray-900 fs-6">
-                                        {{ $msg->from_name ?: $msg->from_email }}
-                                        <span class="text-muted fs-8 fw-normal">&lt;{{ $msg->from_email }}&gt;</span>
-                                    </div>
-                                    <div class="text-muted fs-8">to {{ $msg->to_name ?: ($msg->to_email ?: 'me') }}</div>
-                                </div>
-                            </div>
-                            <div class="d-flex align-items-center gap-3">
-                                <span class="text-muted fs-8">{{ optional($msg->received_at ?: $msg->created_at)->format('M d, Y h:i A') }}</span>
-                                <button type="button" class="btn btn-sm btn-icon btn-light" onclick="setComposerMode('reply', '{{ $msg->from_email }}', '{{ addslashes($msg->subject) }}')" title="Reply to this message">
-                                    <i class="fa fa-reply text-muted"></i>
-                                </button>
-                            </div>
+                    <div class="duralux-message-card {{ $isCollapsed ? 'collapsed' : '' }}" id="msg-card-{{ $msg->id }}">
+                        {{-- Collapsed Strip (Authentic Gmail Style) --}}
+                        <div class="duralux-msg-collapsed-strip" onclick="toggleShowMessage({{ $msg->id }})">
+                            <div class="duralux-avatar" style="{{ $avatarBg }}; width: 28px; height: 28px; font-size: 13px;">{{ $avatarLetter }}</div>
+                            <div class="fw-bold fs-7 text-truncate" style="width: 170px; color: #202124;">{{ $msg->from_name ?: $msg->from_email }}</div>
+                            <div class="fs-8 text-muted text-truncate flex-grow-1">{{ $snippet }}</div>
+                            <div class="fs-9 text-muted ms-auto">{{ optional($msg->received_at ?: $msg->created_at)->format('M d, h:i A') }}</div>
                         </div>
 
-                        <div class="duralux-message-body" id="show-msg-body-{{ $msg->id }}"></div>
-
-                        @if($msg->attachments && $msg->attachments->count() > 0)
-                            <div class="d-flex flex-wrap gap-2 mt-4 pt-3 border-top" style="padding-left: 54px;">
-                                @foreach($msg->attachments as $att)
-                                    <div class="d-inline-flex align-items-center gap-2 px-3 py-2 bg-light border rounded">
-                                        <i class="fa fa-paperclip text-primary"></i>
-                                        <span class="fs-8 fw-semibold">{{ $att->filename }}</span>
-                                        <span class="text-muted fs-9">({{ $att->formatted_size }})</span>
-                                        <a href="{{ route('emails.attachment.download', $att->id) }}" target="_blank" class="btn btn-xs btn-light-primary ms-2"><i class="fa fa-download"></i></a>
+                        {{-- Expanded Message Content --}}
+                        <div class="duralux-message-expanded-content">
+                            <div class="d-flex align-items-center justify-content-between" onclick="toggleShowMessage({{ $msg->id }})" style="cursor: pointer;">
+                                <div class="d-flex align-items-center gap-3">
+                                    <div class="duralux-avatar" style="{{ $avatarBg }}">{{ $avatarLetter }}</div>
+                                    <div>
+                                        <div class="fw-bold fs-6" style="color: #1f1f1f;">
+                                            {{ $msg->from_name ?: $msg->from_email }}
+                                            <span class="text-muted fs-8 fw-normal">&lt;{{ $msg->from_email }}&gt;</span>
+                                        </div>
+                                        <div class="text-muted fs-8">to {{ $msg->to_name ?: ($msg->to_email ?: 'me') }}</div>
                                     </div>
-                                @endforeach
+                                </div>
+                                <div class="d-flex align-items-center gap-2" onclick="event.stopPropagation();">
+                                    <span class="text-muted fs-8">{{ optional($msg->received_at ?: $msg->created_at)->format('M d, Y, h:i A') }}</span>
+                                    <button type="button" class="gmail-icon-btn" onclick="setComposerMode('reply', '{{ $msg->from_email }}', '{{ addslashes($msg->subject) }}')" title="Reply to this message">
+                                        <i class="fa fa-reply"></i>
+                                    </button>
+                                    <button type="button" class="gmail-icon-btn" onclick="toggleShowMessage({{ $msg->id }})" title="Collapse / Close message">
+                                        <i class="fa fa-chevron-up"></i>
+                                    </button>
+                                </div>
                             </div>
-                        @endif
+
+                            <div class="duralux-message-body" id="show-msg-body-{{ $msg->id }}"></div>
+
+                            @if($msg->attachments && $msg->attachments->count() > 0)
+                                <div class="d-flex flex-wrap gap-2 mt-4 pt-3 border-top" style="padding-left: 52px;">
+                                    @foreach($msg->attachments as $att)
+                                        <div class="gmail-attachment-card">
+                                            <i class="fa fa-file-text-o text-primary"></i>
+                                            <div class="d-flex flex-column">
+                                                <span class="fs-8 fw-semibold text-truncate" style="max-width: 220px;">{{ $att->filename }}</span>
+                                                <span class="text-muted fs-9">{{ $att->formatted_size }}</span>
+                                            </div>
+                                            <a href="{{ route('emails.attachment.download', $att->id) }}" target="_blank" class="gmail-icon-btn ms-2" style="width: 28px; height: 28px;" title="Download"><i class="fa fa-download fs-9"></i></a>
+                                        </div>
+                                    @endforeach
+                                </div>
+                            @endif
+                        </div>
                     </div>
                 @endforeach
 
                 {{-- Action Pills --}}
-                <div class="d-flex align-items-center gap-3 my-4">
+                <div class="d-flex align-items-center gap-2 my-4">
                     <button type="button" class="duralux-action-pill" onclick="setComposerMode('reply', '{{ $email->from_email }}', '{{ addslashes($email->subject) }}')">
-                        <i class="fa fa-reply text-primary"></i>
+                        <i class="fa fa-reply text-muted"></i>
                         <span>Reply</span>
                     </button>
                     <button type="button" class="duralux-action-pill" onclick="setComposerMode('forward', '', '{{ addslashes($email->subject) }}')">
-                        <i class="fa fa-share text-primary"></i>
+                        <i class="fa fa-share text-muted"></i>
                         <span>Forward</span>
                     </button>
                 </div>
@@ -537,16 +720,20 @@
                         <input type="hidden" name="account_id" value="{{ optional($currentAccount ?? null)->id }}">
                         <input type="hidden" name="composer_mode" id="composerModeInput" value="reply">
 
-                        {{-- To Field (Editable on forward or reply) --}}
+                        {{-- To Field --}}
                         <div class="mb-3">
-                            <label class="form-label fs-8 fw-bold text-gray-700 mb-1">To:</label>
-                            <input type="email" class="form-control form-control-sm" name="to_email" id="composerToInput" value="{{ $email->from_email }}" required placeholder="recipient@example.com">
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="fs-8 fw-semibold text-muted" style="width: 50px;">To:</span>
+                                <input type="email" class="gmail-compose-input" name="to_email" id="composerToInput" value="{{ $email->from_email }}" required placeholder="recipient@example.com">
+                            </div>
                         </div>
 
                         {{-- Subject Field --}}
                         <div class="mb-3">
-                            <label class="form-label fs-8 fw-bold text-gray-700 mb-1">Subject:</label>
-                            <input type="text" class="form-control form-control-sm" name="subject" id="composerSubjectInput" value="Re: {{ $email->subject }}" required>
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="fs-8 fw-semibold text-muted" style="width: 50px;">Subject:</span>
+                                <input type="text" class="gmail-compose-input" name="subject" id="composerSubjectInput" value="Re: {{ $email->subject }}" required>
+                            </div>
                         </div>
 
                         {{-- Quill Editor --}}
@@ -557,8 +744,8 @@
                         {{-- Action Buttons --}}
                         <div class="d-flex align-items-center justify-content-between pt-2">
                             <div class="d-flex align-items-center gap-2">
-                                <label class="btn btn-sm btn-icon btn-light" title="Attach file">
-                                    <i class="fa fa-paperclip text-muted"></i>
+                                <label class="gmail-icon-btn" title="Attach file" style="cursor: pointer;">
+                                    <i class="fa fa-paperclip"></i>
                                     <input type="file" name="files[]" id="composerFileInput" multiple style="display: none;" onchange="handleFileSelected(this)">
                                 </label>
                                 <span class="text-muted fs-8" id="fileCountBadge"></span>
@@ -566,11 +753,10 @@
 
                             <div class="d-flex align-items-center gap-2">
                                 <button type="button" class="btn btn-sm btn-light" onclick="discardComposer()">Discard</button>
-                                <button type="submit" class="btn btn-sm btn-primary fw-bold px-5" id="composerSendBtn">
+                                <button type="submit" class="btn btn-sm btn-gmail-send" id="composerSendBtn">
                                     <i class="fa fa-paper-plane me-1"></i> Send
                                 </button>
                             </div>
-                        </div>
                     </form>
                 </div>
             </div>
@@ -828,15 +1014,59 @@ function checkShowEmailUpdates() {
 setTimeout(checkShowEmailUpdates, 2000);
 setInterval(checkShowEmailUpdates, 4000);
 
+function toggleShowMessage(id) {
+    const card = document.getElementById(`msg-card-${id}`);
+    if (!card) return;
+
+    if (card.classList.contains('collapsed')) {
+        card.classList.remove('collapsed');
+        const iframe = card.querySelector('iframe');
+        if (iframe && typeof iframe.__adjustHeight === 'function') {
+            setTimeout(iframe.__adjustHeight, 30);
+            setTimeout(iframe.__adjustHeight, 150);
+            setTimeout(iframe.__adjustHeight, 400);
+        }
+    } else {
+        card.classList.add('collapsed');
+    }
+}
+
 function renderIsolatedEmailBody(container, rawHtml, plainText) {
     if (!container) return;
 
-    const content = rawHtml || ('<pre style="font-family: inherit; white-space: pre-wrap; margin: 0; color: #334155; font-size: 14px;">' + (plainText || '') + '</pre>');
+    container.style.width = '100%';
+    container.style.maxWidth = '100%';
+    container.style.boxSizing = 'border-box';
+
+    const escapeEmailHtml = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
+
+    let content = rawHtml;
+    if (content) {
+        if (!content.includes('class="gmail_quote"') && !content.includes("class='gmail_quote'")) {
+            const quoteRegex = /(<div[^>]*>|<p[^>]*>|<br\s*\/?>|\n|^)(\s*(?:On\s+[\s\S]*?wrote:|-----Original Message-----|From:\s+[\s\S]*?Sent:))/i;
+            const match = content.match(quoteRegex);
+            if (match && match.index !== undefined && match.index > 0) {
+                const main = content.substring(0, match.index);
+                const quoted = content.substring(match.index);
+                content = main + '<div class="gmail_quote">' + quoted + '</div>';
+            }
+        }
+    } else if (plainText) {
+        const match = plainText.match(/^([\s\S]*?)(On\s+[\s\S]*?wrote:[\s\S]*|-----Original Message-----[\s\S]*)$/i);
+        if (match && match[2]) {
+            content = '<pre style="font-family: inherit; white-space: pre-wrap; margin: 0; color: #334155; font-size: 14px; word-break: normal; overflow-wrap: break-word;">' + escapeEmailHtml(match[1]) + '</pre>'
+                    + '<div class="gmail_quote"><pre style="font-family: inherit; white-space: pre-wrap; margin: 0; color: #5f6368; font-size: 13px; word-break: normal; overflow-wrap: break-word;">' + escapeEmailHtml(match[2]) + '</pre></div>';
+        } else {
+            content = '<pre style="font-family: inherit; white-space: pre-wrap; margin: 0; color: #334155; font-size: 14px; word-break: normal; overflow-wrap: break-word;">' + escapeEmailHtml(plainText || '') + '</pre>';
+        }
+    }
 
     const iframe = document.createElement('iframe');
     iframe.setAttribute('frameborder', '0');
     iframe.setAttribute('scrolling', 'no');
     iframe.style.width = '100%';
+    iframe.style.minWidth = '100%';
+    iframe.style.maxWidth = '100%';
     iframe.style.height = '60px';
     iframe.style.border = 'none';
     iframe.style.overflow = 'hidden';
@@ -857,20 +1087,16 @@ function renderIsolatedEmailBody(container, rawHtml, plainText) {
                 doc.documentElement.style.minHeight = '0px';
             }
 
-            // Find exact bottom of all rendered contents
-            let maxBottom = 0;
-            const elements = body.querySelectorAll('*');
-            elements.forEach(el => {
-                const rect = el.getBoundingClientRect();
-                if (rect.bottom > maxBottom) {
-                    maxBottom = rect.bottom;
-                }
-            });
-
-            const exactHeight = Math.ceil(Math.max(body.scrollHeight, maxBottom, 30));
+            const exactHeight = Math.ceil(Math.max(
+                body.scrollHeight || 0,
+                body.offsetHeight || 0,
+                doc.documentElement ? doc.documentElement.scrollHeight : 0,
+                30
+            ));
             iframe.style.height = exactHeight + 'px';
         } catch (e) {}
     };
+    iframe.__adjustHeight = adjustHeight;
 
     const docContent = `
         <!DOCTYPE html>
@@ -880,9 +1106,14 @@ function renderIsolatedEmailBody(container, rawHtml, plainText) {
             <meta name="viewport" content="width=device-width, initial-scale=1">
             <base target="_blank">
             <style>
+                *, *::before, *::after {
+                    box-sizing: border-box !important;
+                }
                 html, body {
                     margin: 0 !important;
                     padding: 0 !important;
+                    width: 100% !important;
+                    max-width: 100% !important;
                     height: auto !important;
                     min-height: 0 !important;
                     background: transparent;
@@ -890,18 +1121,80 @@ function renderIsolatedEmailBody(container, rawHtml, plainText) {
                 body {
                     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
                     font-size: 14px;
-                    line-height: 1.5;
+                    line-height: 1.6;
                     color: #1e293b;
-                    word-break: break-word;
-                    overflow-wrap: break-word;
+                    word-break: normal !important;
+                    overflow-wrap: break-word !important;
+                }
+                /* Reset browser default blockquote margins and prevent nested indentation creep */
+                blockquote, .gmail_quote, .gmail_default {
+                    margin: 8px 0 !important;
+                    margin-inline-start: 0 !important;
+                    margin-inline-end: 0 !important;
+                    margin-block-start: 0 !important;
+                    margin-block-end: 0 !important;
+                    padding: 0 0 0 10px !important;
+                    border-left: 2px solid #dadce0 !important;
+                    border-top: none !important;
+                    border-right: none !important;
+                    border-bottom: none !important;
+                    max-width: 100% !important;
+                    box-sizing: border-box !important;
+                }
+                /* All nested blockquotes (reply within reply) have ZERO extra indent/border so text never drifts to the right */
+                blockquote blockquote,
+                .gmail_quote blockquote,
+                blockquote .gmail_quote,
+                .gmail_quote .gmail_quote {
+                    margin: 0 !important;
+                    margin-inline-start: 0 !important;
+                    margin-inline-end: 0 !important;
+                    margin-block-start: 0 !important;
+                    margin-block-end: 0 !important;
+                    padding: 0 !important;
+                    padding-left: 0 !important;
+                    border: none !important;
+                    border-left: none !important;
                 }
                 table, tr, td, div {
                     height: auto !important;
                     min-height: 0 !important;
+                    max-width: 100% !important;
                 }
                 img {
                     max-width: 100% !important;
                     height: auto !important;
+                }
+                /* Gmail Style Trimmed Content Toggle Button */
+                .gmail-trimmed-toggle {
+                    display: inline-flex !important;
+                    align-items: center;
+                    justify-content: center;
+                    background: #e8eaed !important;
+                    border: 1px solid #dadce0 !important;
+                    border-radius: 4px !important;
+                    padding: 2px 8px !important;
+                    font-size: 14px !important;
+                    font-weight: 700 !important;
+                    letter-spacing: 1px !important;
+                    line-height: 14px !important;
+                    color: #5f6368 !important;
+                    cursor: pointer !important;
+                    margin: 8px 0 !important;
+                    user-select: none !important;
+                    transition: background 0.15s, border-color 0.15s !important;
+                }
+                .gmail-trimmed-toggle:hover {
+                    background: #dadce0 !important;
+                    color: #202124 !important;
+                }
+                .gmail-trimmed-toggle.is-expanded {
+                    background: #d2e3fc !important;
+                    border-color: #4285f4 !important;
+                    color: #1a73e8 !important;
+                }
+                .gmail-quote-collapsed {
+                    display: none !important;
                 }
             </style>
         </head>
@@ -914,14 +1207,42 @@ function renderIsolatedEmailBody(container, rawHtml, plainText) {
     iframe.srcdoc = docContent;
 
     iframe.onload = () => {
-        adjustHeight();
-        setTimeout(adjustHeight, 100);
-        setTimeout(adjustHeight, 500);
-        setTimeout(adjustHeight, 1200);
-
         try {
             const doc = iframe.contentWindow?.document;
             if (doc) {
+                const quotes = doc.querySelectorAll('.gmail_quote, blockquote, .gmail_extra');
+                quotes.forEach(quote => {
+                    if (quote.parentElement && quote.parentElement.closest('.gmail_quote, blockquote, .gmail_extra')) {
+                        return;
+                    }
+                    quote.classList.add('gmail-quote-collapsed');
+
+                    const btn = doc.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'gmail-trimmed-toggle';
+                    btn.title = 'Show trimmed content';
+                    btn.setAttribute('aria-label', 'Show trimmed content');
+                    btn.innerHTML = '&hellip;';
+                    btn.onclick = function(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const isHidden = quote.classList.contains('gmail-quote-collapsed');
+                        if (isHidden) {
+                            quote.classList.remove('gmail-quote-collapsed');
+                            btn.classList.add('is-expanded');
+                            btn.title = 'Hide trimmed content';
+                        } else {
+                            quote.classList.add('gmail-quote-collapsed');
+                            btn.classList.remove('is-expanded');
+                            btn.title = 'Show trimmed content';
+                        }
+                        adjustHeight();
+                        setTimeout(adjustHeight, 50);
+                        setTimeout(adjustHeight, 200);
+                    };
+                    quote.parentNode.insertBefore(btn, quote);
+                });
+
                 const images = doc.querySelectorAll('img');
                 images.forEach(img => {
                     if (!img.complete) {
@@ -931,6 +1252,11 @@ function renderIsolatedEmailBody(container, rawHtml, plainText) {
                 });
             }
         } catch (err) {}
+
+        adjustHeight();
+        setTimeout(adjustHeight, 100);
+        setTimeout(adjustHeight, 500);
+        setTimeout(adjustHeight, 1200);
     };
 }
 
