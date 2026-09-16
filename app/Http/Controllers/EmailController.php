@@ -274,16 +274,47 @@ class EmailController extends Controller
     }
 
     /**
-     * Match each conversation's external email address to a registered client.
-     * The resulting map lets email rows show WhatsApp only for real clients,
-     * without issuing one user query per row.
+     * Format countrycode and mobile number into a clean digits-only phone string
+     * suitable for WhatsApp URL (e.g. 447490902601).
+     */
+    public static function formatWhatsAppPhone(?string $countryCode, ?string $mobile): ?string
+    {
+        if (empty($mobile)) return null;
+        $mob = preg_replace('/\D+/', '', (string) $mobile);
+        if (empty($mob)) return null;
+        $cc = preg_replace('/\D+/', '', (string) $countryCode);
+
+        // Strip leading zeros if countrycode is present (e.g. 07490902601 with CC 44 -> 7490902601)
+        if (!empty($cc) && str_starts_with($mob, '0')) {
+            $mob = ltrim($mob, '0');
+        }
+
+        if (!empty($cc)) {
+            if (str_starts_with($mob, $cc)) {
+                return $mob;
+            }
+            return $cc . $mob;
+        }
+
+        return $mob;
+    }
+
+    /**
+     * Match each conversation's external email address to a registered client or lead.
+     * Searches users table first, then falls back to leads table to ensure WhatsApp
+     * phone number is resolved for all clients.
      */
     private function clientContactsForEmails($emails): \Illuminate\Support\Collection
     {
         $addresses = collect($emails)
-            ->map(fn (EmailMessage $email) => $email->customer_email)
+            ->map(function ($email) {
+                if ($email instanceof EmailMessage) {
+                    return $email->customer_email ?: ($email->from_email ?: $email->to_email);
+                }
+                return is_string($email) ? $email : null;
+            })
             ->filter()
-            ->map(fn ($email) => strtolower(trim($email)))
+            ->map(fn ($email) => strtolower(trim(EmailMessage::extractCleanEmail($email) ?: $email)))
             ->unique()
             ->values();
 
@@ -291,13 +322,40 @@ class EmailController extends Controller
             return collect();
         }
 
-        return User::query()
+        // 1. Search in users table (prioritise client role 2, but allow any matching user with a phone)
+        $users = User::query()
             ->whereIn(DB::raw('LOWER(email)'), $addresses->all())
-            ->where('role_id', 2)
             ->whereNotNull('mobile_no')
             ->where('mobile_no', '!=', '')
+            ->orderByRaw("CASE WHEN role_id = 2 THEN 0 ELSE 1 END")
             ->get(['id', 'email', 'name', 'countrycode', 'mobile_no'])
             ->keyBy(fn (User $user) => strtolower(trim($user->email)));
+
+        // 2. Search in leads table for contacts not found in users
+        $missing = $addresses->reject(fn ($addr) => $users->has($addr))->values();
+        if ($missing->isNotEmpty()) {
+            $leads = DB::table('leads')
+                ->whereIn(DB::raw('LOWER(email)'), $missing->all())
+                ->whereNotNull('mobile')
+                ->where('mobile', '!=', '')
+                ->orderByDesc('id')
+                ->get(['id', 'email', 'user_name', 'countrycode', 'mobile']);
+
+            foreach ($leads as $lead) {
+                $emailKey = strtolower(trim($lead->email));
+                if (!$users->has($emailKey)) {
+                    $users->put($emailKey, (object) [
+                        'id' => $lead->id,
+                        'email' => $lead->email,
+                        'name' => $lead->user_name,
+                        'countrycode' => $lead->countrycode,
+                        'mobile_no' => $lead->mobile,
+                    ]);
+                }
+            }
+        }
+
+        return $users;
     }
 
     /** Lightweight real-time change & new email detector. */
@@ -382,20 +440,21 @@ class EmailController extends Controller
             $threadMessages = collect([$email]);
         }
 
+        $isSuperAdmin = Auth::check() && (int) Auth::user()->role_id === 1;
+
         // Fetch labels attached to this thread
         $customerEmail = $email->customer_email;
         $clientContact = $this->clientContactsForEmails(collect([$email]))->get(strtolower((string) $customerEmail));
+        $whatsAppPhone = null;
         $clientWhatsAppUrl = null;
-        if ($clientContact) {
-            $mobileDigits = preg_replace('/\D+/', '', (string) $clientContact->mobile_no);
-            $countryDigits = preg_replace('/\D+/', '', (string) $clientContact->countrycode);
-            $whatsAppPhone = $countryDigits && !str_starts_with($mobileDigits, $countryDigits)
-                ? $countryDigits . $mobileDigits
-                : $mobileDigits;
-            if ($whatsAppPhone !== '') {
+        if ($clientContact && !empty($clientContact->mobile_no)) {
+            $whatsAppPhone = self::formatWhatsAppPhone($clientContact->countrycode ?? '', $clientContact->mobile_no);
+            if (!empty($whatsAppPhone)) {
                 $clientWhatsAppUrl = route('whatsapp.chat', ['phone' => $whatsAppPhone]);
             }
         }
+        $fallbackWhatsAppUrl = $clientWhatsAppUrl ?: route('whatsapp.chat');
+
         $threadLabelIds = \App\Models\EmailThreadLabel::where('thread_id', $email->thread_id)
             ->when(empty($email->thread_id) && !empty($customerEmail), function($q) use ($customerEmail) {
                 $q->orWhere('email', $customerEmail);
@@ -411,19 +470,32 @@ class EmailController extends Controller
         $allLabels = \App\Models\WhatsappChatLabel::forEmail()->ordered()->get();
 
         if ($request->ajax() || $request->wantsJson()) {
+            $maskEmail = fn(?string $val) => $isSuperAdmin ? (string)$val : mask_email_for_display($val);
+            $maskName = function(?string $name, ?string $fallbackEmail) use ($isSuperAdmin) {
+                if ($isSuperAdmin) return $name ?: $fallbackEmail;
+                if (!empty($name) && filter_var($name, FILTER_VALIDATE_EMAIL)) {
+                    return mask_email_for_display($name);
+                }
+                return $name ?: mask_email_for_display($fallbackEmail);
+            };
+
             return response()->json([
                 'success' => true,
+                'is_super_admin' => $isSuperAdmin,
                 'email' => [
                     'id' => $email->id,
                     'thread_id' => $email->thread_id,
                     'message_id' => $email->message_id,
-                    'from_name' => $email->from_name ?: $email->from_email,
-                    'from_email' => $email->from_email,
-                    'to_name' => $email->to_name,
-                    'to_email' => $email->to_email,
-                    'customer_email' => $customerEmail,
+                    'from_name' => $maskName($email->from_name, $email->from_email),
+                    'from_email' => $maskEmail($email->from_email),
+                    'to_name' => $maskName($email->to_name, $email->to_email),
+                    'to_email' => $maskEmail($email->to_email),
+                    'raw_from_email' => $email->from_email,
+                    'raw_to_email' => $email->to_email,
+                    'customer_email' => $maskEmail($customerEmail),
                     'client_name' => $clientContact?->name,
-                    'whatsapp_url' => $clientWhatsAppUrl,
+                    'whatsapp_phone' => $whatsAppPhone,
+                    'whatsapp_url' => $fallbackWhatsAppUrl,
                     'cc' => $email->cc,
                     'bcc' => $email->bcc,
                     'subject' => $email->subject,
@@ -450,13 +522,16 @@ class EmailController extends Controller
                 ],
                 'labels' => $threadLabels,
                 'all_labels' => $allLabels,
-                'messages' => $threadMessages->map(function ($msg) {
+                'messages' => $threadMessages->map(function ($msg) use ($maskEmail, $maskName, $fallbackWhatsAppUrl, $whatsAppPhone) {
                     return [
                         'id' => $msg->id,
-                        'from_name' => $msg->from_name ?: $msg->from_email,
-                        'from_email' => $msg->from_email,
-                        'to_name' => $msg->to_name,
-                        'to_email' => $msg->to_email,
+                        'from_name' => $maskName($msg->from_name, $msg->from_email),
+                        'from_email' => $maskEmail($msg->from_email),
+                        'to_name' => $maskName($msg->to_name, $msg->to_email),
+                        'to_email' => $maskEmail($msg->to_email),
+                        'raw_from_email' => $msg->from_email,
+                        'whatsapp_phone' => $whatsAppPhone,
+                        'whatsapp_url' => $fallbackWhatsAppUrl,
                         'subject' => $msg->subject,
                         'snippet' => $this->getCleanSnippet($msg, 120),
                         'body_html' => $this->formatIsolatedBodyHtml($msg->body_html, $msg->body_plain),
@@ -511,7 +586,10 @@ class EmailController extends Controller
             'allLabels',
             'threadLabelIds',
             'clientContact',
-            'clientWhatsAppUrl'
+            'clientWhatsAppUrl',
+            'fallbackWhatsAppUrl',
+            'whatsAppPhone',
+            'isSuperAdmin'
         ));
     }
 

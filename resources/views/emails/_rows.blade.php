@@ -1,22 +1,30 @@
 @forelse(($emails ?? []) as $email)
     @php
+        $isSuperAdmin = Auth::check() && (int) Auth::user()->role_id === 1;
         $isUnread = (bool) (!$email->is_read && $email->folder !== 'sent' && $email->folder !== 'drafts' && !$email->is_draft);
         $isPending = $email->status === 'pending';
         $clientEmail = $email->customer_email;
+        $rawFromEmail = $email->from_email;
+        $displayFromEmail = $isSuperAdmin ? $rawFromEmail : mask_email_for_display($rawFromEmail);
+        $displayCustomerEmail = $isSuperAdmin ? $clientEmail : mask_email_for_display($clientEmail);
+
         $clientContact = !empty($clientEmail)
             ? (($emailClientContacts ?? collect())[strtolower($clientEmail)] ?? null)
             : null;
+        if (!$clientContact && !empty($rawFromEmail)) {
+            $clientContact = ($emailClientContacts ?? collect())[strtolower($rawFromEmail)] ?? null;
+        }
+
         $clientWhatsAppPhone = null;
         $clientWhatsAppUrl = null;
         if ($clientContact && !empty($clientContact->mobile_no)) {
-            $mobileDigits = preg_replace('/\D+/', '', (string) $clientContact->mobile_no);
-            $countryDigits = preg_replace('/\D+/', '', (string) $clientContact->countrycode);
-            $clientWhatsAppPhone = $countryDigits
-                && !str_starts_with($mobileDigits, $countryDigits)
-                    ? $countryDigits . $mobileDigits
-                    : $mobileDigits;
-            $clientWhatsAppUrl = route('whatsapp.chat', ['phone' => $clientWhatsAppPhone]);
+            $clientWhatsAppPhone = \App\Http\Controllers\EmailController::formatWhatsAppPhone($clientContact->countrycode ?? '', $clientContact->mobile_no);
+            if (!empty($clientWhatsAppPhone)) {
+                $clientWhatsAppUrl = route('whatsapp.chat', ['phone' => $clientWhatsAppPhone]);
+            }
         }
+        $effectiveWhatsAppUrl = $clientWhatsAppUrl ?: route('whatsapp.chat');
+
         $rowLabels = \App\Models\EmailThreadLabel::with('label')
             ->where('thread_id', $email->thread_id)
             ->when(empty($email->thread_id) && !empty($clientEmail), fn($q) => $q->orWhere('email', $clientEmail))
@@ -25,9 +33,18 @@
         $allRowLabels = \App\Models\WhatsappChatLabel::forEmail()->ordered()->get();
         $activeRowLabelIds = $rowLabels->pluck('label_id')->toArray();
 
-        $senderDisplayName = $email->from_name ?: ($email->from_email ?: 'Unknown');
+        $senderDisplayName = $email->from_name ?: ($displayFromEmail ?: 'Unknown');
+        if (!$isSuperAdmin && filter_var($email->from_name, FILTER_VALIDATE_EMAIL)) {
+            $senderDisplayName = mask_email_for_display($email->from_name);
+        }
         if ($email->folder === 'sent' || $email->direction === 'outbound') {
-            $senderDisplayName = 'To: ' . ($email->to_name ?: ($email->to_email ?: 'Recipient'));
+            $rawToEmail = $email->to_email;
+            $displayToEmail = $isSuperAdmin ? $rawToEmail : mask_email_for_display($rawToEmail);
+            $toName = $email->to_name ?: $displayToEmail;
+            if (!$isSuperAdmin && filter_var($email->to_name, FILTER_VALIDATE_EMAIL)) {
+                $toName = mask_email_for_display($email->to_name);
+            }
+            $senderDisplayName = 'To: ' . ($toName ?: 'Recipient');
         }
 
         $dateObj = $email->received_at ?: $email->created_at;
@@ -73,9 +90,26 @@
             @endif
         </div>
 
-        {{-- Sender Column --}}
-        <div class="gmail-row-sender duralux-email-sender" title="{{ $email->from_email }}">
-            <span>{{ $senderDisplayName }}</span>
+        {{-- Sender Column with Copy & WhatsApp action buttons --}}
+        <div class="gmail-row-sender duralux-email-sender" title="{{ $displayFromEmail }}">
+            <span class="gmail-sender-text text-truncate">{{ $senderDisplayName }}</span>
+            <span class="gmail-sender-actions ms-1 d-inline-flex align-items-center gap-1 flex-shrink-0" onclick="event.stopPropagation();">
+                <button type="button" 
+                        class="btn btn-icon btn-sm p-0 flex-shrink-0" 
+                        style="width: 18px; height: 18px; min-width: 18px; border: none; background: transparent; color: #5f6368;" 
+                        title="Copy Email: {{ $displayFromEmail }}" 
+                        onclick="event.stopPropagation(); crmCopyToClipboard('{{ $displayFromEmail }}', 'Email copied!');">
+                    <i class="fa fa-clone" style="font-size: 11px;"></i>
+                </button>
+                <a href="{{ $effectiveWhatsAppUrl }}" 
+                   target="_blank" 
+                   class="btn btn-icon btn-sm p-0 flex-shrink-0 text-success" 
+                   style="width: 18px; height: 18px; min-width: 18px; border: none; background: transparent;" 
+                   title="WhatsApp: {{ $clientContact?->name ?: ($clientWhatsAppPhone ?: 'Open Chat') }}"
+                   onclick="event.stopPropagation();">
+                    <i class="fa fa-whatsapp" style="font-size: 13px;"></i>
+                </a>
+            </span>
         </div>
 
         {{-- Main Message Snippet & Labels (One Continuous Line) --}}
@@ -114,16 +148,14 @@
         <div class="gmail-row-right duralux-item-right" onclick="event.stopPropagation();">
             {{-- Default View: Attachment & Date --}}
             <div class="gmail-date-wrap">
-                @if($clientWhatsAppUrl)
-                    <a href="{{ $clientWhatsAppUrl }}"
-                       target="_blank"
-                       class="d-inline-flex align-items-center justify-content-center text-success me-1"
-                       title="WhatsApp: {{ $clientContact->name ?: $clientWhatsAppPhone }}"
-                       aria-label="Open {{ $clientContact->name ?: 'client' }} in WhatsApp"
-                       onclick="event.stopPropagation();">
-                        <i class="fa fa-whatsapp" style="font-size: 18px;"></i>
-                    </a>
-                @endif
+                <a href="{{ $effectiveWhatsAppUrl }}"
+                   target="_blank"
+                   class="d-inline-flex align-items-center justify-content-center text-success me-1"
+                   title="WhatsApp: {{ $clientContact?->name ?: ($clientWhatsAppPhone ?: 'Open Chat') }}"
+                   aria-label="Open in WhatsApp"
+                   onclick="event.stopPropagation();">
+                    <i class="fa fa-whatsapp" style="font-size: 18px;"></i>
+                </a>
 
                 @if($email->has_attachments)
                     <i class="fa fa-paperclip gmail-clip-icon text-muted" title="Has Attachment"></i>
@@ -140,16 +172,21 @@
 
             {{-- Gmail Hover Quick Actions Bar --}}
             <div class="gmail-hover-actions">
-                @if($clientWhatsAppUrl)
-                    <a href="{{ $clientWhatsAppUrl }}"
-                       target="_blank"
-                       class="gmail-hover-btn text-success"
-                       title="WhatsApp: {{ $clientContact->name ?: $clientWhatsAppPhone }}"
-                       aria-label="Open {{ $clientContact->name ?: 'client' }} in WhatsApp"
-                       onclick="event.stopPropagation();">
-                        <i class="fa fa-whatsapp" style="font-size: 18px;"></i>
-                    </a>
-                @endif
+                <button type="button" 
+                        class="gmail-hover-btn" 
+                        title="Copy Email: {{ $displayFromEmail }}" 
+                        onclick="crmCopyToClipboard('{{ $displayFromEmail }}', 'Email copied!');">
+                    <i class="fa fa-clone" style="font-size: 14px;"></i>
+                </button>
+
+                <a href="{{ $effectiveWhatsAppUrl }}"
+                   target="_blank"
+                   class="gmail-hover-btn text-success"
+                   title="WhatsApp: {{ $clientContact?->name ?: ($clientWhatsAppPhone ?: 'Open Chat') }}"
+                   aria-label="Open in WhatsApp"
+                   onclick="event.stopPropagation();">
+                    <i class="fa fa-whatsapp" style="font-size: 18px;"></i>
+                </a>
 
                 <button type="button" 
                         class="gmail-hover-btn" 

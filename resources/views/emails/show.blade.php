@@ -595,15 +595,17 @@
                     <div class="d-flex align-items-center flex-wrap gap-2">
                         <h2 class="duralux-subject-title">{{ $email->subject ?: '(No Subject)' }}</h2>
                         <span class="badge bg-light text-muted border px-2 py-1 fs-8 text-capitalize">{{ $email->folder }}</span>
-                        @if($clientWhatsAppUrl)
-                            <a href="{{ $clientWhatsAppUrl }}"
-                               target="_blank"
-                               class="btn btn-sm btn-light-success d-inline-flex align-items-center gap-1"
-                               title="WhatsApp: {{ $clientContact->name ?: $email->customer_email }}">
-                                <i class="fa fa-whatsapp fs-5"></i>
-                                <span>WhatsApp</span>
-                            </a>
-                        @endif
+                        @php
+                            $effectiveWhatsAppUrl = $clientWhatsAppUrl ?: ($fallbackWhatsAppUrl ?? route('whatsapp.chat'));
+                            $isSuperAdmin = Auth::check() && (int) Auth::user()->role_id === 1;
+                        @endphp
+                        <a href="{{ $effectiveWhatsAppUrl }}"
+                           target="_blank"
+                           class="btn btn-sm btn-light-success d-inline-flex align-items-center gap-1"
+                           title="WhatsApp: {{ $clientContact?->name ?: ($whatsAppPhone ?: 'Open Chat') }}">
+                            <i class="fa fa-whatsapp fs-5"></i>
+                            <span>WhatsApp</span>
+                        </a>
                     </div>
                     <div class="d-flex flex-wrap gap-1 mt-1" id="showLabelsBadges">
                         @php
@@ -626,7 +628,9 @@
                     @php
                         $isOutbound = $msg->direction === 'outbound';
                         $avatarBg = $isOutbound ? 'background-color: #0b57d0;' : 'background-color: #c026d3;';
-                        $avatarLetter = strtoupper(substr($msg->from_name ?: ($msg->from_email ?: 'U'), 0, 1));
+                        $displayMsgFromEmail = $isSuperAdmin ? $msg->from_email : mask_email_for_display($msg->from_email);
+                        $displayMsgFromName = $isSuperAdmin ? ($msg->from_name ?: $msg->from_email) : (filter_var($msg->from_name, FILTER_VALIDATE_EMAIL) ? mask_email_for_display($msg->from_name) : ($msg->from_name ?: $displayMsgFromEmail));
+                        $avatarLetter = strtoupper(substr($displayMsgFromName, 0, 1));
                         $isCollapsed = $isMulti && ($loop->iteration < count($allThreadMsgs));
                         $cleanMsgSnippet = preg_replace('/(On\s+[\s\S]*?wrote:[\s\S]*|-----Original Message-----[\s\S]*)/iu', '', $msg->body_plain ?? '');
                         $cleanMsgSnippet = trim(preg_replace('/\s+/', ' ', $cleanMsgSnippet));
@@ -639,8 +643,15 @@
                         {{-- Collapsed Strip (Authentic Gmail Style) --}}
                         <div class="duralux-msg-collapsed-strip" onclick="toggleShowMessage({{ $msg->id }})">
                             <div class="duralux-avatar" style="{{ $avatarBg }}; width: 28px; height: 28px; font-size: 13px;">{{ $avatarLetter }}</div>
-                            <div class="fw-bold fs-7 text-truncate" style="width: 170px; color: #202124;">{{ $msg->from_name ?: $msg->from_email }}</div>
+                            <div class="fw-bold fs-7 text-truncate" style="width: 170px; color: #202124;">{{ $displayMsgFromName }}</div>
                             <div class="fs-8 text-muted text-truncate flex-grow-1">{{ $snippet }}</div>
+                            <a href="{{ $effectiveWhatsAppUrl }}"
+                               target="_blank"
+                               class="text-success me-2 d-inline-flex align-items-center"
+                               title="WhatsApp: {{ $clientContact?->name ?: ($whatsAppPhone ?: 'Open Chat') }}"
+                               onclick="event.stopPropagation();">
+                                <i class="fa fa-whatsapp fs-6"></i>
+                            </a>
                             <div class="fs-9 text-muted ms-auto">{{ optional($msg->received_at ?: $msg->created_at)->format('M d, h:i A') }}</div>
                         </div>
 
@@ -650,11 +661,26 @@
                                 <div class="d-flex align-items-center gap-3">
                                     <div class="duralux-avatar" style="{{ $avatarBg }}">{{ $avatarLetter }}</div>
                                     <div>
-                                        <div class="fw-bold fs-6" style="color: #1f1f1f;">
-                                            {{ $msg->from_name ?: $msg->from_email }}
-                                            <span class="text-muted fs-8 fw-normal">&lt;{{ $msg->from_email }}&gt;</span>
+                                        <div class="fw-bold fs-6 d-flex align-items-center gap-1 flex-wrap" style="color: #1f1f1f;">
+                                            <span>{{ $displayMsgFromName }}</span>
+                                            <span class="text-muted fs-8 fw-normal">&lt;{{ $displayMsgFromEmail }}&gt;</span>
+                                            <button type="button" 
+                                                    class="btn btn-icon btn-sm p-0 flex-shrink-0 ms-1" 
+                                                    style="width: 20px; height: 20px; min-width: 20px; border: none; background: transparent; color: #5f6368;" 
+                                                    title="Copy Email: {{ $displayMsgFromEmail }}" 
+                                                    onclick="event.stopPropagation(); crmCopyToClipboard('{{ $displayMsgFromEmail }}', 'Email copied!');">
+                                                <i class="fa fa-clone" style="font-size: 11px;"></i>
+                                            </button>
+                                            <a href="{{ $effectiveWhatsAppUrl }}" 
+                                               target="_blank" 
+                                               class="btn btn-icon btn-sm p-0 flex-shrink-0 text-success ms-1" 
+                                               style="width: 20px; height: 20px; min-width: 20px; border: none; background: transparent;" 
+                                               title="WhatsApp: {{ $clientContact?->name ?: ($whatsAppPhone ?: 'Open Chat') }}" 
+                                               onclick="event.stopPropagation();">
+                                                <i class="fa fa-whatsapp" style="font-size: 14px;"></i>
+                                            </a>
                                         </div>
-                                        <div class="text-muted fs-8">to {{ $msg->to_name ?: ($msg->to_email ?: 'me') }}</div>
+                                        <div class="text-muted fs-8">to {{ $isSuperAdmin ? ($msg->to_name ?: ($msg->to_email ?: 'me')) : mask_email_for_display($msg->to_email ?: 'me') }}</div>
                                     </div>
                                 </div>
                                 <div class="d-flex align-items-center gap-2" onclick="event.stopPropagation();">

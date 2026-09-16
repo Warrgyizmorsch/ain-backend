@@ -2274,13 +2274,13 @@
                                 <div class="gmail-subject-labels" id="detailLabelsBadges"></div>
                             </div>
                             <div class="d-flex align-items-center gap-1 flex-shrink-0">
-                                <a href="#"
+                                <a href="/whatsapp/chat"
                                    target="_blank"
                                    class="gmail-icon-btn text-success"
                                    id="detailWhatsAppBtn"
                                    title="Open client in WhatsApp"
                                    aria-label="Open client in WhatsApp"
-                                   style="display: none;">
+                                   style="display: inline-flex;">
                                     <i class="fa fa-whatsapp" style="font-size: 19px;"></i>
                                 </a>
                                 <button type="button" class="gmail-icon-btn" id="threadExpandAllBtn" onclick="toggleAllThreadMessages()" title="Expand / Collapse all">
@@ -3398,14 +3398,11 @@ function openEmailThread(id, pushToHistory = true) {
 
             const detailWhatsAppBtn = document.getElementById('detailWhatsAppBtn');
             if (detailWhatsAppBtn) {
-                if (data.email.whatsapp_url) {
-                    detailWhatsAppBtn.href = data.email.whatsapp_url;
-                    detailWhatsAppBtn.title = `WhatsApp: ${data.email.client_name || data.email.customer_email || 'Client'}`;
-                    detailWhatsAppBtn.style.display = 'inline-flex';
-                } else {
-                    detailWhatsAppBtn.removeAttribute('href');
-                    detailWhatsAppBtn.style.display = 'none';
-                }
+                detailWhatsAppBtn.href = data.email.whatsapp_url || '/whatsapp/chat';
+                detailWhatsAppBtn.title = data.email.whatsapp_phone
+                    ? `WhatsApp: ${data.email.client_name || data.email.customer_email || 'Client'} (${data.email.whatsapp_phone})`
+                    : `WhatsApp: ${data.email.client_name || data.email.customer_email || 'Open Chat'}`;
+                detailWhatsAppBtn.style.display = 'inline-flex';
             }
 
             // Star state
@@ -3513,6 +3510,14 @@ function openEmailThread(id, pushToHistory = true) {
                                 ${escapeEmailText(snippet)}
                             </div>
                             <div class="gmail-collapsed-meta">
+                                <a href="${m.whatsapp_url || data.email.whatsapp_url || '/whatsapp/chat'}" 
+                                   target="_blank" 
+                                   class="text-success me-1 d-inline-flex align-items-center" 
+                                   style="text-decoration: none;" 
+                                   title="WhatsApp: ${m.whatsapp_phone || data.email.whatsapp_phone || 'Open Chat'}" 
+                                   onclick="event.stopPropagation();">
+                                    <i class="fa fa-whatsapp" style="font-size: 16px;"></i>
+                                </a>
                                 <span class="gmail-collapsed-date">${dateStr}</span>
                                 <button type="button" class="gmail-icon-btn ${m.is_starred ? 'text-warning' : ''}" onclick="event.stopPropagation(); toggleStar(${m.id}, this)" title="Star">
                                     <i class="fa ${m.is_starred ? 'fa-star' : 'fa-star-o'}"></i>
@@ -3531,6 +3536,21 @@ function openEmailThread(id, pushToHistory = true) {
                                         <div class="gmail-msg-from-line">
                                             <span class="gmail-msg-from-name">${fromName}</span>
                                             <span class="gmail-msg-from-email">&lt;${fromEmail}&gt;</span>
+                                            <button type="button" 
+                                                    class="btn btn-icon btn-sm p-0 flex-shrink-0 ms-1" 
+                                                    style="width: 20px; height: 20px; min-width: 20px; border: none; background: transparent; color: #5f6368;" 
+                                                    title="Copy Email: ${fromEmail}" 
+                                                    onclick="event.stopPropagation(); crmCopyToClipboard('${fromEmail}', 'Email copied!');">
+                                                <i class="fa fa-clone" style="font-size: 11px;"></i>
+                                            </button>
+                                            <a href="${m.whatsapp_url || data.email.whatsapp_url || '/whatsapp/chat'}" 
+                                               target="_blank" 
+                                               class="btn btn-icon btn-sm p-0 flex-shrink-0 text-success ms-1" 
+                                               style="width: 20px; height: 20px; min-width: 20px; border: none; background: transparent;" 
+                                               title="WhatsApp: ${m.whatsapp_phone || data.email.whatsapp_phone || 'Open Chat'}" 
+                                               onclick="event.stopPropagation();">
+                                                <i class="fa fa-whatsapp" style="font-size: 14px;"></i>
+                                            </a>
                                         </div>
                                         <div class="dropdown" onclick="event.stopPropagation();">
                                             <button type="button" class="gmail-to-me-btn" data-bs-toggle="dropdown" aria-expanded="false">
