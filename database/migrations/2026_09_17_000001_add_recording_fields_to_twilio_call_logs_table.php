@@ -13,7 +13,7 @@ return new class extends Migration
                 $table->text('recording_url')->nullable()->after('notes');
             }
             if (!Schema::hasColumn('twilio_call_logs', 'recording_sid')) {
-                $table->string('recording_sid')->nullable()->after('recording_url');
+                $table->string('recording_sid', 100)->nullable()->after('recording_url');
             }
         });
     }
