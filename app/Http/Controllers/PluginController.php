@@ -368,6 +368,15 @@ class PluginController extends Controller
             default                      => $rawStatus,
         };
 
+        // If inbound call completed with 0 duration or dial was not answered, it is a missed call
+        if ($direction === 'inbound') {
+            if ($rawStatus === 'completed' && $duration > 0) {
+                $status = 'completed';
+            } elseif ($duration === 0 || in_array($rawStatus, ['busy', 'no-answer', 'no_answer', 'canceled', 'cancelled', 'failed'])) {
+                $status = 'missed';
+            }
+        }
+
         if ($callSid) {
             $log = TwilioCallLog::firstOrNew(['call_sid' => $callSid]);
             $log->status    = $status;
@@ -375,6 +384,18 @@ class PluginController extends Controller
             if (empty($log->from_number) && !empty($from)) $log->from_number = $from;
             if (empty($log->to_number) && !empty($to))     $log->to_number   = $to;
             if (empty($log->direction))                     $log->direction   = $direction;
+
+            // Auto-resolve customer name if not already set
+            if (empty($log->customer_name)) {
+                $callerPhone = $log->from_number ?: $from;
+                $digits = preg_replace('/\D/', '', $callerPhone);
+                if (strlen($digits) >= 7) {
+                    $customer = \App\Models\User::whereRaw("REPLACE(REPLACE(mobile_no, ' ', ''), '-', '') LIKE ?", ['%' . substr($digits, -10)])->first();
+                    if ($customer) {
+                        $log->customer_name = $customer->name;
+                    }
+                }
+            }
 
             if ($request->filled('RecordingUrl')) {
                 $recordingUrl = $request->input('RecordingUrl');
@@ -401,12 +422,45 @@ class PluginController extends Controller
      */
     public function callHistory(Request $request): View
     {
-        $query = TwilioCallLog::with('agent')->orderByDesc('created_at');
+        $isSuperAdmin = Auth::check() && (int) Auth::user()->role_id === 1;
+        $currentUserId = Auth::id();
 
-        if ($request->filled('status')) {
+        $baseQuery = TwilioCallLog::query();
+        if (!$isSuperAdmin) {
+            $baseQuery->where(function ($q) use ($currentUserId) {
+                $q->where('agent_user_id', $currentUserId)
+                  ->orWhere(function ($sub) {
+                      $sub->where('direction', 'inbound');
+                  });
+            });
+        }
+
+        // Summary counts for tabs and statistics
+        $totalCalls     = (clone $baseQuery)->count();
+        $completedCalls = (clone $baseQuery)->where('status', 'completed')->count();
+        $missedCalls    = (clone $baseQuery)->whereIn('status', ['missed', 'no-answer'])->count();
+        $inboundCalls   = (clone $baseQuery)->where('direction', 'inbound')->count();
+        $outboundCalls  = (clone $baseQuery)->where('direction', 'outbound')->count();
+
+        $query = (clone $baseQuery)->with('agent')->orderByDesc('created_at');
+
+        // Quick Tab Filter
+        $tab = $request->input('tab', 'all');
+        if ($tab === 'missed') {
+            $query->whereIn('status', ['missed', 'no-answer']);
+        } elseif ($tab === 'inbound') {
+            $query->where('direction', 'inbound');
+        } elseif ($tab === 'outbound') {
+            $query->where('direction', 'outbound');
+        } elseif ($tab === 'completed') {
+            $query->where('status', 'completed');
+        }
+
+        // Additional granular filters
+        if ($request->filled('status') && $tab === 'all') {
             $query->where('status', $request->input('status'));
         }
-        if ($request->filled('direction')) {
+        if ($request->filled('direction') && $tab === 'all') {
             $query->where('direction', $request->input('direction'));
         }
         if ($request->filled('date_from')) {
@@ -415,18 +469,93 @@ class PluginController extends Controller
         if ($request->filled('date_to')) {
             $query->whereDate('created_at', '<=', $request->input('date_to'));
         }
-        if ($request->filled('search')) {
-            $s = '%' . $request->input('search') . '%';
-            $query->where(function($q) use ($s) {
-                $q->where('customer_name', 'like', $s)
-                  ->orWhere('from_number', 'like', $s)
-                  ->orWhere('to_number', 'like', $s)
-                  ->orWhere('call_sid', 'like', $s);
+        // Comprehensive search: by direct term, masked phone pattern, Twilio SID, or User (lead/order)
+        $searchVal = trim((string) $request->input('search'));
+        $uid = $request->input('uid');
+
+        if (!empty($uid) || !empty($searchVal)) {
+            $matchedUserPhones = [];
+
+            if (!empty($uid)) {
+                $selectedUser = \App\Models\User::find($uid);
+                if ($selectedUser) {
+                    if (!empty($selectedUser->mobile_no)) {
+                        $matchedUserPhones[] = preg_replace('/\D+/', '', $selectedUser->mobile_no);
+                    }
+                    if (!empty($selectedUser->mobile_no2)) {
+                        $matchedUserPhones[] = preg_replace('/\D+/', '', $selectedUser->mobile_no2);
+                    }
+                }
+            }
+
+            if (!empty($searchVal)) {
+                $userIds = function_exists('find_user_ids_by_search_term') ? find_user_ids_by_search_term($searchVal) : [];
+                if (!empty($userIds)) {
+                    $uPhones = \App\Models\User::whereIn('id', $userIds)->get(['mobile_no', 'mobile_no2']);
+                    foreach ($uPhones as $up) {
+                        if (!empty($up->mobile_no)) {
+                            $matchedUserPhones[] = preg_replace('/\D+/', '', $up->mobile_no);
+                        }
+                        if (!empty($up->mobile_no2)) {
+                            $matchedUserPhones[] = preg_replace('/\D+/', '', $up->mobile_no2);
+                        }
+                    }
+                }
+            }
+
+            $matchedUserPhones = array_unique(array_filter($matchedUserPhones));
+
+            $query->where(function ($q) use ($searchVal, $matchedUserPhones) {
+                if (!empty($searchVal)) {
+                    $hasAsterisk = strpos($searchVal, '*') !== false;
+                    if ($hasAsterisk) {
+                        $pattern = preg_replace('/\*+/', '%', preg_replace('/[^0-9*]/', '', $searchVal));
+                        $cleanPattern = ltrim($pattern, '0');
+                        if (!empty($cleanPattern)) {
+                            $q->where('from_number', 'like', "%{$cleanPattern}%")
+                              ->orWhere('to_number', 'like', "%{$cleanPattern}%");
+                        }
+                    } else {
+                        $cleanDigits = preg_replace('/\D+/', '', $searchVal);
+                        if (strlen($cleanDigits) >= 4) {
+                            $last10 = substr($cleanDigits, -10);
+                            $q->where('from_number', 'like', "%{$cleanDigits}%")
+                              ->orWhere('to_number', 'like', "%{$cleanDigits}%")
+                              ->orWhere('from_number', 'like', "%{$last10}%")
+                              ->orWhere('to_number', 'like', "%{$last10}%");
+                        }
+                    }
+
+                    $s = '%' . $searchVal . '%';
+                    $q->orWhere('customer_name', 'like', $s)
+                      ->orWhere('call_sid', 'like', $s);
+                }
+
+                if (!empty($matchedUserPhones)) {
+                    foreach ($matchedUserPhones as $phoneDigits) {
+                        if (strlen($phoneDigits) >= 4) {
+                            $last10 = substr($phoneDigits, -10);
+                            $q->orWhere('from_number', 'like', "%{$phoneDigits}%")
+                              ->orWhere('to_number', 'like', "%{$phoneDigits}%")
+                              ->orWhere('from_number', 'like', "%{$last10}%")
+                              ->orWhere('to_number', 'like', "%{$last10}%");
+                        }
+                    }
+                }
             });
         }
 
         $logs = $query->paginate(30)->withQueryString();
 
-        return view('back-end.plugins.call-history', compact('logs'));
+        return view('back-end.plugins.call-history', compact(
+            'logs',
+            'totalCalls',
+            'completedCalls',
+            'missedCalls',
+            'inboundCalls',
+            'outboundCalls',
+            'tab',
+            'isSuperAdmin'
+        ));
     }
 }

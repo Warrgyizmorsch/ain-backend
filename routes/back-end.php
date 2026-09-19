@@ -124,6 +124,7 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/updateUser/{id}', [LeadsController::class, 'updateUser']);
 
     // Plugins Management
+    Route::get('/call-history', [PluginController::class, 'callHistory'])->name('call.history');
     Route::get('/plugins', [PluginController::class, 'index'])->name('plugins.direct');
     Route::prefix('admin/plugins')->name('plugins.')->group(function () {
         Route::get('/', [PluginController::class, 'index'])->name('index');

@@ -33,6 +33,7 @@ class LeadsController extends Controller
         return [
             'id',
             'emp_id',
+            'created_by',
             'order_id',
             'flag',
             'assign_type',
@@ -73,6 +74,7 @@ class LeadsController extends Controller
                         },
                     ]);
             },
+            'creator:id,name',
             'source:id,source_name,source_icon',
             'latestCall.user:id,name',
         ];

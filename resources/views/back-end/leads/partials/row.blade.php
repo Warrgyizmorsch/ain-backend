@@ -276,10 +276,21 @@
         </div>
         <br>
         @php
-            $creatorUser = $lead->creator ?? (is_numeric($lead->created_by) ? \App\Models\User::find($lead->created_by) : null);
-            $creatorDisplay = $creatorUser 
-                ? $creatorUser->name . ' (ID: ' . $creatorUser->id . ')'
-                : ($lead->created_by ?: (auth()->user()?->name ? auth()->user()->name . ' (ID: ' . auth()->user()->id . ')' : 'Admin User'));
+            $creatorUser = $lead->creator;
+            if (!$creatorUser && !empty($lead->created_by) && is_numeric($lead->created_by)) {
+                $creatorUser = \App\Models\User::select('id', 'name')->find($lead->created_by);
+            }
+            if ($creatorUser) {
+                $creatorDisplay = $creatorUser->name . ' (ID: ' . $creatorUser->id . ')';
+            } elseif (!empty($lead->created_by) && !is_numeric($lead->created_by)) {
+                $creatorDisplay = $lead->created_by;
+            } elseif (!empty($lead->frontendorder) && $lead->frontendorder == 1) {
+                $creatorDisplay = 'Website / Frontend';
+            } elseif (!empty($lead->lead_source) && $lead->lead_source == 8) {
+                $creatorDisplay = 'WhatsApp Bot';
+            } else {
+                $creatorDisplay = 'Website / System';
+            }
         @endphp
         <span class="badge badge-light-info fs-8 mt-1 fw-semibold" title="Lead Creator">
             Created By: {{ $creatorDisplay }}

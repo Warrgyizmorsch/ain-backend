@@ -43,6 +43,7 @@ class Leads extends Model
         'coupon_discount_value',
         'coupon_discount_amount',
         'coupon_original_amount',
+        'created_by',
     ];
 
     protected static function booted()

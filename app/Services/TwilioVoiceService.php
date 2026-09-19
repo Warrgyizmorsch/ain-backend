@@ -202,6 +202,35 @@ class TwilioVoiceService
         }
 
         // Case 2: Inbound call from a customer dialing our Twilio Number -> Ring active web softphones
+        $callSid = $request->input('CallSid');
+        if (!empty($callSid)) {
+            $customerName = null;
+            $digits = preg_replace('/\D/', '', $rawFrom);
+            if (strlen($digits) >= 7) {
+                $last10 = substr($digits, -10);
+                $customer = \App\Models\User::whereRaw("REPLACE(REPLACE(mobile_no, ' ', ''), '-', '') LIKE ?", ['%' . $last10])->first();
+                if ($customer) {
+                    $customerName = $customer->name;
+                }
+            }
+
+            try {
+                \App\Models\TwilioCallLog::firstOrCreate(
+                    ['call_sid' => $callSid],
+                    [
+                        'direction'     => 'inbound',
+                        'status'        => 'missed', // Default to missed until answered
+                        'from_number'   => $rawFrom ?: 'Unknown',
+                        'to_number'     => $callerId,
+                        'customer_name' => $customerName,
+                        'started_at'    => now(),
+                    ]
+                );
+            } catch (\Throwable $e) {
+                Log::error('Failed to pre-log inbound Twilio call: ' . $e->getMessage());
+            }
+        }
+
         return '<?xml version="1.0" encoding="UTF-8"?>'
             . '<Response>'
             . '<Say voice="alice">Connecting to customer support, please hold.</Say>'

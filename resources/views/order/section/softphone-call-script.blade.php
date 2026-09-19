@@ -526,12 +526,15 @@
         console.log("%c[Next2Call Softphone] Target Number:", "color: #009ef7; font-weight: bold;", targetNumber);
 
         widget.dataset.softphoneUrl = url;
-        numberElement.textContent = targetNumber || '';
+        const displayPhone = (window.canViewFullPhone || !window.maskPhoneForDisplay)
+            ? (targetNumber || '')
+            : window.maskPhoneForDisplay(targetNumber);
+        numberElement.textContent = displayPhone;
         if (countryCodeInput?.value) {
             localStorage.setItem('ringfySoftphoneCountryCode', countryCodeInput.value.trim());
         }
         if (mobileInput && targetNumber && !mobileInput.value) {
-            mobileInput.value = targetNumber;
+            mobileInput.value = displayPhone;
         }
 
         if (softphoneFrame) {

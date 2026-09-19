@@ -182,6 +182,38 @@ class RoleOneMenuSeeder extends Seeder
         DB::table('submenus')->where('menus_id', $emailMenuId)->delete();
 
         // =============================================================
+        // 3.1 CALL HISTORY MAIN MENU - Single Direct Main Menu (NO SUBMENUS)
+        // =============================================================
+        $callHistoryMenu = DB::table('menu')->where('routes', 'call-history')->whereNull('parent_id')->first();
+        if (!$callHistoryMenu) {
+            $callHistoryMenuId = DB::table('menu')->insertGetId([
+                'menu_name' => 'Call History',
+                'icon_class' => 'fa fa-phone',
+                'show_menu' => 'Y',
+                'routes' => 'call-history',
+                'sort_order' => 4,
+                'parent_id' => null,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        } else {
+            $callHistoryMenuId = $callHistoryMenu->id;
+            DB::table('menu')->where('id', $callHistoryMenuId)->update([
+                'menu_name' => 'Call History',
+                'icon_class' => 'fa fa-phone',
+                'show_menu' => 'Y',
+                'parent_id' => null,
+                'routes' => 'call-history',
+                'sort_order' => 4,
+                'updated_at' => now(),
+            ]);
+        }
+
+        // Remove ALL submenus and child menus for Call History so it's a direct standalone main menu
+        DB::table('menu')->where('parent_id', $callHistoryMenuId)->delete();
+        DB::table('submenus')->where('menus_id', $callHistoryMenuId)->delete();
+
+        // =============================================================
         // 4. SEED INITIAL EMAIL CONFIGS (Assignment Help & Write Email)
         // =============================================================
         // Remove old / legacy accounts (including 'App' / anshulsuthar)
@@ -320,14 +352,14 @@ class RoleOneMenuSeeder extends Seeder
             );
         }
 
-        // Reserve the first three top-level positions exclusively for
-        // Dashboard, WhatsApp and Emails. Keep every other menu after them.
+        // Reserve the first four top-level positions exclusively for
+        // Dashboard, WhatsApp, Emails, and Call History. Keep every other menu after them.
         DB::table('menu')
             ->whereNull('parent_id')
-            ->whereNotIn('id', [1, 24, $emailMenuId])
-            ->where('sort_order', '<', 4)
+            ->whereNotIn('id', [1, 24, $emailMenuId, $callHistoryMenuId])
+            ->where('sort_order', '<', 5)
             ->update([
-                'sort_order' => 4,
+                'sort_order' => 5,
                 'updated_at' => now(),
             ]);
 
@@ -356,10 +388,11 @@ class RoleOneMenuSeeder extends Seeder
         );
 
         $settingAndPluginMenuIds = DB::table('menu')
-            ->where(function ($q) {
+            ->where(function ($q) use ($callHistoryMenuId) {
                 $q->where('id', 2)
                   ->orWhere('parent_id', 2)
                   ->orWhere('id', 24)
+                  ->orWhere('id', $callHistoryMenuId)
                   ->orWhere('id', 132)
                   ->orWhere('parent_id', 132);
             })

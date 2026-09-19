@@ -687,10 +687,28 @@
             <div class="border rounded p-3 bg-light">
 
                 @php
-                    $createdByName = $order->preloaded_creator_name
-                        ?? ($order->lead?->creator ? $order->lead->creator->name . ' (ID: ' . $order->lead->creator->id . ')' : null)
-                        ?? ($order->frontendLead?->creator ? $order->frontendLead->creator->name . ' (ID: ' . $order->frontendLead->creator->id . ')' : null)
-                        ?? ($order->created_by ?? ($order->lead?->created_by ?? (auth()->user()?->name ? auth()->user()->name . ' (ID: ' . auth()->user()->id . ')' : 'Admin User')));
+                    $orderCreatorUser = null;
+                    if ($order->lead && $order->lead->creator) {
+                        $orderCreatorUser = $order->lead->creator;
+                    } elseif (!empty($order->created_by) && is_numeric($order->created_by)) {
+                        $orderCreatorUser = \App\Models\User::select('id', 'name')->find($order->created_by);
+                    } elseif ($order->lead && !empty($order->lead->created_by) && is_numeric($order->lead->created_by)) {
+                        $orderCreatorUser = \App\Models\User::select('id', 'name')->find($order->lead->created_by);
+                    }
+
+                    if ($orderCreatorUser) {
+                        $createdByName = $orderCreatorUser->name . ' (ID: ' . $orderCreatorUser->id . ')';
+                    } elseif (!empty($order->preloaded_creator_name)) {
+                        $createdByName = $order->preloaded_creator_name;
+                    } elseif (!empty($order->created_by) && !is_numeric($order->created_by)) {
+                        $createdByName = $order->created_by;
+                    } elseif (!empty($order->lead?->created_by) && !is_numeric($order->lead->created_by)) {
+                        $createdByName = $order->lead->created_by;
+                    } elseif ($order->frontendorder == 1 || ($order->lead && $order->lead->frontendorder == 1)) {
+                        $createdByName = 'Website / Frontend';
+                    } else {
+                        $createdByName = 'Website / System';
+                    }
                 @endphp
 
                 <div class="mb-2">
