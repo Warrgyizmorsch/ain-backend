@@ -65,13 +65,22 @@
 				<div class="d-flex align-items-center ms-1 ms-lg-3" id="kt_header_user_menu_toggle">
 					<div class="d-flex align-items-center ms-3 me-4">
 						@php
-							$clientEmailConfig = \App\Models\EmailConfiguration::where('id', 2)->first() 
-								?? \App\Models\EmailConfiguration::where('name', 'like', '%client%')->orWhere('name', 'like', '%assignment%')->first();
-							$writerEmailConfig = \App\Models\EmailConfiguration::where('id', 3)->first() 
-								?? \App\Models\EmailConfiguration::where('name', 'like', '%write%')->first();
+							$clientEmailConfig = \App\Models\EmailConfiguration::where('email_address', 'order@assignnmentinneed.com')
+								->orWhere('name', 'like', '%client%')
+								->first() ?? \App\Models\EmailConfiguration::find(2);
+
+							$writerEmailConfig = \App\Models\EmailConfiguration::where('email_address', 'assignmentinneedhelp@gmail.com')
+								->orWhere('name', 'like', '%writer%')
+								->orWhere('name', 'like', '%write%')
+								->first() ?? \App\Models\EmailConfiguration::find(1);
 
 							$clientEmailUrl = $clientEmailConfig ? route('emails.index', ['account_id' => $clientEmailConfig->id]) : url('emails');
 							$writerEmailUrl = $writerEmailConfig ? route('emails.index', ['account_id' => $writerEmailConfig->id]) : url('emails');
+
+							$clientUnreadCount = $clientEmailConfig ? \App\Models\EmailMessage::where('email_configuration_id', $clientEmailConfig->id)
+								->where('direction', 'inbound')->where('folder', '!=', 'trash')->where('is_read', false)->count() : 0;
+							$writerUnreadCount = $writerEmailConfig ? \App\Models\EmailMessage::where('email_configuration_id', $writerEmailConfig->id)
+								->where('direction', 'inbound')->where('folder', '!=', 'trash')->where('is_read', false)->count() : 0;
 						@endphp
 
 						<style>
@@ -184,18 +193,20 @@
 						<!--end::WhatsApp Header Button-->
 
 						<!--begin::Client Email Header Button-->
-						<a href="{{ $clientEmailUrl }}" class="crm-header-nav-btn crm-nav-client me-3" title="Client Email (Assignment Help)">
+						<a href="{{ $clientEmailUrl }}" class="crm-header-nav-btn crm-nav-client me-3" title="Client Email (order@assignnmentinneed.com)">
 							<span class="crm-nav-icon"><i class="fa fa-envelope"></i></span>
 							<span class="crm-nav-text">Client Email</span>
+							<span id="clientEmailHeaderBadge" class="badge badge-circle badge-danger ms-1 {{ $clientUnreadCount > 0 ? '' : 'd-none' }}" style="font-size: 10px; min-width: 18px; height: 18px; line-height: 18px; padding: 0 4px;">{{ $clientUnreadCount }}</span>
 						</a>
 						<!--end::Client Email Header Button-->
 
-						<!--begin::Write Email Header Button-->
-						<a href="{{ $writerEmailUrl }}" class="crm-header-nav-btn crm-nav-writer me-3" title="Write Email (Writer / Order)">
+						<!--begin::Writer Email Header Button-->
+						<a href="{{ $writerEmailUrl }}" class="crm-header-nav-btn crm-nav-writer me-3" title="Writer Email (assignmentinneedhelp@gmail.com)">
 							<span class="crm-nav-icon"><i class="fa fa-envelope-open-text"></i></span>
-							<span class="crm-nav-text">Write Email</span>
+							<span class="crm-nav-text">Writer Email</span>
+							<span id="writerEmailHeaderBadge" class="badge badge-circle badge-danger ms-1 {{ $writerUnreadCount > 0 ? '' : 'd-none' }}" style="font-size: 10px; min-width: 18px; height: 18px; line-height: 18px; padding: 0 4px;">{{ $writerUnreadCount }}</span>
 						</a>
-						<!--end::Write Email Header Button-->
+						<!--end::Writer Email Header Button-->
 
 						@if(auth()->check() && auth()->user()->role_id == 1)
 							<div class="dropdown me-3">

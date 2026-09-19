@@ -322,40 +322,14 @@ class EmailController extends Controller
             return collect();
         }
 
-        // 1. Search in users table (prioritise client role 2, but allow any matching user with a phone)
-        $users = User::query()
+        // Match only registered clients/users from the users table with valid mobile number
+        return User::query()
             ->whereIn(DB::raw('LOWER(email)'), $addresses->all())
             ->whereNotNull('mobile_no')
             ->where('mobile_no', '!=', '')
             ->orderByRaw("CASE WHEN role_id = 2 THEN 0 ELSE 1 END")
             ->get(['id', 'email', 'name', 'countrycode', 'mobile_no'])
             ->keyBy(fn (User $user) => strtolower(trim($user->email)));
-
-        // 2. Search in leads table for contacts not found in users
-        $missing = $addresses->reject(fn ($addr) => $users->has($addr))->values();
-        if ($missing->isNotEmpty()) {
-            $leads = DB::table('leads')
-                ->whereIn(DB::raw('LOWER(email)'), $missing->all())
-                ->whereNotNull('mobile')
-                ->where('mobile', '!=', '')
-                ->orderByDesc('id')
-                ->get(['id', 'email', 'user_name', 'countrycode', 'mobile']);
-
-            foreach ($leads as $lead) {
-                $emailKey = strtolower(trim($lead->email));
-                if (!$users->has($emailKey)) {
-                    $users->put($emailKey, (object) [
-                        'id' => $lead->id,
-                        'email' => $lead->email,
-                        'name' => $lead->user_name,
-                        'countrycode' => $lead->countrycode,
-                        'mobile_no' => $lead->mobile,
-                    ]);
-                }
-            }
-        }
-
-        return $users;
     }
 
     /** Lightweight real-time change & new email detector. */
@@ -443,8 +417,10 @@ class EmailController extends Controller
         $isSuperAdmin = Auth::check() && (int) Auth::user()->role_id === 1;
 
         // Fetch labels attached to this thread
-        $customerEmail = $email->customer_email;
-        $clientContact = $this->clientContactsForEmails(collect([$email]))->get(strtolower((string) $customerEmail));
+        $customerEmail = $email->customer_email ?: $email->from_email;
+        $contacts = $this->clientContactsForEmails(collect([$email]));
+        $clientContact = $contacts->get(strtolower((string) $customerEmail))
+            ?: ($email->from_email ? $contacts->get(strtolower((string) $email->from_email)) : null);
         $whatsAppPhone = null;
         $clientWhatsAppUrl = null;
         if ($clientContact && !empty($clientContact->mobile_no)) {
@@ -453,7 +429,7 @@ class EmailController extends Controller
                 $clientWhatsAppUrl = route('whatsapp.chat', ['phone' => $whatsAppPhone]);
             }
         }
-        $fallbackWhatsAppUrl = $clientWhatsAppUrl ?: route('whatsapp.chat');
+        $fallbackWhatsAppUrl = $clientWhatsAppUrl;
 
         $threadLabelIds = \App\Models\EmailThreadLabel::where('thread_id', $email->thread_id)
             ->when(empty($email->thread_id) && !empty($customerEmail), function($q) use ($customerEmail) {
@@ -974,10 +950,24 @@ class EmailController extends Controller
             // Direct synchronous IMAP socket sync — works on shared cPanel without requiring exec()
             $result = $this->emailService->syncImap($account);
 
+            $clientUnread = EmailMessage::where('email_configuration_id', 2)
+                ->where('direction', 'inbound')
+                ->where('folder', '!=', 'trash')
+                ->where('is_read', false)
+                ->count();
+
+            $writerUnread = EmailMessage::where('email_configuration_id', 1)
+                ->where('direction', 'inbound')
+                ->where('folder', '!=', 'trash')
+                ->where('is_read', false)
+                ->count();
+
             return response()->json([
                 'status' => $result['status'] ?? 'success',
                 'message' => $result['message'] ?? 'Incoming email sync completed.',
                 'synced_count' => $result['synced_count'] ?? 0,
+                'client_unread' => $clientUnread,
+                'writer_unread' => $writerUnread,
             ]);
         } catch (\Throwable $e) {
             \Log::error('Email sync error: ' . $e->getMessage());

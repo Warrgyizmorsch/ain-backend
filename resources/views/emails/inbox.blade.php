@@ -2316,13 +2316,13 @@
                                 <div class="gmail-subject-labels" id="detailLabelsBadges"></div>
                             </div>
                             <div class="d-flex align-items-center gap-1 flex-shrink-0">
-                                <a href="/whatsapp/chat"
+                                <a href="#"
                                    target="_blank"
-                                   class="gmail-icon-btn text-success d-inline-flex align-items-center justify-content-center"
+                                   class="gmail-icon-btn text-success align-items-center justify-content-center"
                                    id="detailWhatsAppBtn"
                                    title="Open client in WhatsApp"
                                    aria-label="Open client in WhatsApp"
-                                   style="display: inline-flex !important; color: #25D366 !important;">
+                                   style="display: none; color: #25D366 !important;">
                                     <svg width="18" height="18" viewBox="0 0 16 16" fill="#25D366"><path fill="#25D366" d="M13.601 2.326A7.85 7.85 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.364 2.76 1.057 3.965L0 16l4.204-1.102a7.9 7.9 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.9 7.9 0 0 0 13.6 2.326zM7.994 14.521a6.6 6.6 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.56 6.56 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592m3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.73.73 0 0 0-.529.247c-.182.198-.691.677-.691 1.654s.707 2.002.806 2.134c.098.133 1.392 2.123 3.372 2.978.471.204.838.326 1.124.418.473.15.905.129 1.246.078.38-.058 1.17-.479 1.338-.943.166-.464.166-.862.116-.944-.049-.082-.182-.133-.38-.232"/></svg>
                                 </a>
                                 <button type="button" class="gmail-icon-btn" id="threadExpandAllBtn" onclick="toggleAllThreadMessages()" title="Expand / Collapse all">
@@ -3440,11 +3440,16 @@ function openEmailThread(id, pushToHistory = true) {
 
             const detailWhatsAppBtn = document.getElementById('detailWhatsAppBtn');
             if (detailWhatsAppBtn) {
-                detailWhatsAppBtn.href = data.email.whatsapp_url || '/whatsapp/chat';
-                detailWhatsAppBtn.title = data.email.whatsapp_phone
-                    ? `WhatsApp: ${data.email.client_name || data.email.customer_email || 'Client'} (${data.email.whatsapp_phone})`
-                    : `WhatsApp: ${data.email.client_name || data.email.customer_email || 'Open Chat'}`;
-                detailWhatsAppBtn.style.display = 'inline-flex';
+                if (data.email && data.email.whatsapp_url) {
+                    detailWhatsAppBtn.href = data.email.whatsapp_url;
+                    detailWhatsAppBtn.title = data.email.whatsapp_phone
+                        ? `WhatsApp: ${data.email.client_name || data.email.customer_email || 'Client'} (${data.email.whatsapp_phone})`
+                        : `WhatsApp: ${data.email.client_name || data.email.customer_email || 'Open Chat'}`;
+                    detailWhatsAppBtn.style.setProperty('display', 'inline-flex', 'important');
+                } else {
+                    detailWhatsAppBtn.removeAttribute('href');
+                    detailWhatsAppBtn.style.setProperty('display', 'none', 'important');
+                }
             }
 
             // Star state
@@ -3508,6 +3513,10 @@ function openEmailThread(id, pushToHistory = true) {
                 }
                 const snippet = cleanSnippet;
 
+                const waUrl = m.whatsapp_url || data.email.whatsapp_url || null;
+                const waPhone = m.whatsapp_phone || data.email.whatsapp_phone || '';
+                const waTitle = waPhone ? `WhatsApp: ${data.email.client_name || data.email.customer_email || 'Client'} (${waPhone})` : 'WhatsApp: Open Chat';
+
                 let attachmentsHtml = '';
                 if (m.attachments && m.attachments.length > 0) {
                     attachmentsHtml = `
@@ -3552,14 +3561,15 @@ function openEmailThread(id, pushToHistory = true) {
                                 ${escapeEmailText(snippet)}
                             </div>
                             <div class="gmail-collapsed-meta">
-                                <a href="${m.whatsapp_url || data.email.whatsapp_url || '/whatsapp/chat'}" 
+                                ${waUrl ? `
+                                <a href="${waUrl}" 
                                    target="_blank" 
                                    class="text-success me-1 d-inline-flex align-items-center justify-content-center" 
                                    style="text-decoration: none; color: #25D366 !important; display: inline-flex !important;" 
-                                   title="WhatsApp: ${m.whatsapp_phone || data.email.whatsapp_phone || 'Open Chat'}" 
+                                   title="${escapeEmailText(waTitle)}" 
                                    onclick="event.stopPropagation();">
                                     <svg width="16" height="16" viewBox="0 0 16 16" fill="#25D366"><path fill="#25D366" d="M13.601 2.326A7.85 7.85 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.364 2.76 1.057 3.965L0 16l4.204-1.102a7.9 7.9 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.9 7.9 0 0 0 13.6 2.326zM7.994 14.521a6.6 6.6 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.56 6.56 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592m3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.73.73 0 0 0-.529.247c-.182.198-.691.677-.691 1.654s.707 2.002.806 2.134c.098.133 1.392 2.123 3.372 2.978.471.204.838.326 1.124.418.473.15.905.129 1.246.078.38-.058 1.17-.479 1.338-.943.166-.464.166-.862.116-.944-.049-.082-.182-.133-.38-.232"/></svg>
-                                </a>
+                                </a>` : ''}
                                 <span class="gmail-collapsed-date">${dateStr}</span>
                                 <button type="button" class="gmail-icon-btn ${m.is_starred ? 'text-warning' : ''}" onclick="event.stopPropagation(); toggleStar(${m.id}, this)" title="Star">
                                     <i class="fa ${m.is_starred ? 'fa-star' : 'fa-star-o'}"></i>
@@ -3585,14 +3595,15 @@ function openEmailThread(id, pushToHistory = true) {
                                                     onclick="event.stopPropagation(); crmCopyToClipboard('${fromEmail}', 'Email copied!');">
                                                 <i class="fa fa-clone" style="font-size: 11px;"></i>
                                             </button>
-                                            <a href="${m.whatsapp_url || data.email.whatsapp_url || '/whatsapp/chat'}" 
+                                            ${waUrl ? `
+                                            <a href="${waUrl}" 
                                                target="_blank" 
                                                class="btn btn-icon btn-sm p-0 flex-shrink-0 ms-1 gmail-wa-btn" 
                                                style="width: 22px; height: 22px; min-width: 22px;" 
-                                               title="WhatsApp: ${m.whatsapp_phone || data.email.whatsapp_phone || 'Open Chat'}" 
+                                               title="${escapeEmailText(waTitle)}" 
                                                onclick="event.stopPropagation();">
                                                 <svg width="13" height="13" viewBox="0 0 16 16"><path d="M13.601 2.326A7.85 7.85 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.364 2.76 1.057 3.965L0 16l4.204-1.102a7.9 7.9 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.9 7.9 0 0 0 13.6 2.326zM7.994 14.521a6.6 6.6 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.56 6.56 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592m3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.73.73 0 0 0-.529.247c-.182.198-.691.677-.691 1.654s.707 2.002.806 2.134c.098.133 1.392 2.123 3.372 2.978.471.204.838.326 1.124.418.473.15.905.129 1.246.078.38-.058 1.17-.479 1.338-.943.166-.464.166-.862.116-.944-.049-.082-.182-.133-.38-.232"/></svg>
-                                            </a>
+                                            </a>` : ''}
                                         </div>
                                         <div class="dropdown" onclick="event.stopPropagation();">
                                             <button type="button" class="gmail-to-me-btn" data-bs-toggle="dropdown" aria-expanded="false">

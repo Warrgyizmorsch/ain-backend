@@ -27,7 +27,7 @@ class CheckPermission
         $currentPath = $request->path();
 
         // ✅ Skip permission check for some routes
-        $bypassRoutes = ['rolePermission'];
+        $bypassRoutes = ['rolePermission', 'emails.sync'];
         if (in_array($currentRoute, $bypassRoutes)) {
             return $next($request);
         }

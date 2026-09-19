@@ -989,6 +989,8 @@
         @include('back-end.order.partials.twilio-softphone-widget')
         {{-- Global Twilio "Call" button trigger, shared by the call-button component across the app --}}
         @include('layouts.partials.twilio-call-helper')
+        {{-- Global Email Auto-Sync across all pages --}}
+        @include('layouts.partials.email-global-sync')
     @endauth
 
 </body>

@@ -224,6 +224,188 @@ class LabelSyncService
     }
 
     /**
+     * Full cross-channel sync for a known User (by user_id).
+     *
+     * When a label is assigned via the CRM / Order view, this method fans out
+     * the selected labels to EVERY phone number and EVERY email address that
+     * belongs to the user (pulling from both the `users` table and associated
+     * `leads` records).
+     *
+     * Rules:
+     *  - Labels with `is_whatsapp = true` are written to `whatsapp_chat_contact_labels`.
+     *  - Labels with `is_email    = true` are written to `email_thread_labels`.
+     *
+     * @param int        $userId
+     * @param array<int> $labelIds   All selected label IDs (before channel filtering)
+     * @param int|null   $assignedBy Auth user performing the save
+     */
+    public function syncUserLabelsAcrossAllChannels(int $userId, array $labelIds, ?int $assignedBy = null): void
+    {
+        $user = User::find($userId);
+        if (!$user) {
+            return;
+        }
+
+        // ── 1. Resolve channel-eligible label sets ───────────────────────────
+        $waLabelIds = WhatsappChatLabel::whereIn('id', $labelIds)
+            ->where('is_whatsapp', true)
+            ->pluck('id')
+            ->map(fn($id) => (int) $id)
+            ->all();
+
+        $emailLabelIds = WhatsappChatLabel::whereIn('id', $labelIds)
+            ->where('is_email', true)
+            ->pluck('id')
+            ->map(fn($id) => (int) $id)
+            ->all();
+
+        // ── 2. Collect ALL phone variants for this user ──────────────────────
+        $allPhoneVariants = collect();
+
+        $addPhone = function (?string $raw, ?string $cc) use (&$allPhoneVariants) {
+            $clean = preg_replace('/\D+/', '', (string) $raw);
+            if (empty($clean)) return;
+            $code  = preg_replace('/\D+/', '', (string) $cc);
+            $full  = (!empty($code) && !str_starts_with($clean, $code)) ? ($code . $clean) : $clean;
+            $last10 = substr($clean, -10);
+            foreach (array_filter(array_unique([$clean, $full, '+' . $full, $last10])) as $v) {
+                $allPhoneVariants->push($v);
+            }
+        };
+
+        // User's own phone
+        $addPhone($user->mobile_no, $user->countrycode ?? '');
+
+        // Phones from linked Leads
+        $leads = Leads::where('email', $user->email)
+            ->whereNotNull('mobile')->where('mobile', '!=', '')
+            ->get(['mobile', 'countrycode']);
+        foreach ($leads as $lead) {
+            $addPhone($lead->mobile, $lead->countrycode ?? '');
+        }
+
+        $uniquePhones = $allPhoneVariants->filter()->unique()->values()->all();
+
+        // ── 3. Collect ALL email addresses for this user ─────────────────────
+        $allEmails = collect();
+
+        if (!empty($user->email)) {
+            $allEmails->push(strtolower(trim($user->email)));
+        }
+
+        // Emails from linked Leads (by phone)
+        if (!empty($uniquePhones)) {
+            $leadEmailsByPhone = Leads::whereIn('mobile', $uniquePhones)
+                ->whereNotNull('email')->where('email', '!=', '')
+                ->pluck('email');
+            foreach ($leadEmailsByPhone as $e) {
+                $allEmails->push(strtolower(trim($e)));
+            }
+        }
+
+        // Never treat configured system accounts as customer emails
+        $systemEmails = \App\Models\EmailConfiguration::pluck('email_address')
+            ->map(fn($e) => strtolower(trim($e)))->filter()->all();
+
+        $uniqueEmails = $allEmails
+            ->filter()
+            ->reject(fn($e) => in_array($e, $systemEmails))
+            ->unique()
+            ->values()
+            ->all();
+
+        // ── 4. Fan-out: WhatsApp ─────────────────────────────────────────────
+        if (!empty($uniquePhones)) {
+            // Wipe all existing label rows for every variant before re-inserting
+            WhatsappChatContactLabel::whereIn('phone', $uniquePhones)->delete();
+
+            // Use the canonical phone (from user record or first variant)
+            $canonicalPhone = !empty($user->mobile_no)
+                ? preg_replace('/\D+/', '', (string) $user->mobile_no)
+                : ($uniquePhones[0] ?? null);
+
+            if ($canonicalPhone) {
+                // Rebuild phone with country-code if available
+                $cc = preg_replace('/\D+/', '', (string) ($user->countrycode ?? ''));
+                if (!empty($cc) && !str_starts_with($canonicalPhone, $cc)) {
+                    $canonicalPhone = $cc . $canonicalPhone;
+                }
+
+                $now = now();
+                $waInserts = [];
+                foreach ($waLabelIds as $lId) {
+                    $waInserts[] = [
+                        'phone'       => $canonicalPhone,
+                        'label_id'    => (int) $lId,
+                        'assigned_by' => $assignedBy,
+                        'created_at'  => $now,
+                        'updated_at'  => $now,
+                    ];
+                }
+                if (!empty($waInserts)) {
+                    WhatsappChatContactLabel::insert($waInserts);
+                }
+            }
+        }
+
+        // ── 5. Fan-out: Email ────────────────────────────────────────────────
+        if (!empty($uniqueEmails)) {
+            $now = now();
+            foreach ($uniqueEmails as $email) {
+                $emailInserts = [];
+
+                // Fetch all thread IDs involving this customer email
+                $threadIds = EmailMessage::where(function ($q) use ($email) {
+                    $q->where('from_email', $email)
+                      ->orWhere('to_email', 'like', "%{$email}%");
+                })->whereNotNull('thread_id')
+                  ->pluck('thread_id')
+                  ->unique()
+                  ->values()
+                  ->all();
+
+                if (!empty($threadIds)) {
+                    EmailThreadLabel::whereIn('thread_id', $threadIds)->delete();
+                    foreach ($threadIds as $tId) {
+                        foreach ($emailLabelIds as $lId) {
+                            $emailInserts[] = [
+                                'thread_id'   => $tId,
+                                'email'       => $email,
+                                'label_id'    => (int) $lId,
+                                'assigned_by' => $assignedBy,
+                                'created_at'  => $now,
+                                'updated_at'  => $now,
+                            ];
+                        }
+                    }
+                }
+
+                // Also maintain a thread-less email-level record for future thread matching
+                EmailThreadLabel::where('email', $email)->whereNull('thread_id')->delete();
+                foreach ($emailLabelIds as $lId) {
+                    $emailInserts[] = [
+                        'thread_id'   => null,
+                        'email'       => $email,
+                        'label_id'    => (int) $lId,
+                        'assigned_by' => $assignedBy,
+                        'created_at'  => $now,
+                        'updated_at'  => $now,
+                    ];
+                }
+
+                if (!empty($emailInserts)) {
+                    EmailThreadLabel::insert($emailInserts);
+                }
+            }
+        }
+
+        Log::info("LabelSync: user {$userId} → WA phones=" . implode(',', $uniquePhones)
+            . " | emails=" . implode(',', $uniqueEmails)
+            . " | waLabels=" . implode(',', $waLabelIds)
+            . " | emailLabels=" . implode(',', $emailLabelIds));
+    }
+
+    /**
      * Cross-sync existing labels when a User or Lead is created or updated.
      * If email has existing labels, sync to the phone.
      * If phone has existing labels, sync to the email.

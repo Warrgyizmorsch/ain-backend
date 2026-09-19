@@ -327,6 +327,22 @@
                         <span id="waHeaderCheckOrdersText">Orders @if(($customerSummary['orders_count'] ?? 0) > 0)({{ $customerSummary['orders_count'] }})@endif</span>
                     </button>
 
+                    {{-- Client Email Button --}}
+                    @php
+                        $initClientEmailUrl = $customerSummary['client_email_url'] ?? route('emails.index', ['account_id' => 2]);
+                        $initWriterEmailUrl = $customerSummary['writer_email_url'] ?? route('emails.index', ['account_id' => 1]);
+                    @endphp
+                    <a href="{{ $initClientEmailUrl }}" target="_blank" class="wab-header-action-btn wab-header-btn-client-email" id="waHeaderClientEmailBtn" title="Client Email (order@assignnmentinneed.com)">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+                        <span>Client Email</span>
+                    </a>
+
+                    {{-- Writer Email Button --}}
+                    <a href="{{ $initWriterEmailUrl }}" target="_blank" class="wab-header-action-btn wab-header-btn-writer-email" id="waHeaderWriterEmailBtn" title="Writer Email (assignmentinneedhelp@gmail.com)">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 7a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7z"></path><polyline points="22 7 12 13 2 7"></polyline><path d="M12 13V21"></path></svg>
+                        <span>Writer Email</span>
+                    </a>
+
                     {{-- Create Lead Button (Circle Plus Icon Only) --}}
                     <button type="button" class="wab-header-icon-btn wab-header-btn-create-lead" data-bs-toggle="modal" data-bs-target="#kt_modal_create_appaa_newLeads" id="waHeaderCreateLeadBtn" title="Create New Lead">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>
@@ -1322,6 +1338,12 @@
                     </div>
                 </div>
                 <div class="ms-auto d-flex align-items-center gap-2">
+                    <a href="{{ route('emails.index', ['account_id' => 2]) }}" target="_blank" id="waOrdersModalClientEmailBtn" class="btn btn-sm py-1.5 px-3 fs-9 fw-bold rounded shadow-sm" style="background:#ffffff;color:#1565c0;border:1px solid #bbdefb;" title="Open Client Email for this customer">
+                        <i class="fa fa-envelope me-1 text-primary"></i>Client Email
+                    </a>
+                    <a href="{{ route('emails.index', ['account_id' => 1]) }}" target="_blank" id="waOrdersModalWriterEmailBtn" class="btn btn-sm py-1.5 px-3 fs-9 fw-bold rounded shadow-sm" style="background:#ffffff;color:#c2185b;border:1px solid #f8bbd0;" title="Open Writer Email for this customer">
+                        <i class="fa fa-envelope-open-text me-1 text-danger"></i>Writer Email
+                    </a>
                     <a href="{{ route('orders.index') }}" target="_blank" id="waOrdersModalViewAllBtn" class="btn btn-sm btn-light py-1.5 px-3 fs-9 fw-bold rounded" title="Open Orders page for this customer">
                         <i class="fa fa-external-link me-1"></i>View All Orders
                     </a>
@@ -1357,7 +1379,7 @@
                                 <th style="border:1px solid #cbd5e1 !important;min-width:140px;text-align:start">Total, Paid &amp; Due</th>
                                 <th style="border:1px solid #cbd5e1 !important;width:120px;text-align:center">Project Status</th>
                                 <th style="border:1px solid #cbd5e1 !important;min-width:190px;text-align:start">Dates</th>
-                                <th style="border:1px solid #cbd5e1 !important;width:95px;text-align:center">Action</th>
+                                <th style="border:1px solid #cbd5e1 !important;width:125px;text-align:center">Actions</th>
                             </tr>
                         </thead>
                         <tbody id="waOrdersTbody"></tbody>
@@ -2276,6 +2298,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (ordersModalViewAll && data.all_orders_url) {
                     ordersModalViewAll.href = data.all_orders_url;
                 }
+                const clientEmailModalBtn = document.getElementById('waOrdersModalClientEmailBtn');
+                if (clientEmailModalBtn && data.client_email_url) {
+                    clientEmailModalBtn.href = data.client_email_url;
+                    clientEmailModalBtn.title = `Open Client Email (${data.customer_email || 'order@assignnmentinneed.com'})`;
+                }
+                const writerEmailModalBtn = document.getElementById('waOrdersModalWriterEmailBtn');
+                if (writerEmailModalBtn && data.writer_email_url) {
+                    writerEmailModalBtn.href = data.writer_email_url;
+                    writerEmailModalBtn.title = `Open Writer Email (${data.customer_email || 'assignmentinneedhelp@gmail.com'})`;
+                }
 
                 let rowsHtml = '';
                 data.orders.forEach((ord) => {
@@ -2377,10 +2409,24 @@ document.addEventListener('DOMContentLoaded', function() {
                             <td class="align-middle" style="border:1px solid #cbd5e1 !important;min-width:190px">
                                 ${datesHtml}
                             </td>
-                            <td class="text-center align-middle" style="border:1px solid #cbd5e1 !important;width:95px">
-                                <button type="button" class="btn btn-sm btn-light-success fw-bold py-1 px-3" style="display:inline-flex;align-items:center;justify-content:center;gap:5px;white-space:nowrap;font-size:11px;" title="Open Payment Modal" onclick="openWaOrderPaymentModal('${ord.id}', '${ord.order_id}', '${ord.payment_url}')">
-                                    <i class="fa fa-money fs-7"></i><span>Pay</span>
-                                </button>
+                            <td class="text-center align-middle" style="border:1px solid #cbd5e1 !important;width:125px">
+                                <div class="d-inline-flex align-items-center justify-content-center gap-1">
+                                    <button type="button" class="btn btn-sm btn-light-success fw-bold py-1 px-2" style="display:inline-flex;align-items:center;justify-content:center;gap:3px;white-space:nowrap;font-size:11px;" title="Open Payment Modal" onclick="openWaOrderPaymentModal('${ord.id}', '${ord.order_id}', '${ord.payment_url}')">
+                                        <i class="fa fa-money fs-7"></i><span>Pay</span>
+                                    </button>
+                                    <a href="${ord.client_email_url}" target="_blank" class="btn btn-icon btn-sm btn-light-primary" style="width:26px !important;height:26px !important;display:inline-flex;align-items:center;justify-content:center;" title="Client Email (${ord.customer_email || 'order@assignnmentinneed.com'})">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 16 16" fill="currentColor">
+                                            <path d="M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2zm2-1a1 1 0 0 0-1 1v.217l7 4.2 7-4.2V4a1 1 0 0 0-1-1zm13 2.383-4.708 2.825L15 11.105zm-.034 6.876-5.64-3.471L8 9.583l-1.326-.795-5.64 3.47A1 1 0 0 0 2 13h12a1 1 0 0 0 .966-.741M1 11.105l4.708-2.897L1 5.383z"/>
+                                        </svg>
+                                    </a>
+                                    <a href="${ord.writer_email_url}" target="_blank" class="btn btn-icon btn-sm btn-light-danger" style="width:26px !important;height:26px !important;display:inline-flex;align-items:center;justify-content:center;" title="Writer Email (${ord.customer_email || 'assignmentinneedhelp@gmail.com'})">
+                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M2 7a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7z"></path>
+                                            <polyline points="22 7 12 13 2 7"></polyline>
+                                            <path d="M12 13V21"></path>
+                                        </svg>
+                                    </a>
+                                </div>
                             </td>
                         </tr>
                     `;
@@ -3174,6 +3220,26 @@ document.addEventListener('DOMContentLoaded', function() {
 .wab-header-btn-orders:hover {
     background: #e1bee7;
     color: #4a148c;
+}
+.wab-header-btn-client-email {
+    background: #e3f2fd;
+    color: #1565c0;
+    border: 1px solid #bbdefb;
+    text-decoration: none;
+}
+.wab-header-btn-client-email:hover {
+    background: #bbdefb;
+    color: #0d47a1;
+}
+.wab-header-btn-writer-email {
+    background: #fce4ec;
+    color: #c2185b;
+    border: 1px solid #f8bbd0;
+    text-decoration: none;
+}
+.wab-header-btn-writer-email:hover {
+    background: #f8bbd0;
+    color: #880e4f;
 }
 .wab-header-btn-create-lead {
     background: #00a884;
@@ -6133,6 +6199,18 @@ document.addEventListener('DOMContentLoaded', function() {
             } else {
                 ordersBtn.classList.add('d-none');
             }
+        }
+
+        // Update Client Email & Writer Email header buttons
+        const clientEmailBtn = document.getElementById('waHeaderClientEmailBtn');
+        if (clientEmailBtn) {
+            clientEmailBtn.href = customer.client_email_url || `{{ route('emails.index', ['account_id' => 2]) }}`;
+            clientEmailBtn.title = `Client Email (${customer.email || 'order@assignnmentinneed.com'})`;
+        }
+        const writerEmailBtn = document.getElementById('waHeaderWriterEmailBtn');
+        if (writerEmailBtn) {
+            writerEmailBtn.href = customer.writer_email_url || `{{ route('emails.index', ['account_id' => 1]) }}`;
+            writerEmailBtn.title = `Writer Email (${customer.email || 'assignmentinneedhelp@gmail.com'})`;
         }
 
         // Prefill CRM New Lead Modal (#kt_modal_create_appaa_newLeads)

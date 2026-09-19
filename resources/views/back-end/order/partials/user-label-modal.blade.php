@@ -146,12 +146,14 @@
                 color: chk.dataset.color
             }));
 
-            if (btn) {
-                btn.disabled = true;
-                btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving...';
-            }
-            if (statusEl) {
-                statusEl.textContent = 'Saving labels...';
+            // 1. Immediate UI update (Zero-lag optimistic response)
+            updateUserLabelsBadgesInDOM(userId, phone, email, labelsData, labelIds);
+
+            // 2. Immediately close modal so user doesn't wait
+            closeUserLabelModal();
+
+            if (typeof toastr !== 'undefined') {
+                toastr.success('Labels updated successfully!');
             }
 
             try {
@@ -171,26 +173,21 @@
                     })
                 });
 
-                const data = await res.json();
-                if (!res.ok || !data.success) {
-                    throw new Error(data.message || 'Failed to save labels');
+                let data;
+                const rawText = await res.text();
+                try {
+                    data = JSON.parse(rawText);
+                } catch (jsonErr) {
+                    console.error('Non-JSON response from server:', rawText);
                 }
 
-                // Update UI badges across all tables in real-time
-                updateUserLabelsBadgesInDOM(userId, phone, email, data.labels || labelsData, labelIds);
-
-                const bsModal = bootstrap.Modal.getInstance(document.getElementById('crmUserLabelModal'));
-                if (bsModal) bsModal.hide();
-
-                if (typeof toastr !== 'undefined') {
-                    toastr.success('Labels updated successfully!');
-                } else if (window.Swal) {
-                    Swal.fire({ icon: 'success', title: 'Labels Updated', timer: 1200, showConfirmButton: false });
+                if (data && data.labels) {
+                    updateUserLabelsBadgesInDOM(userId, phone, email, data.labels, labelIds);
                 }
             } catch (err) {
-                if (errorEl) {
-                    errorEl.textContent = err.message || 'Error updating labels.';
-                    errorEl.classList.remove('d-none');
+                console.error('Error saving labels in background:', err);
+                if (typeof toastr !== 'undefined') {
+                    toastr.error('Notice: Could not sync labels to server. Please retry.');
                 }
             } finally {
                 if (btn) {
@@ -200,6 +197,26 @@
                 if (statusEl) statusEl.textContent = '';
             }
         });
+    }
+
+    function closeUserLabelModal() {
+        const modalEl = document.getElementById('crmUserLabelModal');
+        if (!modalEl) return;
+        if (window.jQuery) {
+            window.jQuery(modalEl).modal('hide');
+        }
+        try {
+            if (window.bootstrap && bootstrap.Modal) {
+                const bs = bootstrap.Modal.getInstance(modalEl) || bootstrap.Modal.getOrCreateInstance(modalEl);
+                if (bs) bs.hide();
+            }
+        } catch(e) {}
+        setTimeout(() => {
+            document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
+            document.body.classList.remove('modal-open');
+            document.body.style.removeProperty('padding-right');
+            document.body.style.removeProperty('overflow');
+        }, 200);
     }
 
     function updateUserLabelsBadgesInDOM(userId, phone, email, labels, labelIds) {
