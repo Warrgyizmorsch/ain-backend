@@ -25,12 +25,26 @@
         }
         $effectiveWhatsAppUrl = $clientWhatsAppUrl;
 
-        $rowLabels = \App\Models\EmailThreadLabel::with('label')
-            ->where('thread_id', $email->thread_id)
-            ->when(empty($email->thread_id) && !empty($clientEmail), fn($q) => $q->orWhere('email', $clientEmail))
-            ->get()
-            ->unique('label_id');
-        $allRowLabels = \App\Models\WhatsappChatLabel::forEmail()->ordered()->get();
+        static $cachedAllRowLabels = null;
+        if ($cachedAllRowLabels === null) {
+            $cachedAllRowLabels = (isset($allLabels) && $allLabels instanceof \Illuminate\Support\Collection)
+                ? $allLabels
+                : \App\Models\WhatsappChatLabel::forEmail()->ordered()->get();
+        }
+        $allRowLabels = $cachedAllRowLabels;
+
+        if (isset($threadLabelsMap) && $threadLabelsMap instanceof \Illuminate\Support\Collection) {
+            $rowLabels = $threadLabelsMap->get($email->thread_id) ?? collect();
+            if ($rowLabels->isEmpty() && !empty($clientEmail)) {
+                $rowLabels = $threadLabelsMap->get($clientEmail) ?? collect();
+            }
+        } else {
+            $rowLabels = \App\Models\EmailThreadLabel::with('label')
+                ->where('thread_id', $email->thread_id)
+                ->when(empty($email->thread_id) && !empty($clientEmail), fn($q) => $q->orWhere('email', $clientEmail))
+                ->get()
+                ->unique('label_id');
+        }
         $activeRowLabelIds = $rowLabels->pluck('label_id')->toArray();
 
         $senderDisplayName = $email->from_name ?: ($displayFromEmail ?: 'Unknown');

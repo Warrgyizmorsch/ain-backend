@@ -2254,6 +2254,9 @@
             {{-- Independent Scrollable Navigation Area --}}
             <div class="duralux-sidebar-scroll">
                 {{-- Folders List --}}
+                <div class="duralux-section-label">
+                    <span>Folders</span>
+                </div>
                 <ul class="duralux-nav-list">
                     <li class="duralux-nav-item">
                         <a href="javascript:void(0);" class="duralux-nav-link {{ (!request('folder') || request('folder') === 'inbox') ? 'active' : '' }}" onclick="filterFolder('inbox', this)">
@@ -3038,7 +3041,7 @@
 
 <script>
 let currentFolder = @json($folder ?? 'inbox');
-let currentAccountId = '{{ request("account_id") }}';
+let currentAccountId = '{{ $currentAccount?->id ?? (request("account_id") ?: 1) }}';
 let currentLabelId = @json($selectedLabelId ?? null);
 let emailFolderHtmlCache = @json($folderHtmlCache ?? []);
 let activeThreadId = null;
@@ -3426,17 +3429,6 @@ function filterFolder(folder, el) {
         renderEmailRows(emailFolderHtmlCache[folder]);
         updateEmailBrowserUrl('');
     }
-    reloadEmailList(true);
-}
-
-function filterAccount(accountId, el) {
-    currentAccountId = accountId;
-    currentLabelId = null;
-    lastEmailFingerprint = null;
-    emailFolderHtmlCache = {};
-    document.querySelectorAll('.duralux-sidebar .duralux-nav-link').forEach(link => link.classList.remove('active'));
-    if (el) el.classList.add('active');
-    closeEmailThread();
     reloadEmailList(true);
 }
 

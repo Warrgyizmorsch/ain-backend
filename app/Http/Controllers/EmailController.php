@@ -79,27 +79,47 @@ class EmailController extends Controller
                 break;
         }
 
-        // Filter by specific configured account if selected
+        // Filter by specific configured account if selected or default to active account
+        $configurations = EmailConfiguration::where('is_active', true)->get();
         $selectedAccount = null;
         if ($accountId) {
-            $selectedAccount = EmailConfiguration::find($accountId);
-            if ($selectedAccount && !empty($selectedAccount->email_address)) {
-                $query->where('email_configuration_id', $selectedAccount->id);
-            }
+            $selectedAccount = $configurations->firstWhere('id', (int) $accountId) ?: EmailConfiguration::find($accountId);
+        } elseif (session()->has('active_email_account_id')) {
+            $sessAccountId = session('active_email_account_id');
+            $selectedAccount = $configurations->firstWhere('id', (int) $sessAccountId) ?: EmailConfiguration::find($sessAccountId);
+        }
+        if (!$selectedAccount && $configurations->isNotEmpty()) {
+            $selectedAccount = $configurations->first();
+            $accountId = $selectedAccount?->id;
+        }
+
+        if ($selectedAccount) {
+            session(['active_email_account_id' => $selectedAccount->id]);
+            $accountId = $selectedAccount->id;
+            $query->where('email_configuration_id', $selectedAccount->id);
         }
 
         if (!empty($search)) {
-            $terms = collect(preg_split('/\s+/', trim($search)))->filter()->values();
-            $matchingContactEmails = User::query()
-                ->where(function ($userQuery) use ($search) {
-                    $userQuery->where('name', 'like', "%{$search}%")
-                        ->orWhere('email', 'like', "%{$search}%")
-                        ->orWhere('mobile_no', 'like', "%{$search}%");
-                })
-                ->whereNotNull('email')
-                ->pluck('email')
-                ->filter()
-                ->all();
+            $cleanSearch = trim($search);
+            $terms = collect(preg_split('/\s+/', $cleanSearch))->filter()->values();
+            $matchingContactEmails = [];
+
+            // Only search users table if query is an email address or customer name, not an alphanumeric order code like UKS60312
+            if (filter_var($cleanSearch, FILTER_VALIDATE_EMAIL)) {
+                $matchingContactEmails = User::query()->where('email', $cleanSearch)->limit(5)->pluck('email')->all();
+            } elseif (!preg_match('/^[a-zA-Z]{1,5}\d+$/', $cleanSearch) && strlen($cleanSearch) >= 3) {
+                $matchingContactEmails = User::query()
+                    ->where(function ($userQuery) use ($cleanSearch) {
+                        $userQuery->where('name', 'like', "%{$cleanSearch}%")
+                            ->orWhere('email', 'like', "%{$cleanSearch}%")
+                            ->orWhere('mobile_no', 'like', "%{$cleanSearch}%");
+                    })
+                    ->whereNotNull('email')
+                    ->limit(20)
+                    ->pluck('email')
+                    ->filter()
+                    ->all();
+            }
 
             $query->where(function ($deepQuery) use ($terms, $matchingContactEmails) {
                 foreach ($terms as $term) {
@@ -244,23 +264,50 @@ class EmailController extends Controller
             ->groupBy('thread_id')
             ->pluck('id')
             ->filter()
+            ->map(fn($v) => (int)$v)
             ->values()
             ->all();
 
-        $threads = EmailMessage::select([
-                'id', 'thread_id', 'from_email', 'from_name', 'to_email', 'to_name',
-                'subject', 'body_plain', 'folder', 'direction', 'status',
-                'is_read', 'is_starred', 'is_draft', 'has_attachments', 'received_at', 'created_at'
-            ])
-            ->whereIn('id', empty($latestMessageIds) ? [0] : $latestMessageIds)
-            ->orderByDesc('id')
-            ->paginate(20);
+        $totalThreads = count($latestMessageIds);
+        rsort($latestMessageIds); // Most recent message IDs first
 
-        $emailClientContacts = $this->clientContactsForEmails($threads->getCollection());
+        $page = max(1, (int) $request->input('page', 1));
+        $perPage = 20;
+        $pageIds = array_slice($latestMessageIds, ($page - 1) * $perPage, $perPage);
+
+        $threadsCollection = !empty($pageIds)
+            ? EmailMessage::select([
+                    'id', 'thread_id', 'from_email', 'from_name', 'to_email', 'to_name',
+                    'subject', 'body_plain', 'folder', 'direction', 'status',
+                    'is_read', 'is_starred', 'is_draft', 'has_attachments', 'received_at', 'created_at'
+                ])
+                ->whereIn('id', $pageIds)
+                ->orderByDesc('id')
+                ->get()
+            : collect();
+
+        $threads = new \Illuminate\Pagination\LengthAwarePaginator(
+            $threadsCollection,
+            $totalThreads,
+            $perPage,
+            $page,
+            ['path' => $request->url(), 'query' => $request->query()]
+        );
+
+        $allLabels = \App\Models\WhatsappChatLabel::forEmail()->ordered()->get();
+        $threadIds = $threadsCollection->pluck('thread_id')->filter()->unique()->all();
+        $threadLabelsMap = !empty($threadIds)
+            ? \App\Models\EmailThreadLabel::with('label')
+                ->whereIn('thread_id', $threadIds)
+                ->get()
+                ->groupBy('thread_id')
+            : collect();
+
+        $emailClientContacts = $this->clientContactsForEmails($threadsCollection);
 
         if ($request->ajax() && $request->boolean('partial')) {
             return response(
-                view('emails._rows', compact('emailClientContacts') + ['emails' => $threads, 'isAppend' => false])->render()
+                view('emails._rows', compact('emailClientContacts', 'threadLabelsMap', 'allLabels') + ['emails' => $threads, 'isAppend' => false])->render()
             )->withHeaders([
                 'Cache-Control' => 'no-store, private',
                 'X-Email-Partial' => 'rows',
@@ -270,7 +317,7 @@ class EmailController extends Controller
         if ($request->ajax() && ($request->get('scroll') == '1' || $request->has('page'))) {
             return response()->json([
                 'success' => true,
-                'html' => view('emails._rows', compact('emailClientContacts') + ['emails' => $threads, 'isAppend' => true])->render(),
+                'html' => view('emails._rows', compact('emailClientContacts', 'threadLabelsMap', 'allLabels') + ['emails' => $threads, 'isAppend' => true])->render(),
                 'has_more' => $threads->hasMorePages(),
                 'current_page' => $threads->currentPage(),
                 'total' => $threads->total(),
@@ -313,51 +360,55 @@ class EmailController extends Controller
         $unreadCount = $counts['inbox'] ?? 0;
         $emails = $threads;
 
-        // Keep the small first page of every folder in the browser so folder
-        // switching is instant even on a slow local PHP development server.
-        $cacheSource = EmailMessage::select([
-                'id', 'thread_id', 'from_email', 'from_name', 'to_email', 'to_name',
-                'subject', 'body_plain', 'folder', 'direction', 'status',
-                'is_read', 'is_starred', 'is_draft', 'has_attachments', 'received_at', 'created_at'
-            ])
-            ->when($selectedAccount, fn ($q) => $q->where('email_configuration_id', $selectedAccount->id))
-            ->orderByDesc('id')
-            ->limit(200)
-            ->get();
-
-        $emailClientContacts = $this->clientContactsForEmails(
-            $cacheSource->concat($threads->getCollection())
-        );
-
+        // Only pre-render folder cache on fresh default inbox loads (skip on search to make opening emails instant)
         $folderHtmlCache = [];
-        foreach (['inbox', 'all', 'sent', 'drafts', 'starred', 'trash'] as $cacheFolder) {
-            $folderMessages = $cacheSource->filter(function ($message) use ($cacheFolder) {
-                return match ($cacheFolder) {
-                    'all' => $message->folder !== 'trash',
-                    'sent' => ($message->folder === 'sent' || $message->direction === 'outbound')
-                        && !$message->is_draft && $message->folder !== 'trash',
-                    'drafts' => ($message->folder === 'drafts' || $message->is_draft)
-                        && $message->folder !== 'trash',
-                    'starred' => $message->is_starred && $message->folder !== 'trash',
-                    'trash' => $message->folder === 'trash',
-                    default => ($message->folder === 'inbox' || $message->direction === 'inbound')
-                        && !$message->is_draft && $message->folder !== 'trash',
-                };
-            })->unique('thread_id')->take(20)->values();
+        if (empty($search)) {
+            $cacheSource = EmailMessage::select([
+                    'id', 'thread_id', 'from_email', 'from_name', 'to_email', 'to_name',
+                    'subject', 'body_plain', 'folder', 'direction', 'status',
+                    'is_read', 'is_starred', 'is_draft', 'has_attachments', 'received_at', 'created_at'
+                ])
+                ->when($selectedAccount, fn ($q) => $q->where('email_configuration_id', $selectedAccount->id))
+                ->orderByDesc('id')
+                ->limit(100)
+                ->get();
 
-            $folderHtmlCache[$cacheFolder] = view('emails._rows', [
-                'emails' => $folderMessages,
-                'isAppend' => false,
-                'emailClientContacts' => $emailClientContacts,
-            ])->render();
+            $cacheThreadIds = $cacheSource->pluck('thread_id')->filter()->unique()->all();
+            $cacheThreadLabelsMap = !empty($cacheThreadIds)
+                ? \App\Models\EmailThreadLabel::with('label')
+                    ->whereIn('thread_id', $cacheThreadIds)
+                    ->get()
+                    ->groupBy('thread_id')
+                : collect();
+
+            $cacheClientContacts = $this->clientContactsForEmails(
+                $cacheSource->concat($threadsCollection)
+            );
+
+            foreach (['inbox', 'all', 'sent', 'drafts', 'starred', 'trash'] as $cacheFolder) {
+                $folderMessages = $cacheSource->filter(function ($message) use ($cacheFolder) {
+                    return match ($cacheFolder) {
+                        'all' => $message->folder !== 'trash',
+                        'sent' => ($message->folder === 'sent' || $message->direction === 'outbound')
+                            && !$message->is_draft && $message->folder !== 'trash',
+                        'drafts' => ($message->folder === 'drafts' || $message->is_draft)
+                            && $message->folder !== 'trash',
+                        'starred' => $message->is_starred && $message->folder !== 'trash',
+                        'trash' => $message->folder === 'trash',
+                        default => ($message->folder === 'inbox' || $message->direction === 'inbound')
+                            && !$message->is_draft && $message->folder !== 'trash',
+                    };
+                })->unique('thread_id')->take(20)->values();
+
+                $folderHtmlCache[$cacheFolder] = view('emails._rows', [
+                    'emails' => $folderMessages,
+                    'isAppend' => false,
+                    'emailClientContacts' => $cacheClientContacts,
+                    'threadLabelsMap' => $cacheThreadLabelsMap,
+                    'allLabels' => $allLabels,
+                ])->render();
+            }
         }
-
-        $allLabels = \App\Models\WhatsappChatLabel::forEmail()->ordered()->get();
-        $threadIds = $threads->pluck('thread_id')->filter()->unique()->all();
-        $threadLabelsMap = \App\Models\EmailThreadLabel::with('label')
-            ->whereIn('thread_id', $threadIds)
-            ->get()
-            ->groupBy('thread_id');
 
         return view('emails.inbox', compact(
             'threads',
@@ -431,7 +482,7 @@ class EmailController extends Controller
 
         // Match only registered clients/users from the users table with valid mobile number
         return User::query()
-            ->whereIn(DB::raw('LOWER(email)'), $addresses->all())
+            ->whereIn('email', $addresses->all())
             ->whereNotNull('mobile_no')
             ->where('mobile_no', '!=', '')
             ->orderByRaw("CASE WHEN role_id = 2 THEN 0 ELSE 1 END")
@@ -442,9 +493,11 @@ class EmailController extends Controller
     /** Lightweight real-time change & new email detector. */
     public function updates(Request $request)
     {
+        $accountId = $request->filled('account_id') ? $request->integer('account_id') : session('active_email_account_id');
+
         $query = EmailMessage::query();
-        if ($request->filled('account_id')) {
-            $query->where('email_configuration_id', $request->integer('account_id'));
+        if ($accountId) {
+            $query->where('email_configuration_id', (int) $accountId);
         }
 
         $latest = (clone $query)->select([
@@ -457,7 +510,7 @@ class EmailController extends Controller
         $unreadCount = EmailMessage::where('direction', 'inbound')
             ->where('folder', '!=', 'trash')
             ->where('is_read', false)
-            ->when($request->filled('account_id'), fn ($q) => $q->where('email_configuration_id', $request->integer('account_id')))
+            ->when($accountId, fn ($q) => $q->where('email_configuration_id', (int) $accountId))
             ->count();
 
         $state = (clone $query)->selectRaw('COALESCE(MAX(id), 0) as latest_id, COALESCE(MAX(UNIX_TIMESTAMP(updated_at)), 0) as latest_update, COUNT(*) as total')
@@ -1698,7 +1751,7 @@ class EmailController extends Controller
         }
 
         $query = trim((string) $request->input('q', ''));
-        $accountId = $request->input('account_id');
+        $accountId = $request->input('account_id') ?: session('active_email_account_id');
         $folder = $request->input('folder');
 
         $emailQuery = EmailMessage::where('folder', '!=', 'trash');
@@ -1788,9 +1841,9 @@ class EmailController extends Controller
             });
         }
 
-        // Prioritize currently active account, but include other active accounts so searches never falsely return 0
+        // Strictly filter by currently active account
         if ($accountId) {
-            $emailQuery->orderByRaw("CASE WHEN email_configuration_id = " . intval($accountId) . " THEN 0 ELSE 1 END");
+            $emailQuery->where('email_configuration_id', intval($accountId));
         }
 
         $messages = $emailQuery->orderByDesc('id')
@@ -1811,7 +1864,7 @@ class EmailController extends Controller
                 ->whereNotIn('thread_id', $existingThreadIds)
                 ->where('body_plain', 'like', "%{$query}%");
             if ($accountId) {
-                $fallbackQuery->orderByRaw("CASE WHEN email_configuration_id = " . intval($accountId) . " THEN 0 ELSE 1 END");
+                $fallbackQuery->where('email_configuration_id', intval($accountId));
             }
             $fallbackMessages = $fallbackQuery->orderByDesc('id')
                 ->select([
