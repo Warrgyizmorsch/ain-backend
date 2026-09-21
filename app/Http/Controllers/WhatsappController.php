@@ -788,7 +788,7 @@ class WhatsappController extends Controller
         });
 
         $customerPrimaryEmail = $userEmails[0] ?? ($matchingLeads->first()?->email ?? '');
-        $firstOrder = $matchingOrders->first();
+        $firstOrder = $orders->first();
         $firstOrderCode = $firstOrder ? trim((string)($firstOrder->order_id ?: $firstOrder->id)) : '';
 
         return response()->json([
@@ -2071,8 +2071,9 @@ class WhatsappController extends Controller
         $convertedLeadOrderIds = $matchingLeads->where('is_converted', 1)->pluck('order_id')->filter()->all();
 
         $ordersCount = 0;
+        $ordersQuery = null;
         if (!empty($userIds) || !empty($convertedLeadIds) || !empty($convertedLeadOrderIds)) {
-            $ordersCount = Order::query()
+            $ordersQuery = Order::query()
                 ->whereNotNull('orders.uid')
                 ->where('orders.uid', '!=', 0)
                 ->where('orders.uid', '!=', '')
@@ -2089,8 +2090,9 @@ class WhatsappController extends Controller
                     if (!empty($convertedLeadOrderIds)) {
                         $q->orWhereIn('orders.order_id', $convertedLeadOrderIds);
                     }
-                })
-                ->count();
+                });
+
+            $ordersCount = (clone $ordersQuery)->count();
         }
 
         $labelIds = WhatsappChatContactLabel::query()
@@ -2137,7 +2139,7 @@ class WhatsappController extends Controller
             ->exists();
 
         $customerResolvedEmail = $existingUser?->email ?: ($existingLead?->email ?: ($userEmails[0] ?? null));
-        $latestOrder = $ordersQuery->clone()->latest('id')->first();
+        $latestOrder = $ordersQuery ? (clone $ordersQuery)->latest('id')->first(['id', 'order_id']) : null;
         $latestOrderCode = $latestOrder ? trim((string)($latestOrder->order_id ?: $latestOrder->id)) : '';
 
         $clientEmailUrl = !empty($customerResolvedEmail)
