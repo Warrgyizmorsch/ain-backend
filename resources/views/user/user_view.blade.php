@@ -212,8 +212,8 @@
                                                 </div>
                                             </td>
                                             <td>
-                                                <a href="#" class="text-dark fw-bolder text-hover-primary d-block fs-6">@if($user->countrycode)+{{$user->countrycode}} @endif {{$user->mobile_no}}</a>
-                                                <span class="text-muted fw-bold text-muted d-block fs-7">{{$user->email}}</span>
+                                                <a href="#" class="text-dark fw-bolder text-hover-primary d-block fs-6">{{ mask_phone_for_display($user->countrycode, $user->mobile_no) }}</a>
+                                                <span class="text-muted fw-bold text-muted d-block fs-7">{{ mask_email_for_display($user->email) }}</span>
                                             </td>
                                             <td data-user-group-badges="{{ $user->id }}">@forelse($user->groups as $group)<span class="badge badge-light-primary me-1 mb-1">{{ $group->name }}</span>@empty<span class="text-muted">-</span>@endforelse</td>
                                             <td>

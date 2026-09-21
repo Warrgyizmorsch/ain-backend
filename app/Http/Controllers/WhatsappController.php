@@ -122,7 +122,11 @@ class WhatsappController extends Controller
         $panelRows = $selectedPanel ? $this->panelRows($selectedPanel) : collect();
         $labels = WhatsappChatLabel::query()->forWhatsapp()->ordered()->get();
         $selectedContactLabels = $selectedPhone
-            ? WhatsappChatContactLabel::query()->where('phone', $selectedPhone)->pluck('label_id')->all()
+            ? WhatsappChatContactLabel::query()
+                ->where('phone', $selectedPhone)
+                ->whereHas('label', fn($q) => $q->where('is_whatsapp', true))
+                ->pluck('label_id')
+                ->all()
             : [];
 
         // Load contact-label assignments for loaded sidebar contacts
@@ -136,6 +140,7 @@ class WhatsappController extends Controller
         $allContactLabelMap = !empty($allContactVariants)
             ? WhatsappChatContactLabel::query()
                 ->whereIn('phone', array_keys($allContactVariants))
+                ->whereHas('label', fn($q) => $q->where('is_whatsapp', true))
                 ->get()
                 ->groupBy(function ($item) use ($allContactVariants) {
                     return $allContactVariants[$item->phone] ?? $item->phone;
@@ -731,12 +736,15 @@ class WhatsappController extends Controller
             $isConverted = !empty($convertedBy);
 
             $orderCustomerEmail = $ord->user?->email ?: (optional($ord->lead)->email ?: (optional($ord->frontendLead)->email ?: ''));
+            $orderCode = trim((string)($ord->order_id ?: $ord->id));
+
             $clientEmailUrl = !empty($orderCustomerEmail)
                 ? route('emails.index', ['account_id' => 2, 'search' => $orderCustomerEmail])
-                : route('emails.index', ['account_id' => 2]);
-            $writerEmailUrl = !empty($orderCustomerEmail)
-                ? route('emails.index', ['account_id' => 1, 'search' => $orderCustomerEmail])
-                : route('emails.index', ['account_id' => 1]);
+                : (!empty($orderCode) ? route('emails.index', ['account_id' => 2, 'search' => $orderCode]) : route('emails.index', ['account_id' => 2]));
+
+            $writerEmailUrl = !empty($orderCode)
+                ? route('emails.index', ['account_id' => 1, 'search' => $orderCode])
+                : (!empty($orderCustomerEmail) ? route('emails.index', ['account_id' => 1, 'search' => $orderCustomerEmail]) : route('emails.index', ['account_id' => 1]));
 
             return [
                 'id' => $ord->id,
@@ -780,6 +788,8 @@ class WhatsappController extends Controller
         });
 
         $customerPrimaryEmail = $userEmails[0] ?? ($matchingLeads->first()?->email ?? '');
+        $firstOrder = $matchingOrders->first();
+        $firstOrderCode = $firstOrder ? trim((string)($firstOrder->order_id ?: $firstOrder->id)) : '';
 
         return response()->json([
             'success' => true,
@@ -789,7 +799,7 @@ class WhatsappController extends Controller
             'page' => $page,
             'customer_email' => $customerPrimaryEmail,
             'client_email_url' => !empty($customerPrimaryEmail) ? route('emails.index', ['account_id' => 2, 'search' => $customerPrimaryEmail]) : route('emails.index', ['account_id' => 2]),
-            'writer_email_url' => !empty($customerPrimaryEmail) ? route('emails.index', ['account_id' => 1, 'search' => $customerPrimaryEmail]) : route('emails.index', ['account_id' => 1]),
+            'writer_email_url' => !empty($firstOrderCode) ? route('emails.index', ['account_id' => 1, 'search' => $firstOrderCode]) : (!empty($customerPrimaryEmail) ? route('emails.index', ['account_id' => 1, 'search' => $customerPrimaryEmail]) : route('emails.index', ['account_id' => 1])),
             'all_orders_url' => route('orders.index') . '?search=' . urlencode($cleanPhone),
         ]);
     }
@@ -987,9 +997,15 @@ class WhatsappController extends Controller
         ]);
 
         $userId = $request->input('user_id');
-        $user = $userId ? User::find($userId) : null;
-        $phone = $validated['phone'] ?? ($user ? ($user->mobile_no ?: '') : '');
-        $email = $validated['email'] ?? ($user ? ($user->email ?: '') : '');
+        $phone = $validated['phone'] ?? null;
+        $email = $validated['email'] ?? null;
+
+        $user = app(\App\Services\LabelSyncService::class)->resolveUser($userId ? (int) $userId : null, $phone, $email);
+        if ($user) {
+            $userId = $user->id;
+            $phone = $phone ?: $user->mobile_no;
+            $email = $email ?: $user->email;
+        }
 
         $rawLabels = $request->input('label_ids') ?? $request->input('labels', []);
         $labelIds = [];
@@ -1002,79 +1018,37 @@ class WhatsappController extends Controller
             }
         }
 
-        if ($userId) {
+        if ($user) {
             try {
-                app(\App\Services\LabelSyncService::class)->syncUserLabelsAcrossAllChannels((int) $userId, $labelIds, Auth::id());
+                app(\App\Services\LabelSyncService::class)->syncUserLabelsAcrossAllChannels((int) $user->id, $labelIds, Auth::id());
             } catch (\Throwable $e) {
                 \Log::warning('Failed to sync user labels across all channels: ' . $e->getMessage());
             }
         } else {
             if (!empty($phone)) {
-                $variants = $this->getPhoneVariants($phone);
-                WhatsappChatContactLabel::query()->whereIn('phone', $variants)->delete();
-
-                foreach ($labelIds as $labelId) {
-                    WhatsappChatContactLabel::query()->create([
-                        'phone' => $phone,
-                        'label_id' => $labelId,
-                        'assigned_by' => Auth::id(),
-                    ]);
-                }
-
-                // Cross-channel sync: automatically apply these labels to associated Email threads
                 try {
                     app(\App\Services\LabelSyncService::class)->syncWhatsAppToEmail($phone, $labelIds, Auth::id());
                 } catch (\Throwable $e) {
-                    \Log::warning('Failed to sync WhatsApp labels to Email: ' . $e->getMessage());
+                    \Log::warning('Failed to sync WhatsApp labels: ' . $e->getMessage());
                 }
-            }
-
-            if (!empty($email)) {
-                $cleanEmail = strtolower(trim($email));
-                $emailEligibleLabelIds = WhatsappChatLabel::whereIn('id', $labelIds)
-                    ->where('is_email', true)
-                    ->pluck('id')
-                    ->all();
-
-                $threadIds = \App\Models\EmailMessage::query()
-                    ->where(function ($q) use ($cleanEmail) {
-                        $q->where('from_email', $cleanEmail)
-                          ->orWhere('to_email', 'like', "%{$cleanEmail}%");
-                    })
-                    ->whereNotNull('thread_id')
-                    ->pluck('thread_id')
-                    ->unique()
-                    ->values()
-                    ->all();
-
-                if (!empty($threadIds)) {
-                    foreach ($threadIds as $tId) {
-                        \App\Models\EmailThreadLabel::where('thread_id', $tId)->delete();
-                        foreach ($emailEligibleLabelIds as $lId) {
-                            \App\Models\EmailThreadLabel::create([
-                                'thread_id' => $tId,
-                                'email' => $cleanEmail,
-                                'label_id' => (int) $lId,
-                                'assigned_by' => Auth::id(),
-                            ]);
-                        }
-                    }
-                } else {
-                    \App\Models\EmailThreadLabel::where('email', $cleanEmail)->delete();
-                    foreach ($emailEligibleLabelIds as $lId) {
-                        \App\Models\EmailThreadLabel::create([
-                            'thread_id' => null,
-                            'email' => $cleanEmail,
-                            'label_id' => (int) $lId,
-                            'assigned_by' => Auth::id(),
-                        ]);
-                    }
+            } elseif (!empty($email)) {
+                try {
+                    app(\App\Services\LabelSyncService::class)->syncEmailToWhatsApp($email, null, $labelIds, Auth::id());
+                } catch (\Throwable $e) {
+                    \Log::warning('Failed to sync Email labels: ' . $e->getMessage());
                 }
             }
         }
 
         if ($request->expectsJson() || $request->ajax() || $request->wantsJson()) {
-            $assignedLabels = WhatsappChatLabel::query()->whereIn('id', $labelIds)->ordered()->get(['id', 'name', 'color']);
+            $assignedLabelsQuery = WhatsappChatLabel::query()->whereIn('id', $labelIds)->ordered();
+            if ($request->filled('user_id') && !$request->has('from_whatsapp')) {
+                $assignedLabelsQuery->where('is_crm', true);
+            } else {
+                $assignedLabelsQuery->where('is_whatsapp', true);
+            }
+            $assignedLabels = $assignedLabelsQuery->get(['id', 'name', 'color']);
+
             return response()->json([
                 'success' => true,
                 'message' => 'Labels saved successfully.',
@@ -2163,12 +2137,16 @@ class WhatsappController extends Controller
             ->exists();
 
         $customerResolvedEmail = $existingUser?->email ?: ($existingLead?->email ?: ($userEmails[0] ?? null));
+        $latestOrder = $ordersQuery->clone()->latest('id')->first();
+        $latestOrderCode = $latestOrder ? trim((string)($latestOrder->order_id ?: $latestOrder->id)) : '';
+
         $clientEmailUrl = !empty($customerResolvedEmail)
             ? route('emails.index', ['account_id' => 2, 'search' => $customerResolvedEmail])
-            : route('emails.index', ['account_id' => 2]);
-        $writerEmailUrl = !empty($customerResolvedEmail)
-            ? route('emails.index', ['account_id' => 1, 'search' => $customerResolvedEmail])
-            : route('emails.index', ['account_id' => 1]);
+            : (!empty($latestOrderCode) ? route('emails.index', ['account_id' => 2, 'search' => $latestOrderCode]) : route('emails.index', ['account_id' => 2]));
+
+        $writerEmailUrl = !empty($latestOrderCode)
+            ? route('emails.index', ['account_id' => 1, 'search' => $latestOrderCode])
+            : (!empty($customerResolvedEmail) ? route('emails.index', ['account_id' => 1, 'search' => $customerResolvedEmail]) : route('emails.index', ['account_id' => 1]));
 
         return [
             'name' => $resolvedName,

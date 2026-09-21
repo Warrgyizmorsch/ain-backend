@@ -47,7 +47,7 @@ if (!function_exists('mask_mobile_only')) {
     /**
      * Masks only the mobile number part (without country code) for form fields & display.
      * Keeps country code separate.
-     * Formats 10-digit numbers as 77******9811 (2 digits + 6 asterisks + 4 digits).
+     * Shows only asterisks + last 4 digits (e.g. ******9811).
      */
     function mask_mobile_only(?string $countryCode, ?string $mobile): string
     {
@@ -58,11 +58,6 @@ if (!function_exists('mask_mobile_only')) {
 
         // Show full unmasked number for Super Admin (role_id 1)
         if (Auth::check() && (int) Auth::user()->role_id === 1) {
-            return $mobileStr;
-        }
-
-        // If it already has asterisks and has digits at end, preserve it;
-        if (strpos($mobileStr, '*') !== false) {
             return $mobileStr;
         }
 
@@ -81,22 +76,18 @@ if (!function_exists('mask_mobile_only')) {
 
         $len = strlen($digits);
         if ($len <= 4) {
-            return str_repeat('*', $len);
+            return str_repeat('*', max(4, $len));
         }
 
-        if ($len <= 6) {
-            return substr($digits, 0, 1) . str_repeat('*', $len - 2) . substr($digits, -1);
-        }
-
-        // Standard format: start 2 + asterisks + last 4 = 77******9811
-        return substr($digits, 0, 2) . str_repeat('*', max(4, $len - 6)) . substr($digits, -4);
+        // Only asterisks + last 4 digits (e.g. ******9811), no leading digits
+        return str_repeat('*', max(4, $len - 4)) . substr($digits, -4);
     }
 }
 
 if (!function_exists('mask_raw_phone')) {
     /**
      * Masks complete phone numbers with country code:
-     * e.g. +44 73******3818 or +91 77******9811
+     * e.g. +44 ******3818 or ******9811
      */
     function mask_raw_phone(?string $phone): string
     {
@@ -110,17 +101,15 @@ if (!function_exists('mask_raw_phone')) {
             return $phoneStr;
         }
 
-        if (strpos($phoneStr, '*') !== false) {
-            return $phoneStr;
-        }
-
         $prefix = '';
         $digits = preg_replace('/\D+/', '', $phoneStr);
-        if (str_starts_with($phoneStr, '+') && preg_match('/^(\+\d{1,3})/', $phoneStr, $m)) {
-            $prefix = $m[1] . ' ';
-            $cleanCC = preg_replace('/\D+/', '', $m[1]);
-            if (str_starts_with($digits, $cleanCC)) {
-                $digits = substr($digits, strlen($cleanCC));
+        if (str_starts_with($phoneStr, '+')) {
+            if (preg_match('/^(\+(?:1|44|91|61|971|86|33|49|81|65|60|64|\d{1,2}))/', $phoneStr, $m)) {
+                $prefix = $m[1] . ' ';
+                $cleanCC = preg_replace('/\D+/', '', $m[1]);
+                if (str_starts_with($digits, $cleanCC)) {
+                    $digits = substr($digits, strlen($cleanCC));
+                }
             }
         } elseif ((str_starts_with($digits, '91') || str_starts_with($digits, '44')) && strlen($digits) > 10) {
             $prefix = '+' . substr($digits, 0, 2) . ' ';
@@ -132,15 +121,11 @@ if (!function_exists('mask_raw_phone')) {
 
         $len = strlen($digits);
         if ($len <= 4) {
-            return $prefix . str_repeat('*', $len);
+            return $prefix . str_repeat('*', max(4, $len));
         }
 
-        if ($len <= 6) {
-            return $prefix . substr($digits, 0, 1) . str_repeat('*', $len - 2) . substr($digits, -1);
-        }
-
-        // Country code + start 2 + asterisks + last 4
-        return $prefix . substr($digits, 0, 2) . str_repeat('*', max(4, $len - 6)) . substr($digits, -4);
+        // Country code + asterisks + last 4 digits (no leading digits)
+        return $prefix . str_repeat('*', max(4, $len - 4)) . substr($digits, -4);
     }
 }
 
@@ -240,7 +225,7 @@ if (!function_exists('find_user_ids_by_search_term')) {
         // 3. Clean digits (full phone number, last 10, with/without countrycode) - only when NOT masked
         if (!$hasAsterisk) {
             $cleanDigits = preg_replace('/\D+/', '', $term);
-            if (strlen($cleanDigits) >= 7) {
+            if (strlen($cleanDigits) >= 4) {
                 $last10 = strlen($cleanDigits) >= 10 ? substr($cleanDigits, -10) : $cleanDigits;
                 $withoutZero = ltrim($cleanDigits, '0');
 

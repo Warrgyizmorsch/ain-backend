@@ -1117,12 +1117,27 @@ class MasterController extends Controller
                 ->increment('sequence', 1);
         }
 
+        $isWhatsapp = $request->has('is_whatsapp') ? 1 : 0;
+        $isEmail = $request->has('is_email') ? 1 : 0;
+        $isCrm = $request->has('is_crm') ? 1 : 0;
+
+        // If unchecking any channel flag, immediately purge assignments on that channel
+        if (!$isWhatsapp) {
+            \App\Models\WhatsappChatContactLabel::where('label_id', $label->id)->delete();
+        }
+        if (!$isEmail) {
+            \App\Models\EmailThreadLabel::where('label_id', $label->id)->delete();
+        }
+        if (!$isCrm) {
+            \App\Models\CrmUserLabel::where('label_id', $label->id)->delete();
+        }
+
         $label->update([
             'name' => trim($request->input('name')),
             'color' => $request->input('color'),
-            'is_whatsapp' => $request->has('is_whatsapp') ? 1 : 0,
-            'is_email' => $request->has('is_email') ? 1 : 0,
-            'is_crm' => $request->has('is_crm') ? 1 : 0,
+            'is_whatsapp' => $isWhatsapp,
+            'is_email' => $isEmail,
+            'is_crm' => $isCrm,
             'sequence' => $targetSeq,
         ]);
 
@@ -1138,9 +1153,10 @@ class MasterController extends Controller
     {
         $label = \App\Models\WhatsappChatLabel::findOrFail($id);
         
-        // Clean assignments
+        // Clean assignments across all channels
         \App\Models\WhatsappChatContactLabel::where('label_id', $label->id)->delete();
         \App\Models\EmailThreadLabel::where('label_id', $label->id)->delete();
+        \App\Models\CrmUserLabel::where('label_id', $label->id)->delete();
         
         $label->delete();
 

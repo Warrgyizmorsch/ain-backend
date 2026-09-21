@@ -65,22 +65,33 @@
 				<div class="d-flex align-items-center ms-1 ms-lg-3" id="kt_header_user_menu_toggle">
 					<div class="d-flex align-items-center ms-3 me-4">
 						@php
-							$clientEmailConfig = \App\Models\EmailConfiguration::where('email_address', 'order@assignnmentinneed.com')
-								->orWhere('name', 'like', '%client%')
-								->first() ?? \App\Models\EmailConfiguration::find(2);
+							$clientEmailConfigId = \Illuminate\Support\Facades\Cache::remember('crm_hdr_client_cfg_id', 3600, function() {
+								$cfg = \App\Models\EmailConfiguration::where('email_address', 'order@assignnmentinneed.com')
+									->orWhere('name', 'like', '%client%')
+									->first();
+								return $cfg ? $cfg->id : 2;
+							});
 
-							$writerEmailConfig = \App\Models\EmailConfiguration::where('email_address', 'assignmentinneedhelp@gmail.com')
-								->orWhere('name', 'like', '%writer%')
-								->orWhere('name', 'like', '%write%')
-								->first() ?? \App\Models\EmailConfiguration::find(1);
+							$writerEmailConfigId = \Illuminate\Support\Facades\Cache::remember('crm_hdr_writer_cfg_id', 3600, function() {
+								$cfg = \App\Models\EmailConfiguration::where('email_address', 'assignmentinneedhelp@gmail.com')
+									->orWhere('name', 'like', '%writer%')
+									->orWhere('name', 'like', '%write%')
+									->first();
+								return $cfg ? $cfg->id : 1;
+							});
 
-							$clientEmailUrl = $clientEmailConfig ? route('emails.index', ['account_id' => $clientEmailConfig->id]) : url('emails');
-							$writerEmailUrl = $writerEmailConfig ? route('emails.index', ['account_id' => $writerEmailConfig->id]) : url('emails');
+							$clientEmailUrl = route('emails.index', ['account_id' => $clientEmailConfigId]);
+							$writerEmailUrl = route('emails.index', ['account_id' => $writerEmailConfigId]);
 
-							$clientUnreadCount = $clientEmailConfig ? \App\Models\EmailMessage::where('email_configuration_id', $clientEmailConfig->id)
-								->where('direction', 'inbound')->where('folder', '!=', 'trash')->where('is_read', false)->count() : 0;
-							$writerUnreadCount = $writerEmailConfig ? \App\Models\EmailMessage::where('email_configuration_id', $writerEmailConfig->id)
-								->where('direction', 'inbound')->where('folder', '!=', 'trash')->where('is_read', false)->count() : 0;
+							$clientUnreadCount = \Illuminate\Support\Facades\Cache::remember('crm_hdr_client_unread_' . $clientEmailConfigId, 30, function() use ($clientEmailConfigId) {
+								return \App\Models\EmailMessage::where('email_configuration_id', $clientEmailConfigId)
+									->where('direction', 'inbound')->where('folder', '!=', 'trash')->where('is_read', false)->count();
+							});
+
+							$writerUnreadCount = \Illuminate\Support\Facades\Cache::remember('crm_hdr_writer_unread_' . $writerEmailConfigId, 30, function() use ($writerEmailConfigId) {
+								return \App\Models\EmailMessage::where('email_configuration_id', $writerEmailConfigId)
+									->where('direction', 'inbound')->where('folder', '!=', 'trash')->where('is_read', false)->count();
+							});
 						@endphp
 
 						<style>

@@ -34,7 +34,7 @@ class EmailController extends Controller
     public function index(Request $request)
     {
         $folder = $request->get('folder', 'inbox');
-        $search = $request->get('search');
+        $search = $request->get('search') ?? $request->get('q');
         $selectedThreadId = $request->get('thread_id');
         $accountId = $request->get('account_id');
         $selectedLabelId = $request->integer('label_id') ?: null;
@@ -68,10 +68,14 @@ class EmailController extends Controller
                 break;
             case 'inbox':
             default:
-                $query->where(function ($q) {
-                    $q->where('folder', 'inbox')
-                      ->orWhere('direction', 'inbound');
-                })->where('is_draft', false)->where('folder', '!=', 'trash');
+                if (!empty($search)) {
+                    $query->where('folder', '!=', 'trash');
+                } else {
+                    $query->where(function ($q) {
+                        $q->where('folder', 'inbox')
+                          ->orWhere('direction', 'inbound');
+                    })->where('is_draft', false)->where('folder', '!=', 'trash');
+                }
                 break;
         }
 
@@ -129,6 +133,109 @@ class EmailController extends Controller
                     ->whereColumn('email_thread_labels.thread_id', 'email_messages.thread_id')
                     ->where('email_thread_labels.label_id', $selectedLabelId);
             });
+        }
+
+        // ── Quick & Advanced Filters ──────────────────────────────────────
+        // 1. Has Attachment
+        if ($request->boolean('has_attachment') || $request->input('has_attachment') === '1') {
+            $query->where(function($q) {
+                $q->where('has_attachments', true)
+                  ->orWhereHas('attachments');
+            });
+        }
+
+        // 2. From Me (Outbound / Sent)
+        if ($request->boolean('from_me') || $request->input('from_me') === '1') {
+            $query->where(function ($q) use ($selectedAccount) {
+                $q->where('direction', 'outbound')
+                  ->orWhere('folder', 'sent');
+                if ($selectedAccount && !empty($selectedAccount->email_address)) {
+                    $q->orWhere('from_email', $selectedAccount->email_address);
+                }
+            });
+        }
+
+        // 3. Read / Unread Status
+        if ($request->has('is_read')) {
+            $isReadVal = $request->input('is_read');
+            if ($isReadVal === 'unread' || $isReadVal === '0' || $isReadVal === false) {
+                $query->where('is_read', false);
+            } elseif ($isReadVal === 'read' || $isReadVal === '1' || $isReadVal === true) {
+                $query->where('is_read', true);
+            }
+        }
+
+        // 4. Date Range (e.g. last_7_days, last_30_days, last_year)
+        $dateRange = $request->input('date_range');
+        if ($dateRange === 'last_7_days') {
+            $query->where(function ($q) {
+                $q->where('received_at', '>=', now()->subDays(7))
+                  ->orWhere('created_at', '>=', now()->subDays(7));
+            });
+        } elseif ($dateRange === 'last_30_days') {
+            $query->where(function ($q) {
+                $q->where('received_at', '>=', now()->subDays(30))
+                  ->orWhere('created_at', '>=', now()->subDays(30));
+            });
+        } elseif ($dateRange === 'last_year') {
+            $query->where(function ($q) {
+                $q->where('received_at', '>=', now()->subYear())
+                  ->orWhere('created_at', '>=', now()->subYear());
+            });
+        }
+
+        // 5. Advanced Filter Popup fields
+        if ($request->filled('filter_from')) {
+            $fromTerm = trim($request->input('filter_from'));
+            $query->where(function($q) use ($fromTerm) {
+                $q->where('from_email', 'like', "%{$fromTerm}%")
+                  ->orWhere('from_name', 'like', "%{$fromTerm}%");
+            });
+        }
+
+        if ($request->filled('filter_to')) {
+            $toTerm = trim($request->input('filter_to'));
+            $query->where(function($q) use ($toTerm) {
+                $q->where('to_email', 'like', "%{$toTerm}%")
+                  ->orWhere('to_name', 'like', "%{$toTerm}%");
+            });
+        }
+
+        if ($request->filled('filter_subject')) {
+            $subjTerm = trim($request->input('filter_subject'));
+            $query->where('subject', 'like', "%{$subjTerm}%");
+        }
+
+        if ($request->filled('filter_words')) {
+            $wordsTerm = trim($request->input('filter_words'));
+            $query->where(function($q) use ($wordsTerm) {
+                $q->where('subject', 'like', "%{$wordsTerm}%")
+                  ->orWhere('body_plain', 'like', "%{$wordsTerm}%")
+                  ->orWhere('body_html', 'like', "%{$wordsTerm}%");
+            });
+        }
+
+        if ($request->filled('filter_doesnt_have')) {
+            $notTerm = trim($request->input('filter_doesnt_have'));
+            $query->where('subject', 'not like', "%{$notTerm}%")
+                  ->where('body_plain', 'not like', "%{$notTerm}%");
+        }
+
+        if ($request->filled('filter_date_within')) {
+            $dateWithin = $request->input('filter_date_within'); // 1d, 3d, 7d, 14d, 1m, 2m, 6m, 1y
+            $refDate = $request->filled('filter_date_ref') ? \Carbon\Carbon::parse($request->input('filter_date_ref')) : now();
+            $days = match($dateWithin) {
+                '1d' => 1,
+                '3d' => 3,
+                '7d' => 7,
+                '14d' => 14,
+                '1m' => 30,
+                '2m' => 60,
+                '6m' => 180,
+                '1y' => 365,
+                default => 7,
+            };
+            $query->whereBetween('created_at', [$refDate->copy()->subDays($days)->startOfDay(), $refDate->copy()->addDays($days)->endOfDay()]);
         }
 
         // Fetch latest message per thread to display in list (lightweight 20 per page)
@@ -867,19 +974,43 @@ class EmailController extends Controller
 
         if (!empty($ids) && $labelId) {
             $emails = EmailMessage::whereIn('id', $ids)->get();
+            $handledCustomers = [];
             foreach ($emails as $email) {
+                $targetEmail = $email->customer_email ?: $email->from_email;
+                $cleanTargetEmail = EmailMessage::extractCleanEmail($targetEmail);
+                $threadId = $email->thread_id ?: ('legacy_' . $email->id);
+
                 if ($action === 'add') {
                     \App\Models\EmailThreadLabel::firstOrCreate([
-                        'thread_id' => $email->thread_id ?: ('legacy_' . $email->id),
-                        'label_id' => $labelId,
-                        'email' => $email->customer_email ?: $email->from_email,
+                        'thread_id' => $threadId,
+                        'label_id' => (int) $labelId,
+                        'email' => $cleanTargetEmail,
+                    ], [
+                        'assigned_by' => auth()->id(),
                     ]);
                 } else {
                     \App\Models\EmailThreadLabel::where('label_id', $labelId)
-                        ->where(function($q) use ($email) {
-                            $q->where('thread_id', $email->thread_id)
-                              ->orWhere('email', $email->customer_email ?: $email->from_email);
+                        ->where(function($q) use ($threadId, $cleanTargetEmail) {
+                            $q->where('thread_id', $threadId);
+                            if ($cleanTargetEmail) {
+                                $q->orWhere('email', $cleanTargetEmail);
+                            }
                         })->delete();
+                }
+
+                // Cross-sync if we have customer email and haven't already processed it in this bulk operation
+                if ($cleanTargetEmail && !in_array($cleanTargetEmail, $handledCustomers)) {
+                    $handledCustomers[] = $cleanTargetEmail;
+                    $currentLabels = \App\Models\EmailThreadLabel::where(function($q) use ($threadId, $cleanTargetEmail) {
+                        $q->where('thread_id', $threadId)
+                          ->orWhere('email', $cleanTargetEmail);
+                    })->pluck('label_id')->unique()->all();
+
+                    try {
+                        app(\App\Services\LabelSyncService::class)->syncEmailToWhatsApp($cleanTargetEmail, $threadId, $currentLabels, auth()->id());
+                    } catch (\Throwable $e) {
+                        \Log::warning('Bulk label cross-sync failed: ' . $e->getMessage());
+                    }
                 }
             }
         }
@@ -904,23 +1035,113 @@ class EmailController extends Controller
      * Format body HTML so that quoted chains starting with 'On ... wrote:' or '-----Original Message-----'
      * are cleanly isolated in a .gmail_quote container for collapsible Gmail-style trimmed content.
      */
+    /**
+     * Clean, decode and format email body HTML into authentic standards.
+     * Decodes Quoted-Printable (=3D, =\r\n, =C2=A3), removes IMAP protocol artifacts,
+     * restores broken HTML attributes, and cleanly isolates reply chains in .gmail_quote.
+     */
     protected function formatIsolatedBodyHtml($html, $plain = null)
     {
-        $html = $html ?: nl2br(e($plain ?? ''));
-        if (empty($html)) return '';
+        $str = $html ?: ($plain ? nl2br(e($plain)) : '');
+        if (empty($str)) return '';
 
-        if (stripos($html, 'gmail_quote') !== false) {
-            return $html;
+        // 1. Strip IMAP protocol line artifacts at start and end
+        $str = preg_replace('/^\s*\*\s*\d+\s+FETCH\s*\([^\r\n]*\r?\n?/i', '', $str);
+        $str = preg_replace('/\s*\*\s*\d+\s+FETCH\s*\([^\r\n]*$/i', '', $str);
+        $str = preg_replace('/\s*TAG_F\d+\s+OK[^\r\n]*$/i', '', $str);
+        $str = preg_replace('/\)\s*$/', '', $str);
+
+        // 2. Decode Quoted-Printable if present
+        if (strpos($str, '=3D') !== false || preg_match('/=[0-9A-Fa-f]{2}/', $str) || preg_match('/=\r?\n/', $str)) {
+            $str = quoted_printable_decode($str);
         }
 
-        $pattern = '/(?=(?:<div[^>]*>|<p[^>]*>|<br\s*\/?>|\n|^)\s*(?:On\s+[\s\S]*?wrote:|-----Original Message-----|From:\s+[\s\S]*?Sent:))/iu';
-        $parts = preg_split($pattern, $html, 2);
+        // 3. Fix residual corrupted Quoted-Printable artifacts
+        $str = str_replace(["=3D", "3D\"", "'3D\"", "3D%22"], ["=", "\"", "\"", ""], $str);
+        $str = preg_replace('/%22(?=\s|>|"|\')/', '', $str);
 
-        if (count($parts) === 2 && !empty(trim(strip_tags($parts[0])))) {
-            return $parts[0] . '<div class="gmail_quote">' . $parts[1] . '</div>';
+        // 4. Fix broken attribute quotes and split words from raw fetch
+        $str = preg_replace('/class=[\'"]*3D[\'"]*([^\'"\s>]+)[\'"]*/i', 'class="$1"', $str);
+        $str = preg_replace('/class=[\'"]+([a-zA-Z0-9_-]+)=\'?\s+([a-zA-Z0-9_-]+)>/i', 'class="$1$2">', $str);
+        $str = preg_replace('/class=["\']([a-zA-Z0-9_-]+)="?\s+([a-zA-Z0-9_-]+)>/i', 'class="$1$2">', $str);
+        $str = preg_replace('/rol=[\'"]*e=3D"presentation"[\'"]*/i', 'role="presentation"', $str);
+        $str = preg_replace('/rol=[\'"]*e="presentation"[\'"]*/i', 'role="presentation"', $str);
+        $str = preg_replace('/styl=[\'"]*e=3D"([^"]*)"[\'"]*/i', 'style="$1"', $str);
+        $str = preg_replace('/styl=[\'"]*e="([^"]*)"[\'"]*/i', 'style="$1"', $str);
+        $str = preg_replace('/cellpadding=[\'"]*3D"([^\"]*)"[\'"]*/i', 'cellpadding="$1"', $str);
+        $str = preg_replace('/cellspacing=[\'"]*3D"([^\"]*)"[\'"]*/i', 'cellspacing="$1"', $str);
+        $str = preg_replace('/width=[\'"]*3D"([^\"]*)"[\'"]*/i', 'width="$1"', $str);
+        $str = preg_replace('/width=["\']?120["\']?([0-9.]+%?)"?/i', 'width="$1"', $str);
+
+        // Fix Word/Outlook invalid nested paragraphs and collapse huge empty gaps
+        $str = preg_replace('/<p[^>]*>\s*(?:<span[^>]*>)?\s*<p[^>]*>(\s*|&nbsp;| )*<\/p>\s*(?:<\/span>)?\s*<\/p>/i', '<p class="MsoNormal" style="margin: 4px 0;">&nbsp;</p>', $str);
+        $str = preg_replace('/<p><\/p>/i', '', $str);
+        $str = preg_replace('/(<p[^>]*>(?:&nbsp;|\s| )*<\/p>\s*){2,}/i', '<p class="MsoNormal" style="margin: 4px 0;">&nbsp;</p>', $str);
+        $str = preg_replace('/alt=[\'"]*3D"([^\"]*)\'(\s+in\s+need)?/i', 'alt="$1 In Need"', $str);
+        $str = preg_replace('/alt=[\'"]+([^\'"]*)\'\s+in\s+need/i', 'alt="$1 In Need"', $str);
+        $str = preg_replace('/src="3D%22([^%"]+)%22/i', 'src="$1"', $str);
+        $str = preg_replace('/src="="https/i', 'src="https', $str);
+        $str = preg_replace('/href="="https/i', 'href="https', $str);
+        $str = preg_replace('/href="3D%22([^%"]+)%22/i', 'href="$1"', $str);
+        $str = preg_replace('/href="=%22([^%"]+)%22"?/i', 'href="$1"', $str);
+        $str = preg_replace('/href="=%22([^%"]+)"/i', 'href="$1"', $str);
+        $str = preg_replace('/style=[\'"]*3D"display:\'(\s+block\s+margin:\s+auto)?>?/i', 'style="display: block; margin: 0 auto;">', $str);
+        $str = preg_replace('/style=[\'"]+display:\'\s*block\s*margin:\s*auto>?/i', 'style="display: block; margin: 0 auto;">', $str);
+        $str = preg_replace('/text-decor="ation:"\s*none/i', 'text-decoration: none', $str);
+        $str = preg_replace('/style=[\'"]*3D"color:\'(\s*text-decoration:\s*none;?)?>?/i', 'style="color: #7860ff; text-decoration: none;">', $str);
+        $str = preg_replace('/style=[\'"]+color:\'\s*text-decoration:\s*none;?>?/i', 'style="color: #7860ff; text-decoration: none;">', $str);
+        $str = preg_replace('/style="margin-bottom:\s*5px;">(\s*5px;>)+/i', 'style="margin-bottom: 5px;">', $str);
+        $str = preg_replace('/style="margin-bottom:\'?>?/i', 'style="margin-bottom: 5px;">', $str);
+        $str = preg_replace('/https:\/\/www\.assignnmentinneed\.com\/ass=[\'"]*\s*ets/i', 'https://www.assignnmentinneed.com/assets/media/avatars/assignment_logo.png', $str);
+        $str = preg_replace('/assignment_logo\.png\s+alt=/i', 'assignment_logo.png" alt=', $str);
+        $str = preg_replace('/<meta\s+charset=[\'"]*3D"utf-8"[\'"]*=?\s*>/i', '<meta charset="utf-8">', $str);
+        $str = preg_replace('/<meta\s+charset=[\'"]+utf-8[\'"]+=?\s*>/i', '<meta charset="utf-8">', $str);
+        $str = preg_replace('/<meta\s+charset="utf-8"=\s*>/i', '<meta charset="utf-8">', $str);
+        $str = preg_replace('/<meta\s+charset=[\'"]*"utf-8"=[\'"]*>/i', '<meta charset="utf-8">', $str);
+        $str = preg_replace('/<meta\s+name=[\'"]*3D"viewport"[\'"]*[^>]*>/i', '<meta name="viewport" content="width=device-width, initial-scale=1.0">', $str);
+        $str = preg_replace('/<meta\s+name="viewport"\s+content=[^>]+>/i', '<meta name="viewport" content="width=device-width, initial-scale=1.0">', $str);
+        $str = preg_replace('/\/ass=\s*ets/i', '/assets', $str);
+
+        // 5. Fix CSS line-broken words
+        $str = preg_replace('/background-=\s*color/i', 'background-color', $str);
+        $str = preg_replace('/border-radiu=\s*s/i', 'border-radius', $str);
+        $str = preg_replace('/table-layo=\s*ut/i', 'table-layout', $str);
+        $str = preg_replace('/text-size-adjust:=\s*none/i', 'text-size-adjust: none', $str);
+
+        // 6. Fix double quotes inside attributes e.g. class='"wrapper"' or cellpadding='"0"'
+        $str = preg_replace('/([a-zA-Z0-9_-]+)=[\'"]+"([^\'"]+)"[\'"]+/i', '$1="$2"', $str);
+
+        // 7. Decode escaped HTML tags like &lt;b&gt;, &lt;/b&gt;, &lt;/tr&gt;, &lt;/html&gt;
+        $str = preg_replace_callback('/&lt;(\/?[a-zA-Z0-9_-]+(?:[\s\S]*?)?)&gt;/i', function($m) {
+            $inner = $m[1];
+            if (preg_match('/^\/?(html|body|head|table|tbody|thead|tr|td|th|p|div|span|b|strong|i|em|u|br|hr|img|a)(?:\s+[^>]*)?$/i', $inner)) {
+                return '<' . $inner . '>';
+            }
+            return $m[0];
+        }, $str);
+
+        // 8. Remove duplicate consecutive table tags and stray html/body tags
+        $str = preg_replace('/(<\/tr>\s*){2,}/i', '</tr>', $str);
+        $str = preg_replace('/(<\/table>\s*){2,}/i', '</table>', $str);
+        $str = preg_replace('/(<\/div>\s*){2,}/i', '</div>', $str);
+        $str = preg_replace('/<\/?(html|body|head)[^>]*>/i', '', $str);
+
+        // 9. Sanitize UTF-8 encoding
+        if (function_exists('iconv')) {
+            $str = iconv('UTF-8', 'UTF-8//IGNORE', $str) ?: $str;
+        }
+        $str = mb_convert_encoding($str, 'UTF-8', 'UTF-8');
+
+        // 8. Isolate reply chains in .gmail_quote container
+        if (stripos($str, 'gmail_quote') === false) {
+            $pattern = '/(?=(?:<div[^>]*>|<p[^>]*>|<br\s*\/?>|\n|^)\s*(?:On\s+[\s\S]*?wrote:|-----Original Message-----|From:\s+[\s\S]*?Sent:))/iu';
+            $parts = preg_split($pattern, $str, 2);
+            if (is_array($parts) && count($parts) === 2 && !empty(trim(strip_tags($parts[0])))) {
+                $str = $parts[0] . '<div class="gmail_quote">' . $parts[1] . '</div>';
+            }
         }
 
-        return $html;
+        return trim($str);
     }
 
     /**
@@ -947,6 +1168,9 @@ class EmailController extends Controller
         }
 
         try {
+            if (session()->isStarted()) {
+                session()->save();
+            }
             // Direct synchronous IMAP socket sync — works on shared cPanel without requiring exec()
             $result = $this->emailService->syncImap($account);
 
@@ -1399,7 +1623,7 @@ class EmailController extends Controller
             \Log::warning('Failed to sync Email labels to WhatsApp: ' . $e->getMessage());
         }
 
-        $activeLabels = \App\Models\WhatsappChatLabel::whereIn('id', $labelIds)->ordered()->get(['id', 'name', 'color']);
+        $activeLabels = \App\Models\WhatsappChatLabel::forEmail()->whereIn('id', $labelIds)->ordered()->get(['id', 'name', 'color']);
 
         return response()->json([
             'success' => true,
@@ -1461,6 +1685,193 @@ class EmailController extends Controller
 
         return response()->json([
             'users' => $combined,
+        ]);
+    }
+
+    /**
+     * Live search suggestions & instant preview for the Gmail search box.
+     */
+    public function suggestSearch(Request $request)
+    {
+        if (session()->isStarted()) {
+            session()->save();
+        }
+
+        $query = trim((string) $request->input('q', ''));
+        $accountId = $request->input('account_id');
+        $folder = $request->input('folder');
+
+        $emailQuery = EmailMessage::where('folder', '!=', 'trash');
+
+        if ($folder && $folder !== 'all' && $folder !== 'inbox') {
+            if ($folder === 'sent') {
+                $emailQuery->where(function ($q) {
+                    $q->where('folder', 'sent')->orWhere('direction', 'outbound');
+                });
+            }
+        }
+
+        if ($request->boolean('has_attachment') || $request->input('has_attachment') === '1') {
+            $emailQuery->where('has_attachments', true);
+        }
+
+        if ($request->boolean('from_me') || $request->input('from_me') === '1') {
+            $emailQuery->where(function($q) {
+                $q->where('direction', 'outbound')->orWhere('folder', 'sent');
+            });
+        }
+
+        if ($request->input('date_range') === 'last_7_days') {
+            $emailQuery->where(function ($q) {
+                $q->where('received_at', '>=', now()->subDays(7))
+                  ->orWhere('created_at', '>=', now()->subDays(7));
+            });
+        }
+
+        if ($request->has('is_read')) {
+            $isRead = $request->input('is_read');
+            if ($isRead === 'unread' || $isRead === '0') {
+                $emailQuery->where('is_read', false);
+            } elseif ($isRead === 'read' || $isRead === '1') {
+                $emailQuery->where('is_read', true);
+            }
+        }
+
+        if ($query !== '') {
+            $terms = collect(preg_split('/\s+/', $query))->filter()->values();
+
+            $matchingContactEmails = User::query()
+                ->where(function ($userQuery) use ($query, $terms) {
+                    $userQuery->where('name', 'like', "%{$query}%")
+                        ->orWhere('email', 'like', "%{$query}%")
+                        ->orWhere('mobile_no', 'like', "%{$query}%");
+                    foreach ($terms as $t) {
+                        $userQuery->orWhere('name', 'like', "%{$t}%")
+                                  ->orWhere('email', 'like', "%{$t}%");
+                    }
+                })
+                ->whereNotNull('email')
+                ->pluck('email')
+                ->filter()
+                ->all();
+
+            $emailQuery->where(function ($deepQuery) use ($query, $terms, $matchingContactEmails) {
+                $deepQuery->where('subject', 'like', "%{$query}%")
+                    ->orWhere('from_name', 'like', "%{$query}%")
+                    ->orWhere('from_email', 'like', "%{$query}%")
+                    ->orWhere('to_name', 'like', "%{$query}%")
+                    ->orWhere('to_email', 'like', "%{$query}%")
+                    ->orWhere('cc', 'like', "%{$query}%")
+                    ->orWhere('bcc', 'like', "%{$query}%");
+
+                if (!empty($matchingContactEmails)) {
+                    $deepQuery->orWhereIn('from_email', $matchingContactEmails)
+                              ->orWhereIn('to_email', $matchingContactEmails);
+                }
+
+                if ($terms->count() > 1) {
+                    $deepQuery->orWhere(function ($subQ) use ($terms) {
+                        foreach ($terms as $term) {
+                            $like = "%{$term}%";
+                            $subQ->where(function ($fq) use ($like) {
+                                $fq->where('subject', 'like', $like)
+                                   ->orWhere('from_name', 'like', $like)
+                                   ->orWhere('from_email', 'like', $like)
+                                   ->orWhere('to_name', 'like', $like)
+                                   ->orWhere('to_email', 'like', $like)
+                                   ->orWhere('cc', 'like', $like)
+                                   ->orWhere('bcc', 'like', $like);
+                            });
+                        }
+                    });
+                }
+            });
+        }
+
+        // Prioritize currently active account, but include other active accounts so searches never falsely return 0
+        if ($accountId) {
+            $emailQuery->orderByRaw("CASE WHEN email_configuration_id = " . intval($accountId) . " THEN 0 ELSE 1 END");
+        }
+
+        $messages = $emailQuery->orderByDesc('id')
+            ->select([
+                'id', 'thread_id', 'subject', 'from_name', 'from_email', 'to_name', 'to_email',
+                'direction', 'has_attachments', 'received_at', 'created_at', 'is_read', 'email_configuration_id'
+            ])
+            ->take(30)
+            ->get()
+            ->unique('thread_id')
+            ->take(6)
+            ->values();
+
+        // If subject/sender search yielded fewer than 6 and user typed query, fallback to body search
+        if ($messages->count() < 6 && $query !== '') {
+            $existingThreadIds = $messages->pluck('thread_id')->all();
+            $fallbackQuery = EmailMessage::where('folder', '!=', 'trash')
+                ->whereNotIn('thread_id', $existingThreadIds)
+                ->where('body_plain', 'like', "%{$query}%");
+            if ($accountId) {
+                $fallbackQuery->orderByRaw("CASE WHEN email_configuration_id = " . intval($accountId) . " THEN 0 ELSE 1 END");
+            }
+            $fallbackMessages = $fallbackQuery->orderByDesc('id')
+                ->select([
+                    'id', 'thread_id', 'subject', 'from_name', 'from_email', 'to_name', 'to_email',
+                    'direction', 'has_attachments', 'received_at', 'created_at', 'is_read', 'email_configuration_id'
+                ])
+                ->take(10)
+                ->get()
+                ->unique('thread_id')
+                ->take(6 - $messages->count())
+                ->values();
+
+            $messages = $messages->merge($fallbackMessages);
+        }
+
+        if ($messages->isEmpty()) {
+            return response()->json([
+                'success' => true,
+                'query' => $query,
+                'results' => []
+            ]);
+        }
+
+        $results = $messages->map(function ($msg) {
+            $date = $msg->received_at ?: $msg->created_at;
+            $formattedDate = '';
+            if ($date) {
+                if ($date->isToday()) {
+                    $formattedDate = $date->format('g:i A');
+                } elseif ($date->isCurrentYear()) {
+                    $formattedDate = $date->format('M j');
+                } else {
+                    $formattedDate = $date->format('M j, Y');
+                }
+            }
+
+            // Participant display: like Gmail "Kriti Hinger, me"
+            $fromPart = $msg->from_name ?: explode('@', (string) $msg->from_email)[0];
+            $participants = $fromPart;
+            if ($msg->direction === 'outbound') {
+                $toPart = $msg->to_name ?: explode('@', (string) $msg->to_email)[0];
+                $participants = "me, " . ($toPart ?: 'recipient');
+            }
+
+            return [
+                'id' => $msg->id,
+                'thread_id' => $msg->thread_id,
+                'subject' => $msg->subject ?: '(no subject)',
+                'participants' => $participants,
+                'from_email' => $msg->from_email,
+                'has_attachments' => (bool) $msg->has_attachments,
+                'date_formatted' => $formattedDate,
+                'is_read' => (bool) $msg->is_read,
+            ];
+        });
+
+        return response()->json([
+            'success' => true,
+            'query' => $query,
+            'results' => $results,
         ]);
     }
 }

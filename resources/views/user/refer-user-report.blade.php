@@ -31,8 +31,8 @@
                 <tr>
                     <td>{{ $users->firstItem() + $key }}</td>
                     <td>{{ $user->name }}</td>
-                    <td>{{ $user->email }}</td>
-                    <td>{{ $user->mobile_no }}</td>
+                    <td>{{ mask_email_for_display($user->email) }}</td>
+                    <td>{{ mask_phone_for_display($user->countrycode, $user->mobile_no) }}</td>
                     <td>
                         @if($user->refer_count > 0)
                             <button type="button"
@@ -70,8 +70,8 @@
                                                 <tr>
                                                     <td>{{ $rKey + 1 }}</td>
                                                     <td>{{ $refUser->name }}</td>
-                                                    <td>{{ $refUser->email }}</td>
-                                                    <td>{{ $refUser->mobile_no }}</td>
+                                                    <td>{{ mask_email_for_display($refUser->email) }}</td>
+                                                    <td>{{ mask_phone_for_display($refUser->countrycode, $refUser->mobile_no) }}</td>
                                                     <td>{{ $refUser->created_at }}</td>
                                                 </tr>
                                             @endforeach

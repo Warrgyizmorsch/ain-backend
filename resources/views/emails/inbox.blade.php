@@ -250,7 +250,7 @@
 
     /* Google Mail Top Header: Search Bar & Account Chip */
     .gmail-top-header {
-        height: 56px;
+        height: 60px;
         padding: 0 20px;
         border-bottom: 1px solid var(--gmail-border-subtle);
         border-radius: 16px 16px 0 0;
@@ -260,30 +260,53 @@
         background: #ffffff;
         flex-shrink: 0;
         gap: 16px;
+        position: relative;
+        z-index: 1050;
+        overflow: visible;
     }
 
+    .gmail-search-wrapper {
+        position: relative;
+        width: 680px;
+        max-width: 100%;
+        z-index: 1060;
+    }
+
+    /* 1. Closed state search pill */
     .gmail-search-box {
         position: relative;
-        width: 520px;
-        max-width: 100%;
+        width: 100%;
         background: #eaf1fb;
-        border-radius: 28px;
-        height: 42px;
+        border-radius: 24px;
+        height: 48px;
         display: flex;
         align-items: center;
-        padding: 0 16px;
-        transition: all 0.2s ease;
+        padding: 0 18px;
+        border: 1px solid transparent;
+        transition: background 0.15s ease, border-radius 0.15s ease, box-shadow 0.15s ease;
+        z-index: 1062;
     }
 
-    .gmail-search-box:focus-within {
-        background: #ffffff;
-        box-shadow: 0 1px 3px 0 rgba(60, 64, 67, 0.3), 0 4px 8px 3px rgba(60, 64, 67, 0.15);
+    .gmail-search-box:hover {
+        background: #e1e9f5;
+    }
+
+    /* 2. Open state: Search box turns pure white, bottom corners flat, seamless with dropdown */
+    .gmail-search-wrapper.has-dropdown-open .gmail-search-box,
+    .gmail-search-box.has-dropdown-open {
+        background: #ffffff !important;
+        border-radius: 24px 24px 0 0 !important;
+        border: 1px solid #dadce0 !important;
+        border-bottom: 1px solid transparent !important;
+        box-shadow: 0 4px 16px rgba(60, 64, 67, 0.15) !important;
     }
 
     .gmail-search-icon {
         color: #5f6368;
-        font-size: 14px;
-        pointer-events: none;
+        flex-shrink: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
     }
 
     .gmail-search-input {
@@ -291,13 +314,308 @@
         border: none;
         background: transparent;
         outline: none;
-        font-size: 14px;
+        font-size: 15px;
         color: #1f1f1f;
-        padding-left: 12px;
+        padding: 0 14px;
+        height: 100%;
     }
 
     .gmail-search-input::placeholder {
         color: #5f6368;
+        font-size: 14.5px;
+    }
+
+    .gmail-clear-btn {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: #5f6368;
+        cursor: pointer;
+        background: transparent;
+        border: none;
+        transition: background 0.15s ease;
+        flex-shrink: 0;
+    }
+
+    .gmail-clear-btn:hover {
+        background: rgba(60, 64, 67, 0.08);
+        color: #1f1f1f;
+    }
+
+    .gmail-filter-btn {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: #5f6368;
+        cursor: pointer;
+        transition: background 0.15s ease, color 0.15s ease;
+        flex-shrink: 0;
+        background: transparent;
+        border: none;
+    }
+
+    .gmail-filter-btn:hover {
+        background: rgba(60, 64, 67, 0.08);
+        color: #1f1f1f;
+    }
+
+    .gmail-filter-btn.active {
+        background: #c2e7ff;
+        color: #001d35;
+    }
+
+    /* 3. Live Search Dropdown: Seamlessly joined below search box */
+    .gmail-search-dropdown {
+        position: absolute;
+        top: 47px;
+        left: 0;
+        right: 0;
+        background: #ffffff;
+        border-radius: 0 0 24px 24px;
+        border: 1px solid #dadce0;
+        border-top: none;
+        box-shadow: 0 12px 24px rgba(60, 64, 67, 0.18);
+        z-index: 1061;
+        max-height: 520px;
+        overflow-y: auto;
+        overflow-x: hidden;
+    }
+
+    /* 4. Filter Chips Row */
+    .gmail-search-chips-row {
+        padding: 8px 18px 12px 18px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        border-bottom: 1px solid #e0e2e7;
+        background: #ffffff;
+    }
+
+    .gmail-filter-chip {
+        display: inline-flex;
+        align-items: center;
+        padding: 5px 14px;
+        border-radius: 8px;
+        border: 1px solid #747775;
+        background: #ffffff;
+        color: #1f1f1f;
+        font-size: 13.5px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        user-select: none;
+        white-space: nowrap;
+        line-height: 1.35;
+    }
+
+    .gmail-filter-chip:hover {
+        background: #f8f9fa;
+        border-color: #1f1f1f;
+    }
+
+    .gmail-filter-chip.is-active {
+        background: #c2e7ff;
+        color: #001d35;
+        border-color: #001d35;
+        font-weight: 600;
+    }
+
+    /* 5. Live Search Email Result Item */
+    .gmail-search-result-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 10px 18px;
+        cursor: pointer;
+        transition: background 0.12s ease;
+        border-bottom: 1px solid #f8f9fa;
+        text-decoration: none;
+        color: inherit;
+    }
+
+    .gmail-search-result-item:hover,
+    .gmail-search-result-item.selected {
+        background: #f2f6fc;
+    }
+
+    .gmail-search-result-item:last-child {
+        border-bottom: none;
+    }
+
+    .gmail-search-result-item .item-icon {
+        color: #5f6368;
+        width: 20px;
+        flex-shrink: 0;
+        margin-right: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .gmail-search-result-item .item-main {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .gmail-search-result-item .item-subject {
+        font-size: 13.5px;
+        color: #1f1f1f;
+        font-weight: 500;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .gmail-search-result-item .item-subject strong {
+        color: #1f1f1f;
+        font-weight: 700;
+    }
+
+    mark.gmail-search-highlight,
+    .gmail-search-highlight {
+        background-color: #fef08a !important;
+        color: #111827 !important;
+        padding: 1px 3px !important;
+        border-radius: 2px !important;
+        font-weight: 700 !important;
+        box-shadow: 0 0 0 1px rgba(234, 179, 8, 0.25) !important;
+        display: inline !important;
+    }
+
+    .gmail-search-loading {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        padding: 22px 16px;
+        color: #5f6368;
+        font-size: 13.5px;
+        font-weight: 500;
+    }
+
+    .gmail-search-spinner {
+        width: 18px;
+        height: 18px;
+        border: 2.5px solid #e0e2e7;
+        border-top-color: #0b57d0;
+        border-right-color: #0b57d0;
+        border-radius: 50%;
+        animation: gmailSpinnerRotate 0.65s linear infinite;
+        flex-shrink: 0;
+    }
+
+    .gmail-search-result-item .item-participants {
+        font-size: 12px;
+        color: #5f6368;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        margin-top: 2px;
+    }
+
+    .gmail-search-result-item .item-meta {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-shrink: 0;
+        margin-left: 14px;
+        font-size: 12px;
+        color: #5f6368;
+    }
+
+    /* 6. Recent Searches */
+    .gmail-recent-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 9px 18px;
+        cursor: pointer;
+        color: #1f1f1f;
+        font-size: 14px;
+        transition: background 0.12s ease;
+    }
+
+    .gmail-recent-item:hover,
+    .gmail-recent-item.selected {
+        background: #f2f6fc;
+    }
+
+    .gmail-recent-item .recent-remove {
+        opacity: 0;
+        transition: opacity 0.15s ease;
+        padding: 2px 6px;
+        font-size: 16px;
+        line-height: 1;
+    }
+
+    .gmail-recent-item:hover .recent-remove {
+        opacity: 1;
+    }
+
+    /* 7. Bottom Search Action Row */
+    .gmail-search-bottom-action {
+        padding: 12px 18px 14px 18px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        cursor: pointer;
+        border-top: 1px solid #e0e2e7;
+        transition: background 0.12s ease;
+        background: #ffffff;
+    }
+
+    .gmail-search-bottom-action:hover,
+    .gmail-search-bottom-action.selected {
+        background: #f8f9fa;
+    }
+
+    .gmail-search-bottom-action .bottom-text-wrap {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        color: #1f1f1f;
+        font-size: 14px;
+    }
+
+    .gmail-press-enter-label {
+        font-size: 12px;
+        color: #5f6368;
+        font-weight: 400;
+        user-select: none;
+    }
+
+    /* Advanced Filter Popup */
+    .gmail-advanced-filter-popup {
+        position: absolute;
+        top: 48px;
+        left: 0;
+        width: 540px;
+        max-width: 95vw;
+        background: #ffffff;
+        border-radius: 12px;
+        box-shadow: 0 4px 24px rgba(60, 64, 67, 0.28);
+        z-index: 1065;
+        border: 1px solid #dadce0;
+        animation: fadeInDown 0.15s ease-out;
+    }
+
+    .gmail-adv-input {
+        border-radius: 6px;
+        border: 1px solid #dadce0;
+        font-size: 13px;
+        padding: 6px 10px;
+    }
+
+    .gmail-adv-input:focus {
+        border-color: #0b57d0;
+        box-shadow: 0 0 0 2px rgba(11, 87, 208, 0.2);
     }
 
     .gmail-account-badge {
@@ -979,11 +1297,12 @@
     }
 
     .duralux-detail-body {
-        padding: 16px 40px 60px 40px;
+        padding: 14px 16px 60px 16px;
         flex: 1;
         overflow-y: auto;
-        max-width: 1100px;
-        margin: 0 auto;
+        overflow-x: hidden !important;
+        max-width: 100%;
+        margin: 0;
         width: 100%;
         box-sizing: border-box;
         background: #ffffff;
@@ -1259,18 +1578,24 @@
     /* Message Body */
     .gmail-msg-body-wrapper {
         margin-left: 54px;
+        margin-right: 54px;
         color: #202124;
         font-size: 14px;
         line-height: 1.6;
         min-height: 40px;
-        width: calc(100% - 54px);
-        max-width: calc(100% - 54px);
+        width: auto !important;
+        max-width: calc(100% - 108px) !important;
         box-sizing: border-box;
+        overflow-x: hidden;
     }
 
     /* Gmail Attachment Cards */
     .gmail-attachments-section {
         margin-left: 54px;
+        margin-right: 54px;
+        width: auto !important;
+        max-width: calc(100% - 108px) !important;
+        box-sizing: border-box;
         margin-top: 20px;
         padding-top: 14px;
         border-top: 1px solid #f1f3f4;
@@ -1361,6 +1686,7 @@
     /* Gmail Bottom Reply Pills */
     .gmail-thread-bottom-pills {
         margin-left: 54px;
+        margin-right: 54px;
         margin-top: 24px;
         display: flex;
         align-items: center;
@@ -1396,6 +1722,7 @@
     /* Authentic Gmail Inline Reply Box */
     .duralux-quick-reply {
         margin-left: 54px;
+        margin-right: 54px;
         border: 1px solid #dadce0;
         border-radius: 16px;
         padding: 16px 20px;
@@ -1466,6 +1793,9 @@
         .gmail-thread-bottom-pills,
         .duralux-quick-reply {
             margin-left: 0 !important;
+            margin-right: 0 !important;
+            width: 100% !important;
+            max-width: 100% !important;
         }
         .gmail-details-card {
             min-width: 280px !important;
@@ -2010,12 +2340,142 @@
         <div class="duralux-main-area">
             {{-- Google Mail Top Header: Search Bar & Account Chip --}}
             <div class="gmail-top-header">
-                <div class="gmail-search-box">
-                    <i class="fa fa-search gmail-search-icon"></i>
-                    <input type="text" class="gmail-search-input" id="emailSearchInput" placeholder="Search in mail..." onkeyup="handleSearch(event)">
-                    <button type="button" class="btn btn-sm btn-icon text-muted border-0 bg-transparent p-0 ms-1" id="clearSearchBtn" style="display: none; width: 22px; height: 22px;" onclick="clearEmailSearch()" title="Clear search">
-                        <i class="fa fa-times"></i>
-                    </button>
+                <div class="gmail-search-wrapper position-relative" id="gmailSearchWrapper">
+                    <div class="gmail-search-box" id="gmailSearchBox">
+                        <svg class="gmail-search-icon" width="20" height="20" viewBox="0 0 24 24" fill="#5f6368">
+                            <path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
+                        </svg>
+                        <input type="text" class="gmail-search-input" id="emailSearchInput" placeholder="Search in mail" autocomplete="off" value="{{ request('search', '') }}" onfocus="handleSearchFocus(event)" oninput="handleSearchInput(event)" onkeydown="handleSearchKeyDown(event)">
+                        <button type="button" class="gmail-clear-btn" id="clearSearchBtn" style="display: {{ request('search') ? 'inline-block' : 'none' }};" onclick="clearEmailSearch()" title="Clear search">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                            </svg>
+                        </button>
+                        {{-- Tune / Filter Icon Button --}}
+                        <button type="button" class="gmail-filter-btn ms-1" id="gmailFilterBtn" onclick="toggleAdvancedFilterPopup(event)" title="Show search options">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z"/>
+                            </svg>
+                        </button>
+                    </div>
+
+                    {{-- 1. Gmail Live Autocomplete & Search Results Dropdown --}}
+                    <div class="gmail-search-dropdown d-none" id="gmailSearchDropdown">
+                        {{-- Quick Filter Chips --}}
+                        <div class="gmail-search-chips-row">
+                            <button type="button" class="gmail-filter-chip" id="chip_has_attachment" data-chip="has_attachment" onclick="toggleFilterChip('has_attachment')">Has attachment</button>
+                            <button type="button" class="gmail-filter-chip" id="chip_last_7_days" data-chip="last_7_days" onclick="toggleFilterChip('last_7_days')">Last 7 days</button>
+                            <button type="button" class="gmail-filter-chip" id="chip_from_me" data-chip="from_me" onclick="toggleFilterChip('from_me')">From me</button>
+                            <button type="button" class="gmail-filter-chip" id="chip_unread" data-chip="unread" onclick="toggleFilterChip('unread')">Unread</button>
+                        </div>
+
+                        {{-- Recent Searches List --}}
+                        <div class="gmail-recent-searches-section" id="gmailRecentSearchesSection"></div>
+
+                        {{-- Live Search Email Results Container --}}
+                        <div class="gmail-search-results-list" id="gmailSearchResultsList"></div>
+
+                        {{-- Bottom Action Row --}}
+                        <div class="gmail-search-bottom-action" id="gmailSearchAllAction" onclick="submitSearchFromDropdown()">
+                            <div class="bottom-text-wrap">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="#5f6368" style="flex-shrink: 0;">
+                                    <path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
+                                </svg>
+                                <span id="gmailSearchBottomText">Search in all messages</span>
+                            </div>
+                            <span class="gmail-press-enter-label">Press ENTER</span>
+                        </div>
+                    </div>
+
+                    {{-- 2. Gmail Advanced Filter Popup (Opened via sliders icon) --}}
+                    <div class="gmail-advanced-filter-popup shadow-xl d-none" id="gmailAdvancedFilterPopup">
+                        <form id="gmailAdvancedFilterForm" onsubmit="applyAdvancedFilter(event)">
+                            <div class="p-3 px-4 d-flex flex-column gap-2.5">
+                                <div class="row align-items-center g-2">
+                                    <label class="col-sm-3 col-form-label text-muted fs-8 py-0">From</label>
+                                    <div class="col-sm-9">
+                                        <input type="text" class="form-control form-control-sm gmail-adv-input" id="advFilterFrom" placeholder="Sender email or name">
+                                    </div>
+                                </div>
+                                <div class="row align-items-center g-2">
+                                    <label class="col-sm-3 col-form-label text-muted fs-8 py-0">To</label>
+                                    <div class="col-sm-9">
+                                        <input type="text" class="form-control form-control-sm gmail-adv-input" id="advFilterTo" placeholder="Recipient email">
+                                    </div>
+                                </div>
+                                <div class="row align-items-center g-2">
+                                    <label class="col-sm-3 col-form-label text-muted fs-8 py-0">Subject</label>
+                                    <div class="col-sm-9">
+                                        <input type="text" class="form-control form-control-sm gmail-adv-input" id="advFilterSubject" placeholder="Subject keyword">
+                                    </div>
+                                </div>
+                                <div class="row align-items-center g-2">
+                                    <label class="col-sm-3 col-form-label text-muted fs-8 py-0">Has the words</label>
+                                    <div class="col-sm-9">
+                                        <input type="text" class="form-control form-control-sm gmail-adv-input" id="advFilterWords" placeholder="Search keywords">
+                                    </div>
+                                </div>
+                                <div class="row align-items-center g-2">
+                                    <label class="col-sm-3 col-form-label text-muted fs-8 py-0">Doesn't have</label>
+                                    <div class="col-sm-9">
+                                        <input type="text" class="form-control form-control-sm gmail-adv-input" id="advFilterDoesntHave" placeholder="Excluded words">
+                                    </div>
+                                </div>
+                                <div class="row align-items-center g-2">
+                                    <label class="col-sm-3 col-form-label text-muted fs-8 py-0">Date within</label>
+                                    <div class="col-sm-4">
+                                        <select class="form-select form-select-sm gmail-adv-input" id="advFilterDateWithin">
+                                            <option value="1d">1 day</option>
+                                            <option value="3d">3 days</option>
+                                            <option value="7d" selected>1 week</option>
+                                            <option value="14d">2 weeks</option>
+                                            <option value="1m">1 month</option>
+                                            <option value="2m">2 months</option>
+                                            <option value="6m">6 months</option>
+                                            <option value="1y">1 year</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-sm-5">
+                                        <input type="date" class="form-control form-control-sm gmail-adv-input" id="advFilterDateRef" value="{{ date('Y-m-d') }}">
+                                    </div>
+                                </div>
+                                <div class="row align-items-center g-2">
+                                    <label class="col-sm-3 col-form-label text-muted fs-8 py-0">Search in</label>
+                                    <div class="col-sm-9">
+                                        <select class="form-select form-select-sm gmail-adv-input" id="advFilterFolder">
+                                            <option value="all">All Mail</option>
+                                            <option value="inbox" selected>Inbox</option>
+                                            <option value="starred">Starred</option>
+                                            <option value="sent">Sent</option>
+                                            <option value="drafts">Drafts</option>
+                                            <option value="trash">Trash</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="row align-items-center g-2">
+                                    <div class="col-sm-9 offset-sm-3">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="advFilterHasAttachment">
+                                            <label class="form-check-label text-dark fs-8" for="advFilterHasAttachment">
+                                                Has attachment
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="p-3 px-4 bg-light rounded-bottom d-flex justify-content-between align-items-center border-top">
+                                <button type="button" class="btn btn-sm btn-link text-muted p-0 text-decoration-none fs-8" onclick="resetAdvancedFilter()">
+                                    Reset filters
+                                </button>
+                                <div class="d-flex gap-2">
+                                    <button type="button" class="btn btn-sm btn-light py-1.5 px-3" onclick="closeAdvancedFilterPopup()">Cancel</button>
+                                    <button type="submit" class="btn btn-sm btn-primary py-1.5 px-4 rounded-pill fw-semibold">
+                                        Search
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
                 </div>
                 <div class="d-flex align-items-center gap-2">
                     @if(isset($currentAccount) && $currentAccount)
@@ -2583,6 +3043,8 @@ let currentLabelId = @json($selectedLabelId ?? null);
 let emailFolderHtmlCache = @json($folderHtmlCache ?? []);
 let activeThreadId = null;
 let activeEmailData = null;
+let activeThreadMessages = [];
+let activeReplyTargetMsg = null;
 let inlineComposerMode = 'reply';
 const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '{{ csrf_token() }}';
 let composeQuill = null;
@@ -2986,19 +3448,308 @@ function filterLabel(labelId, el) {
     reloadEmailList(true);
 }
 
-let emailSearchTimer = null;
-function handleSearch(e) {
-    clearTimeout(emailSearchTimer);
-    const searchInput = document.getElementById('emailSearchInput');
+// ── GMAIL SEARCH & FILTER ENGINE ──────────────────────────────────────────
+let activeFilterChips = {
+    has_attachment: false,
+    last_7_days: false,
+    from_me: false,
+    unread: false
+};
+let activeAdvancedFilters = null;
+let searchSuggestTimer = null;
+let searchSuggestController = null;
+let liveSearchResults = [];
+let selectedLiveIndex = -1;
+
+function handleSearchFocus(e) {
+    openSearchDropdown();
+    renderRecentSearches();
+    const input = document.getElementById('emailSearchInput');
+    const val = input ? input.value.trim() : '';
+    if (val.length > 0) {
+        fetchSearchSuggestions(val);
+    }
+}
+
+function handleSearchInput(e) {
+    const input = document.getElementById('emailSearchInput');
     const clearBtn = document.getElementById('clearSearchBtn');
-    if (clearBtn && searchInput) {
-        clearBtn.style.display = searchInput.value.trim().length > 0 ? 'inline-block' : 'none';
+    const val = input ? input.value.trim() : '';
+
+    if (clearBtn) {
+        clearBtn.style.display = val.length > 0 ? 'inline-block' : 'none';
     }
-    // If reading pane is open, close it so user sees the search results list
-    if (document.getElementById('emailDetailPane')?.classList.contains('active')) {
-        closeEmailThread();
+
+    const bottomText = document.getElementById('gmailSearchBottomText');
+    if (bottomText) {
+        bottomText.textContent = val.length > 0 ? `All search results for "${val}"` : 'Search in all messages';
     }
-    emailSearchTimer = setTimeout(reloadEmailList, e.key === 'Enter' ? 0 : 250);
+
+    openSearchDropdown();
+
+    const listContainer = document.getElementById('gmailSearchResultsList');
+    if (listContainer && val.length > 0) {
+        listContainer.innerHTML = `
+            <div class="gmail-search-loading">
+                <div class="gmail-search-spinner"></div>
+                <span>Searching in emails...</span>
+            </div>`;
+    }
+
+    clearTimeout(searchSuggestTimer);
+    searchSuggestTimer = setTimeout(() => {
+        fetchSearchSuggestions(val);
+    }, 180);
+}
+
+function handleSearchKeyDown(e) {
+    const dropdown = document.getElementById('gmailSearchDropdown');
+    const items = dropdown ? dropdown.querySelectorAll('.gmail-search-result-item, .gmail-recent-item') : [];
+
+    if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (!items.length) return;
+        selectedLiveIndex = (selectedLiveIndex + 1) % items.length;
+        updateActiveSuggestionItem(items);
+    } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (!items.length) return;
+        selectedLiveIndex = (selectedLiveIndex - 1 + items.length) % items.length;
+        updateActiveSuggestionItem(items);
+    } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (selectedLiveIndex >= 0 && selectedLiveIndex < items.length) {
+            items[selectedLiveIndex].click();
+        } else {
+            submitSearchFromDropdown();
+        }
+    } else if (e.key === 'Escape') {
+        closeSearchDropdown();
+        closeAdvancedFilterPopup();
+    }
+}
+
+function updateActiveSuggestionItem(items) {
+    items.forEach((it, idx) => {
+        if (idx === selectedLiveIndex) {
+            it.classList.add('selected');
+            it.scrollIntoView({ block: 'nearest' });
+        } else {
+            it.classList.remove('selected');
+        }
+    });
+}
+
+function openSearchDropdown() {
+    const dropdown = document.getElementById('gmailSearchDropdown');
+    const searchBox = document.getElementById('gmailSearchBox');
+    const searchWrapper = document.getElementById('gmailSearchWrapper');
+    if (dropdown) dropdown.classList.remove('d-none');
+    if (searchBox) searchBox.classList.add('has-dropdown-open');
+    if (searchWrapper) searchWrapper.classList.add('has-dropdown-open');
+    selectedLiveIndex = -1;
+}
+
+function closeSearchDropdown() {
+    const dropdown = document.getElementById('gmailSearchDropdown');
+    const searchBox = document.getElementById('gmailSearchBox');
+    const searchWrapper = document.getElementById('gmailSearchWrapper');
+    if (dropdown) dropdown.classList.add('d-none');
+    if (searchBox) searchBox.classList.remove('has-dropdown-open');
+    if (searchWrapper) searchWrapper.classList.remove('has-dropdown-open');
+    selectedLiveIndex = -1;
+}
+
+function fetchSearchSuggestions(val) {
+    if (searchSuggestController) {
+        searchSuggestController.abort();
+    }
+    searchSuggestController = new AbortController();
+
+    const listContainer = document.getElementById('gmailSearchResultsList');
+    if (!listContainer) return;
+
+    if (!val && !activeFilterChips.has_attachment && !activeFilterChips.last_7_days && !activeFilterChips.from_me && !activeFilterChips.unread) {
+        listContainer.innerHTML = '';
+        renderRecentSearches();
+        return;
+    }
+
+    const recentContainer = document.getElementById('gmailRecentSearchesSection');
+    if (recentContainer && val.length > 0) {
+        recentContainer.innerHTML = '';
+    }
+
+    listContainer.innerHTML = `
+        <div class="gmail-search-loading">
+            <div class="gmail-search-spinner"></div>
+            <span>Searching in emails...</span>
+        </div>`;
+
+    const url = new URL('{{ route("emails.search.suggest", [], false) }}', window.location.origin);
+    url.searchParams.set('q', val);
+    if (currentAccountId) url.searchParams.set('account_id', currentAccountId);
+    if (activeFilterChips.has_attachment) url.searchParams.set('has_attachment', '1');
+    if (activeFilterChips.last_7_days) url.searchParams.set('date_range', 'last_7_days');
+    if (activeFilterChips.from_me) url.searchParams.set('from_me', '1');
+    if (activeFilterChips.unread) url.searchParams.set('is_read', 'unread');
+
+    fetch(url, {
+        signal: searchSuggestController.signal,
+        headers: {
+            'Accept': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (!data || !data.results) {
+            listContainer.innerHTML = '';
+            return;
+        }
+        liveSearchResults = data.results;
+        renderLiveSearchResults(data.results, val);
+    })
+    .catch(err => {
+        if (err.name !== 'AbortError') {
+            console.warn('Search suggestions error', err);
+            listContainer.innerHTML = '';
+        }
+    });
+}
+
+function renderLiveSearchResults(results, query) {
+    const container = document.getElementById('gmailSearchResultsList');
+    if (!container) return;
+
+    if (!results.length) {
+        container.innerHTML = `
+            <div class="p-3 text-center text-muted" style="font-size: 13px;">
+                <i class="fa fa-search me-1 text-muted"></i> No matching messages found for "<strong>${escapeHtml(query)}</strong>"
+            </div>`;
+        return;
+    }
+
+    let html = '';
+    results.forEach(item => {
+        const highlightedSubject = highlightMatch(item.subject, query);
+        const highlightedParticipants = highlightMatch(item.participants, query);
+        const iconSvg = `<svg width="18" height="18" viewBox="0 0 24 24" fill="${item.is_read ? '#747775' : '#0b57d0'}"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>`;
+        const clipSvg = item.has_attachments ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#747775" stroke-width="2"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l7.9-7.9"/></svg>` : '';
+        html += `
+            <div class="gmail-search-result-item" data-id="${item.id}" onclick="selectLiveEmail(${item.id})">
+                <span class="item-icon">${iconSvg}</span>
+                <div class="item-main">
+                    <div class="item-subject">${highlightedSubject}</div>
+                    <div class="item-participants">${highlightedParticipants}</div>
+                </div>
+                <div class="item-meta">
+                    ${clipSvg}
+                    <span>${escapeHtml(item.date_formatted)}</span>
+                </div>
+            </div>`;
+    });
+
+    container.innerHTML = html;
+}
+
+function escapeHtml(value) {
+    if (value === null || value === undefined) return '';
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+function highlightMatch(text, query) {
+    if (!query || !text) return escapeHtml(text || '');
+    const cleanText = escapeHtml(text);
+    const escapedQuery = String(query).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    if (!escapedQuery) return cleanText;
+    const words = escapedQuery.split(/\s+/).filter(Boolean);
+    if (!words.length) return cleanText;
+    const regex = new RegExp(`(${words.join('|')})`, 'gi');
+    return cleanText.replace(regex, '<mark class="gmail-search-highlight">$1</mark>');
+}
+
+function highlightSearchTermsInElement(rootElement, query) {
+    if (!rootElement || !query) return;
+    const words = String(query).trim().split(/\s+/).filter(w => w.length > 0);
+    if (!words.length) return;
+    const escapedWords = words.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    const regex = new RegExp(`(${escapedWords.join('|')})`, 'gi');
+
+    const walkTextNodes = (node) => {
+        if (node.nodeType === Node.TEXT_NODE) {
+            const text = node.nodeValue;
+            if (regex.test(text)) {
+                regex.lastIndex = 0;
+                const doc = node.ownerDocument || document;
+                const frag = doc.createDocumentFragment();
+                let lastIdx = 0;
+                let match;
+                while ((match = regex.exec(text)) !== null) {
+                    if (match.index > lastIdx) {
+                        frag.appendChild(doc.createTextNode(text.substring(lastIdx, match.index)));
+                    }
+                    const mark = doc.createElement('mark');
+                    mark.className = 'gmail-search-highlight';
+                    mark.textContent = match[0];
+                    frag.appendChild(mark);
+                    lastIdx = regex.lastIndex;
+                }
+                if (lastIdx < text.length) {
+                    frag.appendChild(doc.createTextNode(text.substring(lastIdx)));
+                }
+                node.parentNode.replaceChild(frag, node);
+            }
+        } else if (node.nodeType === Node.ELEMENT_NODE && !['SCRIPT', 'STYLE', 'BUTTON', 'INPUT', 'MARK', 'SELECT'].includes(node.tagName)) {
+            Array.from(node.childNodes).forEach(walkTextNodes);
+        }
+    };
+
+    walkTextNodes(rootElement);
+}
+
+function highlightSearchTermsInList(query) {
+    const listContainer = document.getElementById('emailListContainer');
+    if (!listContainer || !query) return;
+    const targets = listContainer.querySelectorAll('.gmail-row-subject, .gmail-sender-text, .gmail-row-snippet');
+    targets.forEach(el => highlightSearchTermsInElement(el, query));
+}
+
+function toggleFilterChip(chipKey) {
+    activeFilterChips[chipKey] = !activeFilterChips[chipKey];
+    const btn = document.getElementById(`chip_${chipKey}`);
+    if (btn) {
+        btn.classList.toggle('is-active', activeFilterChips[chipKey]);
+    }
+
+    closeEmailThread();
+    reloadEmailList(true);
+
+    const input = document.getElementById('emailSearchInput');
+    const val = input ? input.value.trim() : '';
+    fetchSearchSuggestions(val);
+}
+
+function selectLiveEmail(id) {
+    const input = document.getElementById('emailSearchInput');
+    const val = input ? input.value.trim() : '';
+    if (val) saveRecentSearch(val);
+    closeSearchDropdown();
+    openEmailThread(id);
+}
+
+function submitSearchFromDropdown() {
+    const input = document.getElementById('emailSearchInput');
+    const val = input ? input.value.trim() : '';
+    if (val) saveRecentSearch(val);
+    closeSearchDropdown();
+    closeEmailThread();
+    reloadEmailList(true);
 }
 
 function clearEmailSearch() {
@@ -3006,10 +3757,172 @@ function clearEmailSearch() {
     const clearBtn = document.getElementById('clearSearchBtn');
     if (searchInput) searchInput.value = '';
     if (clearBtn) clearBtn.style.display = 'none';
-    if (document.getElementById('emailDetailPane')?.classList.contains('active')) {
-        closeEmailThread();
-    }
+
+    // Reset filter chips
+    Object.keys(activeFilterChips).forEach(k => {
+        activeFilterChips[k] = false;
+        const btn = document.getElementById(`chip_${k}`);
+        if (btn) btn.classList.remove('is-active');
+    });
+
+    activeAdvancedFilters = null;
+    closeSearchDropdown();
+    closeEmailThread();
     reloadEmailList(true);
+}
+
+// ── RECENT SEARCHES (LocalStorage) ────────────────────────────────────────
+function getRecentSearches() {
+    try {
+        const stored = localStorage.getItem('gmail_recent_searches');
+        return stored ? JSON.parse(stored) : [];
+    } catch(e) {
+        return [];
+    }
+}
+
+function saveRecentSearch(term) {
+    const clean = String(term || '').trim();
+    if (clean.length < 2) return;
+    let list = getRecentSearches().filter(item => item.toLowerCase() !== clean.toLowerCase());
+    list.unshift(clean);
+    list = list.slice(0, 5);
+    try {
+        localStorage.setItem('gmail_recent_searches', JSON.stringify(list));
+    } catch(e) {}
+}
+
+function removeRecentSearch(e, term) {
+    if (e) e.stopPropagation();
+    let list = getRecentSearches().filter(item => item.toLowerCase() !== term.toLowerCase());
+    try {
+        localStorage.setItem('gmail_recent_searches', JSON.stringify(list));
+    } catch(e) {}
+    renderRecentSearches();
+}
+
+function renderRecentSearches() {
+    const container = document.getElementById('gmailRecentSearchesSection');
+    if (!container) return;
+    const list = getRecentSearches();
+    if (!list.length) {
+        container.innerHTML = '';
+        return;
+    }
+
+    let html = '';
+    list.forEach(term => {
+        html += `
+            <div class="gmail-recent-item" onclick="applyRecentSearch('${escapeHtml(term)}')">
+                <div class="d-flex align-items-center gap-3">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#747775" stroke-width="2" style="flex-shrink: 0;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                    <span>${escapeHtml(term)}</span>
+                </div>
+                <button type="button" class="btn btn-sm text-muted border-0 bg-transparent recent-remove ms-auto" onclick="removeRecentSearch(event, '${escapeHtml(term)}')" title="Remove from history">
+                    <i class="fa fa-times fs-8"></i>
+                </button>
+            </div>`;
+    });
+
+    container.innerHTML = html;
+}
+
+function applyRecentSearch(term) {
+    const input = document.getElementById('emailSearchInput');
+    const clearBtn = document.getElementById('clearSearchBtn');
+    if (input) input.value = term;
+    if (clearBtn) clearBtn.style.display = 'inline-block';
+    saveRecentSearch(term);
+    closeSearchDropdown();
+    closeEmailThread();
+    reloadEmailList(true);
+}
+
+// ── ADVANCED FILTER POPUP ────────────────────────────────────────────────
+function toggleAdvancedFilterPopup(e) {
+    if (e) e.stopPropagation();
+    const popup = document.getElementById('gmailAdvancedFilterPopup');
+    const btn = document.getElementById('gmailFilterBtn');
+    if (!popup) return;
+
+    const isClosed = popup.classList.contains('d-none');
+    if (isClosed) {
+        closeSearchDropdown();
+        popup.classList.remove('d-none');
+        if (btn) btn.classList.add('active');
+    } else {
+        closeAdvancedFilterPopup();
+    }
+}
+
+function closeAdvancedFilterPopup() {
+    const popup = document.getElementById('gmailAdvancedFilterPopup');
+    const btn = document.getElementById('gmailFilterBtn');
+    if (popup) popup.classList.add('d-none');
+    if (btn) btn.classList.remove('active');
+}
+
+function applyAdvancedFilter(e) {
+    if (e) e.preventDefault();
+    activeAdvancedFilters = {
+        filter_from: document.getElementById('advFilterFrom')?.value.trim() || '',
+        filter_to: document.getElementById('advFilterTo')?.value.trim() || '',
+        filter_subject: document.getElementById('advFilterSubject')?.value.trim() || '',
+        filter_words: document.getElementById('advFilterWords')?.value.trim() || '',
+        filter_doesnt_have: document.getElementById('advFilterDoesntHave')?.value.trim() || '',
+        filter_date_within: document.getElementById('advFilterDateWithin')?.value || '',
+        filter_date_ref: document.getElementById('advFilterDateRef')?.value || '',
+    };
+
+    const hasAttachment = document.getElementById('advFilterHasAttachment')?.checked || false;
+    activeFilterChips.has_attachment = hasAttachment;
+    const chipBtn = document.getElementById('chip_has_attachment');
+    if (chipBtn) chipBtn.classList.toggle('is-active', hasAttachment);
+
+    const folderVal = document.getElementById('advFilterFolder')?.value || 'inbox';
+    if (folderVal !== 'all' && folderVal !== currentFolder) {
+        currentFolder = folderVal;
+        document.querySelectorAll('.duralux-sidebar .duralux-nav-link').forEach(link => link.classList.remove('active'));
+    }
+
+    closeAdvancedFilterPopup();
+    closeEmailThread();
+    reloadEmailList(true);
+}
+
+function resetAdvancedFilter() {
+    const form = document.getElementById('gmailAdvancedFilterForm');
+    if (form) form.reset();
+    activeAdvancedFilters = null;
+    closeAdvancedFilterPopup();
+    reloadEmailList(true);
+}
+
+// Click outside to close dropdown and advanced popup
+document.addEventListener('click', function(e) {
+    const wrapper = document.getElementById('gmailSearchWrapper');
+    if (wrapper && !wrapper.contains(e.target)) {
+        closeSearchDropdown();
+        closeAdvancedFilterPopup();
+    }
+});
+
+function appendSearchFilterParams(url, searchVal) {
+    if (searchVal) url.searchParams.set('search', searchVal);
+    if (activeFilterChips.has_attachment) url.searchParams.set('has_attachment', '1');
+    if (activeFilterChips.last_7_days) url.searchParams.set('date_range', 'last_7_days');
+    if (activeFilterChips.from_me) url.searchParams.set('from_me', '1');
+    if (activeFilterChips.unread) url.searchParams.set('is_read', 'unread');
+
+    if (activeAdvancedFilters) {
+        if (activeAdvancedFilters.filter_from) url.searchParams.set('filter_from', activeAdvancedFilters.filter_from);
+        if (activeAdvancedFilters.filter_to) url.searchParams.set('filter_to', activeAdvancedFilters.filter_to);
+        if (activeAdvancedFilters.filter_subject) url.searchParams.set('filter_subject', activeAdvancedFilters.filter_subject);
+        if (activeAdvancedFilters.filter_words) url.searchParams.set('filter_words', activeAdvancedFilters.filter_words);
+        if (activeAdvancedFilters.filter_doesnt_have) url.searchParams.set('filter_doesnt_have', activeAdvancedFilters.filter_doesnt_have);
+        if (activeAdvancedFilters.filter_date_within) url.searchParams.set('filter_date_within', activeAdvancedFilters.filter_date_within);
+        if (activeAdvancedFilters.filter_date_ref) url.searchParams.set('filter_date_ref', activeAdvancedFilters.filter_date_ref);
+    }
 }
 
 let currentPage = 1;
@@ -3018,6 +3931,13 @@ let isLoadingMore = false;
 
 document.addEventListener('DOMContentLoaded', function() {
     initInfiniteScroll();
+    const searchInput = document.getElementById('emailSearchInput');
+    const initSearchVal = searchInput ? searchInput.value.trim() : '';
+    if (initSearchVal) {
+        const clearBtn = document.getElementById('clearSearchBtn');
+        if (clearBtn) clearBtn.style.display = 'inline-block';
+        highlightSearchTermsInList(initSearchVal);
+    }
 });
 
 function initInfiniteScroll() {
@@ -3039,14 +3959,14 @@ function loadMoreEmails() {
     const spinner = document.getElementById('infiniteScrollSpinner');
     if (spinner) spinner.style.display = 'block';
 
+    const searchInput = document.getElementById('emailSearchInput');
+    const searchVal = searchInput ? searchInput.value.trim() : '';
     const nextPage = currentPage + 1;
     const url = new URL('{{ route("emails.index") }}', window.location.origin);
-    url.searchParams.set('folder', currentFolder);
+    url.searchParams.set('folder', searchVal ? 'all' : currentFolder);
     if (currentAccountId) url.searchParams.set('account_id', currentAccountId);
     if (currentLabelId) url.searchParams.set('label_id', currentLabelId);
-    const searchInput = document.getElementById('emailSearchInput');
-    const searchVal = searchInput ? searchInput.value : '';
-    if (searchVal) url.searchParams.set('search', searchVal);
+    appendSearchFilterParams(url, searchVal);
     url.searchParams.set('page', nextPage);
     url.searchParams.set('scroll', '1');
 
@@ -3064,6 +3984,9 @@ function loadMoreEmails() {
             const spinnerEl = document.getElementById('infiniteScrollSpinner');
             if (spinnerEl) {
                 spinnerEl.insertAdjacentHTML('beforebegin', data.html);
+                if (searchVal) {
+                    highlightSearchTermsInList(searchVal);
+                }
             }
         } else {
             hasMorePages = false;
@@ -3095,6 +4018,12 @@ function renderEmailRows(html) {
         paginationEl.textContent = `Showing ${rowCount} conversations`;
     }
     initInfiniteScroll();
+
+    const searchInput = document.getElementById('emailSearchInput');
+    const searchVal = searchInput ? searchInput.value.trim() : '';
+    if (searchVal) {
+        highlightSearchTermsInList(searchVal);
+    }
 }
 
 function updateEmailBrowserUrl(searchVal) {
@@ -3137,13 +4066,13 @@ function reloadEmailList(showLoader = true) {
     isLoadingMore = false;
 
     const searchInput = document.getElementById('emailSearchInput');
-    const searchVal = searchInput ? searchInput.value : '';
-    const url = new URL('{{ route("emails.index") }}', window.location.origin);
-    url.searchParams.set('folder', currentFolder);
+    const searchVal = searchInput ? searchInput.value.trim() : '';
+    const url = new URL('{{ route("emails.index", [], false) }}', window.location.origin);
+    url.searchParams.set('folder', searchVal ? 'all' : currentFolder);
     url.searchParams.set('partial', '1');
     if (currentAccountId) url.searchParams.set('account_id', currentAccountId);
     if (currentLabelId) url.searchParams.set('label_id', currentLabelId);
-    if (searchVal) url.searchParams.set('search', searchVal);
+    appendSearchFilterParams(url, searchVal);
 
     // Fast instant AJAX list reload
     emailListRequestPromise = fetch(url, {
@@ -3436,6 +4365,8 @@ function openEmailThread(id, pushToHistory = true) {
     .then(data => {
         if (data.email) {
             activeEmailData = data.email;
+            activeThreadMessages = (data.messages && data.messages.length > 0) ? data.messages : [data.email];
+            activeReplyTargetMsg = activeEmailData;
             document.getElementById('detailSubject').textContent = data.email.subject || '(No Subject)';
 
             const detailWhatsAppBtn = document.getElementById('detailWhatsAppBtn');
@@ -3469,6 +4400,25 @@ function openEmailThread(id, pushToHistory = true) {
             const messages = (data.messages && data.messages.length > 0) ? data.messages : [data.email];
 
             const escapeEmailText = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
+            const decodeMimeHeader = (str) => {
+                if (!str || typeof str !== 'string') return '';
+                try {
+                    return str.replace(/=\?([^?]+)\?([bBqQ])\?([^?]+)\?=/g, (match, charset, enc, text) => {
+                        try {
+                            if (enc.toUpperCase() === 'B') {
+                                return decodeURIComponent(escape(atob(text)));
+                            } else if (enc.toUpperCase() === 'Q') {
+                                return decodeURIComponent(escape(text.replace(/=/g, '%').replace(/_/g, ' ')));
+                            }
+                        } catch (e) {
+                            try { return atob(text); } catch (e2) { return text; }
+                        }
+                        return match;
+                    });
+                } catch (e) {
+                    return str;
+                }
+            };
             const avatarColors = ['#0b57d0', '#c5221f', '#137333', '#b06000', '#9334e6', '#129eaf'];
 
             const getAttachmentIconSvg = (mime, filename) => {
@@ -3533,7 +4483,7 @@ function openEmailThread(id, pushToHistory = true) {
                                         </div>
                                         <div class="gmail-att-card-footer">
                                             <div class="d-flex flex-column" style="max-width: 125px;">
-                                                <span class="gmail-att-name" title="${escapeEmailText(att.filename || 'Attachment')}">${escapeEmailText(att.filename || 'Attachment')}</span>
+                                                <span class="gmail-att-name" title="${escapeEmailText(decodeMimeHeader(att.filename || 'Attachment'))}">${escapeEmailText(decodeMimeHeader(att.filename || 'Attachment'))}</span>
                                                 <span class="gmail-att-size">${escapeEmailText(att.file_size || '')}</span>
                                             </div>
                                             <a href="${att.url || '#'}" target="_blank" class="gmail-att-dl-btn" title="Download">
@@ -3632,7 +4582,7 @@ function openEmailThread(id, pushToHistory = true) {
                                     <button type="button" class="gmail-icon-btn ${data.email.is_starred ? 'text-warning' : ''}" onclick="event.stopPropagation(); toggleStar(${m.id}, this)" title="Star">
                                         <i class="fa ${data.email.is_starred ? 'fa-star' : 'fa-star-o'}"></i>
                                     </button>
-                                    <button type="button" class="gmail-icon-btn" onclick="event.stopPropagation(); openInlineComposer('reply', '${fromEmail}', '${subject.replace(/'/g, "\\'")}')" title="Reply">
+                                    <button type="button" class="gmail-icon-btn" onclick="event.stopPropagation(); openInlineComposer('reply', '${fromEmail}', '${subject.replace(/'/g, "\\'")}', ${m.id})" title="Reply">
                                         <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z"/></svg>
                                     </button>
                                     <div class="dropdown d-inline-block" onclick="event.stopPropagation();">
@@ -3640,8 +4590,8 @@ function openEmailThread(id, pushToHistory = true) {
                                             <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>
                                         </button>
                                         <ul class="dropdown-menu dropdown-menu-end shadow-sm fs-8">
-                                            <li><a class="dropdown-item" href="javascript:void(0);" onclick="openInlineComposer('reply', '${fromEmail}', '${subject.replace(/'/g, "\\'")}')"><i class="fa fa-reply me-2 text-muted"></i> Reply</a></li>
-                                            <li><a class="dropdown-item" href="javascript:void(0);" onclick="openInlineComposer('forward', '', '${subject.replace(/'/g, "\\'")}')"><i class="fa fa-share me-2 text-muted"></i> Forward</a></li>
+                                            <li><a class="dropdown-item" href="javascript:void(0);" onclick="openInlineComposer('reply', '${fromEmail}', '${subject.replace(/'/g, "\\'")}', ${m.id})"><i class="fa fa-reply me-2 text-muted"></i> Reply</a></li>
+                                            <li><a class="dropdown-item" href="javascript:void(0);" onclick="openInlineComposer('forward', '', '${subject.replace(/'/g, "\\'")}', ${m.id})"><i class="fa fa-share me-2 text-muted"></i> Forward</a></li>
                                             <li><a class="dropdown-item" href="javascript:void(0);" onclick="window.print()"><i class="fa fa-print me-2 text-muted"></i> Print</a></li>
                                             <li><hr class="dropdown-divider my-1"></li>
                                             <li><a class="dropdown-item text-danger" href="javascript:void(0);" onclick="deleteEmail(${m.id})"><i class="fa fa-trash-o me-2"></i> Delete this message</a></li>
@@ -3668,6 +4618,22 @@ function openEmailThread(id, pushToHistory = true) {
                     renderIsolatedEmailBody(container, m.body_html, m.body_plain);
                 }
             });
+
+            // Highlight matching search keywords in thread view
+            const currentSearchInput = document.getElementById('emailSearchInput');
+            const threadSearchVal = currentSearchInput ? currentSearchInput.value.trim() : '';
+            if (threadSearchVal) {
+                const detailSubjectEl = document.getElementById('detailSubject');
+                if (detailSubjectEl) {
+                    highlightSearchTermsInElement(detailSubjectEl, threadSearchVal);
+                }
+                const convListEl = document.getElementById('detailConversationList');
+                if (convListEl) {
+                    convListEl.querySelectorAll('.gmail-collapsed-snippet, .gmail-collapsed-sender, .gmail-msg-from-name, .gmail-msg-from-email, .gmail-att-name').forEach(el => {
+                        highlightSearchTermsInElement(el, threadSearchVal);
+                    });
+                }
+            }
 
             // Pre-populate inline composer in Reply mode
             setInlineComposerMode('reply', data.email.from_email, data.email.subject);
@@ -3860,7 +4826,7 @@ function saveRowEmailLabels(threadId, email, rowEmailId) {
     });
 }
 
-function setInlineComposerMode(mode, toEmail = null, subject = null) {
+function setInlineComposerMode(mode, toEmail = null, subject = null, messageId = null) {
     inlineComposerMode = mode;
     const box = document.getElementById('inlineComposerContainer');
     const toInput = document.getElementById('inlineComposerToInput');
@@ -3872,37 +4838,70 @@ function setInlineComposerMode(mode, toEmail = null, subject = null) {
     if (!box) return;
     box.classList.add('highlight-focus');
 
+    let targetMsg = null;
+    if (messageId && activeThreadMessages && activeThreadMessages.length) {
+        targetMsg = activeThreadMessages.find(m => m.id == messageId);
+    }
+    if (!targetMsg) {
+        targetMsg = activeEmailData;
+    }
+    activeReplyTargetMsg = targetMsg;
+
+    const targetDateStr = targetMsg && targetMsg.created_at ? new Date(targetMsg.created_at).toLocaleString() : 'Recently';
+    const targetSenderEmail = targetMsg ? (targetMsg.from_email || '') : '';
+    const targetSenderName = targetMsg ? (targetMsg.from_name || targetSenderEmail) : '';
+    const senderDisplay = targetSenderName && targetSenderName !== targetSenderEmail 
+        ? `${targetSenderName} &lt;${targetSenderEmail}&gt;` 
+        : targetSenderEmail;
+
+    let targetBody = targetMsg ? (targetMsg.body_html || (targetMsg.body_plain ? targetMsg.body_plain.replace(/\n/g, '<br>') : '')) : '';
+    // Clean any residual artifacts
+    targetBody = targetBody.replace(/^\s*\*\s*\d+\s+FETCH\s*\([^\r\n]*\r?\n?/i, '')
+                           .replace(/\r?\n\)\s*$/, '')
+                           .replace(/=3D/g, '=')
+                           .replace(/=\r?\n/g, '');
+
     if (mode === 'reply') {
         replyTab.classList.add('active');
         forwardTab.classList.remove('active');
-        toInput.value = toEmail || (activeEmailData ? activeEmailData.from_email : '');
-        const baseSubj = subject || (activeEmailData ? activeEmailData.subject : '');
+        toInput.value = toEmail || targetSenderEmail || '';
+        const baseSubj = subject || (targetMsg ? targetMsg.subject : '');
         subjInput.value = baseSubj ? ('Re: ' + baseSubj.replace(/^(Re:\s*)+/i, '')) : 'Re:';
         modeLabel.textContent = 'Replying to ' + toInput.value;
-        if (inlineQuill) inlineQuill.setText('');
+
+        if (inlineQuill) {
+            if (targetBody) {
+                const replyHtml = `<p><br></p><div class="gmail_quote" style="margin-top: 18px; color: #5f6368; font-size: 13px;"><div dir="ltr" class="gmail_attr">On ${targetDateStr}, ${senderDisplay} wrote:</div><blockquote class="gmail_quote" style="margin: 4px 0 0 0.8ex; border-left: 2px solid #dadce0; padding-left: 10px; color: #3c4043;">${targetBody}</blockquote></div>`;
+                inlineQuill.root.innerHTML = replyHtml;
+                inlineQuill.setSelection(0, 0);
+            } else {
+                inlineQuill.setText('');
+            }
+        }
     } else {
         forwardTab.classList.add('active');
         replyTab.classList.remove('active');
         toInput.value = '';
         toInput.placeholder = 'Enter recipient email to forward...';
-        const baseSubj = subject || (activeEmailData ? activeEmailData.subject : '');
+        const baseSubj = subject || (targetMsg ? targetMsg.subject : '');
         subjInput.value = baseSubj ? ('Fwd: ' + baseSubj.replace(/^(Fwd:\s*)+/i, '')) : 'Fwd:';
         modeLabel.textContent = 'Forwarding message to new recipient';
 
-        // Prepopulate standard forwarded message block
-        if (activeEmailData && inlineQuill) {
+        if (inlineQuill) {
             const fwdHtml = `
-                <br><br>
-                <div style="border-left: 3px solid #cbd5e1; padding-left: 14px; margin-top: 14px; color: #475569;">
-                    <strong>---------- Forwarded message ---------</strong><br>
-                    <strong>From:</strong> ${activeEmailData.from_name || activeEmailData.from_email} &lt;${activeEmailData.from_email}&gt;<br>
-                    <strong>Date:</strong> ${activeEmailData.created_at || 'Recently'}<br>
-                    <strong>Subject:</strong> ${activeEmailData.subject || ''}<br>
-                    <strong>To:</strong> ${activeEmailData.to_email || ''}<br><br>
-                    ${activeEmailData.body_html || activeEmailData.body_plain || ''}
+                <p><br></p>
+                <div class="gmail_quote" style="border-left: 2px solid #dadce0; padding-left: 12px; margin-top: 16px; color: #475569; font-size: 13px;">
+                    <div><strong>---------- Forwarded message ---------</strong></div>
+                    <div><strong>From:</strong> ${senderDisplay}</div>
+                    <div><strong>Date:</strong> ${targetDateStr}</div>
+                    <div><strong>Subject:</strong> ${targetMsg ? (targetMsg.subject || '') : ''}</div>
+                    <div><strong>To:</strong> ${targetMsg ? (targetMsg.to_email || '') : ''}</div>
+                    <br>
+                    <div>${targetBody}</div>
                 </div>
             `;
             inlineQuill.root.innerHTML = fwdHtml;
+            inlineQuill.setSelection(0, 0);
         }
     }
 
@@ -3911,6 +4910,7 @@ function setInlineComposerMode(mode, toEmail = null, subject = null) {
             toInput.focus();
         } else if (inlineQuill) {
             inlineQuill.focus();
+            inlineQuill.setSelection(0, 0);
         }
         box.classList.remove('highlight-focus');
     }, 400);
@@ -3925,13 +4925,13 @@ function handleInlineFileSelected(input) {
     }
 }
 
-function openInlineComposer(mode = 'reply', toEmail = null, subject = null) {
+function openInlineComposer(mode = 'reply', toEmail = null, subject = null, messageId = null) {
     const box = document.getElementById('inlineComposerContainer');
     const bottomPills = document.getElementById('detailBottomActionPills');
     if (bottomPills) bottomPills.style.display = 'none';
     if (box) {
         box.style.display = 'block';
-        setInlineComposerMode(mode, toEmail, subject);
+        setInlineComposerMode(mode, toEmail, subject, messageId);
         setTimeout(() => {
             box.scrollIntoView({ behavior: 'smooth', block: 'end' });
         }, 50);
@@ -4162,6 +5162,9 @@ function submitInlineComposer(e) {
         formData.append('body_plain', inlineQuill.getText());
     }
     if (activeThreadId) formData.append('thread_id', activeThreadId);
+    if (activeReplyTargetMsg && activeReplyTargetMsg.message_id) {
+        formData.append('in_reply_to', activeReplyTargetMsg.message_id);
+    }
     if (currentAccountId) formData.append('account_id', currentAccountId);
 
     // 1. Instantly reset & clear UI (<5ms)
@@ -4243,6 +5246,8 @@ function closeEmailThread(pushToHistory = true) {
     }
     activeThreadId = null;
     activeEmailData = null;
+    activeThreadMessages = [];
+    activeReplyTargetMsg = null;
 
     const detailPane = document.getElementById('emailDetailPane');
     if (detailPane) {
@@ -4279,10 +5284,28 @@ function replyEmail(id) {
     .then(res => res.json())
     .then(data => {
         if (data.email) {
+            const email = data.email;
+            const dateStr = email.created_at ? new Date(email.created_at).toLocaleString() : 'Recently';
+            const senderName = email.from_name || email.from_email;
+            const senderDisplay = senderName && senderName !== email.from_email ? `${senderName} &lt;${email.from_email}&gt;` : email.from_email;
+            let body = email.body_html || (email.body_plain ? email.body_plain.replace(/\n/g, '<br>') : '');
+            body = body.replace(/^\s*\*\s*\d+\s+FETCH\s*\([^\r\n]*\r?\n?/i, '')
+                       .replace(/\r?\n\)\s*$/, '')
+                       .replace(/=3D/g, '=')
+                       .replace(/=\r?\n/g, '');
+
+            const replyQuote = `<p><br></p><div class="gmail_quote" style="margin-top: 18px; color: #5f6368; font-size: 13px;"><div dir="ltr" class="gmail_attr">On ${dateStr}, ${senderDisplay} wrote:</div><blockquote class="gmail_quote" style="margin: 4px 0 0 0.8ex; border-left: 2px solid #dadce0; padding-left: 10px; color: #3c4043;">${body}</blockquote></div>`;
+
             openComposeModal({
-                to: data.email.from_email,
-                subject: 'Re: ' + (data.email.subject || '')
+                to: email.from_email,
+                subject: 'Re: ' + (email.subject || '').replace(/^(Re:\s*)+/i, ''),
+                body: replyQuote
             });
+            setTimeout(() => {
+                if (composeQuill) {
+                    composeQuill.setSelection(0, 0);
+                }
+            }, 150);
         }
     });
 }
@@ -4960,14 +5983,39 @@ document.addEventListener('keydown', function(e) {
 function renderIsolatedEmailBody(container, rawHtml, plainText) {
     if (!container) return;
 
-    container.style.width = '100%';
-    container.style.maxWidth = '100%';
     container.style.boxSizing = 'border-box';
 
     const escapeEmailHtml = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
 
     let content = rawHtml;
     if (content) {
+        content = content.replace(/^\s*\*\s*\d+\s+FETCH\s*\([^\r\n]*\r?\n?/i, '')
+                         .replace(/\r?\n\)\s*$/, '')
+                         .replace(/=3D/g, '=')
+                         .replace(/=\r?\n/g, '')
+                         .replace(/width=["']?120["']?([0-9.]+%?)"?/gi, 'width="$1"')
+                         .replace(/<p><\/p>/gi, '')
+                         .replace(/(<p[^>]*>(?:&nbsp;|\s| )*<\/p>\s*){2,}/gi, '<p style="margin: 4px 0;">&nbsp;</p>');
+
+        // Decode escaped HTML tags like &lt;b&gt;, &lt;/b&gt;, &lt;/tr&gt;, &lt;/html&gt;
+        content = content.replace(/&lt;(\/?[a-zA-Z0-9_-]+(?:[\s\S]*?)?)&gt;/gi, function(match, inner) {
+            if (/^\/?(html|body|head|table|tbody|thead|tr|td|th|p|div|span|b|strong|i|em|u|br|hr|img|a)(?:\s+[^>]*)?$/i.test(inner)) {
+                return '<' + inner + '>';
+            }
+            return match;
+        });
+
+        // Scale email containers responsively (up to 780px card max-width) without stretching to infinity
+        content = content.replace(/max-width\s*:\s*(?:5[0-9]{2}|6[0-9]{2}|7[0-9]{2}|8[0-9]{2})px/gi, 'max-width: 780px');
+
+        // Strip duplicate consecutive closing tags e.g. </tr>\s*</tr>
+        content = content.replace(/(<\/tr>\s*){2,}/gi, '</tr>');
+        content = content.replace(/(<\/table>\s*){2,}/gi, '</table>');
+        content = content.replace(/(<\/div>\s*){2,}/gi, '</div>');
+
+        // Remove stray <html>, </html>, <body>, </body> inside the body
+        content = content.replace(/<\/?(html|body|head)[^>]*>/gi, '');
+
         if (!content.includes('class="gmail_quote"') && !content.includes("class='gmail_quote'")) {
             const quoteRegex = /(<div[^>]*>|<p[^>]*>|<br\s*\/?>|\n|^)(\s*(?:On\s+[\s\S]*?wrote:|-----Original Message-----|From:\s+[\s\S]*?Sent:))/i;
             const match = content.match(quoteRegex);
@@ -4991,7 +6039,7 @@ function renderIsolatedEmailBody(container, rawHtml, plainText) {
     iframe.setAttribute('frameborder', '0');
     iframe.setAttribute('scrolling', 'no');
     iframe.style.width = '100%';
-    iframe.style.minWidth = '100%';
+    iframe.style.minWidth = '0';
     iframe.style.maxWidth = '100%';
     iframe.style.height = '60px';
     iframe.style.border = 'none';
@@ -5003,23 +6051,12 @@ function renderIsolatedEmailBody(container, rawHtml, plainText) {
         try {
             if (!iframe.contentWindow || !iframe.contentWindow.document) return;
             const doc = iframe.contentWindow.document;
-            const body = doc.body;
-            if (!body) return;
+            const root = doc.getElementById('email-inner-root') || doc.body;
+            if (!root) return;
 
-            body.style.height = 'auto';
-            body.style.minHeight = '0px';
-            if (doc.documentElement) {
-                doc.documentElement.style.height = 'auto';
-                doc.documentElement.style.minHeight = '0px';
-            }
-
-            const exactHeight = Math.ceil(Math.max(
-                body.scrollHeight || 0,
-                body.offsetHeight || 0,
-                doc.documentElement ? doc.documentElement.scrollHeight : 0,
-                30
-            ));
-            iframe.style.height = exactHeight + 'px';
+            const rootRectHeight = root.getBoundingClientRect ? root.getBoundingClientRect().height : 0;
+            const exactHeight = Math.ceil(Math.max(root.offsetHeight || 0, root.scrollHeight || 0, rootRectHeight, 30));
+            iframe.style.height = (exactHeight + 6) + 'px';
         } catch (e) {}
     };
     iframe.__adjustHeight = adjustHeight;
@@ -5042,7 +6079,18 @@ function renderIsolatedEmailBody(container, rawHtml, plainText) {
                     max-width: 100% !important;
                     height: auto !important;
                     min-height: 0 !important;
+                    overflow-x: hidden !important;
                     background: transparent;
+                }
+                #email-inner-root {
+                    display: flow-root !important;
+                    width: 100% !important;
+                    max-width: 100% !important;
+                    height: auto !important;
+                    min-height: 0 !important;
+                    margin: 0 !important;
+                    padding: 0 !important;
+                    overflow-x: hidden !important;
                 }
                 body {
                     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -5051,6 +6099,59 @@ function renderIsolatedEmailBody(container, rawHtml, plainText) {
                     color: #1e293b;
                     word-break: normal !important;
                     overflow-wrap: break-word !important;
+                }
+                p {
+                    margin: 0 0 8px 0;
+                }
+                .MsoNormal, li.MsoNormal, div.MsoNormal {
+                    margin: 0 0 6px 0 !important;
+                }
+                div[align="center"], center {
+                    text-align: center !important;
+                }
+                div[align="center"] > table, center > table {
+                    margin: 12px auto !important;
+                    margin-left: auto !important;
+                    margin-right: auto !important;
+                    max-width: 780px !important;
+                }
+                /* Email templates and cards: centered, responsive max-width */
+                .wrapper, div.wrapper, table.wrapper, [class*="wrapper"] {
+                    width: 100% !important;
+                    max-width: 100% !important;
+                    margin: 0 auto !important;
+                    padding-left: 0 !important;
+                    padding-right: 0 !important;
+                    background-color: transparent !important;
+                }
+                .main-table, table.main-table, [class*="main-table"],
+                .email-container, [class*="container"],
+                .content-table, [class*="content-table"],
+                table[align="center"],
+                table.nl2go-body-table,
+                table[width="595"], table[width="600"], table[width="640"], table[width="650"], table[width="700"], table[width="800"] {
+                    width: 100% !important;
+                    max-width: 780px !important;
+                    margin: 16px auto !important;
+                    margin-left: auto !important;
+                    margin-right: auto !important;
+                    box-sizing: border-box !important;
+                }
+                [style*="max-width: 600px"], [style*="max-width:600px"],
+                [style*="max-width: 520px"], [style*="max-width:520px"],
+                [style*="max-width: 640px"], [style*="max-width:640px"],
+                [style*="max-width: 650px"], [style*="max-width:650px"],
+                [style*="max-width: 700px"], [style*="max-width:700px"],
+                [style*="max-width: 800px"], [style*="max-width:800px"] {
+                    max-width: 780px !important;
+                    width: 100% !important;
+                    margin-left: auto !important;
+                    margin-right: auto !important;
+                }
+                table {
+                    border-collapse: collapse !important;
+                    max-width: 100% !important;
+                    box-sizing: border-box !important;
                 }
                 /* Reset browser default blockquote margins and prevent nested indentation creep */
                 blockquote, .gmail_quote, .gmail_default {
@@ -5122,9 +6223,18 @@ function renderIsolatedEmailBody(container, rawHtml, plainText) {
                 .gmail-quote-collapsed {
                     display: none !important;
                 }
+                mark.gmail-search-highlight, .gmail-search-highlight {
+                    background-color: #fef08a !important;
+                    color: #111827 !important;
+                    padding: 1px 3px !important;
+                    border-radius: 2px !important;
+                    font-weight: 700 !important;
+                    box-shadow: 0 0 0 1px rgba(234, 179, 8, 0.25) !important;
+                    display: inline !important;
+                }
             </style>
         </head>
-        <body>${content}</body>
+        <body><div id="email-inner-root">${content}</div></body>
         </html>
     `;
 
@@ -5176,6 +6286,26 @@ function renderIsolatedEmailBody(container, rawHtml, plainText) {
                         img.addEventListener('error', adjustHeight);
                     }
                 });
+
+                // Center email cards & templates responsively (max 780px) inside document
+                doc.querySelectorAll('.wrapper').forEach(el => {
+                    el.style.width = '100%';
+                    el.style.maxWidth = '100%';
+                    el.style.marginLeft = 'auto';
+                    el.style.marginRight = 'auto';
+                });
+                doc.querySelectorAll('.main-table, table[align="center"], table[width="595"], table[width="600"], table[width="640"], table[width="650"], table[width="700"], table[width="800"]').forEach(el => {
+                    el.style.width = '100%';
+                    el.style.maxWidth = '780px';
+                    el.style.marginLeft = 'auto';
+                    el.style.marginRight = 'auto';
+                });
+
+                const searchInput = document.getElementById('emailSearchInput');
+                const searchVal = searchInput ? searchInput.value.trim() : '';
+                if (searchVal && doc.body) {
+                    highlightSearchTermsInElement(doc.body, searchVal);
+                }
             }
         } catch (err) {}
 

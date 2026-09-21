@@ -277,12 +277,11 @@ function crmMaskPhone(phone) {
         }
     }
 
-    // Keep first 2 + mask middle + last 2
-    if (digits.length <= 4) return str;
-    const visible_start = digits.slice(0, 2);
-    const visible_end   = digits.slice(-2);
+    // Mask all except last 4 digits (no leading digits)
+    if (digits.length <= 4) return prefix + '*'.repeat(Math.max(4, digits.length));
+    const visible_end   = digits.slice(-4);
     const masked_mid    = '*'.repeat(Math.max(4, digits.length - 4));
-    return prefix + visible_start + masked_mid + visible_end;
+    return prefix + masked_mid + visible_end;
 }
 
 // User-friendly Twilio error message formatter in English

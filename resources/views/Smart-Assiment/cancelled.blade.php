@@ -48,8 +48,8 @@
                                     <tr class="bg-light-danger" style="opacity: 0.85;">
                                         <td class="ps-4">
                                             <a href="#" class="text-dark fw-bolder text-hover-primary d-block fs-6">{{ $lead->name ?? 'N/A' }}</a>
-                                            <span class="text-muted fw-bold d-block fs-7 mt-1">{{ $lead->email ?? 'N/A' }}</span>
-                                            <span class="text-muted fw-bold d-block fs-7">{{ $lead->country ?? '' }} {{ $lead->mobile_number ?? 'N/A' }}</span>
+                                            <span class="text-muted fw-bold d-block fs-7 mt-1">{{ mask_email_for_display($lead->email ?? '') }}</span>
+                                            <span class="text-muted fw-bold d-block fs-7">{{ mask_phone_for_display($lead->country, $lead->mobile_number) }}</span>
                                         </td>
                                         <td>
                                             <span class="text-dark fw-bolder d-block fs-6">{{ $lead->services ?? 'N/A' }}</span>

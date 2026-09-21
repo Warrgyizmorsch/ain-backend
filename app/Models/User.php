@@ -106,13 +106,20 @@ class User extends Authenticatable
     public function groups() { return $this->belongsToMany(GroupMaster::class)->withTimestamps(); }
 
     /**
-     * Get assigned labels for the user (across WhatsApp and Email)
+     * Get assigned CRM labels for the user (applies to all user orders and profile)
+     * Strictly restricted to labels where is_crm == true.
      */
     public function getLabelsAttribute()
     {
         if ($this->relationLoaded('labels')) {
             return $this->getRelation('labels');
         }
+
+        $labelIds = collect();
+
+        // 1. Direct CRM user labels by user_id
+        $crmIds = \App\Models\CrmUserLabel::where('user_id', $this->id)->pluck('label_id');
+        $labelIds = $labelIds->concat($crmIds);
 
         $phones = [];
         if (!empty($this->mobile_no)) {
@@ -126,15 +133,27 @@ class User extends Authenticatable
             ])));
         }
 
-        $labelIds = collect();
+        // 2. Fallback / supplementary matching by phone & email in crm_user_labels
         if (!empty($phones)) {
-            $waLabelIds = WhatsappChatContactLabel::whereIn('phone', $phones)->pluck('label_id');
-            $labelIds = $labelIds->concat($waLabelIds);
+            $crmPhoneIds = \App\Models\CrmUserLabel::whereIn('phone', $phones)->pluck('label_id');
+            $labelIds = $labelIds->concat($crmPhoneIds);
         }
 
         if (!empty($this->email)) {
-            $emailLabelIds = \App\Models\EmailThreadLabel::where('email', $this->email)->pluck('label_id');
-            $labelIds = $labelIds->concat($emailLabelIds);
+            $crmEmailIds = \App\Models\CrmUserLabel::where('email', $this->email)->pluck('label_id');
+            $labelIds = $labelIds->concat($crmEmailIds);
+        }
+
+        // 3. Fallback to contact/thread labels (strictly for backward-compat if crm table has not yet synced)
+        if ($labelIds->isEmpty()) {
+            if (!empty($phones)) {
+                $waIds = WhatsappChatContactLabel::whereIn('phone', $phones)->pluck('label_id');
+                $labelIds = $labelIds->concat($waIds);
+            }
+            if (!empty($this->email)) {
+                $emailIds = \App\Models\EmailThreadLabel::where('email', $this->email)->pluck('label_id');
+                $labelIds = $labelIds->concat($emailIds);
+            }
         }
 
         $uniqueIds = $labelIds->unique()->filter()->all();
@@ -144,13 +163,15 @@ class User extends Authenticatable
             return $emptyCollection;
         }
 
-        $labels = WhatsappChatLabel::whereIn('id', $uniqueIds)->ordered()->get();
+        // Strictly enforce forCrm() so non-CRM labels never show in CRM / Orders
+        $labels = WhatsappChatLabel::forCrm()->whereIn('id', $uniqueIds)->ordered()->get();
         $this->setRelation('labels', $labels);
         return $labels;
     }
 
     /**
-     * Batch attach labels to a collection of users to prevent N+1 queries.
+     * Batch attach CRM labels to a collection of users to prevent N+1 queries.
+     * Strictly restricted to labels where is_crm == true.
      */
     public static function attachLabelsToUsers($users)
     {
@@ -163,6 +184,8 @@ class User extends Authenticatable
         $userPhoneMap = [];
         $userEmailMap = [];
         $allEmails = [];
+        $userIds = $userList->pluck('id')->all();
+        $userLabelIds = [];
 
         foreach ($userList as $u) {
             $uId = $u->id;
@@ -187,32 +210,75 @@ class User extends Authenticatable
             }
         }
 
-        $userLabelIds = [];
+        // 1. Direct fetch from crm_user_labels by user_id
+        $crmUserLabels = \App\Models\CrmUserLabel::whereIn('user_id', $userIds)->get(['user_id', 'label_id']);
+        foreach ($crmUserLabels as $cul) {
+            $userLabelIds[$cul->user_id][] = (int) $cul->label_id;
+        }
+
+        // 2. Fetch by phone / email in crm_user_labels
         if (!empty($allPhones)) {
-            $contactLabels = WhatsappChatContactLabel::whereIn('phone', array_unique($allPhones))->get(['phone', 'label_id']);
-            foreach ($contactLabels as $cl) {
+            $crmPhoneLabels = \App\Models\CrmUserLabel::whereIn('phone', array_unique($allPhones))->whereNull('user_id')->get(['phone', 'label_id']);
+            foreach ($crmPhoneLabels as $cl) {
                 if (isset($userPhoneMap[$cl->phone])) {
                     foreach ($userPhoneMap[$cl->phone] as $uId) {
-                        $userLabelIds[$uId][] = (int)$cl->label_id;
+                        $userLabelIds[$uId][] = (int) $cl->label_id;
                     }
                 }
             }
         }
 
         if (!empty($allEmails)) {
-            $emailLabels = \App\Models\EmailThreadLabel::whereIn('email', array_unique($allEmails))->get(['email', 'label_id']);
-            foreach ($emailLabels as $el) {
+            $crmEmailLabels = \App\Models\CrmUserLabel::whereIn('email', array_unique($allEmails))->whereNull('user_id')->get(['email', 'label_id']);
+            foreach ($crmEmailLabels as $el) {
                 $elEmail = strtolower(trim($el->email));
                 if (isset($userEmailMap[$elEmail])) {
                     foreach ($userEmailMap[$elEmail] as $uId) {
-                        $userLabelIds[$uId][] = (int)$el->label_id;
+                        $userLabelIds[$uId][] = (int) $el->label_id;
+                    }
+                }
+            }
+        }
+
+        // 3. Backward-compat fallback if user has no crm_user_label records yet
+        $usersWithoutCrmLabels = $userList->filter(fn($u) => empty($userLabelIds[$u->id]));
+        if ($usersWithoutCrmLabels->isNotEmpty()) {
+            $missingPhones = [];
+            $missingEmails = [];
+            foreach ($usersWithoutCrmLabels as $u) {
+                if (!empty($u->mobile_no)) {
+                    $missingPhones[] = preg_replace('/\D+/', '', $u->mobile_no);
+                }
+                if (!empty($u->email)) {
+                    $missingEmails[] = strtolower(trim($u->email));
+                }
+            }
+            if (!empty($missingPhones)) {
+                $contactLabels = WhatsappChatContactLabel::whereIn('phone', array_unique($missingPhones))->get(['phone', 'label_id']);
+                foreach ($contactLabels as $cl) {
+                    if (isset($userPhoneMap[$cl->phone])) {
+                        foreach ($userPhoneMap[$cl->phone] as $uId) {
+                            $userLabelIds[$uId][] = (int)$cl->label_id;
+                        }
+                    }
+                }
+            }
+            if (!empty($missingEmails)) {
+                $emailLabels = \App\Models\EmailThreadLabel::whereIn('email', array_unique($missingEmails))->get(['email', 'label_id']);
+                foreach ($emailLabels as $el) {
+                    $elEmail = strtolower(trim($el->email));
+                    if (isset($userEmailMap[$elEmail])) {
+                        foreach ($userEmailMap[$elEmail] as $uId) {
+                            $userLabelIds[$uId][] = (int)$el->label_id;
+                        }
                     }
                 }
             }
         }
 
         $allLabelIds = collect($userLabelIds)->flatten()->unique()->filter()->all();
-        $labelsById = !empty($allLabelIds) ? WhatsappChatLabel::whereIn('id', $allLabelIds)->ordered()->get()->keyBy('id') : collect();
+        // Strictly filter by forCrm()
+        $labelsById = !empty($allLabelIds) ? WhatsappChatLabel::forCrm()->whereIn('id', $allLabelIds)->ordered()->get()->keyBy('id') : collect();
 
         foreach ($userList as $u) {
             $uId = $u->id;

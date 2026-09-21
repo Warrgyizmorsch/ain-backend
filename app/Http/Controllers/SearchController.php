@@ -53,7 +53,7 @@ class SearchController extends Controller
                                       ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile_no, '')) LIKE ?", ["%$cleanPattern%"])
                                       ->orWhereRaw("CONCAT(IFNULL(countrycode2, ''), IFNULL(mobile_no2, '')) LIKE ?", ["%$cleanPattern%"]);
                                 }
-                            } else if (strlen($cleanDigits) >= 7) {
+                            } else if (strlen($cleanDigits) >= 4) {
                                 $q->orWhere('mobile_no', 'like', "%$cleanDigits%")
                                   ->orWhere('mobile_no2', 'like', "%$cleanDigits%")
                                   ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile_no, '')) LIKE ?", ["%$cleanDigits%"]);

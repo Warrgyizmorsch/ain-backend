@@ -98,6 +98,7 @@ Route::prefix('emails')->name('emails.')->middleware(['auth', 'check.permission'
     Route::get('/updates', [\App\Http\Controllers\EmailController::class, 'updates'])->name('updates');
     Route::get('/csrf-token', [\App\Http\Controllers\EmailController::class, 'csrfToken'])->name('csrf-token');
     Route::get('/attachment/{id}/download', [\App\Http\Controllers\EmailController::class, 'downloadAttachment'])->name('attachment.download');
+    Route::get('/search/suggest', [\App\Http\Controllers\EmailController::class, 'suggestSearch'])->name('search.suggest');
     Route::get('/{id}', [\App\Http\Controllers\EmailController::class, 'show'])->name('show');
     Route::post('/{id}/star', [\App\Http\Controllers\EmailController::class, 'toggleStarById'])->name('star.id');
     Route::delete('/{id}', [\App\Http\Controllers\EmailController::class, 'deleteById'])->name('delete.id');

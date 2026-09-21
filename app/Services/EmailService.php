@@ -712,8 +712,10 @@ class EmailService
         }
 
         // Full MIME body extraction
-        $rawCleaned = preg_replace('/TAG_F\d+\s+OK.*/i', '', $raw);
+        $rawCleaned = preg_replace('/^\s*\*\s*\d+\s+FETCH\s*\([^\r\n]*\r?\n?/i', '', $raw);
+        $rawCleaned = preg_replace('/TAG_F\d+\s+OK.*/i', '', $rawCleaned);
         $rawCleaned = preg_replace('/\s*FLAGS\s*\(\\\\Seen\)\s*\)?/i', '', $rawCleaned);
+        $rawCleaned = preg_replace('/\r?\n\)\s*$/', '', $rawCleaned);
 
         $headerBody = preg_split('/\r?\n\r?\n/', $rawCleaned, 2);
         $headerText = $headerBody[0] ?? '';
@@ -742,13 +744,47 @@ class EmailService
             $bodyHtml = nl2br(e($bodyPlain));
         }
 
+        // Final pass Quoted-Printable decoding if bodyHtml still contains soft breaks or =3D
+        if (!empty($bodyHtml) && (strpos($bodyHtml, '=3D') !== false || preg_match('/=\r?\n/', $bodyHtml))) {
+            $bodyHtml = quoted_printable_decode($bodyHtml);
+        }
+        if (!empty($bodyPlain) && (strpos($bodyPlain, '=3D') !== false || preg_match('/=\r?\n/', $bodyPlain))) {
+            $bodyPlain = quoted_printable_decode($bodyPlain);
+        }
+
         // Clean up stray boundary markers and protocol artifacts
+        $bodyHtml = preg_replace('/^\s*\*\s*\d+\s+FETCH\s*\([^\r\n]*\r?\n?/i', '', $bodyHtml);
+        $bodyPlain = preg_replace('/^\s*\*\s*\d+\s+FETCH\s*\([^\r\n]*\r?\n?/i', '', $bodyPlain);
         $bodyHtml = preg_replace('/--[0-9a-zA-Z_\-=.\/]{10,80}(--)?/i', '', $bodyHtml);
         $bodyPlain = preg_replace('/--[0-9a-zA-Z_\-=.\/]{10,80}(--)?/i', '', $bodyPlain);
         $bodyHtml = preg_replace('/Content-Type:\s*text\/(html|plain)[^\r\n]*/i', '', $bodyHtml);
         $bodyPlain = preg_replace('/Content-Type:\s*text\/(html|plain)[^\r\n]*/i', '', $bodyPlain);
         $bodyHtml = preg_replace('/Content-Transfer-Encoding:[^\r\n]*/i', '', $bodyHtml);
         $bodyPlain = preg_replace('/Content-Transfer-Encoding:[^\r\n]*/i', '', $bodyPlain);
+
+        // Clean any residual =3D or raw soft-breaks
+        $bodyHtml = str_replace('=3D', '=', $bodyHtml);
+        $bodyHtml = preg_replace('/=\r?\n/', '', $bodyHtml);
+
+        // Fix Word/Outlook invalid nested paragraphs and collapse huge empty whitespace gaps
+        $bodyHtml = preg_replace('/<p[^>]*>\s*(?:<span[^>]*>)?\s*<p[^>]*>(\s*|&nbsp;| )*<\/p>\s*(?:<\/span>)?\s*<\/p>/i', '<p class="MsoNormal" style="margin: 4px 0;">&nbsp;</p>', $bodyHtml);
+        $bodyHtml = preg_replace('/<p><\/p>/i', '', $bodyHtml);
+        $bodyHtml = preg_replace('/(<p[^>]*>(?:&nbsp;|\s| )*<\/p>\s*){2,}/i', '<p class="MsoNormal" style="margin: 4px 0;">&nbsp;</p>', $bodyHtml);
+
+        // Decode escaped HTML tags like &lt;b&gt;, &lt;/b&gt;, &lt;/tr&gt;, &lt;/html&gt;
+        $bodyHtml = preg_replace_callback('/&lt;(\/?[a-zA-Z0-9_-]+(?:[\s\S]*?)?)&gt;/i', function($m) {
+            $inner = $m[1];
+            if (preg_match('/^\/?(html|body|head|table|tbody|thead|tr|td|th|p|div|span|b|strong|i|em|u|br|hr|img|a)(?:\s+[^>]*)?$/i', $inner)) {
+                return '<' . $inner . '>';
+            }
+            return $m[0];
+        }, $bodyHtml);
+
+        // Remove duplicate consecutive table tags and stray html/body tags
+        $bodyHtml = preg_replace('/(<\/tr>\s*){2,}/i', '</tr>', $bodyHtml);
+        $bodyHtml = preg_replace('/(<\/table>\s*){2,}/i', '</table>', $bodyHtml);
+        $bodyHtml = preg_replace('/(<\/div>\s*){2,}/i', '</div>', $bodyHtml);
+        $bodyHtml = preg_replace('/<\/?(html|body|head)[^>]*>/i', '', $bodyHtml);
 
         // Sanitize binary garbage / corrupt image bytes
         $bodyHtml = preg_replace('/4[\?M]4[\?M]4[\?M][\s\S]*?(?=\[image|\n\n|$)/u', '', $bodyHtml);
@@ -757,6 +793,10 @@ class EmailService
         $bodyPlain = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', '', $bodyPlain);
 
         // Sanitize valid UTF-8
+        if (function_exists('iconv')) {
+            $bodyHtml = @iconv('UTF-8', 'UTF-8//IGNORE', $bodyHtml) ?: $bodyHtml;
+            $bodyPlain = @iconv('UTF-8', 'UTF-8//IGNORE', $bodyPlain) ?: $bodyPlain;
+        }
         $bodyHtml = mb_convert_encoding(trim($bodyHtml), 'UTF-8', 'UTF-8');
         $bodyPlain = mb_convert_encoding(trim($bodyPlain), 'UTF-8', 'UTF-8');
 
@@ -814,6 +854,12 @@ class EmailService
             $body = quoted_printable_decode($body);
         } elseif ($encoding === 'base64') {
             $body = base64_decode(preg_replace('/\s+/', '', $body), true) ?: '';
+        } elseif (strpos($body, '=3D') !== false || preg_match('/=\r?\n/', $body)) {
+            $body = quoted_printable_decode($body);
+        }
+
+        if (function_exists('iconv')) {
+            $body = @iconv('UTF-8', 'UTF-8//IGNORE', $body) ?: $body;
         }
 
         $isAttachment = preg_match('/Content-Disposition:\s*attachment/i', $headers)

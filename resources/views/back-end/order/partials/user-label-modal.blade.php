@@ -28,7 +28,7 @@
                     </div>
 
                     @php
-                        $crmAllLabels = \App\Models\WhatsappChatLabel::ordered()->get();
+                        $crmAllLabels = \App\Models\WhatsappChatLabel::forCrm()->ordered()->get();
                     @endphp
 
                     <div class="d-flex flex-column gap-2" id="crmUserLabelListContainer">

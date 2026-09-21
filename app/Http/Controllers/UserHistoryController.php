@@ -1016,6 +1016,15 @@ public function getReportUsers(Request $request)
         ->orderBy('created_at', 'desc')
         ->paginate(1000);
 
+    $isSuperAdmin = auth()->check() && (int) auth()->user()->role_id === 1;
+    if (!$isSuperAdmin) {
+        $users->getCollection()->transform(function ($u) {
+            $u->mobile_no = $u->mobile_no ? mask_mobile_only(null, $u->mobile_no) : '-';
+            $u->email = $u->email ? mask_email_for_display($u->email) : '-';
+            return $u;
+        });
+    }
+
     return response()->json([
         'data' => $users->items(),
         'current_page' => $users->currentPage(),

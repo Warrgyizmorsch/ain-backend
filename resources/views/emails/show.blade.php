@@ -277,10 +277,11 @@
     }
 
     .duralux-conversation-content {
-        padding: 24px 32px 60px 32px;
-        max-width: 1020px;
-        margin: 0 auto;
+        padding: 16px 20px 60px 20px;
+        max-width: 100%;
+        margin: 0;
         width: 100%;
+        overflow-x: hidden !important;
     }
 
     .duralux-subject-header {
@@ -361,12 +362,14 @@
         line-height: 1.65;
         color: var(--gmail-text);
         margin-top: 14px;
-        padding-left: 52px;
+        margin-left: 54px;
+        margin-right: 54px;
+        padding: 0;
         word-break: normal;
         overflow-wrap: break-word;
-        width: calc(100% - 52px);
-        max-width: calc(100% - 52px);
+        width: auto !important;
         box-sizing: border-box;
+        overflow-x: hidden !important;
     }
 
     .duralux-message-body blockquote,
@@ -497,6 +500,15 @@
     .btn-gmail-send:hover {
         background: var(--gmail-blue-hover) !important;
         box-shadow: 0 2px 6px rgba(60, 64, 67, 0.2);
+    }
+
+    @media (max-width: 768px) {
+        .duralux-message-body,
+        .duralux-inline-composer {
+            margin-left: 0 !important;
+            margin-right: 0 !important;
+            width: 100% !important;
+        }
     }
 </style>
 @endpush
@@ -731,12 +743,12 @@
                             <div class="duralux-message-body" id="show-msg-body-{{ $msg->id }}"></div>
 
                             @if($msg->attachments && $msg->attachments->count() > 0)
-                                <div class="d-flex flex-wrap gap-2 mt-4 pt-3 border-top" style="padding-left: 52px;">
+                                <div class="d-flex flex-wrap gap-2 mt-4 pt-3 border-top" style="margin-left: 54px; margin-right: 54px; padding-left: 0;">
                                     @foreach($msg->attachments as $att)
                                         <div class="gmail-attachment-card">
                                             <i class="fa fa-file-text-o text-primary"></i>
                                             <div class="d-flex flex-column">
-                                                <span class="fs-8 fw-semibold text-truncate" style="max-width: 220px;">{{ $att->filename }}</span>
+                                                <span class="fs-8 fw-semibold text-truncate" style="max-width: 220px;">{{ iconv_mime_decode($att->filename, 0, 'UTF-8') ?: $att->filename }}</span>
                                                 <span class="text-muted fs-9">{{ $att->formatted_size }}</span>
                                             </div>
                                             <a href="{{ route('emails.attachment.download', $att->id) }}" target="_blank" class="gmail-icon-btn ms-2" style="width: 28px; height: 28px;" title="Download"><i class="fa fa-download fs-9"></i></a>
@@ -749,7 +761,7 @@
                 @endforeach
 
                 {{-- Action Pills --}}
-                <div class="d-flex align-items-center gap-2 my-4">
+                <div class="d-flex align-items-center gap-2 my-4" style="margin-left: 54px; margin-right: 54px;">
                     <button type="button" class="duralux-action-pill" onclick="setComposerMode('reply', '{{ $email->from_email }}', '{{ addslashes($email->subject) }}')">
                         <i class="fa fa-reply text-muted"></i>
                         <span>Reply</span>
@@ -761,7 +773,7 @@
                 </div>
 
                 {{-- Dedicated Inline Reply / Forward Composer Box --}}
-                <div class="duralux-inline-composer" id="inlineComposerBox">
+                <div class="duralux-inline-composer" id="inlineComposerBox" style="margin-left: 54px; margin-right: 54px;">
                     <div class="d-flex align-items-center justify-content-between mb-3 pb-2 border-bottom">
                         <div class="d-flex align-items-center gap-2">
                             <button type="button" class="mode-tab-btn active" id="replyTabBtn" onclick="setComposerMode('reply', '{{ $email->from_email }}', '{{ addslashes($email->subject) }}')">
@@ -874,7 +886,16 @@ function setComposerMode(mode, toEmail, subject) {
         toInput.value = toEmail || originalEmail.from_email;
         subjInput.value = subject ? ('Re: ' + subject.replace(/^(Re:\s*)+/i, '')) : ('Re: ' + originalEmail.subject);
         modeLabel.textContent = 'Replying to ' + toInput.value;
-        if (showQuill) showQuill.setText('');
+        if (showQuill) {
+            let body = originalEmail.body_html || (originalEmail.body_plain ? originalEmail.body_plain.replace(/\n/g, '<br>') : '');
+            body = body.replace(/^\s*\*\s*\d+\s+FETCH\s*\([^\r\n]*\r?\n?/i, '')
+                       .replace(/\r?\n\)\s*$/, '')
+                       .replace(/=3D/g, '=')
+                       .replace(/=\r?\n/g, '');
+            const replyQuote = `<p><br></p><div class="gmail_quote" style="margin-top: 18px; color: #5f6368; font-size: 13px;"><div dir="ltr" class="gmail_attr">On ${originalEmail.date}, ${originalEmail.from_name} &lt;${originalEmail.from_email}&gt; wrote:</div><blockquote class="gmail_quote" style="margin: 4px 0 0 0.8ex; border-left: 2px solid #dadce0; padding-left: 10px; color: #3c4043;">${body}</blockquote></div>`;
+            showQuill.root.innerHTML = replyQuote;
+            showQuill.setSelection(0, 0);
+        }
     } else {
         forwardTab.classList.add('active');
         replyTab.classList.remove('active');
@@ -1094,14 +1115,39 @@ function toggleShowMessage(id) {
 function renderIsolatedEmailBody(container, rawHtml, plainText) {
     if (!container) return;
 
-    container.style.width = '100%';
-    container.style.maxWidth = '100%';
     container.style.boxSizing = 'border-box';
 
     const escapeEmailHtml = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
 
     let content = rawHtml;
     if (content) {
+        content = content.replace(/^\s*\*\s*\d+\s+FETCH\s*\([^\r\n]*\r?\n?/i, '')
+                         .replace(/\r?\n\)\s*$/, '')
+                         .replace(/=3D/g, '=')
+                         .replace(/=\r?\n/g, '')
+                         .replace(/width=["']?120["']?([0-9.]+%?)"?/gi, 'width="$1"')
+                         .replace(/<p><\/p>/gi, '')
+                         .replace(/(<p[^>]*>(?:&nbsp;|\s| )*<\/p>\s*){2,}/gi, '<p style="margin: 4px 0;">&nbsp;</p>');
+
+        // Decode escaped HTML tags like &lt;b&gt;, &lt;/b&gt;, &lt;/tr&gt;, &lt;/html&gt;
+        content = content.replace(/&lt;(\/?[a-zA-Z0-9_-]+(?:[\s\S]*?)?)&gt;/gi, function(match, inner) {
+            if (/^\/?(html|body|head|table|tbody|thead|tr|td|th|p|div|span|b|strong|i|em|u|br|hr|img|a)(?:\s+[^>]*)?$/i.test(inner)) {
+                return '<' + inner + '>';
+            }
+            return match;
+        });
+
+        // Scale email containers responsively (up to 780px card max-width) without stretching to infinity
+        content = content.replace(/max-width\s*:\s*(?:5[0-9]{2}|6[0-9]{2}|7[0-9]{2}|8[0-9]{2})px/gi, 'max-width: 780px');
+
+        // Strip duplicate consecutive closing tags e.g. </tr>\s*</tr>
+        content = content.replace(/(<\/tr>\s*){2,}/gi, '</tr>');
+        content = content.replace(/(<\/table>\s*){2,}/gi, '</table>');
+        content = content.replace(/(<\/div>\s*){2,}/gi, '</div>');
+
+        // Remove stray <html>, </html>, <body>, </body> inside the body
+        content = content.replace(/<\/?(html|body|head)[^>]*>/gi, '');
+
         if (!content.includes('class="gmail_quote"') && !content.includes("class='gmail_quote'")) {
             const quoteRegex = /(<div[^>]*>|<p[^>]*>|<br\s*\/?>|\n|^)(\s*(?:On\s+[\s\S]*?wrote:|-----Original Message-----|From:\s+[\s\S]*?Sent:))/i;
             const match = content.match(quoteRegex);
@@ -1125,7 +1171,7 @@ function renderIsolatedEmailBody(container, rawHtml, plainText) {
     iframe.setAttribute('frameborder', '0');
     iframe.setAttribute('scrolling', 'no');
     iframe.style.width = '100%';
-    iframe.style.minWidth = '100%';
+    iframe.style.minWidth = '0';
     iframe.style.maxWidth = '100%';
     iframe.style.height = '60px';
     iframe.style.border = 'none';
@@ -1137,23 +1183,12 @@ function renderIsolatedEmailBody(container, rawHtml, plainText) {
         try {
             if (!iframe.contentWindow || !iframe.contentWindow.document) return;
             const doc = iframe.contentWindow.document;
-            const body = doc.body;
-            if (!body) return;
+            const root = doc.getElementById('email-inner-root') || doc.body;
+            if (!root) return;
 
-            body.style.height = 'auto';
-            body.style.minHeight = '0px';
-            if (doc.documentElement) {
-                doc.documentElement.style.height = 'auto';
-                doc.documentElement.style.minHeight = '0px';
-            }
-
-            const exactHeight = Math.ceil(Math.max(
-                body.scrollHeight || 0,
-                body.offsetHeight || 0,
-                doc.documentElement ? doc.documentElement.scrollHeight : 0,
-                30
-            ));
-            iframe.style.height = exactHeight + 'px';
+            const rootRectHeight = root.getBoundingClientRect ? root.getBoundingClientRect().height : 0;
+            const exactHeight = Math.ceil(Math.max(root.offsetHeight || 0, root.scrollHeight || 0, rootRectHeight, 30));
+            iframe.style.height = (exactHeight + 6) + 'px';
         } catch (e) {}
     };
     iframe.__adjustHeight = adjustHeight;
@@ -1176,7 +1211,18 @@ function renderIsolatedEmailBody(container, rawHtml, plainText) {
                     max-width: 100% !important;
                     height: auto !important;
                     min-height: 0 !important;
+                    overflow-x: hidden !important;
                     background: transparent;
+                }
+                #email-inner-root {
+                    display: flow-root !important;
+                    width: 100% !important;
+                    max-width: 100% !important;
+                    height: auto !important;
+                    min-height: 0 !important;
+                    margin: 0 !important;
+                    padding: 0 !important;
+                    overflow-x: hidden !important;
                 }
                 body {
                     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -1185,6 +1231,59 @@ function renderIsolatedEmailBody(container, rawHtml, plainText) {
                     color: #1e293b;
                     word-break: normal !important;
                     overflow-wrap: break-word !important;
+                }
+                p {
+                    margin: 0 0 8px 0;
+                }
+                .MsoNormal, li.MsoNormal, div.MsoNormal {
+                    margin: 0 0 6px 0 !important;
+                }
+                div[align="center"], center {
+                    text-align: center !important;
+                }
+                div[align="center"] > table, center > table {
+                    margin: 12px auto !important;
+                    margin-left: auto !important;
+                    margin-right: auto !important;
+                    max-width: 780px !important;
+                }
+                /* Email templates and cards: centered, responsive max-width */
+                .wrapper, div.wrapper, table.wrapper, [class*="wrapper"] {
+                    width: 100% !important;
+                    max-width: 100% !important;
+                    margin: 0 auto !important;
+                    padding-left: 0 !important;
+                    padding-right: 0 !important;
+                    background-color: transparent !important;
+                }
+                .main-table, table.main-table, [class*="main-table"],
+                .email-container, [class*="container"],
+                .content-table, [class*="content-table"],
+                table[align="center"],
+                table.nl2go-body-table,
+                table[width="595"], table[width="600"], table[width="640"], table[width="650"], table[width="700"], table[width="800"] {
+                    width: 100% !important;
+                    max-width: 780px !important;
+                    margin: 16px auto !important;
+                    margin-left: auto !important;
+                    margin-right: auto !important;
+                    box-sizing: border-box !important;
+                }
+                [style*="max-width: 600px"], [style*="max-width:600px"],
+                [style*="max-width: 520px"], [style*="max-width:520px"],
+                [style*="max-width: 640px"], [style*="max-width:640px"],
+                [style*="max-width: 650px"], [style*="max-width:650px"],
+                [style*="max-width: 700px"], [style*="max-width:700px"],
+                [style*="max-width: 800px"], [style*="max-width:800px"] {
+                    max-width: 780px !important;
+                    width: 100% !important;
+                    margin-left: auto !important;
+                    margin-right: auto !important;
+                }
+                table {
+                    border-collapse: collapse !important;
+                    max-width: 100% !important;
+                    box-sizing: border-box !important;
                 }
                 /* Reset browser default blockquote margins and prevent nested indentation creep */
                 blockquote, .gmail_quote, .gmail_default {
@@ -1258,7 +1357,7 @@ function renderIsolatedEmailBody(container, rawHtml, plainText) {
                 }
             </style>
         </head>
-        <body>${content}</body>
+        <body><div id="email-inner-root">${content}</div></body>
         </html>
     `;
 
@@ -1309,6 +1408,20 @@ function renderIsolatedEmailBody(container, rawHtml, plainText) {
                         img.addEventListener('load', adjustHeight);
                         img.addEventListener('error', adjustHeight);
                     }
+                });
+
+                // Center email cards & templates responsively (max 780px) inside document
+                doc.querySelectorAll('.wrapper').forEach(el => {
+                    el.style.width = '100%';
+                    el.style.maxWidth = '100%';
+                    el.style.marginLeft = 'auto';
+                    el.style.marginRight = 'auto';
+                });
+                doc.querySelectorAll('.main-table, table[align="center"], table[width="595"], table[width="600"], table[width="640"], table[width="650"], table[width="700"], table[width="800"]').forEach(el => {
+                    el.style.width = '100%';
+                    el.style.maxWidth = '780px';
+                    el.style.marginLeft = 'auto';
+                    el.style.marginRight = 'auto';
                 });
             }
         } catch (err) {}

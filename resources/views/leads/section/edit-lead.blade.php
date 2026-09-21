@@ -27,7 +27,7 @@
                         </div>
                         <div class="col-md-6 fv-row text-start">
                             <label class=" fs-6 fw-bold mb-2">Email</label>
-                            <input type="text"  required class="form-control form-control-solid" placeholder="" value="{{ $lead->user->email }}" name="email">
+                            <input type="text" required class="form-control form-control-solid" placeholder="" value="{{ (auth()->check() && (int)auth()->user()->role_id === 1) ? $lead->user->email : mask_email_for_display($lead->user->email) }}" name="email" @if(!auth()->check() || (int)auth()->user()->role_id !== 1) readonly @endif>
                         </div>
                     </div>
                     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
@@ -35,23 +35,25 @@
                     <div class="row g-9 mb-8 text-start">
                         <div class="col-md-2 fv-row">
                             <label class="fs-6 fw-bold mb-2">Country Code</label>
-                            <input type="text" required id='country_primary' class="form-control form-control-solid" placeholder="" value="{{ $lead->user->countrycode }}" name="countrycode">
+                            <input type="text" required id='country_primary' class="form-control form-control-solid" placeholder="" value="{{ $lead->user->countrycode }}" name="countrycode" @if(!auth()->check() || (int)auth()->user()->role_id !== 1) readonly @endif>
                         </div>
                         <div class="col-md-3 fv-row text-start">
                             <label class="fs-6 fw-bold mb-2">Mobile Number</label>
-                            <input type="text" required id="primary" class="form-control form-control-solid" placeholder="" value="{{$lead->user->mobile_no}}" name="mobile">
+                            <input type="text" required id="primary" class="form-control form-control-solid" placeholder="" value="{{ mask_mobile_only($lead->user->countrycode, $lead->user->mobile_no) }}" name="mobile" @if(!auth()->check() || (int)auth()->user()->role_id !== 1) readonly @endif>
                         </div>
+                        @if(auth()->check() && (int)auth()->user()->role_id === 1)
                         <div class="col-md-2 fv-row">
                             <label class="fs-6 fw-bold mb-2">Swipe Option</label>
                             <li class="fa fa-rotate-right btn btn-primary rotate-icon{{$lead->order_id}}" id="{{$lead->emp_id}}" data-id="{{$lead->id}}"></li>
                         </div>
+                        @endif
                         <div class="col-md-2 fv-row">
                             <label class="fs-6 fw-bold mb-2">Country Code</label>
-                            <input type="text" class="form-control form-control-solid" placeholder="" value="{{ $lead->user->countrycode2 }}" name="countrycode2">
+                            <input type="text" class="form-control form-control-solid" placeholder="" value="{{ $lead->user->countrycode2 }}" name="countrycode2" @if(!auth()->check() || (int)auth()->user()->role_id !== 1) readonly @endif>
                         </div>
                         <div class="col-md-3 fv-row text-start">
                             <label class="fs-6 fw-bold mb-2">Secondary Mobile Number</label>
-                            <input type="text" id="mobile2" class="form-control form-control-solid" placeholder="" value="{{$lead->user->mobile2}}" name="mobile_no2">
+                            <input type="text" id="mobile2" class="form-control form-control-solid" placeholder="" value="{{ mask_mobile_only($lead->user->countrycode2, $lead->user->mobile2 ?? $lead->user->mobile_no2) }}" name="mobile_no2" @if(!auth()->check() || (int)auth()->user()->role_id !== 1) readonly @endif>
                         </div>
                     </div>
 
