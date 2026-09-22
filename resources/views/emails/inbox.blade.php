@@ -4398,8 +4398,18 @@ function reloadEmailList(showLoader = true) {
 
 // Background sync: Only fetches new incoming messages without blocking the UI
 let isSyncing = false;
-function autoSyncLiveInbox() {
-    if (isSyncing || document.hidden || !currentAccountId) return;
+let lastHiddenSyncTime = 0;
+
+function autoSyncLiveInbox(force = false) {
+    if (isSyncing || !currentAccountId) return;
+
+    // If tab is in background, throttle to every 25s instead of stopping completely
+    if (document.hidden && !force) {
+        const now = Date.now();
+        if (now - lastHiddenSyncTime < 25000) return;
+        lastHiddenSyncTime = now;
+    }
+
     isSyncing = true;
 
     fetch('{{ route("emails.sync") }}', {
@@ -4424,15 +4434,25 @@ function autoSyncLiveInbox() {
     });
 }
 
-setTimeout(autoSyncLiveInbox, 2000);
+setTimeout(() => autoSyncLiveInbox(true), 1500);
+
 if (window.Echo && currentAccountId) {
     window.Echo.private(`emails.account.${currentAccountId}`)
         .listen('.email.received', () => {
-            autoSyncLiveInbox();
+            autoSyncLiveInbox(true);
             reloadEmailList(false);
         });
 }
-setInterval(autoSyncLiveInbox, 10000);
+
+setInterval(() => autoSyncLiveInbox(false), 8000);
+
+// Instantly sync when user switches back to this tab
+document.addEventListener('visibilitychange', function() {
+    if (!document.hidden) {
+        autoSyncLiveInbox(true);
+        checkEmailUpdates();
+    }
+});
 
 let lastEmailFingerprint = null;
 let lastKnownEmailId = null;

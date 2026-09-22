@@ -49,11 +49,12 @@
             return;
         }
 
-        if (isGlobalSyncing || document.hidden) return;
+        if (isGlobalSyncing) return;
 
         const now = Date.now();
-        // Enforce minimum 25s throttle
-        if (now - lastGlobalSyncTime < 25000) return;
+        // If document is hidden, throttle to 45s, otherwise 25s
+        const throttleLimit = document.hidden ? 45000 : 25000;
+        if (now - lastGlobalSyncTime < throttleLimit) return;
 
         const csrfMeta = document.querySelector('meta[name="csrf-token"]');
         const token = csrfMeta ? csrfMeta.getAttribute('content') : '{{ csrf_token() }}';

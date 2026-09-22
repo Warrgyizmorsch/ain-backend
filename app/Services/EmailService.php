@@ -481,6 +481,12 @@ class EmailService
                 continue;
             }
 
+            $authFailKey = "email-imap-auth-fail-{$account->id}";
+            if (Cache::has($authFailKey)) {
+                $failures[] = "{$account->name}: skipped (recent auth failure in cooldown)";
+                continue;
+            }
+
             $syncLock = Cache::lock("email-imap-sync-{$account->id}", 55);
             if (!$syncLock->get()) {
                 continue;
@@ -495,13 +501,13 @@ class EmailService
                         'verify_peer_name' => false,
                     ],
                 ]);
-                $socket = @stream_socket_client($scheme . $host . ':' . $port, $errno, $errstr, 12, STREAM_CLIENT_CONNECT, $context);
+                $socket = @stream_socket_client($scheme . $host . ':' . $port, $errno, $errstr, 5, STREAM_CLIENT_CONNECT, $context);
                 if (!$socket) {
                     $failures[] = "{$account->name}: {$errstr} ({$errno})";
                     continue;
                 }
 
-                stream_set_timeout($socket, 15);
+                stream_set_timeout($socket, 8);
                 fgets($socket); // read greeting
 
                 // 1. LOGIN
@@ -514,9 +520,12 @@ class EmailService
 
                 if (!str_contains($loginRes, 'TAG1 OK')) {
                     $failures[] = "{$account->name}: IMAP authentication failed";
+                    Cache::put($authFailKey, true, now()->addMinutes(5));
                     fclose($socket);
                     continue;
                 }
+
+                Cache::forget($authFailKey);
 
                 // 2. SELECT INBOX, then sync stable UIDs in bounded batches.
                 fputs($socket, "TAG2 SELECT INBOX\r\n");
@@ -636,6 +645,8 @@ class EmailService
         if (!str_contains($response, 'T1 OK')) {
             throw new \RuntimeException('IMAP authentication failed.');
         }
+
+        Cache::forget("email-imap-auth-fail-{$account->id}");
 
         return ['smtp' => true, 'imap' => true];
     }
