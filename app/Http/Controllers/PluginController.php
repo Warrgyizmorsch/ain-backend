@@ -15,11 +15,18 @@ use Illuminate\View\View;
 
 class PluginController extends Controller
 {
-    protected TwilioVoiceService $twilioService;
+    protected ?TwilioVoiceService $twilioService = null;
 
-    public function __construct(TwilioVoiceService $twilioService)
+    /**
+     * Lazy-load TwilioVoiceService only when actually needed.
+     * This prevents errors when Twilio is not configured.
+     */
+    protected function twilio(): TwilioVoiceService
     {
-        $this->twilioService = $twilioService;
+        if ($this->twilioService === null) {
+            $this->twilioService = app(TwilioVoiceService::class);
+        }
+        return $this->twilioService;
     }
 
     /**
@@ -27,6 +34,11 @@ class PluginController extends Controller
      */
     public function index(): View
     {
+        $currentUser = Auth::user();
+        $currentUserPhone = $currentUser ? ($currentUser->mobile ?? $currentUser->mobile_no ?? '') : '';
+        $emailAccountsCount = \App\Models\EmailConfiguration::count();
+        $activeEmailAccounts = \App\Models\EmailConfiguration::where('is_active', true)->count();
+
         $twilioPlugin = PluginSetting::firstOrCreate(
             ['plugin_key' => 'twilio_call'],
             [
@@ -35,24 +47,26 @@ class PluginController extends Controller
                 'description' => 'Bridge voice calls between agents and customers directly from the Orders page using Twilio Voice API & WebRTC Dialer.',
                 'is_active' => false,
                 'settings' => [
-                    'account_sid' => '',
-                    'auth_token' => '',
-                    'twilio_number' => '',
-                    'api_key_sid' => '',
-                    'api_secret' => '',
-                    'twiml_app_sid' => '',
-                    'default_agent_number' => '',
-                    'call_mode' => 'webrtc', // 'webrtc' or 'bridge'
-                    'record_calls' => false,
+                    'account_sid' => '', 'auth_token' => '', 'twilio_number' => '',
+                    'api_key_sid' => '', 'api_secret' => '', 'twiml_app_sid' => '',
+                    'default_agent_number' => '', 'call_mode' => 'webrtc', 'record_calls' => false,
                 ],
             ]
         );
 
-        $currentUser = Auth::user();
-        $currentUserPhone = $currentUser ? ($currentUser->mobile ?? $currentUser->mobile_no ?? '') : '';
-        $emailAccountsCount = \App\Models\EmailConfiguration::count();
-        $activeEmailAccounts = \App\Models\EmailConfiguration::where('is_active', true)->count();
+        return view('back-end.plugins.index', [
+            'twilioPlugin' => $twilioPlugin,
+            'currentUserPhone' => $currentUserPhone,
+            'emailAccountsCount' => $emailAccountsCount,
+            'activeEmailAccounts' => $activeEmailAccounts,
+        ]);
+    }
 
+    /**
+     * Dedicated Next2Call Softphone page (separate menu entry).
+     */
+    public function next2callPage(): View
+    {
         $next2callPlugin = PluginSetting::firstOrCreate(
             ['plugin_key' => 'next2call'],
             [
@@ -70,12 +84,34 @@ class PluginController extends Controller
             ]
         );
 
-        return view('back-end.plugins.index', [
-            'twilioPlugin' => $twilioPlugin,
+        $currentUser = Auth::user();
+        $currentUserPhone = $currentUser ? ($currentUser->mobile ?? $currentUser->mobile_no ?? '') : '';
+
+        $settings = $next2callPlugin->settings ?? [];
+        $userId   = $settings['user_id'] ?? config('services.softphone.user_id', '10101');
+        $password = $settings['password'] ?? config('services.softphone.password', 'T2d8d1r5P6x0T8O8iUq');
+        $sipDomain = $settings['sip_domain'] ?? config('services.softphone.sip_domain', 'ringfy.next2call.com');
+        $clickPath = $settings['click_to_dial_path'] ?? '/softphone/Phone/click-to-dial.html';
+
+        $dialerUrl = "https://{$sipDomain}/softphone/Phone/index.html?" . http_build_query([
+            'profileName' => $userId,
+            'SipDomain'   => $sipDomain,
+            'SipUsername' => $userId,
+            'SipPassword' => $password,
+        ]);
+
+        $ctcBaseUrl = "https://{$sipDomain}{$clickPath}?" . http_build_query([
+            'profileName' => $userId,
+            'SipDomain'   => $sipDomain,
+            'SipUsername' => $userId,
+            'SipPassword' => $password,
+        ]);
+
+        return view('back-end.plugins.next2call', [
             'next2callPlugin' => $next2callPlugin,
             'currentUserPhone' => $currentUserPhone,
-            'emailAccountsCount' => $emailAccountsCount,
-            'activeEmailAccounts' => $activeEmailAccounts,
+            'dialerUrl' => $dialerUrl,
+            'ctcBaseUrl' => $ctcBaseUrl,
         ]);
     }
 
@@ -211,10 +247,19 @@ class PluginController extends Controller
 
         $testUrl = "https://{$sipDomain}{$path}?" . $query;
 
+        $dialerQuery = http_build_query([
+            'profileName' => $userId,
+            'SipDomain'   => $sipDomain,
+            'SipUsername' => $userId,
+            'SipPassword' => $password,
+        ]);
+        $dialerUrl = "https://{$sipDomain}/softphone/Phone/index.html?" . $dialerQuery;
+
         return response()->json([
             'success' => true,
             'message' => 'Next2Call click-to-dial test URL generated successfully.',
             'dial_url' => $testUrl,
+            'dialer_url' => $dialerUrl,
             'user_id' => $userId,
             'sip_domain' => $sipDomain,
             'target_number' => $number,
@@ -229,7 +274,7 @@ class PluginController extends Controller
         $userId = Auth::id() ?? 1;
         $identity = 'agent_' . $userId;
 
-        $tokenData = $this->twilioService->generateAccessToken($identity);
+        $tokenData = $this->twilio()->generateAccessToken($identity);
 
         return response()->json($tokenData, $tokenData['success'] ? 200 : 422);
     }
@@ -247,7 +292,7 @@ class PluginController extends Controller
      */
     public function handleTwilioVoiceWebhook(Request $request): Response
     {
-        $twiml = $this->twilioService->generateTwiMLResponse($request);
+        $twiml = $this->twilio()->generateTwiMLResponse($request);
 
         return response($twiml, 200, ['Content-Type' => 'text/xml']);
     }
@@ -270,7 +315,7 @@ class PluginController extends Controller
             'twilio_number' => $validated['twilio_number'] ?? null,
         ]);
 
-        $result = $this->twilioService->makeTestCall($validated['test_phone_number'], $override);
+        $result = $this->twilio()->makeTestCall($validated['test_phone_number'], $override);
 
         return response()->json($result, $result['success'] ? 200 : 422);
     }
@@ -283,7 +328,7 @@ class PluginController extends Controller
         $userId = Auth::id() ?? 1;
         $identity = 'agent_' . $userId;
 
-        $result = $this->twilioService->triggerInboundTestCall($identity);
+        $result = $this->twilio()->triggerInboundTestCall($identity);
 
         return response()->json($result, $result['success'] ? 200 : 422);
     }
@@ -293,7 +338,7 @@ class PluginController extends Controller
      */
     public function autoFixKeys(): JsonResponse
     {
-        $result = $this->twilioService->autoGenerateAndSaveApiKey();
+        $result = $this->twilio()->autoGenerateAndSaveApiKey();
 
         return response()->json($result, $result['success'] ? 200 : 422);
     }
@@ -327,14 +372,14 @@ class PluginController extends Controller
             ], 422);
         }
 
-        $settings = $this->twilioService->getSettings();
+        $settings = $this->twilio()->getSettings();
         $callMode = $settings['call_mode'] ?? 'webrtc';
 
         // If in WebRTC mode, return token and customer phone to initiate call right inside browser
         if ($callMode === 'webrtc') {
             $userId = Auth::id() ?? 1;
             $identity = 'agent_' . $userId;
-            $tokenData = $this->twilioService->generateAccessToken($identity);
+            $tokenData = $this->twilio()->generateAccessToken($identity);
 
             if (!$tokenData['success']) {
                 return response()->json($tokenData, 422);
@@ -371,7 +416,7 @@ class PluginController extends Controller
             ], 422);
         }
 
-        $result = $this->twilioService->initiateBridgeCall($agentPhone, $customerPhone, $order->id);
+        $result = $this->twilio()->initiateBridgeCall($agentPhone, $customerPhone, $order->id);
 
         return response()->json($result, $result['success'] ? 200 : 422);
     }

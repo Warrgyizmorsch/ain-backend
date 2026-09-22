@@ -1694,10 +1694,18 @@ class OrderController extends Controller
             'url' => $callUrl,
         ]);
 
+        $dialerUrl = "https://{$sipDomain}/softphone/Phone/index.html?" . http_build_query([
+            'profileName' => $userId,
+            'SipDomain'   => $sipDomain,
+            'SipUsername' => $userId,
+            'SipPassword' => $password,
+        ]);
+
         return response()->json([
             'success' => true,
             'url' => $callUrl,
             'softphone_url' => $callUrl,
+            'dialer_url' => $dialerUrl,
             'target_number' => $targetNumber,
         ], 200, [], JSON_UNESCAPED_SLASHES);
     }

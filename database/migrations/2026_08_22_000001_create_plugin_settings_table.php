@@ -11,11 +11,8 @@ return new class extends Migration
      */
     public function up(): void
     {
-        if (Schema::hasTable('plugin_settings')) {
-            Schema::dropIfExists('plugin_settings');
-        }
-
-        Schema::create('plugin_settings', function (Blueprint $table) {
+        if (!Schema::hasTable('plugin_settings')) {
+            Schema::create('plugin_settings', function (Blueprint $table) {
             $table->id();
             $table->string('plugin_key', 100)->unique();
             $table->string('name', 150);

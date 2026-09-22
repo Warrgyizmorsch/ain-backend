@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 namespace Database\Seeders;
 
@@ -50,7 +50,7 @@ class RoleOneMenuSeeder extends Seeder
             ['name' => 'submenus', 'routes' => 'submenu', 'sort_order' => 2],
             ['name' => 'User Right', 'routes' => 'userright', 'sort_order' => 3],
             ['name' => 'WhatsApp Settings', 'routes' => 'whatsapp/settings', 'sort_order' => 4],
-            ['name' => 'Plugin Settings', 'routes' => 'admin/plugins', 'sort_order' => 5],
+            ['name' => 'Twilio Plugin', 'routes' => 'admin/plugins', 'sort_order' => 5],
             ['name' => 'Email Settings', 'routes' => 'emails/settings', 'sort_order' => 6],
         ];
 
@@ -59,8 +59,8 @@ class RoleOneMenuSeeder extends Seeder
         DB::table('submenus')->where('menus_id', 2)->where('routes', 'labels')->delete();
 
         // Update legacy names for admin/plugins (e.g. 'Twilio Calling' or 'Plugins') to 'Plugin Settings'
-        DB::table('menu')->where('parent_id', 2)->where('routes', 'admin/plugins')->update(['menu_name' => 'Plugin Settings', 'updated_at' => now()]);
-        DB::table('submenus')->where('menus_id', 2)->where('routes', 'admin/plugins')->update(['sub_menu_name' => 'Plugin Settings', 'updated_at' => now()]);
+        DB::table('menu')->where('parent_id', 2)->where('routes', 'admin/plugins')->update(['menu_name' => 'Twilio Plugin', 'updated_at' => now()]);
+        DB::table('submenus')->where('menus_id', 2)->where('routes', 'admin/plugins')->update(['sub_menu_name' => 'Twilio Plugin', 'updated_at' => now()]);
 
         foreach ($settingItems as $item) {
             // Sync in 'menu' table (as child with parent_id = 2)

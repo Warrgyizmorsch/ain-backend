@@ -1,4 +1,4 @@
-<!--begin::Header-->
+﻿<!--begin::Header-->
 <div id="kt_header" class="header align-items-stretch">
 	<div class="container-fluid d-flex align-items-stretch justify-content-between">
 
@@ -202,22 +202,6 @@
 							<span class="crm-nav-text">WhatsApp</span>
 						</a>
 						<!--end::WhatsApp Header Button-->
-
-						<!--begin::Client Email Header Button-->
-						<a href="{{ $clientEmailUrl }}" class="crm-header-nav-btn crm-nav-client me-3" title="Client Email (order@assignnmentinneed.com)">
-							<span class="crm-nav-icon"><i class="fa fa-envelope"></i></span>
-							<span class="crm-nav-text">Client Email</span>
-							<span id="clientEmailHeaderBadge" class="badge badge-circle badge-danger ms-1 {{ $clientUnreadCount > 0 ? '' : 'd-none' }}" style="font-size: 10px; min-width: 18px; height: 18px; line-height: 18px; padding: 0 4px;">{{ $clientUnreadCount }}</span>
-						</a>
-						<!--end::Client Email Header Button-->
-
-						<!--begin::Writer Email Header Button-->
-						<a href="{{ $writerEmailUrl }}" class="crm-header-nav-btn crm-nav-writer me-3" title="Writer Email (assignmentinneedhelp@gmail.com)">
-							<span class="crm-nav-icon"><i class="fa fa-envelope-open-text"></i></span>
-							<span class="crm-nav-text">Writer Email</span>
-							<span id="writerEmailHeaderBadge" class="badge badge-circle badge-danger ms-1 {{ $writerUnreadCount > 0 ? '' : 'd-none' }}" style="font-size: 10px; min-width: 18px; height: 18px; line-height: 18px; padding: 0 4px;">{{ $writerUnreadCount }}</span>
-						</a>
-						<!--end::Writer Email Header Button-->
 
 						@if(auth()->check() && auth()->user()->role_id == 1)
 							<div class="dropdown me-3">
