@@ -858,10 +858,10 @@ class EmailController extends Controller
         try {
             $files = $request->file('files', []);
             $data = [
-                'to' => $request->input('to'),
-                'account_id' => $request->input('account_id'),
+                'to' => $request->input('to') ?: $request->input('to_email'),
+                'account_id' => $request->input('account_id') ?: session('active_email_account_id'),
                 'subject' => $request->input('subject'),
-                'body_html' => $request->input('body_html'),
+                'body_html' => $request->input('body_html') ?: $request->input('body', ''),
                 'cc' => $request->input('cc'),
                 'bcc' => $request->input('bcc'),
                 'thread_id' => $request->input('thread_id'),
@@ -870,17 +870,25 @@ class EmailController extends Controller
 
             $draft = $this->emailService->saveDraft($data, $files);
 
+            $accountId = $draft->email_configuration_id ?: session('active_email_account_id');
+            $draftsCount = EmailMessage::where(function ($q) {
+                $q->where('folder', 'drafts')->orWhere('is_draft', true);
+            })->where('folder', '!=', 'trash')
+              ->when($accountId, fn ($q) => $q->where('email_configuration_id', (int) $accountId))
+              ->count();
+
             return response()->json([
                 'success' => true,
                 'message' => 'Draft saved',
                 'draft_id' => $draft->id,
                 'thread_id' => $draft->thread_id,
+                'drafts_count' => $draftsCount,
             ]);
         } catch (\Exception $e) {
             \Log::error('Email draft save failed.', ['error' => $e->getMessage()]);
             return response()->json([
                 'success' => false,
-                'error' => 'Could not save the draft.',
+                'error' => 'Could not save the draft: ' . $e->getMessage(),
             ], 500);
         }
     }

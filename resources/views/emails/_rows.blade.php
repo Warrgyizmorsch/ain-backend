@@ -51,7 +51,16 @@
         if (!$isSuperAdmin && filter_var($email->from_name, FILTER_VALIDATE_EMAIL)) {
             $senderDisplayName = mask_email_for_display($email->from_name);
         }
-        if ($email->folder === 'sent' || $email->direction === 'outbound') {
+        $isDraftEmail = (bool) ($email->is_draft || $email->folder === 'drafts');
+        if ($isDraftEmail) {
+            $rawToEmail = $email->to_email;
+            $displayToEmail = $isSuperAdmin ? $rawToEmail : mask_email_for_display($rawToEmail);
+            $toName = $email->to_name ?: $displayToEmail;
+            if (!$isSuperAdmin && filter_var($email->to_name, FILTER_VALIDATE_EMAIL)) {
+                $toName = mask_email_for_display($email->to_name);
+            }
+            $draftRecipient = $toName ? 'To: ' . $toName : '';
+        } elseif ($email->folder === 'sent' || $email->direction === 'outbound') {
             $rawToEmail = $email->to_email;
             $displayToEmail = $isSuperAdmin ? $rawToEmail : mask_email_for_display($rawToEmail);
             $toName = $email->to_name ?: $displayToEmail;
@@ -82,7 +91,7 @@
 
     <div class="gmail-row duralux-email-item {{ $isUnread ? 'unread' : 'is-read' }} {{ $isPending ? 'pending-email-item' : '' }}" 
          id="email-row-{{ $email->id }}" 
-         onclick="openEmailThread({{ $email->id }})"
+         onclick="{{ $isDraftEmail ? "openDraft({$email->id})" : "openEmailThread({$email->id})" }}"
          tabindex="0"
          role="row">
         
@@ -105,8 +114,17 @@
         </div>
 
         {{-- Sender Column with Copy & WhatsApp action buttons --}}
-        <div class="gmail-row-sender duralux-email-sender" title="{{ $displayFromEmail }}">
-            <span class="gmail-sender-text text-truncate">{{ $senderDisplayName }}</span>
+        <div class="gmail-row-sender duralux-email-sender" title="{{ $isDraftEmail ? ($displayToEmail ?: 'Draft') : $displayFromEmail }}">
+            @if($isDraftEmail)
+                <span class="gmail-sender-text text-truncate">
+                    <span class="text-danger fw-bold me-1">Draft</span>
+                    @if(!empty($draftRecipient))
+                        <span class="text-muted">{{ $draftRecipient }}</span>
+                    @endif
+                </span>
+            @else
+                <span class="gmail-sender-text text-truncate">{{ $senderDisplayName }}</span>
+            @endif
             <span class="gmail-sender-actions ms-1 d-inline-flex align-items-center gap-1 flex-shrink-0" onclick="event.stopPropagation();">
                 <button type="button" 
                         class="btn btn-icon btn-sm p-0 flex-shrink-0" 
@@ -270,9 +288,13 @@
 
                 <button type="button" 
                         class="gmail-hover-btn" 
-                        title="Open Thread" 
-                        onclick="openEmailThread({{ $email->id }})">
-                    <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
+                        title="{{ $isDraftEmail ? 'Edit Draft' : 'Open Thread' }}" 
+                        onclick="{{ $isDraftEmail ? "openDraft({$email->id})" : "openEmailThread({$email->id})" }}">
+                    @if($isDraftEmail)
+                        <i class="fa fa-pencil fs-6"></i>
+                    @else
+                        <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
+                    @endif
                 </button>
             </div>
         </div>

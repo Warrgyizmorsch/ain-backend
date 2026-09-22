@@ -2285,9 +2285,7 @@
                     <li class="duralux-nav-item">
                         <a href="javascript:void(0);" class="duralux-nav-link {{ in_array(request('folder'), ['draft', 'drafts']) ? 'active' : '' }}" onclick="filterFolder('drafts', this)">
                             <span><i class="fa fa-file-text-o nav-icon icon-drafts"></i> Drafts</span>
-                            @if(($counts['drafts'] ?? 0) > 0)
-                                <span class="duralux-badge">{{ $counts['drafts'] }}</span>
-                            @endif
+                            <span class="duralux-badge" id="unreadDraftsBadge" style="{{ ($counts['drafts'] ?? 0) > 0 ? '' : 'display: none;' }}">{{ $counts['drafts'] ?? 0 }}</span>
                         </a>
                     </li>
                     <li class="duralux-nav-item">
@@ -2902,9 +2900,17 @@
         </div>
     </div>
 
+    {{-- Compose Preloader Overlay --}}
+    <div id="composeWidgetLoader" style="display: none; position: absolute; top: 42px; left: 0; right: 0; bottom: 0; background: rgba(255, 255, 255, 0.95); z-index: 50; flex-direction: column; align-items: center; justify-content: center; backdrop-filter: blur(1px);">
+        <div class="gmail-spinner mb-2"></div>
+        <div class="text-muted fs-7 fw-semibold" id="composeLoaderText">Loading draft...</div>
+    </div>
+
     {{-- Compose Form Body --}}
     <form id="composeEmailForm" onsubmit="handleSendCompose(event)" class="d-flex flex-column flex-grow-1 overflow-hidden m-0" enctype="multipart/form-data">
         @csrf
+        <input type="hidden" name="draft_id" id="composeDraftId" value="">
+        <input type="hidden" name="thread_id" id="composeThreadId" value="">
         <div class="gmail-compose-body">
             {{-- From Channel --}}
             <div class="gmail-field-row">
@@ -2952,7 +2958,7 @@
 
             {{-- Subject Row --}}
             <div class="gmail-field-row">
-                <input type="text" name="subject" id="composeSubject" class="gmail-field-input fw-semibold" placeholder="Subject" required autocomplete="off">
+                <input type="text" name="subject" id="composeSubject" class="gmail-field-input fw-semibold" placeholder="Subject" autocomplete="off">
             </div>
 
             {{-- Rich Quill Editor Area --}}
@@ -2969,11 +2975,12 @@
         {{-- Compose Action Footer --}}
         <div class="gmail-compose-footer">
             <div class="d-flex align-items-center gap-3">
-                <div class="btn-group">
+                <div class="btn-group align-items-center">
                     <button type="submit" class="btn-gmail-send" id="btnSendCompose">
                         <span>Send</span>
                         <i class="fa fa-paper-plane fs-8"></i>
                     </button>
+                    <span id="composeDraftStatus" class="fs-8 text-muted ms-3" style="display: none;">Saved</span>
                 </div>
                 <div class="gmail-footer-tools">
                     <button type="button" class="gmail-tool-btn" title="Formatting Options" onclick="toggleQuillToolbar()">
@@ -3073,6 +3080,29 @@ document.addEventListener('DOMContentLoaded', function() {
                 ]
             }
         });
+
+        // Wire auto-save: trigger draft save on editor content change
+        composeQuill.on('text-change', function() {
+            scheduleComposeDraftAutoSave();
+        });
+    }
+
+    // Wire auto-save on Subject, To, CC, and BCC fields
+    const composeSubjectEl = document.getElementById('composeSubject');
+    if (composeSubjectEl) {
+        composeSubjectEl.addEventListener('input', scheduleComposeDraftAutoSave);
+    }
+    const composeToEl = document.getElementById('composeToEmail');
+    if (composeToEl) {
+        composeToEl.addEventListener('input', scheduleComposeDraftAutoSave);
+    }
+    const composeCcEl = document.getElementById('composeCcEmail');
+    if (composeCcEl) {
+        composeCcEl.addEventListener('input', scheduleComposeDraftAutoSave);
+    }
+    const composeBccEl = document.getElementById('composeBccEmail');
+    if (composeBccEl) {
+        composeBccEl.addEventListener('input', scheduleComposeDraftAutoSave);
     }
 
     // Init Quill for inline reply/forward composer
@@ -3119,6 +3149,7 @@ function addComposeRecipient(email, name = '') {
         composeToRecipients.push({ email: cleanEmail, name: String(name || '').trim() });
     }
     renderComposeRecipientChips();
+    scheduleComposeDraftAutoSave();
     return true;
 }
 
@@ -3126,6 +3157,7 @@ function removeComposeRecipient(email) {
     composeToRecipients = composeToRecipients.filter(recipient => recipient.email !== email);
     renderComposeRecipientChips();
     document.getElementById('composeToEmail')?.focus();
+    scheduleComposeDraftAutoSave();
 }
 
 function renderComposeRecipientChips() {
@@ -3170,6 +3202,14 @@ function initEmailAutocomplete(inputId, dropdownId) {
             return;
         }
 
+        dropdown.style.display = 'block';
+        dropdown.innerHTML = `
+            <div class="p-3 text-center text-muted fs-8 d-flex align-items-center justify-content-center gap-2">
+                <div class="gmail-search-spinner" style="width: 15px; height: 15px; border-width: 2px;"></div>
+                <span>Searching contacts...</span>
+            </div>
+        `;
+
         debounceTimer = setTimeout(() => {
             fetch(`{{ route('emails.contacts.suggest') }}?q=${encodeURIComponent(query)}`, {
                 headers: { 'Accept': 'application/json' }
@@ -3178,8 +3218,7 @@ function initEmailAutocomplete(inputId, dropdownId) {
             .then(data => {
                 currentUsers = data.users || [];
                 if (currentUsers.length === 0) {
-                    dropdown.style.display = 'none';
-                    dropdown.innerHTML = '';
+                    dropdown.innerHTML = '<div class="p-2 text-center text-muted fs-8">No contacts found</div>';
                     return;
                 }
 
@@ -3288,11 +3327,191 @@ function initEmailAutocomplete(inputId, dropdownId) {
     });
 }
 
+let composeDraftTimer = null;
+let isSavingDraft = false;
+let pendingDraftSaveRequested = false;
+
+function scheduleComposeDraftAutoSave() {
+    if (composeDraftTimer) clearTimeout(composeDraftTimer);
+    composeDraftTimer = setTimeout(() => {
+        saveComposeDraft();
+    }, 2000);
+}
+
+function hasComposeContent() {
+    const to = (document.getElementById('composeToEmailValue')?.value || '').trim();
+    const typedTo = (document.getElementById('composeToEmail')?.value || '').trim();
+    const subject = (document.getElementById('composeSubject')?.value || '').trim();
+    const bodyText = composeQuill ? composeQuill.getText().trim() : '';
+    const bodyHtml = composeQuill ? composeQuill.root.innerHTML : '';
+    const hasHtml = bodyHtml && bodyHtml !== '<p><br></p>' && bodyHtml !== '<p></p>';
+    return Boolean(to || typedTo || subject || bodyText || hasHtml);
+}
+
+function updateDraftsBadgeCount(count) {
+    const badge = document.getElementById('unreadDraftsBadge');
+    if (!badge) return;
+    if (typeof count === 'number') {
+        badge.textContent = count;
+        badge.style.display = count > 0 ? '' : 'none';
+    } else {
+        let current = parseInt(badge.textContent) || 0;
+        let next = Math.max(0, current - 1);
+        badge.textContent = next;
+        badge.style.display = next > 0 ? '' : 'none';
+    }
+}
+
+function saveComposeDraft() {
+    if (isSavingDraft) {
+        pendingDraftSaveRequested = true;
+        return;
+    }
+    if (!hasComposeContent()) return;
+
+    const typedRecipient = document.getElementById('composeToEmail')?.value.trim();
+    if (typedRecipient) addComposeRecipient(typedRecipient);
+
+    const toEmail = document.getElementById('composeToEmailValue')?.value || '';
+    const subject = document.getElementById('composeSubject')?.value || '';
+    const bodyHtml = composeQuill ? composeQuill.root.innerHTML : '';
+    const cc = document.getElementById('composeCcEmail')?.value || '';
+    const bcc = document.getElementById('composeBccEmail')?.value || '';
+    const accountId = document.getElementById('composeAccountId')?.value || currentAccountId;
+    const draftId = document.getElementById('composeDraftId')?.value || '';
+    const threadId = document.getElementById('composeThreadId')?.value || '';
+
+    const draftStatus = document.getElementById('composeDraftStatus');
+    if (draftStatus) {
+        draftStatus.style.display = 'inline';
+        draftStatus.textContent = 'Saving...';
+    }
+
+    isSavingDraft = true;
+
+    const data = new FormData();
+    data.append('_token', currentEmailCsrfToken());
+    data.append('to', toEmail);
+    data.append('subject', subject);
+    data.append('body_html', bodyHtml);
+    data.append('cc', cc);
+    data.append('bcc', bcc);
+    data.append('account_id', accountId);
+    if (draftId) data.append('draft_id', draftId);
+    if (threadId) data.append('thread_id', threadId);
+
+    fetch('{{ route("emails.draft") }}', {
+        method: 'POST',
+        headers: {
+            'X-CSRF-TOKEN': currentEmailCsrfToken(),
+            'Accept': 'application/json'
+        },
+        body: data
+    })
+    .then(res => res.json())
+    .then(res => {
+        isSavingDraft = false;
+        if (res.success && res.draft_id) {
+            const draftIdInput = document.getElementById('composeDraftId');
+            if (draftIdInput && (!draftIdInput.value || draftIdInput.value == res.draft_id)) {
+                draftIdInput.value = res.draft_id;
+            }
+            const threadIdInput = document.getElementById('composeThreadId');
+            if (threadIdInput && res.thread_id) threadIdInput.value = res.thread_id;
+            if (draftStatus) draftStatus.textContent = 'Draft saved';
+            if (typeof res.drafts_count === 'number') {
+                updateDraftsBadgeCount(res.drafts_count);
+            }
+            if (currentFolder === 'drafts') {
+                reloadEmailList(false);
+            }
+        }
+        if (pendingDraftSaveRequested) {
+            pendingDraftSaveRequested = false;
+            saveComposeDraft();
+        }
+    })
+    .catch(err => {
+        isSavingDraft = false;
+        if (draftStatus) draftStatus.textContent = 'Could not save draft';
+        if (pendingDraftSaveRequested) {
+            pendingDraftSaveRequested = false;
+            saveComposeDraft();
+        }
+    });
+}
+
+function openDraft(id) {
+    if (!id) return;
+    const inboxPath = window.location.pathname.replace(/\/+$/, '');
+    const detailUrl = `${inboxPath}/${encodeURIComponent(id)}`;
+
+    // Instantly open compose modal and show preloader
+    openComposeModal({ draftId: id, isLoading: true });
+    const loader = document.getElementById('composeWidgetLoader');
+    if (loader) {
+        loader.style.display = 'flex';
+        const loaderText = document.getElementById('composeLoaderText');
+        if (loaderText) loaderText.textContent = 'Loading draft...';
+    }
+    const winTitle = document.getElementById('composeWindowTitle');
+    if (winTitle) winTitle.textContent = 'Loading Draft...';
+
+    fetch(detailUrl, {
+        headers: {
+            'Accept': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(res => {
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        return res.json();
+    })
+    .then(data => {
+        if (loader) loader.style.display = 'none';
+        if (data.email) {
+            const em = data.email;
+            openComposeModal({
+                draftId: em.id,
+                threadId: em.thread_id,
+                accountId: em.email_configuration_id || currentAccountId,
+                to: em.raw_to_email || em.to_email || '',
+                subject: em.subject || '',
+                body: em.body_html || em.body_plain || '',
+                cc: em.cc || '',
+                bcc: em.bcc || ''
+            });
+            if (winTitle) winTitle.textContent = em.subject ? ('Draft: ' + em.subject.substring(0, 30)) : 'Draft';
+        }
+    })
+    .catch(err => {
+        if (loader) loader.style.display = 'none';
+        showSendingToast('Failed to load draft: ' + err.message, false, true);
+        closeComposeWidgetUI();
+    });
+}
+
 /* Gmail Floating Compose Controls */
 function openComposeModal(prefill = {}) {
     const widget = document.getElementById('gmailComposeWidget');
     widget.classList.remove('minimized');
     widget.classList.add('active');
+
+    const loader = document.getElementById('composeWidgetLoader');
+    if (loader && !prefill.isLoading) {
+        loader.style.display = 'none';
+    }
+
+    const winTitle = document.getElementById('composeWindowTitle');
+    if (winTitle && !prefill.isLoading) {
+        winTitle.textContent = prefill.draftId ? 'Edit Draft' : 'New Message';
+    }
+
+    const draftIdInput = document.getElementById('composeDraftId');
+    if (draftIdInput) draftIdInput.value = prefill.draftId || '';
+
+    const threadIdInput = document.getElementById('composeThreadId');
+    if (threadIdInput) threadIdInput.value = prefill.threadId || '';
 
     if (prefill.accountId) {
         document.getElementById('composeAccountId').value = prefill.accountId;
@@ -3300,23 +3519,56 @@ function openComposeModal(prefill = {}) {
         document.getElementById('composeAccountId').value = currentAccountId;
     }
 
+    clearComposeRecipients();
     if (prefill.to) {
         String(prefill.to).split(',').forEach(email => addComposeRecipient(email));
     }
     if (prefill.subject) {
         document.getElementById('composeSubject').value = prefill.subject;
+    } else if (!prefill.draftId) {
+        document.getElementById('composeSubject').value = '';
     }
     if (prefill.body && composeQuill) {
         composeQuill.root.innerHTML = prefill.body;
+    } else if (!prefill.draftId && composeQuill) {
+        composeQuill.root.innerHTML = '';
     }
 
-    setTimeout(() => {
-        if (!prefill.to) {
-            document.getElementById('composeToEmail').focus();
-        } else {
-            composeQuill.focus();
-        }
-    }, 100);
+    if (!prefill.draftId) {
+        removeSelectedFile();
+    }
+
+    if (prefill.cc) {
+        document.getElementById('composeCcRow').style.display = 'flex';
+        document.getElementById('composeCcEmail').value = prefill.cc;
+    } else {
+        document.getElementById('composeCcRow').style.display = 'none';
+        document.getElementById('composeCcEmail').value = '';
+    }
+
+    if (prefill.bcc) {
+        document.getElementById('composeBccRow').style.display = 'flex';
+        document.getElementById('composeBccEmail').value = prefill.bcc;
+    } else {
+        document.getElementById('composeBccRow').style.display = 'none';
+        document.getElementById('composeBccEmail').value = '';
+    }
+
+    const draftStatus = document.getElementById('composeDraftStatus');
+    if (draftStatus) {
+        draftStatus.textContent = prefill.draftId ? 'Draft saved' : '';
+        draftStatus.style.display = prefill.draftId ? 'inline' : 'none';
+    }
+
+    if (!prefill.isLoading) {
+        setTimeout(() => {
+            if (!prefill.to) {
+                document.getElementById('composeToEmail')?.focus();
+            } else if (composeQuill) {
+                composeQuill.focus();
+            }
+        }, 100);
+    }
 }
 
 function toggleMinimizeCompose(e) {
@@ -3341,8 +3593,26 @@ function toggleMaximizeCompose(e) {
 
 function closeComposeWidget(e) {
     if (e) e.stopPropagation();
+
+    // 1. Instantly close widget UI without waiting (<1ms)
+    closeComposeWidgetUI();
+
+    // 2. Hide loader if active
+    const loader = document.getElementById('composeWidgetLoader');
+    if (loader) loader.style.display = 'none';
+
+    // 3. Save draft in background if content exists
+    if (hasComposeContent()) {
+        saveComposeDraft();
+    }
+}
+
+function closeComposeWidgetUI() {
+    if (composeDraftTimer) clearTimeout(composeDraftTimer);
     const widget = document.getElementById('gmailComposeWidget');
-    widget.classList.remove('active', 'minimized', 'maximized');
+    if (widget) {
+        widget.classList.remove('active', 'minimized', 'maximized');
+    }
 }
 
 function handleHeaderClick(e) {
@@ -3407,12 +3677,39 @@ function removeSelectedFile(index) {
 }
 
 function discardCompose() {
-    if (confirm('Discard this draft?')) {
-        document.getElementById('composeEmailForm').reset();
-        if (composeQuill) composeQuill.root.innerHTML = '';
-        removeSelectedFile();
-        closeComposeWidget();
+    pendingDraftSaveRequested = false;
+    if (composeDraftTimer) clearTimeout(composeDraftTimer);
+    const draftId = document.getElementById('composeDraftId')?.value;
+    if (draftId) {
+        if (!confirm('Discard this draft?')) return;
+        fetch('{{ route("emails.delete") }}', {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': currentEmailCsrfToken(),
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({ id: draftId, permanent: true })
+        })
+        .then(() => {
+            updateDraftsBadgeCount();
+            if (currentFolder === 'drafts') reloadEmailList(false);
+        });
     }
+
+    document.getElementById('composeEmailForm').reset();
+    document.getElementById('composeDraftId').value = '';
+    document.getElementById('composeThreadId').value = '';
+    const draftStatus = document.getElementById('composeDraftStatus');
+    if (draftStatus) {
+        draftStatus.textContent = '';
+        draftStatus.style.display = 'none';
+    }
+    clearComposeRecipients();
+    if (composeQuill) composeQuill.root.innerHTML = '';
+    removeSelectedFile();
+    closeComposeWidgetUI();
+    showSendingToast('Draft discarded.', true);
 }
 
 function filterFolder(folder, el) {
@@ -4356,6 +4653,11 @@ function openEmailThread(id, pushToHistory = true) {
     })
     .then(data => {
         if (data.email) {
+            if (data.email.is_draft || data.email.folder === 'drafts') {
+                closeEmailThread();
+                openDraft(data.email.id);
+                return;
+            }
             activeEmailData = data.email;
             activeThreadMessages = (data.messages && data.messages.length > 0) ? data.messages : [data.email];
             activeReplyTargetMsg = activeEmailData;
@@ -5201,25 +5503,36 @@ function handleSendCompose(e) {
     const subject = document.getElementById('composeSubject').value;
     const previewText = composeQuill ? composeQuill.getText().substring(0, 70) : '';
 
-    // 1. Instantly close compose modal & reset (<5ms)
-    closeComposeWidget();
+    // 1. Clear draft ID and any pending saves before closing
+    pendingDraftSaveRequested = false;
+    const draftIdInput = document.getElementById('composeDraftId');
+    if (draftIdInput) draftIdInput.value = '';
+    if (composeDraftTimer) clearTimeout(composeDraftTimer);
+
+    // 2. Instantly close compose modal & reset (<5ms)
+    closeComposeWidgetUI();
     form.reset();
     clearComposeRecipients();
     if (composeQuill) composeQuill.root.innerHTML = '';
     removeSelectedFile();
 
-    // 2. Show non-blocking floating status toast
+    // 3. Show non-blocking floating status toast
     showSendingToast('Sending message to ' + toEmail + '...');
 
-    // 3. Add optimistic pending item with clock icon in list
+    // 4. Add optimistic pending item with clock icon in list
     const tempId = addOptimisticPendingEmail(toEmail, subject, previewText);
 
-    // 4. Background Async Send
+    // 5. Background Async Send
     sendEmailFormData(formData)
     .then(parseEmailSendResponse)
     .then(() => {
         showSendingToast('Email sent successfully to ' + toEmail, true);
         updateOptimisticPendingEmail(tempId, true);
+        // Refresh drafts count after send (in case draft was linked)
+        if (typeof updateDraftsBadgeCount === 'function') updateDraftsBadgeCount();
+        if (currentFolder === 'drafts' || currentFolder === 'sent') {
+            reloadEmailList(false);
+        }
     })
     .catch(err => {
         showSendingToast('Email failed: ' + (err.message || 'Unable to send email'), false, true);

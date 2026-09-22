@@ -264,12 +264,22 @@ class EmailService
     public function saveDraft(array $data, array $uploadedFiles = []): EmailMessage
     {
         $toEmail = is_array($data['to'] ?? '') ? implode(', ', $data['to']) : ($data['to'] ?? '');
-        $subject = $data['subject'] ?? '';
-        $bodyHtml = $data['body_html'] ?? $data['body'] ?? '';
+        $toEmail = (string) ($toEmail ?? '');
+        $subject = (string) ($data['subject'] ?? '');
+        $bodyHtml = (string) ($data['body_html'] ?? $data['body'] ?? '');
         $bodyPlain = strip_tags($bodyHtml);
         $account = !empty($data['account_id'])
             ? \App\Models\EmailConfiguration::whereKey($data['account_id'])->where('is_active', true)->first()
             : null;
+        if (!$account) {
+            $sessAcc = session('active_email_account_id');
+            if ($sessAcc) {
+                $account = \App\Models\EmailConfiguration::whereKey($sessAcc)->where('is_active', true)->first();
+            }
+        }
+        if (!$account) {
+            $account = \App\Models\EmailConfiguration::where('is_active', true)->first();
+        }
         $fromEmail = $account?->email_address ?: config('mail.from.address', env('MAIL_FROM_ADDRESS', 'noreply@ain-backend.com'));
         $fromName = $account?->from_name ?: ($account?->name ?: config('mail.from.name', env('MAIL_FROM_NAME', 'Assignment In Need')));
 
@@ -294,7 +304,11 @@ class EmailService
             }
         }
 
+        $fromDomain = substr(strrchr($fromEmail, "@"), 1) ?: (request()->getHost() ?? 'ain-backend.com');
+        $messageId = '<' . Str::random(24) . '.' . time() . '@' . $fromDomain . '>';
+
         $draft = EmailMessage::create([
+            'message_id' => $messageId,
             'email_configuration_id' => $account?->id,
             'thread_id' => $threadId,
             'from_email' => $fromEmail,
