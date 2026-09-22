@@ -140,6 +140,9 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/twilio/call-history', [PluginController::class, 'callHistory'])->name('twilio.call.history');
         Route::post('/twilio/log-call', [PluginController::class, 'logCall'])->name('twilio.log.call');
         Route::post('/twilio/status-callback', [PluginController::class, 'statusCallback'])->name('twilio.status.callback');
+        // Next2Call Softphone Plugin
+        Route::post('/next2call/save', [PluginController::class, 'saveNext2call'])->name('next2call.save');
+        Route::post('/next2call/test', [PluginController::class, 'testNext2call'])->name('next2call.test');
     });
 
 

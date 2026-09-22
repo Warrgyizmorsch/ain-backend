@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Schema;
 use App\Models\EmailConfiguration;
 
 class RoleOneMenuSeeder extends Seeder
@@ -49,13 +50,17 @@ class RoleOneMenuSeeder extends Seeder
             ['name' => 'submenus', 'routes' => 'submenu', 'sort_order' => 2],
             ['name' => 'User Right', 'routes' => 'userright', 'sort_order' => 3],
             ['name' => 'WhatsApp Settings', 'routes' => 'whatsapp/settings', 'sort_order' => 4],
-            ['name' => 'Twilio Calling', 'routes' => 'admin/plugins', 'sort_order' => 5],
+            ['name' => 'Plugin Settings', 'routes' => 'admin/plugins', 'sort_order' => 5],
             ['name' => 'Email Settings', 'routes' => 'emails/settings', 'sort_order' => 6],
         ];
 
         // Clean up Label Master from Setting (parent_id = 2 / menus_id = 2)
         DB::table('menu')->where('parent_id', 2)->where('routes', 'labels')->delete();
         DB::table('submenus')->where('menus_id', 2)->where('routes', 'labels')->delete();
+
+        // Update legacy names for admin/plugins (e.g. 'Twilio Calling' or 'Plugins') to 'Plugin Settings'
+        DB::table('menu')->where('parent_id', 2)->where('routes', 'admin/plugins')->update(['menu_name' => 'Plugin Settings', 'updated_at' => now()]);
+        DB::table('submenus')->where('menus_id', 2)->where('routes', 'admin/plugins')->update(['sub_menu_name' => 'Plugin Settings', 'updated_at' => now()]);
 
         foreach ($settingItems as $item) {
             // Sync in 'menu' table (as child with parent_id = 2)
@@ -295,6 +300,53 @@ class RoleOneMenuSeeder extends Seeder
                 'sort_order' => 6,
                 'updated_at' => now(),
             ]);
+
+        // =============================================================
+        // 4.1 PLUGIN SETTINGS (Twilio Voice & Next2Call Softphone)
+        // =============================================================
+        if (Schema::hasTable('plugin_settings')) {
+            DB::table('plugin_settings')->updateOrInsert(
+                ['plugin_key' => 'twilio_call'],
+                [
+                    'name' => 'Twilio Voice Call',
+                    'category' => 'communication',
+                    'description' => 'Bridge calls between agents and customers directly from the Orders page using Twilio Voice API & WebRTC Dialer.',
+                    'is_active' => false,
+                    'settings' => json_encode([
+                        'account_sid' => '',
+                        'auth_token' => '',
+                        'twilio_number' => '',
+                        'api_key_sid' => '',
+                        'api_secret' => '',
+                        'twiml_app_sid' => '',
+                        'default_agent_number' => '',
+                        'call_mode' => 'webrtc',
+                        'record_calls' => false,
+                    ]),
+                    'updated_at' => now(),
+                    'created_at' => now(),
+                ]
+            );
+
+            DB::table('plugin_settings')->updateOrInsert(
+                ['plugin_key' => 'next2call'],
+                [
+                    'name' => 'Next2Call Softphone',
+                    'category' => 'communication',
+                    'description' => 'Direct in-browser WebRTC softphone calling & click-to-dial powered by Next2Call Ringfy PBX.',
+                    'is_active' => true,
+                    'settings' => json_encode([
+                        'user_id' => '10101',
+                        'password' => 'T2d8d1r5P6x0T8O8iUq',
+                        'sip_domain' => 'ringfy.next2call.com',
+                        'api_base_url' => 'https://ringfy.next2call.com',
+                        'click_to_dial_path' => '/softphone/Phone/click-to-dial.html',
+                    ]),
+                    'updated_at' => now(),
+                    'created_at' => now(),
+                ]
+            );
+        }
 
         // Keep the existing Break Time Report page available from the
         // Reports group for Super Admin. Other roles are not granted this

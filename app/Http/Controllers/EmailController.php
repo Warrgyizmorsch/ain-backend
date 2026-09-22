@@ -647,12 +647,15 @@ class EmailController extends Controller
                     'received_at' => optional($email->received_at ?: $email->created_at)->format('M d, Y h:i A'),
                     'created_at' => optional($email->created_at)->format('M d, Y h:i A'),
                     'attachments' => $email->attachments->map(function ($att) {
+                        $cleanName = iconv_mime_decode($att->filename, 0, 'UTF-8') ?: $att->filename;
+                        $cleanName = trim(preg_replace('/[\r\n\t]+/', ' ', $cleanName));
                         return [
                             'id' => $att->id,
-                            'filename' => $att->filename,
+                            'filename' => $cleanName,
                             'file_size' => $att->formatted_size,
                             'mime_type' => $att->mime_type,
                             'url' => route('emails.attachment.download', $att->id),
+                            'view_url' => route('emails.attachment.view', $att->id),
                         ];
                     }),
                 ],
@@ -676,12 +679,15 @@ class EmailController extends Controller
                         'is_starred' => (bool) $msg->is_starred,
                         'date_formatted' => optional($msg->received_at ?: $msg->created_at)->format('M d, h:i A'),
                         'attachments' => $msg->attachments->map(function ($att) {
+                            $cleanName = iconv_mime_decode($att->filename, 0, 'UTF-8') ?: $att->filename;
+                            $cleanName = trim(preg_replace('/[\r\n\t]+/', ' ', $cleanName));
                             return [
                                 'id' => $att->id,
-                                'filename' => $att->filename,
+                                'filename' => $cleanName,
                                 'file_size' => $att->formatted_size,
                                 'mime_type' => $att->mime_type,
                                 'url' => route('emails.attachment.download', $att->id),
+                                'view_url' => route('emails.attachment.view', $att->id),
                             ];
                         }),
                     ];
@@ -776,6 +782,9 @@ class EmailController extends Controller
         $subject = 'Re: ' . preg_replace('/^(Re:\s*)+/i', '', $parent->subject ?? '(No Subject)');
 
         try {
+            $files = $request->file('attachments', $request->file('files', []));
+            $forwardedAttachmentIds = (array) $request->input('forwarded_attachment_ids', []);
+
             $data = [
                 'to' => $to,
                 'subject' => $subject,
@@ -783,9 +792,10 @@ class EmailController extends Controller
                 'thread_id' => $parent->thread_id,
                 'in_reply_to' => $parent->message_id,
                 'account_id' => $parent->email_configuration_id,
+                'forwarded_attachment_ids' => $forwardedAttachmentIds,
             ];
 
-            $this->emailService->sendEmail($data);
+            $this->emailService->sendEmail($data, $files);
 
             return response()->json(['success' => true, 'message' => 'Reply delivered successfully!']);
         } catch (\Exception $e) {
@@ -815,11 +825,15 @@ class EmailController extends Controller
             'draft_id' => 'nullable|integer|exists:email_messages,id',
             'attachments.*' => 'file|max:20480',
             'files.*' => 'file|max:20480',
+            'forwarded_attachment_ids' => 'nullable|array',
+            'forwarded_attachment_ids.*' => 'integer|exists:email_attachments,id',
         ]);
         $to = $validated['to'];
 
         try {
             $files = $request->file('attachments', $request->file('files', []));
+            $forwardedAttachmentIds = (array) $request->input('forwarded_attachment_ids', []);
+
             $data = [
                 'to' => $to,
                 'to_name' => $request->input('to_name'),
@@ -831,6 +845,7 @@ class EmailController extends Controller
                 'thread_id' => $request->input('thread_id'),
                 'in_reply_to' => $request->input('in_reply_to'),
                 'draft_id' => $request->input('draft_id'),
+                'forwarded_attachment_ids' => $forwardedAttachmentIds,
             ];
 
             $emailMsg = $this->emailService->sendEmail($data, $files);
@@ -1292,13 +1307,39 @@ class EmailController extends Controller
         $attachment = EmailAttachment::findOrFail($id);
         $path = Storage::disk('local')->path($attachment->file_path);
         if (!file_exists($path)) {
-            $legacyPath = storage_path('app/public/'.$attachment->file_path);
+            $legacyPath = storage_path('app/public/' . $attachment->file_path);
             if (!file_exists($legacyPath)) abort(404, 'Attachment file not found');
             $path = $legacyPath;
         }
 
-        return response()->download($path, $attachment->filename, [
+        $cleanFilename = iconv_mime_decode($attachment->filename, 0, 'UTF-8') ?: $attachment->filename;
+        $cleanFilename = trim(preg_replace('/[\r\n\t]+/', ' ', $cleanFilename));
+
+        return response()->download($path, $cleanFilename, [
             'Content-Type' => $attachment->mime_type ?: 'application/octet-stream',
+        ]);
+    }
+
+    /**
+     * Preview Email Attachment in browser (Images, PDFs, Text)
+     */
+    public function viewAttachment($id)
+    {
+        $attachment = EmailAttachment::findOrFail($id);
+        $path = Storage::disk('local')->path($attachment->file_path);
+        if (!file_exists($path)) {
+            $legacyPath = storage_path('app/public/' . $attachment->file_path);
+            if (!file_exists($legacyPath)) abort(404, 'Attachment file not found');
+            $path = $legacyPath;
+        }
+
+        $cleanFilename = iconv_mime_decode($attachment->filename, 0, 'UTF-8') ?: $attachment->filename;
+        $cleanFilename = trim(preg_replace('/[\r\n\t]+/', ' ', $cleanFilename));
+        $mime = $attachment->mime_type ?: (function_exists('mime_content_type') ? mime_content_type($path) : null) ?: 'application/octet-stream';
+
+        return response()->file($path, [
+            'Content-Type' => $mime,
+            'Content-Disposition' => 'inline; filename="' . addslashes($cleanFilename) . '"',
         ]);
     }
 

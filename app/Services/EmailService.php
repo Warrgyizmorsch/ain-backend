@@ -174,17 +174,19 @@ class EmailService
             ]);
         }
 
-        // Handle file attachments
+        // Handle file attachments (uploaded files + forwarded attachments)
         $savedAttachments = [];
+
+        // 1. Process newly uploaded files
         if (!empty($uploadedFiles)) {
             foreach ($uploadedFiles as $file) {
                 if ($file && $file->isValid()) {
                     $originalName = $file->getClientOriginalName();
-                    $mimeType = $file->getClientMimeType();
+                    $mimeType = $file->getClientMimeType() ?: 'application/octet-stream';
                     $fileSize = $file->getSize();
                     $path = $file->store('email_attachments', 'local');
 
-                    $attachment = EmailAttachment::create([
+                    EmailAttachment::create([
                         'email_message_id' => $emailMsg->id,
                         'filename' => $originalName,
                         'file_path' => $path,
@@ -201,6 +203,50 @@ class EmailService
                     ];
                 }
             }
+        }
+
+        // 2. Process forwarded attachments from previous email
+        $forwardedIds = $data['forwarded_attachment_ids'] ?? [];
+        if (!empty($forwardedIds) && is_array($forwardedIds)) {
+            $prevAttachments = EmailAttachment::whereIn('id', $forwardedIds)->get();
+            foreach ($prevAttachments as $prevAtt) {
+                $sourcePath = Storage::disk('local')->path($prevAtt->file_path);
+                if (!file_exists($sourcePath)) {
+                    $legacyPath = storage_path('app/public/' . $prevAtt->file_path);
+                    if (file_exists($legacyPath)) {
+                        $sourcePath = $legacyPath;
+                    }
+                }
+
+                if (file_exists($sourcePath)) {
+                    $cleanFilename = iconv_mime_decode($prevAtt->filename, 0, 'UTF-8') ?: $prevAtt->filename;
+                    $cleanFilename = trim(preg_replace('/[\r\n\t]+/', ' ', $cleanFilename));
+                    $safeBaseName = preg_replace('/[^\w\s\.-]/u', '_', $cleanFilename);
+                    $newRelPath = 'email_attachments/' . Str::uuid() . '-' . ($safeBaseName ?: 'attachment');
+
+                    Storage::disk('local')->put($newRelPath, file_get_contents($sourcePath));
+                    $newFileSize = filesize($sourcePath);
+
+                    EmailAttachment::create([
+                        'email_message_id' => $emailMsg->id,
+                        'filename' => $cleanFilename,
+                        'file_path' => $newRelPath,
+                        'mime_type' => $prevAtt->mime_type ?: 'application/octet-stream',
+                        'file_size' => $newFileSize,
+                        'is_inline' => false,
+                    ]);
+
+                    $savedAttachments[] = [
+                        'file' => null,
+                        'filename' => $cleanFilename,
+                        'mime' => $prevAtt->mime_type ?: 'application/octet-stream',
+                        'path' => Storage::disk('local')->path($newRelPath),
+                    ];
+                }
+            }
+        }
+
+        if (!empty($savedAttachments)) {
             $emailMsg->update(['has_attachments' => true]);
         }
 

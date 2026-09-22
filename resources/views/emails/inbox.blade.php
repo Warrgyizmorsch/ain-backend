@@ -1618,7 +1618,7 @@
     }
 
     .gmail-att-card {
-        width: 190px;
+        width: 195px;
         background: #f8fafc;
         border: 1px solid #dadce0;
         border-radius: 8px;
@@ -1626,22 +1626,71 @@
         display: flex;
         flex-direction: column;
         position: relative;
-        transition: box-shadow 0.15s ease, border-color 0.15s ease;
+        cursor: pointer;
+        transition: box-shadow 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
     }
 
     .gmail-att-card:hover {
         border-color: #0b57d0;
-        box-shadow: 0 1px 4px rgba(60, 64, 67, 0.2);
+        box-shadow: 0 4px 12px rgba(60, 64, 67, 0.18);
+        transform: translateY(-1px);
     }
 
     .gmail-att-card-preview {
-        height: 75px;
+        height: 85px;
         background: #eef2f6;
         display: flex;
         align-items: center;
         justify-content: center;
         color: #0b57d0;
         font-size: 26px;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .gmail-att-card-preview img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    .gmail-att-card-overlay {
+        position: absolute;
+        inset: 0;
+        background: rgba(32, 33, 36, 0.65);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        opacity: 0;
+        transition: opacity 0.2s ease;
+        backdrop-filter: blur(1px);
+    }
+
+    .gmail-att-card:hover .gmail-att-card-overlay {
+        opacity: 1;
+    }
+
+    .gmail-att-action-btn {
+        width: 34px;
+        height: 34px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.95);
+        color: #202124;
+        border: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: transform 0.15s ease, background 0.15s ease, color 0.15s ease;
+        text-decoration: none;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+    }
+
+    .gmail-att-action-btn:hover {
+        transform: scale(1.1);
+        background: #ffffff;
+        color: #0b57d0;
     }
 
     .gmail-att-card-footer {
@@ -1657,7 +1706,7 @@
         font-size: 12px;
         font-weight: 500;
         color: #202124;
-        max-width: 125px;
+        max-width: 130px;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
@@ -1670,17 +1719,113 @@
 
     .gmail-att-dl-btn {
         color: #5f6368;
-        padding: 4px;
+        padding: 5px;
         border-radius: 4px;
         display: flex;
         align-items: center;
         justify-content: center;
         text-decoration: none;
+        transition: background 0.15s, color 0.15s;
     }
 
     .gmail-att-dl-btn:hover {
         color: #0b57d0;
         background: #eaf1fb;
+    }
+
+    /* Composer Attachment Chips */
+    .gmail-composer-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        padding: 8px 12px;
+        background: #f8fafc;
+        border-top: 1px solid #edf2f7;
+        border-bottom: 1px solid #edf2f7;
+        margin-bottom: 8px;
+        border-radius: 6px;
+    }
+
+    .gmail-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: #ffffff;
+        border: 1px solid #dadce0;
+        border-radius: 16px;
+        padding: 3px 10px;
+        font-size: 12px;
+        color: #3c4043;
+        font-weight: 500;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+        max-width: 280px;
+    }
+
+    .gmail-chip.forwarded {
+        border-color: #c2e7ff;
+        background: #f0f7ff;
+    }
+
+    .gmail-chip-name {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        max-width: 150px;
+    }
+
+    .gmail-chip-size {
+        color: #70757a;
+        font-size: 11px;
+    }
+
+    .gmail-chip-remove {
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        color: #5f6368;
+        font-size: 14px;
+        line-height: 1;
+        transition: background 0.1s, color 0.1s;
+    }
+
+    .gmail-chip-remove:hover {
+        background: #dadce0;
+        color: #c5221f;
+    }
+
+    /* Gmail Collapsible Quote Bar */
+    .gmail-quote-collapsible-bar {
+        margin-top: 8px;
+        margin-bottom: 10px;
+    }
+
+    .gmail-quote-toggle-btn {
+        background: #f1f3f4;
+        border: 1px solid #dadce0;
+        border-radius: 4px;
+        padding: 2px 8px;
+        font-size: 12px;
+        font-weight: bold;
+        color: #5f6368;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        line-height: 1.4;
+        transition: background 0.15s;
+    }
+
+    .gmail-quote-toggle-btn:hover {
+        background: #e8eaed;
+        color: #202124;
+    }
+
+    .gmail-quote-ellipsis {
+        letter-spacing: 2px;
+        font-size: 14px;
     }
 
     /* Gmail Bottom Reply Pills */
@@ -2853,9 +2998,23 @@
                             </div>
 
                             {{-- Quill Rich Editor --}}
-                            <div class="mb-3">
-                                <div id="inlineQuillEditor" style="height: 160px; background: #ffffff; border: 1px solid #e0e2e7; border-radius: 8px;"></div>
+                            <div class="mb-2">
+                                <div id="inlineQuillEditor" style="height: 140px; background: #ffffff; border: 1px solid #e0e2e7; border-radius: 8px;"></div>
                             </div>
+
+                            {{-- Gmail Collapsible Quoted Email Preview Bar --}}
+                            <div class="gmail-quote-collapsible-bar" id="inlineQuoteCollapsibleBar" style="display: none;">
+                                <button type="button" class="gmail-quote-toggle-btn" onclick="toggleInlineQuotedBlock()" title="Show/hide trimmed content">
+                                    <span class="gmail-quote-ellipsis">•••</span>
+                                    <span class="fs-8 text-muted ms-2" id="inlineQuoteSummary"></span>
+                                </button>
+                                <div class="gmail-quote-preview-content p-2 mt-2 bg-light rounded border fs-8 text-muted" id="inlineQuotePreviewContent" style="display: none; max-height: 200px; overflow-y: auto;"></div>
+                            </div>
+                            <input type="hidden" name="quoted_html" id="inlineComposerQuotedHtml">
+
+                            {{-- Selected & Forwarded Attachment Chips Container --}}
+                            <div class="gmail-composer-chips" id="inlineComposerAttachmentChips" style="display: none;"></div>
+                            <div id="inlineForwardedAttachmentsHiddenInputs"></div>
 
                             {{-- Action Controls --}}
                             <div class="d-flex align-items-center justify-content-between pt-2">
@@ -3033,6 +3192,34 @@
         <button type="button" class="btn btn-xs btn-primary fw-bold" id="incomingAlertOpenBtn" onclick="openIncomingEmailFromAlert()">
             <i class="fa fa-envelope-open-o me-1"></i> View Message
         </button>
+    </div>
+</div>
+
+{{-- Gmail-Style Attachment Preview Modal --}}
+<div class="modal fade" id="emailAttachmentPreviewModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-xl" style="max-width: 92vw; height: 90vh;">
+        <div class="modal-content shadow-lg border-0" style="border-radius: 12px; height: 100%; display: flex; flex-direction: column; overflow: hidden; background: #202124; color: #ffffff;">
+            <div class="modal-header border-0 py-3 px-4 d-flex align-items-center justify-content-between" style="background: rgba(0,0,0,0.5); z-index: 10;">
+                <div class="d-flex align-items-center gap-3 overflow-hidden">
+                    <span id="previewModalIcon" class="d-flex align-items-center justify-content-center" style="width: 32px; height: 32px;"></span>
+                    <div class="overflow-hidden">
+                        <div class="modal-title text-white fw-bold fs-6 text-truncate" id="previewModalTitle" style="max-width: 65vw;">Attachment</div>
+                        <div class="text-white-50 fs-8" id="previewModalSize"></div>
+                    </div>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <a href="#" id="previewModalDownloadBtn" class="btn btn-sm btn-primary d-inline-flex align-items-center gap-2" download>
+                        <i class="fa fa-download"></i> <span>Download</span>
+                    </a>
+                    <button type="button" class="btn btn-sm btn-icon btn-dark text-white rounded-circle" data-bs-dismiss="modal" aria-label="Close" style="background: rgba(255,255,255,0.15); width: 32px; height: 32px;">
+                        <i class="fa fa-times"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="modal-body p-0 flex-grow-1 d-flex align-items-center justify-content-center position-relative" id="previewModalBody" style="background: #18191c; overflow: auto;">
+                <!-- dynamic preview -->
+            </div>
+        </div>
     </div>
 </div>
 
@@ -4790,22 +4977,41 @@ function openEmailThread(id, pushToHistory = true) {
                                 <span>${m.attachments.length} Attachment${m.attachments.length > 1 ? 's' : ''}</span>
                             </div>
                             <div class="gmail-att-grid">
-                                ${m.attachments.map(att => `
-                                    <div class="gmail-att-card">
-                                        <div class="gmail-att-card-preview">
-                                            ${getAttachmentIconSvg(att.mime_type, att.filename)}
-                                        </div>
-                                        <div class="gmail-att-card-footer">
-                                            <div class="d-flex flex-column" style="max-width: 125px;">
-                                                <span class="gmail-att-name" title="${escapeEmailText(decodeMimeHeader(att.filename || 'Attachment'))}">${escapeEmailText(decodeMimeHeader(att.filename || 'Attachment'))}</span>
-                                                <span class="gmail-att-size">${escapeEmailText(att.file_size || '')}</span>
+                                ${m.attachments.map(att => {
+                                    const cleanName = escapeEmailText(decodeMimeHeader(att.filename || 'Attachment'));
+                                    const ext = (att.filename || '').split('.').pop().toLowerCase();
+                                    const isImg = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext) || (att.mime_type && att.mime_type.startsWith('image/'));
+                                    const isPdf = ext === 'pdf' || (att.mime_type && att.mime_type.includes('pdf'));
+                                    const viewUrl = att.view_url || att.url || '#';
+                                    const dlUrl = att.url || '#';
+                                    const sizeStr = escapeEmailText(att.file_size || '');
+                                    const safeNameArg = cleanName.replace(/'/g, "\\'");
+
+                                    return `
+                                        <div class="gmail-att-card" onclick="openAttachmentPreview(${att.id}, '${safeNameArg}', '${sizeStr}', '${att.mime_type || ''}', '${viewUrl}', '${dlUrl}')">
+                                            <div class="gmail-att-card-preview">
+                                                ${isImg ? `<img src="${viewUrl}" alt="${cleanName}" onerror="this.parentElement.innerHTML='${getAttachmentIconSvg(att.mime_type, att.filename).replace(/'/g, "\\'")}'" />` : getAttachmentIconSvg(att.mime_type, att.filename)}
+                                                <div class="gmail-att-card-overlay">
+                                                    <button type="button" class="gmail-att-action-btn" title="Preview" onclick="event.stopPropagation(); openAttachmentPreview(${att.id}, '${safeNameArg}', '${sizeStr}', '${att.mime_type || ''}', '${viewUrl}', '${dlUrl}')">
+                                                        <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
+                                                    </button>
+                                                    <a href="${dlUrl}" target="_blank" download class="gmail-att-action-btn" title="Download" onclick="event.stopPropagation();">
+                                                        <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"/></svg>
+                                                    </a>
+                                                </div>
                                             </div>
-                                            <a href="${att.url || '#'}" target="_blank" class="gmail-att-dl-btn" title="Download">
-                                                <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"/></svg>
-                                            </a>
+                                            <div class="gmail-att-card-footer">
+                                                <div class="d-flex flex-column" style="max-width: 130px;">
+                                                    <span class="gmail-att-name" title="${cleanName}">${cleanName}</span>
+                                                    <span class="gmail-att-size">${sizeStr}</span>
+                                                </div>
+                                                <a href="${dlUrl}" target="_blank" download class="gmail-att-dl-btn" title="Download" onclick="event.stopPropagation();">
+                                                    <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"/></svg>
+                                                </a>
+                                            </div>
                                         </div>
-                                    </div>
-                                `).join('')}
+                                    `;
+                                }).join('')}
                             </div>
                         </div>
                     `;
@@ -5140,6 +5346,155 @@ function saveRowEmailLabels(threadId, email, rowEmailId) {
     });
 }
 
+let inlineUploadedFiles = [];
+let inlineForwardedAttachments = [];
+let inlineQuotedHtml = '';
+
+function formatFileSize(bytes) {
+    if (!bytes || isNaN(bytes)) return '0 B';
+    bytes = parseInt(bytes);
+    if (bytes >= 1048576) return (bytes / 1048576).toFixed(1) + ' MB';
+    if (bytes >= 1024) return (bytes / 1024).toFixed(0) + ' KB';
+    return bytes + ' B';
+}
+
+function openAttachmentPreview(attId, filename, sizeStr, mimeType, viewUrl, downloadUrl) {
+    const modalEl = document.getElementById('emailAttachmentPreviewModal');
+    if (!modalEl) {
+        window.open(viewUrl || downloadUrl, '_blank');
+        return;
+    }
+
+    document.getElementById('previewModalTitle').textContent = filename || 'Attachment';
+    document.getElementById('previewModalSize').textContent = sizeStr ? `Size: ${sizeStr}` : '';
+    const dlBtn = document.getElementById('previewModalDownloadBtn');
+    if (dlBtn) {
+        dlBtn.href = downloadUrl || viewUrl;
+        dlBtn.setAttribute('download', filename || 'attachment');
+    }
+
+    const iconWrap = document.getElementById('previewModalIcon');
+    if (iconWrap && typeof getAttachmentIconSvg === 'function') {
+        iconWrap.innerHTML = getAttachmentIconSvg(mimeType, filename);
+    }
+
+    const bodyWrap = document.getElementById('previewModalBody');
+    const ext = (filename || '').split('.').pop().toLowerCase();
+    const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext) || (mimeType && mimeType.startsWith('image/'));
+    const isPdf = ext === 'pdf' || (mimeType && mimeType.includes('pdf'));
+    const isText = ['txt', 'log', 'csv', 'json', 'xml'].includes(ext);
+
+    if (isImage) {
+        bodyWrap.innerHTML = `
+            <div class="p-3 d-flex align-items-center justify-content-center w-100 h-100">
+                <img src="${viewUrl}" alt="${filename}" style="max-width: 95%; max-height: 75vh; object-fit: contain; border-radius: 8px; box-shadow: 0 8px 30px rgba(0,0,0,0.5);" />
+            </div>
+        `;
+    } else if (isPdf) {
+        bodyWrap.innerHTML = `
+            <iframe src="${viewUrl}" style="width: 100%; height: 75vh; border: none; background: #525659;"></iframe>
+        `;
+    } else if (isText) {
+        bodyWrap.innerHTML = `
+            <iframe src="${viewUrl}" style="width: 100%; height: 75vh; border: none; background: #ffffff; color: #111;"></iframe>
+        `;
+    } else {
+        bodyWrap.innerHTML = `
+            <div class="text-center p-8 d-flex flex-column align-items-center justify-content-center" style="min-height: 400px;">
+                <div class="mb-4" style="transform: scale(2.2); transform-origin: center;">
+                    ${getAttachmentIconSvg(mimeType, filename)}
+                </div>
+                <h4 class="text-white fw-bold mt-4 mb-2">${filename}</h4>
+                <p class="text-white-50 fs-7 mb-4">${sizeStr || ''} &bull; ${mimeType || ext.toUpperCase() + ' File'}</p>
+                <div class="d-flex align-items-center gap-3">
+                    <a href="${downloadUrl || viewUrl}" class="btn btn-primary px-6 py-3 fw-bold" download>
+                        <i class="fa fa-download me-2"></i> Download File
+                    </a>
+                </div>
+                <p class="text-muted fs-8 mt-4 mb-0">Direct in-browser preview is not supported for this file type. Click download to view.</p>
+            </div>
+        `;
+    }
+
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    modal.show();
+}
+
+function renderInlineAttachmentChips() {
+    const container = document.getElementById('inlineComposerAttachmentChips');
+    const badge = document.getElementById('inlineFileCountBadge');
+    if (!container) return;
+
+    const totalCount = inlineForwardedAttachments.length + inlineUploadedFiles.length;
+    if (badge) {
+        badge.textContent = totalCount > 0 ? `${totalCount} attachment${totalCount > 1 ? 's' : ''}` : '';
+    }
+
+    if (totalCount === 0) {
+        container.style.display = 'none';
+        container.innerHTML = '';
+        return;
+    }
+
+    let html = '';
+    // Forwarded attachments from original email
+    inlineForwardedAttachments.forEach(att => {
+        const cleanName = att.filename || 'Attachment';
+        html += `
+            <span class="gmail-chip forwarded" title="${cleanName}">
+                <i class="fa fa-share text-primary me-1"></i>
+                <span class="gmail-chip-name">${cleanName}</span>
+                <span class="gmail-chip-size">(${att.file_size || ''})</span>
+                <span class="badge bg-primary text-white fs-9 ms-1 py-0 px-1" style="font-size: 9px;">Forwarded</span>
+                <span class="gmail-chip-remove ms-1" onclick="removeInlineForwardedAttachment(${att.id})" title="Remove attachment">&times;</span>
+            </span>
+        `;
+    });
+
+    // Freshly attached files
+    inlineUploadedFiles.forEach((file, index) => {
+        html += `
+            <span class="gmail-chip" title="${file.name}">
+                <i class="fa fa-paperclip text-muted me-1"></i>
+                <span class="gmail-chip-name">${file.name}</span>
+                <span class="gmail-chip-size">(${formatFileSize(file.size)})</span>
+                <span class="gmail-chip-remove ms-1" onclick="removeInlineUploadedFile(${index})" title="Remove attachment">&times;</span>
+            </span>
+        `;
+    });
+
+    container.innerHTML = html;
+    container.style.display = 'flex';
+}
+
+function handleInlineFileSelected(input) {
+    if (input.files && input.files.length > 0) {
+        Array.from(input.files).forEach(f => {
+            if (!inlineUploadedFiles.some(existing => existing.name === f.name && existing.size === f.size)) {
+                inlineUploadedFiles.push(f);
+            }
+        });
+    }
+    input.value = '';
+    renderInlineAttachmentChips();
+}
+
+function removeInlineUploadedFile(index) {
+    inlineUploadedFiles.splice(index, 1);
+    renderInlineAttachmentChips();
+}
+
+function removeInlineForwardedAttachment(attId) {
+    inlineForwardedAttachments = inlineForwardedAttachments.filter(a => a.id != attId);
+    renderInlineAttachmentChips();
+}
+
+function toggleInlineQuotedBlock() {
+    const content = document.getElementById('inlineQuotePreviewContent');
+    if (!content) return;
+    content.style.display = (content.style.display === 'none') ? 'block' : 'none';
+}
+
 function setInlineComposerMode(mode, toEmail = null, subject = null, messageId = null) {
     inlineComposerMode = mode;
     const box = document.getElementById('inlineComposerContainer');
@@ -5148,9 +5503,16 @@ function setInlineComposerMode(mode, toEmail = null, subject = null, messageId =
     const modeLabel = document.getElementById('inlineComposerModeLabel');
     const replyTab = document.getElementById('inlineReplyTabBtn');
     const forwardTab = document.getElementById('inlineForwardTabBtn');
+    const quoteBar = document.getElementById('inlineQuoteCollapsibleBar');
+    const quoteSummary = document.getElementById('inlineQuoteSummary');
+    const quotePreview = document.getElementById('inlineQuotePreviewContent');
 
     if (!box) return;
     box.classList.add('highlight-focus');
+
+    // Reset attachments
+    inlineUploadedFiles = [];
+    inlineForwardedAttachments = [];
 
     let targetMsg = null;
     if (messageId && activeThreadMessages && activeThreadMessages.length) {
@@ -5161,7 +5523,9 @@ function setInlineComposerMode(mode, toEmail = null, subject = null, messageId =
     }
     activeReplyTargetMsg = targetMsg;
 
-    const targetDateStr = targetMsg && targetMsg.created_at ? new Date(targetMsg.created_at).toLocaleString() : 'Recently';
+    const targetDateStr = targetMsg && (targetMsg.date_formatted || targetMsg.received_at || targetMsg.created_at)
+        ? (targetMsg.date_formatted || targetMsg.received_at || new Date(targetMsg.created_at).toLocaleString()) 
+        : 'Recently';
     const targetSenderEmail = targetMsg ? (targetMsg.from_email || '') : '';
     const targetSenderName = targetMsg ? (targetMsg.from_name || targetSenderEmail) : '';
     const senderDisplay = targetSenderName && targetSenderName !== targetSenderEmail 
@@ -5169,27 +5533,37 @@ function setInlineComposerMode(mode, toEmail = null, subject = null, messageId =
         : targetSenderEmail;
 
     let targetBody = targetMsg ? (targetMsg.body_html || (targetMsg.body_plain ? targetMsg.body_plain.replace(/\n/g, '<br>') : '')) : '';
-    // Clean any residual artifacts
     targetBody = targetBody.replace(/^\s*\*\s*\d+\s+FETCH\s*\([^\r\n]*\r?\n?/i, '')
                            .replace(/\r?\n\)\s*$/, '')
                            .replace(/=3D/g, '=')
                            .replace(/=\r?\n/g, '');
 
+    const baseSubj = subject || (targetMsg ? targetMsg.subject : '') || '';
+    const cleanSubj = baseSubj.replace(/^(Re:\s*|Fwd:\s*)+/i, '').trim();
+
     if (mode === 'reply') {
         replyTab.classList.add('active');
         forwardTab.classList.remove('active');
         toInput.value = toEmail || targetSenderEmail || '';
-        const baseSubj = subject || (targetMsg ? targetMsg.subject : '');
-        subjInput.value = baseSubj ? ('Re: ' + baseSubj.replace(/^(Re:\s*)+/i, '')) : 'Re:';
+        subjInput.value = cleanSubj ? ('Re: ' + cleanSubj) : 'Re:';
         modeLabel.textContent = 'Replying to ' + toInput.value;
 
-        if (inlineQuill) {
-            if (targetBody) {
-                const replyHtml = `<p><br></p><div class="gmail_quote" style="margin-top: 18px; color: #5f6368; font-size: 13px;"><div dir="ltr" class="gmail_attr">On ${targetDateStr}, ${senderDisplay} wrote:</div><blockquote class="gmail_quote" style="margin: 4px 0 0 0.8ex; border-left: 2px solid #dadce0; padding-left: 10px; color: #3c4043;">${targetBody}</blockquote></div>`;
-                inlineQuill.root.innerHTML = replyHtml;
-                inlineQuill.setSelection(0, 0);
-            } else {
-                inlineQuill.setText('');
+        // Quoted block for reply
+        inlineQuotedHtml = `
+            <div class="gmail_quote" style="margin-top: 20px; border-left: 2px solid #dadce0; padding-left: 12px; color: #5f6368; font-size: 13px;">
+                <div dir="ltr" class="gmail_attr" style="margin-bottom: 8px; color: #70757a;">On ${targetDateStr}, ${senderDisplay} wrote:</div>
+                <blockquote class="gmail_quote" style="margin: 0; padding: 0; color: inherit;">
+                    ${targetBody}
+                </blockquote>
+            </div>
+        `;
+
+        if (quoteBar) {
+            quoteBar.style.display = 'block';
+            if (quoteSummary) quoteSummary.textContent = `On ${targetDateStr}, ${targetSenderName || targetSenderEmail} wrote:`;
+            if (quotePreview) {
+                quotePreview.innerHTML = `<div><strong>On ${targetDateStr}, ${senderDisplay} wrote:</strong></div><div class="mt-2">${targetBody}</div>`;
+                quotePreview.style.display = 'none';
             }
         }
     } else {
@@ -5197,45 +5571,51 @@ function setInlineComposerMode(mode, toEmail = null, subject = null, messageId =
         replyTab.classList.remove('active');
         toInput.value = '';
         toInput.placeholder = 'Enter recipient email to forward...';
-        const baseSubj = subject || (targetMsg ? targetMsg.subject : '');
-        subjInput.value = baseSubj ? ('Fwd: ' + baseSubj.replace(/^(Fwd:\s*)+/i, '')) : 'Fwd:';
+        subjInput.value = cleanSubj ? ('Fwd: ' + cleanSubj) : 'Fwd:';
         modeLabel.textContent = 'Forwarding message to new recipient';
 
-        if (inlineQuill) {
-            const fwdHtml = `
-                <p><br></p>
-                <div class="gmail_quote" style="border-left: 2px solid #dadce0; padding-left: 12px; margin-top: 16px; color: #475569; font-size: 13px;">
-                    <div><strong>---------- Forwarded message ---------</strong></div>
-                    <div><strong>From:</strong> ${senderDisplay}</div>
-                    <div><strong>Date:</strong> ${targetDateStr}</div>
-                    <div><strong>Subject:</strong> ${targetMsg ? (targetMsg.subject || '') : ''}</div>
-                    <div><strong>To:</strong> ${targetMsg ? (targetMsg.to_email || '') : ''}</div>
-                    <br>
-                    <div>${targetBody}</div>
+        // Automatically include original attachments in forwarded email
+        if (targetMsg && targetMsg.attachments && targetMsg.attachments.length > 0) {
+            inlineForwardedAttachments = [...targetMsg.attachments];
+        }
+
+        // Quoted block for forward
+        inlineQuotedHtml = `
+            <div class="gmail_quote" style="margin-top: 20px; border-left: 2px solid #dadce0; padding-left: 12px; color: #475569; font-size: 13px;">
+                <div style="margin-bottom: 10px;">
+                    <strong>---------- Forwarded message ---------</strong><br>
+                    <strong>From:</strong> ${senderDisplay}<br>
+                    <strong>Date:</strong> ${targetDateStr}<br>
+                    <strong>Subject:</strong> ${baseSubj}<br>
+                    <strong>To:</strong> ${targetMsg ? (targetMsg.to_email || '') : ''}<br>
                 </div>
-            `;
-            inlineQuill.root.innerHTML = fwdHtml;
-            inlineQuill.setSelection(0, 0);
+                <div>${targetBody}</div>
+            </div>
+        `;
+
+        if (quoteBar) {
+            quoteBar.style.display = 'block';
+            if (quoteSummary) quoteSummary.textContent = `Forwarded message from ${targetSenderName || targetSenderEmail}`;
+            if (quotePreview) {
+                quotePreview.innerHTML = `<div><strong>---------- Forwarded message ---------</strong><br><strong>From:</strong> ${senderDisplay}<br><strong>Date:</strong> ${targetDateStr}<br><strong>Subject:</strong> ${baseSubj}</div><div class="mt-2">${targetBody}</div>`;
+                quotePreview.style.display = 'none';
+            }
         }
     }
 
-    setTimeout(() => {
-        if (mode === 'forward') {
-            toInput.focus();
-        } else if (inlineQuill) {
-            inlineQuill.focus();
-            inlineQuill.setSelection(0, 0);
-        }
-        box.classList.remove('highlight-focus');
-    }, 400);
-}
+    renderInlineAttachmentChips();
 
-function handleInlineFileSelected(input) {
-    const badge = document.getElementById('inlineFileCountBadge');
-    if (input.files && input.files.length > 0) {
-        badge.textContent = `${input.files.length} file(s) attached`;
-    } else {
-        badge.textContent = '';
+    // Reset quill with empty text so user writes clean message
+    if (inlineQuill) {
+        inlineQuill.setText('');
+        setTimeout(() => {
+            if (mode === 'forward') {
+                toInput.focus();
+            } else {
+                inlineQuill.focus();
+            }
+            box.classList.remove('highlight-focus');
+        }, 200);
     }
 }
 
@@ -5254,10 +5634,14 @@ function openInlineComposer(mode = 'reply', toEmail = null, subject = null, mess
 
 function discardInlineComposer() {
     if (inlineQuill) inlineQuill.setText('');
-    const badge = document.getElementById('inlineFileCountBadge');
-    if (badge) badge.textContent = '';
-    const fileInput = document.getElementById('inlineComposerFileInput');
-    if (fileInput) fileInput.value = '';
+    inlineUploadedFiles = [];
+    inlineForwardedAttachments = [];
+    inlineQuotedHtml = '';
+    renderInlineAttachmentChips();
+    const quoteBar = document.getElementById('inlineQuoteCollapsibleBar');
+    if (quoteBar) quoteBar.style.display = 'none';
+    const quotePreview = document.getElementById('inlineQuotePreviewContent');
+    if (quotePreview) quotePreview.style.display = 'none';
     const box = document.getElementById('inlineComposerContainer');
     if (box) box.style.display = 'none';
     const bottomPills = document.getElementById('detailBottomActionPills');
@@ -5465,21 +5849,48 @@ function updateOptimisticPendingEmail(tempId, isSuccess, isError = false) {
 function submitInlineComposer(e) {
     e.preventDefault();
 
-    const form = document.getElementById('inlineComposerForm');
-    const formData = new FormData(form);
-    const toEmail = document.getElementById('inlineComposerToInput').value;
-    const subject = document.getElementById('inlineComposerSubjectInput').value;
-    const previewText = inlineQuill ? inlineQuill.getText().substring(0, 70) : '';
-
-    if (inlineQuill) {
-        formData.append('body_html', inlineQuill.root.innerHTML);
-        formData.append('body_plain', inlineQuill.getText());
+    const toEmail = document.getElementById('inlineComposerToInput').value.trim();
+    const subject = document.getElementById('inlineComposerSubjectInput').value.trim();
+    if (!toEmail) {
+        showSendingToast('Please specify a recipient email.', false, true);
+        return;
     }
+
+    const userHtml = inlineQuill ? inlineQuill.root.innerHTML : '';
+    const userPlain = inlineQuill ? inlineQuill.getText().trim() : '';
+    const previewText = userPlain.substring(0, 70) || (inlineComposerMode === 'forward' ? 'Forwarded message' : 'Quick reply');
+
+    // Build authentic HTML email format (user message + pristine quoted chain)
+    let finalBodyHtml = '';
+    if (userHtml && userHtml !== '<p><br></p>') {
+        finalBodyHtml += `<div style="font-family: Roboto, Arial, Helvetica, sans-serif; font-size: 14px; color: #202124; line-height: 1.6;">${userHtml}</div><br>`;
+    }
+    if (inlineQuotedHtml) {
+        finalBodyHtml += inlineQuotedHtml;
+    }
+
+    const formData = new FormData();
+    formData.append('to', toEmail);
+    formData.append('to_email', toEmail);
+    formData.append('subject', subject || (inlineComposerMode === 'forward' ? 'Fwd:' : 'Re:'));
+    formData.append('body_html', finalBodyHtml);
+    formData.append('body_plain', userPlain);
+
     if (activeThreadId) formData.append('thread_id', activeThreadId);
     if (activeReplyTargetMsg && activeReplyTargetMsg.message_id) {
         formData.append('in_reply_to', activeReplyTargetMsg.message_id);
     }
     if (currentAccountId) formData.append('account_id', currentAccountId);
+
+    // Append newly uploaded files
+    inlineUploadedFiles.forEach(file => {
+        formData.append('attachments[]', file);
+    });
+
+    // Append forwarded attachment IDs
+    inlineForwardedAttachments.forEach(att => {
+        formData.append('forwarded_attachment_ids[]', att.id);
+    });
 
     // 1. Instantly reset & clear UI (<5ms)
     discardInlineComposer();

@@ -53,8 +53,26 @@ class PluginController extends Controller
         $emailAccountsCount = \App\Models\EmailConfiguration::count();
         $activeEmailAccounts = \App\Models\EmailConfiguration::where('is_active', true)->count();
 
+        $next2callPlugin = PluginSetting::firstOrCreate(
+            ['plugin_key' => 'next2call'],
+            [
+                'name' => 'Next2Call Softphone',
+                'category' => 'communication',
+                'description' => 'Direct in-browser WebRTC softphone calling & click-to-dial powered by Next2Call Ringfy PBX.',
+                'is_active' => true,
+                'settings' => [
+                    'user_id' => config('services.softphone.user_id', '10101'),
+                    'password' => config('services.softphone.password', 'T2d8d1r5P6x0T8O8iUq'),
+                    'sip_domain' => config('services.softphone.sip_domain', 'ringfy.next2call.com'),
+                    'api_base_url' => 'https://ringfy.next2call.com',
+                    'click_to_dial_path' => '/softphone/Phone/click-to-dial.html',
+                ],
+            ]
+        );
+
         return view('back-end.plugins.index', [
             'twilioPlugin' => $twilioPlugin,
+            'next2callPlugin' => $next2callPlugin,
             'currentUserPhone' => $currentUserPhone,
             'emailAccountsCount' => $emailAccountsCount,
             'activeEmailAccounts' => $activeEmailAccounts,
@@ -112,6 +130,95 @@ class PluginController extends Controller
         }
 
         return back()->with('success', 'Twilio Voice Calling plugin settings saved successfully.');
+    }
+
+    /**
+     * Save Next2Call Softphone Plugin settings.
+     */
+    public function saveNext2call(Request $request): RedirectResponse|JsonResponse
+    {
+        $validated = $request->validate([
+            'user_id' => ['required', 'string', 'max:100'],
+            'password' => ['required', 'string', 'max:255'],
+            'sip_domain' => ['required', 'string', 'max:255'],
+            'api_base_url' => ['nullable', 'string', 'max:255'],
+            'click_to_dial_path' => ['nullable', 'string', 'max:255'],
+            'is_active' => ['nullable'],
+        ]);
+
+        $isActive = $request->boolean('is_active', true);
+
+        $plugin = PluginSetting::firstOrNew(['plugin_key' => 'next2call']);
+        $plugin->name = 'Next2Call Softphone';
+        $plugin->category = 'communication';
+        $plugin->description = 'Direct in-browser WebRTC softphone calling & click-to-dial powered by Next2Call Ringfy PBX.';
+        $plugin->is_active = $isActive;
+        $plugin->settings = [
+            'user_id' => trim($validated['user_id']),
+            'password' => trim($validated['password']),
+            'sip_domain' => trim($validated['sip_domain']),
+            'api_base_url' => trim($validated['api_base_url'] ?: 'https://' . trim($validated['sip_domain'])),
+            'click_to_dial_path' => trim($validated['click_to_dial_path'] ?: '/softphone/Phone/click-to-dial.html'),
+        ];
+        $plugin->updated_by = Auth::id();
+        if (!$plugin->exists) {
+            $plugin->created_by = Auth::id();
+        }
+        $plugin->save();
+
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Next2Call Softphone settings saved successfully.',
+                'plugin' => $plugin,
+            ]);
+        }
+
+        return back()->with('success', 'Next2Call Softphone settings saved successfully.');
+    }
+
+    /**
+     * Test Next2Call configuration & generate a test click-to-dial URL.
+     */
+    public function testNext2call(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'test_phone_number' => ['required', 'string', 'min:6'],
+        ]);
+
+        $plugin = PluginSetting::where('plugin_key', 'next2call')->first();
+        $settings = $plugin?->settings ?? [];
+
+        $userId = $settings['user_id'] ?? config('services.softphone.user_id', '10101');
+        $password = $settings['password'] ?? config('services.softphone.password', 'T2d8d1r5P6x0T8O8iUq');
+        $sipDomain = $settings['sip_domain'] ?? config('services.softphone.sip_domain', 'ringfy.next2call.com');
+        $path = $settings['click_to_dial_path'] ?? '/softphone/Phone/click-to-dial.html';
+
+        $number = preg_replace('/[^0-9]/', '', $validated['test_phone_number']);
+        if (str_starts_with($number, '91') && strlen($number) === 12) {
+            $number = '0' . substr($number, 2);
+        } elseif (strlen($number) === 10) {
+            $number = '0' . $number;
+        }
+
+        $query = http_build_query([
+            'profileName' => $userId,
+            'SipDomain'   => $sipDomain,
+            'SipUsername' => $userId,
+            'SipPassword' => $password,
+            'd'           => $number,
+        ]);
+
+        $testUrl = "https://{$sipDomain}{$path}?" . $query;
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Next2Call click-to-dial test URL generated successfully.',
+            'dial_url' => $testUrl,
+            'user_id' => $userId,
+            'sip_domain' => $sipDomain,
+            'target_number' => $number,
+        ]);
     }
 
     /**

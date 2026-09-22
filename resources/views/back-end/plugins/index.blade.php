@@ -12,6 +12,14 @@
     $twimlAppSid = $twilioSettings['twiml_app_sid'] ?? '';
     $agentNumber = $twilioSettings['default_agent_number'] ?? $currentUserPhone;
     $callMode = $twilioSettings['call_mode'] ?? 'webrtc';
+
+    $next2callSettings = $next2callPlugin->settings ?? [];
+    $isNext2callActive = (bool) ($next2callPlugin->is_active ?? true);
+    $n2cUserId = $next2callSettings['user_id'] ?? '10101';
+    $n2cPassword = $next2callSettings['password'] ?? 'T2d8d1r5P6x0T8O8iUq';
+    $n2cSipDomain = $next2callSettings['sip_domain'] ?? 'ringfy.next2call.com';
+    $n2cApiBaseUrl = $next2callSettings['api_base_url'] ?? 'https://ringfy.next2call.com';
+    $n2cClickPath = $next2callSettings['click_to_dial_path'] ?? '/softphone/Phone/click-to-dial.html';
 @endphp
 
 <div class="container-fluid py-5">
@@ -22,10 +30,13 @@
                 <i class="fa fa-plug text-primary me-2"></i>Plugins & Integrations
             </h1>
             <div class="text-muted fw-bold fs-7">
-                Manage third-party integrations, Twilio WebRTC browser calling & voice plugins.
+                Manage third-party integrations, Next2Call Ringfy softphone & Twilio voice plugins.
             </div>
         </div>
         <div class="d-flex gap-2">
+            <button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#next2callSettingsModal">
+                <i class="fa fa-headphones me-1"></i> Configure Next2Call
+            </button>
             <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#twilioSettingsModal">
                 <i class="fa fa-phone me-1"></i> Configure Twilio Call
             </button>
@@ -144,6 +155,62 @@
                         </a>
                         <a href="{{ route('emails.settings') }}" class="btn btn-sm btn-light-success flex-fill">
                             <i class="fa fa-cog me-1"></i> Settings &amp; Test
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Next2Call Softphone Plugin Card -->
+        <div class="col-md-6 col-xl-4">
+            <div class="card h-100 border shadow-sm plugin-card {{ $isNext2callActive ? 'border-success' : '' }}">
+                <div class="card-body d-flex flex-column justify-content-between p-6">
+                    <div>
+                        <div class="d-flex align-items-center justify-content-between mb-4">
+                            <div class="symbol symbol-50px symbol-circle bg-light-success p-3">
+                                <i class="fa fa-headphones text-success fs-2"></i>
+                            </div>
+                            <div class="form-check form-switch form-check-custom form-check-solid">
+                                <input class="form-check-input h-20px w-35px cursor-pointer" type="checkbox" id="next2callPluginToggle" {{ $isNext2callActive ? 'checked' : '' }} onchange="togglePluginStatus('next2call', this.checked)">
+                            </div>
+                        </div>
+
+                        <div class="d-flex align-items-center gap-2 mb-2">
+                            <h3 class="fw-bolder text-dark mb-0">Next2Call Softphone</h3>
+                            <span id="next2callStatusBadge" class="badge {{ $isNext2callActive ? 'badge-light-success' : 'badge-light-danger' }} fs-8">
+                                {{ $isNext2callActive ? 'Active' : 'Inactive' }}
+                            </span>
+                        </div>
+
+                        <p class="text-muted fs-7 mb-4">
+                            In-browser WebRTC softphone & click-to-dial powered by Next2Call Ringfy PBX. Connects agents directly from Orders page with live in-page softphone.
+                        </p>
+
+                        <div class="bg-light rounded p-3 mb-4 fs-8 text-muted">
+                            <div class="d-flex justify-content-between mb-1">
+                                <span>Default SIP Extension:</span>
+                                <strong class="text-dark">{{ $n2cUserId }}</strong>
+                            </div>
+                            <div class="d-flex justify-content-between mb-1">
+                                <span>SIP Server Host:</span>
+                                <strong class="text-dark">{{ $n2cSipDomain }}</strong>
+                            </div>
+                            <div class="d-flex justify-content-between">
+                                <span>Integration Type:</span>
+                                <span class="badge badge-light-primary">Ringfy WebRTC Softphone</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-flex flex-wrap gap-2 pt-2 border-top">
+                        <button type="button" class="btn btn-sm btn-light-primary flex-fill" data-bs-toggle="modal" data-bs-target="#next2callSettingsModal">
+                            <i class="fa fa-cog me-1"></i> Settings
+                        </button>
+                        <button type="button" class="btn btn-sm btn-light-success flex-fill" data-bs-toggle="modal" data-bs-target="#next2callTestModal">
+                            <i class="fa fa-phone-volume me-1"></i> Test Dial
+                        </button>
+                        <a href="{{ route('order') }}" class="btn btn-sm btn-light-info flex-fill">
+                            <i class="fa fa-list me-1"></i> Orders Dial
                         </a>
                     </div>
                 </div>
@@ -376,6 +443,124 @@
     </div>
 </div>
 
+<!-- Modal: Next2Call Settings -->
+<div class="modal fade" id="next2callSettingsModal" tabindex="-1" aria-labelledby="next2callSettingsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bolder" id="next2callSettingsModalLabel">
+                    <i class="fa fa-headphones text-success me-2"></i> Next2Call Ringfy Softphone Settings
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="next2callSettingsForm" method="POST" action="{{ route('plugins.next2call.save') }}">
+                @csrf
+                <div class="modal-body p-6">
+                    <div class="alert alert-light-success d-flex align-items-center mb-5">
+                        <i class="fa fa-info-circle fs-3 text-success me-3"></i>
+                        <div class="fs-7">
+                            Configure your <strong>Next2Call Ringfy SIP PBX</strong> credentials. These default credentials will be used for in-browser click-to-dial from Orders, unless overridden per-agent in User Management.
+                        </div>
+                    </div>
+
+                    <div class="row g-4">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold required">SIP Domain / Server Host</label>
+                            <input type="text" name="sip_domain" class="form-control form-control-solid" value="{{ $n2cSipDomain }}" placeholder="ringfy.next2call.com" required>
+                            <div class="form-text fs-8 text-muted">Next2Call SIP gateway hostname (e.g. <code>ringfy.next2call.com</code>)</div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold required">Default SIP User ID / Agent Extension</label>
+                            <input type="text" name="user_id" class="form-control form-control-solid" value="{{ $n2cUserId }}" placeholder="10101" required>
+                            <div class="form-text fs-8 text-muted">Default SIP extension for agents who don't have an assigned SIP ID</div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold required">SIP Password</label>
+                            <div class="input-group">
+                                <input type="password" id="n2cPasswordInput" name="password" class="form-control form-control-solid" value="{{ $n2cPassword }}" placeholder="Enter SIP password" required>
+                                <button class="btn btn-light border" type="button" onclick="toggleN2cPasswordVisibility()">
+                                    <i class="fa fa-eye" id="n2cPasswordEye"></i>
+                                </button>
+                            </div>
+                            <div class="form-text fs-8 text-muted">SIP extension password provided by Next2Call</div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">API Base URL</label>
+                            <input type="url" name="api_base_url" class="form-control form-control-solid" value="{{ $n2cApiBaseUrl }}" placeholder="https://ringfy.next2call.com">
+                            <div class="form-text fs-8 text-muted">Base Web URL of Next2Call Ringfy server</div>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label fw-bold">Click-to-Dial Webpage Path</label>
+                            <input type="text" name="click_to_dial_path" class="form-control form-control-solid" value="{{ $n2cClickPath }}" placeholder="/softphone/Phone/click-to-dial.html">
+                            <div class="form-text fs-8 text-muted">HTML dialer page path loaded inside the CRM's embedded softphone iframe widget</div>
+                        </div>
+
+                        <div class="col-12">
+                            <div class="form-check form-switch form-check-custom form-check-solid">
+                                <input class="form-check-input h-20px w-35px" type="checkbox" name="is_active" id="n2cIsActiveSwitch" value="1" {{ $isNext2callActive ? 'checked' : '' }}>
+                                <label class="form-check-label fw-bold ms-2" for="n2cIsActiveSwitch">
+                                    Enable Next2Call Softphone Integration in Orders
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-light rounded p-4 mt-5 fs-8 text-muted border">
+                        <div class="fw-bolder text-dark mb-1"><i class="fa fa-user-circle text-primary me-1"></i> Per-Agent Dedicated SIP Extension:</div>
+                        Agents with their own extension can have their <code>SIP / Call ID</code> and <code>SIP Password</code> configured directly in <strong>Settings &gt; User Management</strong>. When they click to dial, the system automatically uses their dedicated extension!
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success" id="saveNext2callBtn">
+                        <i class="fa fa-save me-1"></i> Save Configuration
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Next2Call Test Dial -->
+<div class="modal fade" id="next2callTestModal" tabindex="-1" aria-labelledby="next2callTestModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bolder" id="next2callTestModalLabel">
+                    <i class="fa fa-phone-volume text-success me-2"></i> Test Next2Call Click-to-Dial
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="next2callTestForm">
+                @csrf
+                <div class="modal-body p-6">
+                    <p class="text-muted fs-7 mb-4">
+                        Enter a test mobile phone number to generate and verify the Next2Call click-to-dial URL with current credentials.
+                    </p>
+
+                    <div class="mb-4">
+                        <label class="form-label fw-bold required">Test Phone Number</label>
+                        <input type="text" id="next2callTestNumber" class="form-control form-control-solid" placeholder="e.g. 9876543210 or 919876543210" value="{{ $currentUserPhone ?: '9876543210' }}" required>
+                        <div class="form-text fs-8 text-muted">Indian numbers will be formatted with leading <code>0</code> per Next2Call trunk standard.</div>
+                    </div>
+
+                    <div id="next2callTestStatusContainer" class="d-none mb-3"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Close</button>
+                    <button type="submit" class="btn btn-success" id="startNext2callTestBtn">
+                        <i class="fa fa-play me-1"></i> <span id="next2callTestBtnText">Verify & Generate Call URL</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 @push('scripts')
 <script>
 function toggleWebRtcFields(isEnabled) {
@@ -577,6 +762,104 @@ $('#twilioTestCallForm').on('submit', function(e) {
                 <div class="alert alert-danger d-flex align-items-center">
                     <i class="fa fa-exclamation-triangle fs-3 text-danger me-3"></i>
                     <div><strong>Call Failed:</strong> ${errMsg}</div>
+                </div>
+            `);
+        }
+    });
+});
+function toggleN2cPasswordVisibility() {
+    const input = document.getElementById('n2cPasswordInput');
+    const eye = document.getElementById('n2cPasswordEye');
+    if (input.type === 'password') {
+        input.type = 'text';
+        eye.className = 'fa fa-eye-slash';
+    } else {
+        input.type = 'password';
+        eye.className = 'fa fa-eye';
+    }
+}
+
+// Handle Next2Call Settings Form Submit
+$('#next2callSettingsForm').on('submit', function(e) {
+    e.preventDefault();
+    const btn = $('#saveNext2callBtn');
+    btn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin me-1"></i> Saving...');
+
+    $.ajax({
+        url: $(this).attr('action'),
+        type: "POST",
+        data: $(this).serialize(),
+        success: function(res) {
+            btn.prop('disabled', false).html('<i class="fa fa-save me-1"></i> Save Configuration');
+            $('#next2callSettingsModal').modal('hide');
+            Swal.fire({
+                icon: 'success',
+                title: 'Saved!',
+                text: res.message,
+                timer: 1500,
+                showConfirmButton: false
+            }).then(() => {
+                location.reload();
+            });
+        },
+        error: function(xhr) {
+            btn.prop('disabled', false).html('<i class="fa fa-save me-1"></i> Save Configuration');
+            let errorMsg = 'Failed to save Next2Call settings.';
+            if (xhr.responseJSON && xhr.responseJSON.message) {
+                errorMsg = xhr.responseJSON.message;
+            }
+            Swal.fire('Error', errorMsg, 'error');
+        }
+    });
+});
+
+// Handle Next2Call Test Call Form Submit
+$('#next2callTestForm').on('submit', function(e) {
+    e.preventDefault();
+    const btn = $('#startNext2callTestBtn');
+    const statusBox = $('#next2callTestStatusContainer');
+    const testNumber = $('#next2callTestNumber').val().trim();
+
+    if (!testNumber) {
+        Swal.fire('Error', 'Please enter a test phone number.', 'warning');
+        return;
+    }
+
+    btn.prop('disabled', true);
+    $('#next2callTestBtnText').text('Generating URL...');
+
+    $.ajax({
+        url: "{{ route('plugins.next2call.test') }}",
+        type: "POST",
+        data: {
+            _token: "{{ csrf_token() }}",
+            test_phone_number: testNumber
+        },
+        success: function(res) {
+            btn.prop('disabled', false);
+            $('#next2callTestBtnText').text('Verify & Generate Call URL');
+            statusBox.removeClass('d-none').html(`
+                <div class="alert alert-success">
+                    <div class="fw-bold mb-2"><i class="fa fa-check-circle text-success me-1"></i> Next2Call Click-to-Dial Config Valid!</div>
+                    <div class="fs-8 text-muted mb-2">
+                        <strong>SIP Extension:</strong> <code>${res.user_id}</code> | <strong>Host:</strong> <code>${res.sip_domain}</code> | <strong>Target:</strong> <code>${res.target_number}</code>
+                    </div>
+                    <div class="d-flex gap-2 mt-3">
+                        <a href="${res.dial_url}" target="_blank" class="btn btn-sm btn-success flex-fill">
+                            <i class="fa fa-external-link me-1"></i> Open Next2Call Softphone
+                        </a>
+                    </div>
+                </div>
+            `);
+        },
+        error: function(xhr) {
+            btn.prop('disabled', false);
+            $('#next2callTestBtnText').text('Verify & Generate Call URL');
+            let errMsg = xhr.responseJSON?.message || 'Failed to verify Next2Call config.';
+            statusBox.removeClass('d-none').html(`
+                <div class="alert alert-danger d-flex align-items-center">
+                    <i class="fa fa-exclamation-triangle fs-3 text-danger me-3"></i>
+                    <div><strong>Verification Failed:</strong> ${errMsg}</div>
                 </div>
             `);
         }

@@ -29,7 +29,7 @@ class PluginMenuSeeder extends Seeder
         if ($existingSubmenu) {
             $pluginSubmenuId = $existingSubmenu->id;
             DB::table('submenus')->where('id', $pluginSubmenuId)->update([
-                'sub_menu_name' => 'Plugins',
+                'sub_menu_name' => 'Plugin Settings',
                 'menus_id' => $settingMenuId,
                 'routes' => 'admin/plugins',
                 'show' => 'Y',
@@ -42,7 +42,7 @@ class PluginMenuSeeder extends Seeder
 
             DB::table('submenus')->insert([
                 'id' => $newSubmenuId,
-                'sub_menu_name' => 'Plugins',
+                'sub_menu_name' => 'Plugin Settings',
                 'menus_id' => $settingMenuId,
                 'routes' => 'admin/plugins',
                 'sort_order' => 10,
@@ -86,15 +86,37 @@ class PluginMenuSeeder extends Seeder
                 [
                     'name' => 'Twilio Voice Call',
                     'category' => 'communication',
-                    'description' => 'Bridge calls between agents and customers directly from the Orders page using Twilio Voice API.',
+                    'description' => 'Bridge calls between agents and customers directly from the Orders page using Twilio Voice API & WebRTC Dialer.',
                     'is_active' => false,
                     'settings' => json_encode([
                         'account_sid' => '',
                         'auth_token' => '',
                         'twilio_number' => '',
+                        'api_key_sid' => '',
+                        'api_secret' => '',
+                        'twiml_app_sid' => '',
                         'default_agent_number' => '',
-                        'call_mode' => 'bridge', // 'bridge' (calls agent first then dials customer) or 'direct'
+                        'call_mode' => 'webrtc',
                         'record_calls' => false,
+                    ]),
+                    'updated_at' => $now,
+                    'created_at' => $now,
+                ]
+            );
+
+            DB::table('plugin_settings')->updateOrInsert(
+                ['plugin_key' => 'next2call'],
+                [
+                    'name' => 'Next2Call Softphone',
+                    'category' => 'communication',
+                    'description' => 'Direct in-browser WebRTC softphone calling & click-to-dial powered by Next2Call Ringfy PBX.',
+                    'is_active' => true,
+                    'settings' => json_encode([
+                        'user_id' => '10101',
+                        'password' => 'T2d8d1r5P6x0T8O8iUq',
+                        'sip_domain' => 'ringfy.next2call.com',
+                        'api_base_url' => 'https://ringfy.next2call.com',
+                        'click_to_dial_path' => '/softphone/Phone/click-to-dial.html',
                     ]),
                     'updated_at' => $now,
                     'created_at' => $now,

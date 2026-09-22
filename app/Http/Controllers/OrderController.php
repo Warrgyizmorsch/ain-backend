@@ -1656,9 +1656,13 @@ class OrderController extends Controller
             ], 422);
         }
 
-        $userId = config('services.softphone.user_id', '10101');
-        $password = config('services.softphone.password', 'T2d8d1r5P6x0T8O8iUq');
-        $sipDomain = config('services.softphone.sip_domain', 'ringfy.next2call.com');
+        $n2cPlugin = \App\Models\PluginSetting::where('plugin_key', 'next2call')->first();
+        $n2cSettings = $n2cPlugin?->settings ?? [];
+
+        $userId = !empty($n2cSettings['user_id']) ? $n2cSettings['user_id'] : config('services.softphone.user_id', '10101');
+        $password = !empty($n2cSettings['password']) ? $n2cSettings['password'] : config('services.softphone.password', 'T2d8d1r5P6x0T8O8iUq');
+        $sipDomain = !empty($n2cSettings['sip_domain']) ? $n2cSettings['sip_domain'] : config('services.softphone.sip_domain', 'ringfy.next2call.com');
+        $clickToDialPath = !empty($n2cSettings['click_to_dial_path']) ? $n2cSettings['click_to_dial_path'] : '/softphone/Phone/click-to-dial.html';
 
         if (auth()->check()) {
             $user = auth()->user();
@@ -1681,7 +1685,7 @@ class OrderController extends Controller
             'd'           => $targetNumber,
         ]);
 
-        $callUrl = "https://{$sipDomain}/softphone/Phone/click-to-dial.html?" . $query;
+        $callUrl = "https://{$sipDomain}{$clickToDialPath}?" . $query;
 
         \Illuminate\Support\Facades\Log::info('[Softphone] Generated Click-to-Dial URL', [
             'country_code' => $countryCode,
