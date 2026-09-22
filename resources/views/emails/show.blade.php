@@ -951,10 +951,11 @@
                                                 $isImg = in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg']) || str_starts_with($att->mime_type ?? '', 'image/');
                                                 $viewUrl = route('emails.attachment.view', $att->id);
                                                 $dlUrl = route('emails.attachment.download', $att->id);
+                                                $previewHtmlUrl = route('emails.attachment.preview-html', $att->id);
                                                 $sizeStr = $att->formatted_size;
                                                 $safeName = addslashes($cleanName);
                                             @endphp
-                                            <div class="gmail-att-card" onclick="openAttachmentPreview({{ $att->id }}, '{{ $safeName }}', '{{ $sizeStr }}', '{{ $att->mime_type }}', '{{ $viewUrl }}', '{{ $dlUrl }}')">
+                                            <div class="gmail-att-card" onclick="openAttachmentPreview({{ $att->id }}, '{{ $safeName }}', '{{ $sizeStr }}', '{{ $att->mime_type }}', '{{ $viewUrl }}', '{{ $dlUrl }}', '{{ $previewHtmlUrl }}')">
                                                 <div class="gmail-att-card-preview">
                                                     @if($isImg)
                                                         <img src="{{ $viewUrl }}" alt="{{ $cleanName }}">
@@ -970,7 +971,7 @@
                                                         <svg width="28" height="28" viewBox="0 0 24 24" fill="#5f6368"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
                                                     @endif
                                                     <div class="gmail-att-card-overlay">
-                                                        <button type="button" class="gmail-att-action-btn" title="Preview" onclick="event.stopPropagation(); openAttachmentPreview({{ $att->id }}, '{{ $safeName }}', '{{ $sizeStr }}', '{{ $att->mime_type }}', '{{ $viewUrl }}', '{{ $dlUrl }}')">
+                                                        <button type="button" class="gmail-att-action-btn" title="Preview" onclick="event.stopPropagation(); openAttachmentPreview({{ $att->id }}, '{{ $safeName }}', '{{ $sizeStr }}', '{{ $att->mime_type }}', '{{ $viewUrl }}', '{{ $dlUrl }}', '{{ $previewHtmlUrl }}')">
                                                             <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
                                                         </button>
                                                         <a href="{{ $dlUrl }}" target="_blank" download class="gmail-att-action-btn" title="Download" onclick="event.stopPropagation();">
@@ -1115,10 +1116,14 @@
 
 @push('scripts')
 <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
+<script src="{{ asset('assets/plugins/jszip.min.js') }}"></script>
+<script src="{{ asset('assets/plugins/docx-preview.min.js') }}"></script>
 @php
     $jsThreadMessages = collect($allThreadMsgs ?? [$email])->map(function($m) {
         return [
             'id' => $m->id,
+            'thread_id' => $m->thread_id,
+            'message_id' => $m->message_id,
             'from_name' => $m->from_name ?: $m->from_email,
             'from_email' => $m->from_email,
             'to_email' => $m->to_email ?: '',
@@ -1133,6 +1138,7 @@
                     'mime_type' => $att->mime_type,
                     'url' => route('emails.attachment.download', $att->id),
                     'view_url' => route('emails.attachment.view', $att->id),
+                    'preview_html_url' => route('emails.attachment.preview-html', $att->id),
                 ];
             })->values()->all(),
         ];
@@ -1141,6 +1147,7 @@
 <script>
 let showQuill = null;
 let currentMode = 'reply';
+let activeReplyTargetMsg = null;
 let showUploadedFiles = [];
 let showForwardedAttachments = [];
 let showQuotedHtml = '';
@@ -1189,12 +1196,14 @@ function getAttachmentIconSvg(mime, filename) {
     return `<svg width="28" height="28" viewBox="0 0 24 24" fill="#5f6368"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>`;
 }
 
-function openAttachmentPreview(attId, filename, sizeStr, mimeType, viewUrl, downloadUrl) {
+function openAttachmentPreview(attId, filename, sizeStr, mimeType, viewUrl, downloadUrl, previewHtmlUrl) {
     const modalEl = document.getElementById('emailAttachmentPreviewModal');
     if (!modalEl) {
         window.open(viewUrl || downloadUrl, '_blank');
         return;
     }
+
+    previewHtmlUrl = previewHtmlUrl || (viewUrl ? viewUrl.replace(/\/view$/, '/preview-html') : '');
 
     document.getElementById('previewModalTitle').textContent = filename || 'Attachment';
     document.getElementById('previewModalSize').textContent = sizeStr ? `Size: ${sizeStr}` : '';
@@ -1214,6 +1223,9 @@ function openAttachmentPreview(attId, filename, sizeStr, mimeType, viewUrl, down
     const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext) || (mimeType && mimeType.startsWith('image/'));
     const isPdf = ext === 'pdf' || (mimeType && mimeType.includes('pdf'));
     const isText = ['txt', 'log', 'csv', 'json', 'xml'].includes(ext);
+    const isDocx = ['docx', 'dotx'].includes(ext) || (mimeType && mimeType.includes('wordprocessingml'));
+    const isDoc = ['doc', 'dot'].includes(ext) || (mimeType && mimeType.includes('msword'));
+    const isOdt = ['odt'].includes(ext) || (mimeType && mimeType.includes('opendocument.text'));
 
     if (isImage) {
         bodyWrap.innerHTML = `
@@ -1229,22 +1241,73 @@ function openAttachmentPreview(attId, filename, sizeStr, mimeType, viewUrl, down
         bodyWrap.innerHTML = `
             <iframe src="${viewUrl}" style="width: 100%; height: 75vh; border: none; background: #ffffff; color: #111;"></iframe>
         `;
-    } else {
+    } else if (isDocx || isDoc || isOdt) {
         bodyWrap.innerHTML = `
-            <div class="text-center p-8 d-flex flex-column align-items-center justify-content-center" style="min-height: 400px;">
-                <div class="mb-4" style="transform: scale(2.2); transform-origin: center;">
-                    ${getAttachmentIconSvg(mimeType, filename)}
+            <div class="w-100 h-100 d-flex flex-column" style="min-height: 550px; background: #3c4043;">
+                <div id="showDocxLoadingSpinner" class="text-center p-8 d-flex flex-column align-items-center justify-content-center flex-grow-1" style="color: #ffffff; min-height: 400px;">
+                    <i class="fa fa-circle-o-notch fa-spin fa-2x text-primary mb-3"></i>
+                    <h5 class="fw-bold text-white mb-1">Rendering Document Preview...</h5>
+                    <p class="text-white-50 fs-8 mb-0">Formatting Word pages and content</p>
                 </div>
-                <h4 class="text-white fw-bold mt-4 mb-2">${filename}</h4>
-                <p class="text-white-50 fs-7 mb-4">${sizeStr || ''} &bull; ${mimeType || ext.toUpperCase() + ' File'}</p>
-                <div class="d-flex align-items-center gap-3">
-                    <a href="${downloadUrl || viewUrl}" class="btn btn-primary px-6 py-3 fw-bold" download>
-                        <i class="fa fa-download me-2"></i> Download File
-                    </a>
+                <div id="showDocxScrollArea" style="display: none; width: 100%; height: 75vh; overflow-y: auto; padding: 24px 16px;">
+                    <div id="showDocxContentBox" style="background: #ffffff; color: #202124; max-width: 850px; margin: 0 auto; box-shadow: 0 4px 20px rgba(0,0,0,0.35); border-radius: 4px; min-height: 500px; padding: 40px 48px; font-family: 'Segoe UI', Arial, sans-serif; font-size: 14px; line-height: 1.65;"></div>
                 </div>
-                <p class="text-muted fs-8 mt-4 mb-0">Direct in-browser preview is not supported for this file type. Click download to view.</p>
             </div>
         `;
+
+        const spinner = document.getElementById('showDocxLoadingSpinner');
+        const scrollArea = document.getElementById('showDocxScrollArea');
+        const contentBox = document.getElementById('showDocxContentBox');
+
+        const renderBackendHtmlFallback = () => {
+            fetch(previewHtmlUrl)
+                .then(r => r.json())
+                .then(res => {
+                    if (res && res.success && res.html) {
+                        if (contentBox) contentBox.innerHTML = res.html;
+                        if (spinner) spinner.style.display = 'none';
+                        if (scrollArea) scrollArea.style.display = 'block';
+                    } else {
+                        showUnsupportedDocFallback(bodyWrap, filename, sizeStr, mimeType, downloadUrl || viewUrl, res?.message || 'Could not parse document.');
+                    }
+                })
+                .catch(err => {
+                    showUnsupportedDocFallback(bodyWrap, filename, sizeStr, mimeType, downloadUrl || viewUrl, err.message);
+                });
+        };
+
+        if (isDocx && window.docx && typeof window.docx.renderAsync === 'function') {
+            fetch(viewUrl)
+                .then(res => {
+                    if (!res.ok) throw new Error('HTTP ' + res.status);
+                    return res.blob();
+                })
+                .then(blob => {
+                    window.docx.renderAsync(blob, contentBox, null, {
+                        className: 'docx-rendered-page',
+                        inWrapper: false,
+                        ignoreWidth: false,
+                        ignoreHeight: false,
+                        breakPages: true
+                    })
+                    .then(() => {
+                        if (spinner) spinner.style.display = 'none';
+                        if (scrollArea) scrollArea.style.display = 'block';
+                    })
+                    .catch(renderErr => {
+                        console.warn('docx-preview failed, falling back to server-side parser:', renderErr);
+                        renderBackendHtmlFallback();
+                    });
+                })
+                .catch(fetchErr => {
+                    console.warn('docx fetch failed, falling back to preview-html:', fetchErr);
+                    renderBackendHtmlFallback();
+                });
+        } else {
+            renderBackendHtmlFallback();
+        }
+    } else {
+        showUnsupportedDocFallback(bodyWrap, filename, sizeStr, mimeType, downloadUrl || viewUrl);
     }
 
     if (window.bootstrap && bootstrap.Modal) {
@@ -1253,6 +1316,25 @@ function openAttachmentPreview(attId, filename, sizeStr, mimeType, viewUrl, down
     } else {
         $(modalEl).modal('show');
     }
+}
+
+function showUnsupportedDocFallback(bodyWrap, filename, sizeStr, mimeType, downloadUrl, errorMsg) {
+    bodyWrap.innerHTML = `
+        <div class="text-center p-8 d-flex flex-column align-items-center justify-content-center" style="min-height: 400px;">
+            <div class="mb-4" style="transform: scale(2.2); transform-origin: center;">
+                ${getAttachmentIconSvg(mimeType, filename)}
+            </div>
+            <h4 class="text-white fw-bold mt-4 mb-2">${filename}</h4>
+            <p class="text-white-50 fs-7 mb-4">${sizeStr || ''} &bull; ${mimeType || 'Document'}</p>
+            ${errorMsg ? `<div class="alert alert-warning py-2 px-3 fs-8 mb-4" style="max-width: 500px;">${errorMsg}</div>` : ''}
+            <div class="d-flex align-items-center gap-3">
+                <a href="${downloadUrl}" class="btn btn-primary px-6 py-3 fw-bold" download>
+                    <i class="fa fa-download me-2"></i> Download File
+                </a>
+            </div>
+            <p class="text-muted fs-8 mt-4 mb-0">Direct in-browser preview is not available for this specific format. Click download to open locally.</p>
+        </div>
+    `;
 }
 
 function renderShowAttachmentChips() {
@@ -1358,6 +1440,7 @@ function setComposerMode(mode, toEmail = null, subject = null, messageId = null)
         targetMsg = window.threadMessagesData.find(m => m.id == messageId);
     }
     if (!targetMsg) targetMsg = originalEmail;
+    activeReplyTargetMsg = targetMsg;
 
     const targetSenderEmail = targetMsg.from_email || '';
     const targetSenderName = targetMsg.from_name || targetSenderEmail;
@@ -1549,6 +1632,12 @@ function submitComposer(e) {
     formData.append('body_html', finalBodyHtml);
     formData.append('body_plain', userPlain);
     formData.append('thread_id', '{{ $email->thread_id }}');
+    const parentMsgPk = (activeReplyTargetMsg && activeReplyTargetMsg.id) ? activeReplyTargetMsg.id : '{{ $email->id }}';
+    formData.append('parent_message_id', parentMsgPk);
+    const replyMsgId = (activeReplyTargetMsg && activeReplyTargetMsg.message_id) ? activeReplyTargetMsg.message_id : '{{ $email->message_id }}';
+    if (replyMsgId) {
+        formData.append('in_reply_to', replyMsgId);
+    }
     formData.append('account_id', '{{ optional($currentAccount ?? null)->id }}');
     formData.append('composer_mode', currentMode);
 

@@ -99,6 +99,7 @@ Route::prefix('emails')->name('emails.')->middleware(['auth', 'check.permission'
     Route::get('/csrf-token', [\App\Http\Controllers\EmailController::class, 'csrfToken'])->name('csrf-token');
     Route::get('/attachment/{id}/download', [\App\Http\Controllers\EmailController::class, 'downloadAttachment'])->name('attachment.download');
     Route::get('/attachment/{id}/view', [\App\Http\Controllers\EmailController::class, 'viewAttachment'])->name('attachment.view');
+    Route::get('/attachment/{id}/preview-html', [\App\Http\Controllers\EmailController::class, 'previewAttachmentHtml'])->name('attachment.preview-html');
     Route::get('/search/suggest', [\App\Http\Controllers\EmailController::class, 'suggestSearch'])->name('search.suggest');
     Route::get('/{id}', [\App\Http\Controllers\EmailController::class, 'show'])->name('show');
     Route::post('/{id}/star', [\App\Http\Controllers\EmailController::class, 'toggleStarById'])->name('star.id');

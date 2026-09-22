@@ -656,6 +656,7 @@ class EmailController extends Controller
                             'mime_type' => $att->mime_type,
                             'url' => route('emails.attachment.download', $att->id),
                             'view_url' => route('emails.attachment.view', $att->id),
+                            'preview_html_url' => route('emails.attachment.preview-html', $att->id),
                         ];
                     }),
                 ],
@@ -664,6 +665,8 @@ class EmailController extends Controller
                 'messages' => $threadMessages->map(function ($msg) use ($maskEmail, $maskName, $fallbackWhatsAppUrl, $whatsAppPhone) {
                     return [
                         'id' => $msg->id,
+                        'thread_id' => $msg->thread_id,
+                        'message_id' => $msg->message_id,
                         'from_name' => $maskName($msg->from_name, $msg->from_email),
                         'from_email' => $maskEmail($msg->from_email),
                         'to_name' => $maskName($msg->to_name, $msg->to_email),
@@ -688,6 +691,7 @@ class EmailController extends Controller
                                 'mime_type' => $att->mime_type,
                                 'url' => route('emails.attachment.download', $att->id),
                                 'view_url' => route('emails.attachment.view', $att->id),
+                                'preview_html_url' => route('emails.attachment.preview-html', $att->id),
                             ];
                         }),
                     ];
@@ -823,6 +827,7 @@ class EmailController extends Controller
             'body' => 'nullable|string|max:2000000',
             'account_id' => 'nullable|integer|exists:email_configurations,id',
             'draft_id' => 'nullable|integer|exists:email_messages,id',
+            'parent_message_id' => 'nullable|integer|exists:email_messages,id',
             'attachments.*' => 'file|max:20480',
             'files.*' => 'file|max:20480',
             'forwarded_attachment_ids' => 'nullable|array',
@@ -844,6 +849,7 @@ class EmailController extends Controller
                 'bcc' => $request->input('bcc'),
                 'thread_id' => $request->input('thread_id'),
                 'in_reply_to' => $request->input('in_reply_to'),
+                'parent_message_id' => $request->input('parent_message_id'),
                 'draft_id' => $request->input('draft_id'),
                 'forwarded_attachment_ids' => $forwardedAttachmentIds,
             ];
@@ -1341,6 +1347,172 @@ class EmailController extends Controller
             'Content-Type' => $mime,
             'Content-Disposition' => 'inline; filename="' . addslashes($cleanFilename) . '"',
         ]);
+    }
+
+    /**
+     * Return formatted HTML preview for documents (.docx, .doc, .odt, .csv, .txt)
+     */
+    public function previewAttachmentHtml($id)
+    {
+        $attachment = EmailAttachment::findOrFail($id);
+        $path = Storage::disk('local')->path($attachment->file_path);
+        if (!file_exists($path)) {
+            $legacyPath = storage_path('app/public/' . $attachment->file_path);
+            if (!file_exists($legacyPath)) {
+                return response()->json(['success' => false, 'message' => 'Attachment file not found on disk'], 404);
+            }
+            $path = $legacyPath;
+        }
+
+        $cleanFilename = iconv_mime_decode($attachment->filename, 0, 'UTF-8') ?: $attachment->filename;
+        $cleanFilename = trim(preg_replace('/[\r\n\t]+/', ' ', $cleanFilename));
+        $ext = strtolower(pathinfo($cleanFilename, PATHINFO_EXTENSION));
+
+        try {
+            $html = '';
+            if ($ext === 'docx' || $ext === 'dotx') {
+                $html = $this->extractDocxHtml($path);
+            } elseif ($ext === 'odt') {
+                $html = $this->extractOdtHtml($path);
+            } elseif ($ext === 'doc') {
+                $html = $this->extractDocHtml($path);
+            } elseif (in_array($ext, ['txt', 'log', 'json', 'xml', 'csv'])) {
+                $raw = @file_get_contents($path);
+                if ($raw !== false) {
+                    $enc = mb_detect_encoding($raw, 'UTF-8, ISO-8859-1, Windows-1252', true) ?: 'UTF-8';
+                    $encoded = mb_convert_encoding($raw, 'UTF-8', $enc);
+                    $html = '<pre style="white-space: pre-wrap; font-family: monospace; font-size: 13px; color: #202124;">' . htmlspecialchars($encoded) . '</pre>';
+                }
+            } else {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Direct text preview not supported for .' . $ext . ' files.',
+                ]);
+            }
+
+            return response()->json([
+                'success' => true,
+                'filename' => $cleanFilename,
+                'html' => $html,
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('previewAttachmentHtml error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Error generating document preview: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    private function extractDocxHtml(string $filePath): string
+    {
+        $zip = new \ZipArchive();
+        if ($zip->open($filePath) !== true) {
+            return '<p class="text-muted">Unable to open Word archive.</p>';
+        }
+
+        $xmlContent = $zip->getFromName('word/document.xml');
+        $zip->close();
+
+        if (!$xmlContent) {
+            return '<p class="text-muted">Empty or unreadable Word document.</p>';
+        }
+
+        $dom = new \DOMDocument();
+        @$dom->loadXML($xmlContent, LIBXML_NOENT | LIBXML_XINCLUDE | LIBXML_NOERROR | LIBXML_NOWARNING);
+
+        $body = $dom->getElementsByTagName('body')->item(0);
+        if (!$body) return '<p class="text-muted">No document body content found.</p>';
+
+        $html = '';
+        foreach ($body->childNodes as $node) {
+            if ($node->nodeName === 'w:p') {
+                $pText = '';
+                $isHeading = false;
+                foreach ($node->getElementsByTagName('pStyle') as $style) {
+                    if (stripos($style->getAttribute('w:val'), 'heading') !== false) {
+                        $isHeading = true;
+                    }
+                }
+                foreach ($node->getElementsByTagName('t') as $t) {
+                    $pText .= htmlspecialchars($t->nodeValue);
+                }
+                $trimmed = trim($pText);
+                if ($trimmed !== '') {
+                    if ($isHeading) {
+                        $html .= '<h3 style="margin: 20px 0 10px; color: #1a73e8; font-weight: 700;">' . $pText . '</h3>';
+                    } else {
+                        $html .= '<p style="margin-bottom: 12px; line-height: 1.65; color: #202124;">' . $pText . '</p>';
+                    }
+                }
+            } elseif ($node->nodeName === 'w:tbl') {
+                $html .= '<table class="table table-bordered" style="width: 100%; border-collapse: collapse; margin: 18px 0; border: 1px solid #dee2e6;">';
+                foreach ($node->getElementsByTagName('tr') as $tr) {
+                    $html .= '<tr>';
+                    foreach ($tr->getElementsByTagName('tc') as $tc) {
+                        $tcText = '';
+                        foreach ($tc->getElementsByTagName('t') as $t) {
+                            $tcText .= htmlspecialchars($t->nodeValue) . ' ';
+                        }
+                        $html .= '<td style="border: 1px solid #dee2e6; padding: 8px 12px; vertical-align: top;">' . trim($tcText) . '</td>';
+                    }
+                    $html .= '</tr>';
+                }
+                $html .= '</table>';
+            }
+        }
+
+        return $html ?: '<p class="text-muted">Document contains no readable text.</p>';
+    }
+
+    private function extractOdtHtml(string $filePath): string
+    {
+        $zip = new \ZipArchive();
+        if ($zip->open($filePath) !== true) return '<p class="text-muted">Unable to open ODT archive.</p>';
+        $xmlContent = $zip->getFromName('content.xml');
+        $zip->close();
+        if (!$xmlContent) return '<p class="text-muted">Empty ODT document.</p>';
+
+        $dom = new \DOMDocument();
+        @$dom->loadXML($xmlContent, LIBXML_NOENT | LIBXML_NOERROR | LIBXML_NOWARNING);
+
+        $html = '';
+        foreach ($dom->getElementsByTagName('p') as $p) {
+            $text = htmlspecialchars(trim($p->nodeValue));
+            if ($text !== '') {
+                $html .= '<p style="margin-bottom: 12px; line-height: 1.65; color: #202124;">' . $text . '</p>';
+            }
+        }
+        return $html ?: '<p class="text-muted">No text found in ODT file.</p>';
+    }
+
+    private function extractDocHtml(string $filePath): string
+    {
+        $content = @file_get_contents($filePath);
+        if (!$content) return '<p class="text-muted">Empty file.</p>';
+
+        $lines = [];
+        if (preg_match_all('/(?:[\x20-\x7E]\x00){4,}/s', $content, $matches)) {
+            foreach ($matches[0] as $match) {
+                $decoded = mb_convert_encoding($match, 'UTF-8', 'UTF-16LE');
+                $clean = trim($decoded);
+                if (strlen($clean) > 3) $lines[] = htmlspecialchars($clean);
+            }
+        }
+        if (empty($lines)) {
+            if (preg_match_all('/[\x20-\x7E\t\r\n]{4,}/', $content, $matches)) {
+                foreach ($matches[0] as $match) {
+                    $clean = trim($match);
+                    if (strlen($clean) > 3 && !preg_match('/^[^\w\s]+$/', $clean)) {
+                        $lines[] = htmlspecialchars($clean);
+                    }
+                }
+            }
+        }
+        if (empty($lines)) {
+            return '<p class="text-muted">Unable to extract readable text from binary .doc format. Please click Download to view in Microsoft Word.</p>';
+        }
+        return '<p style="margin-bottom: 12px; line-height: 1.65; color: #202124;">' . implode('</p><p style="margin-bottom: 12px; line-height: 1.65; color: #202124;">', $lines) . '</p>';
     }
 
     /**

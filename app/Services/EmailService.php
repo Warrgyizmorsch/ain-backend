@@ -90,14 +90,31 @@ class EmailService
             }
         }
 
-        // Thread resolution
+        // Robust Thread & Reply Resolution Hierarchy
         $inReplyTo = $data['in_reply_to'] ?? null;
         $threadId = $data['thread_id'] ?? null;
+        $parentMessageId = $data['parent_message_id'] ?? null;
 
-        if (!$threadId && $inReplyTo) {
+        $parentMsg = null;
+        if (!empty($parentMessageId)) {
+            $parentMsg = EmailMessage::find($parentMessageId);
+        }
+        if (!$parentMsg && !empty($threadId) && (is_numeric($threadId) || strlen($threadId) < 15)) {
+            $parentMsg = EmailMessage::find($threadId);
+        }
+        if (!$parentMsg && !empty($inReplyTo)) {
             $parentMsg = EmailMessage::where('message_id', $inReplyTo)->first();
-            if ($parentMsg) {
-                $threadId = $parentMsg->thread_id;
+        }
+
+        if ($parentMsg) {
+            $threadId = $parentMsg->thread_id;
+            if (empty($inReplyTo)) {
+                $inReplyTo = $parentMsg->message_id;
+            }
+        } elseif (!empty($threadId)) {
+            $threadMsg = EmailMessage::where('thread_id', $threadId)->orderByDesc('id')->first();
+            if ($threadMsg && empty($inReplyTo)) {
+                $inReplyTo = $threadMsg->message_id;
             }
         }
 
@@ -115,7 +132,30 @@ class EmailService
             ->orderByDesc('id')
             ->first();
 
-            $threadId = $existingMsg ? $existingMsg->thread_id : (string) Str::uuid();
+            if ($existingMsg) {
+                $threadId = $existingMsg->thread_id;
+                if (empty($inReplyTo)) {
+                    $inReplyTo = $existingMsg->message_id;
+                }
+            } else {
+                $threadId = (string) Str::uuid();
+            }
+        }
+
+        // Build references chain for RFC email threading
+        $threadReferences = null;
+        if ($inReplyTo) {
+            $existingRefs = EmailMessage::where('thread_id', $threadId)
+                ->whereNotNull('message_id')
+                ->where('message_id', '!=', '')
+                ->pluck('message_id')
+                ->unique()
+                ->filter()
+                ->all();
+            if (!in_array($inReplyTo, $existingRefs)) {
+                $existingRefs[] = $inReplyTo;
+            }
+            $threadReferences = implode(' ', $existingRefs);
         }
 
         $fromDomain = substr(strrchr($fromEmail, "@"), 1) ?: (request()->getHost() ?? 'ain-backend.com');
@@ -129,6 +169,7 @@ class EmailService
                     'message_id' => $messageId,
                     'email_configuration_id' => $account?->id,
                     'in_reply_to' => $inReplyTo,
+                    'references' => $threadReferences,
                     'thread_id' => $threadId,
                     'from_email' => $fromEmail,
                     'from_name' => $fromName,
@@ -154,6 +195,7 @@ class EmailService
                 'message_id' => $messageId,
                 'email_configuration_id' => $account?->id,
                 'in_reply_to' => $inReplyTo,
+                'references' => $threadReferences,
                 'thread_id' => $threadId,
                 'from_email' => $fromEmail,
                 'from_name' => $fromName,
@@ -252,7 +294,7 @@ class EmailService
 
         // Send via Laravel Mail / SMTP
         try {
-            $sentMessage = Mail::send([], [], function ($message) use ($toEmail, $fromEmail, $fromName, $subject, $bodyHtml, $bodyPlain, $data, $messageId, $inReplyTo, $savedAttachments) {
+            $sentMessage = Mail::send([], [], function ($message) use ($toEmail, $fromEmail, $fromName, $subject, $bodyHtml, $bodyPlain, $data, $messageId, $inReplyTo, $threadReferences, $savedAttachments) {
                 $recipients = array_map('trim', explode(',', $toEmail));
                 $message->to($recipients)
                         ->from($fromEmail, $fromName)
@@ -275,7 +317,7 @@ class EmailService
                 $headers = $message->getHeaders();
                 if ($inReplyTo) {
                     $headers->addTextHeader('In-Reply-To', $inReplyTo);
-                    $headers->addTextHeader('References', $inReplyTo);
+                    $headers->addTextHeader('References', $threadReferences ?: $inReplyTo);
                 }
 
                 // Attach files
@@ -329,7 +371,37 @@ class EmailService
         $fromEmail = $account?->email_address ?: config('mail.from.address', env('MAIL_FROM_ADDRESS', 'noreply@ain-backend.com'));
         $fromName = $account?->from_name ?: ($account?->name ?: config('mail.from.name', env('MAIL_FROM_NAME', 'Assignment In Need')));
 
-        $threadId = $data['thread_id'] ?? (string) Str::uuid();
+        // Thread resolution for draft
+        $inReplyTo = $data['in_reply_to'] ?? null;
+        $threadId = $data['thread_id'] ?? null;
+        $parentMessageId = $data['parent_message_id'] ?? null;
+
+        $parentMsg = null;
+        if (!empty($parentMessageId)) {
+            $parentMsg = EmailMessage::find($parentMessageId);
+        }
+        if (!$parentMsg && !empty($threadId) && (is_numeric($threadId) || strlen($threadId) < 15)) {
+            $parentMsg = EmailMessage::find($threadId);
+        }
+        if (!$parentMsg && !empty($inReplyTo)) {
+            $parentMsg = EmailMessage::where('message_id', $inReplyTo)->first();
+        }
+
+        if ($parentMsg) {
+            $threadId = $parentMsg->thread_id;
+            if (empty($inReplyTo)) {
+                $inReplyTo = $parentMsg->message_id;
+            }
+        } elseif (!empty($threadId)) {
+            $threadMsg = EmailMessage::where('thread_id', $threadId)->orderByDesc('id')->first();
+            if ($threadMsg && empty($inReplyTo)) {
+                $inReplyTo = $threadMsg->message_id;
+            }
+        }
+
+        if (!$threadId) {
+            $threadId = (string) Str::uuid();
+        }
 
         if (!empty($data['draft_id'])) {
             $draft = EmailMessage::find($data['draft_id']);
