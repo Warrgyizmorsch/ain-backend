@@ -738,9 +738,9 @@ class WhatsappController extends Controller
             $orderCustomerEmail = $ord->user?->email ?: (optional($ord->lead)->email ?: (optional($ord->frontendLead)->email ?: ''));
             $orderCode = trim((string)($ord->order_id ?: $ord->id));
 
-            $clientEmailUrl = !empty($orderCustomerEmail)
-                ? route('emails.index', ['account_id' => 2, 'search' => $orderCustomerEmail])
-                : (!empty($orderCode) ? route('emails.index', ['account_id' => 2, 'search' => $orderCode]) : route('emails.index', ['account_id' => 2]));
+            $clientEmailUrl = !empty($orderCode)
+                ? route('emails.index', ['account_id' => 2, 'search' => $orderCode])
+                : (!empty($orderCustomerEmail) ? route('emails.index', ['account_id' => 2, 'search' => $orderCustomerEmail]) : route('emails.index', ['account_id' => 2]));
 
             $writerEmailUrl = !empty($orderCode)
                 ? route('emails.index', ['account_id' => 1, 'search' => $orderCode])
@@ -2142,9 +2142,9 @@ class WhatsappController extends Controller
         $latestOrder = $ordersQuery ? (clone $ordersQuery)->latest('id')->first(['id', 'order_id']) : null;
         $latestOrderCode = $latestOrder ? trim((string)($latestOrder->order_id ?: $latestOrder->id)) : '';
 
-        $clientEmailUrl = !empty($customerResolvedEmail)
-            ? route('emails.index', ['account_id' => 2, 'search' => $customerResolvedEmail])
-            : (!empty($latestOrderCode) ? route('emails.index', ['account_id' => 2, 'search' => $latestOrderCode]) : route('emails.index', ['account_id' => 2]));
+        $clientEmailUrl = !empty($latestOrderCode)
+            ? route('emails.index', ['account_id' => 2, 'search' => $latestOrderCode])
+            : (!empty($customerResolvedEmail) ? route('emails.index', ['account_id' => 2, 'search' => $customerResolvedEmail]) : route('emails.index', ['account_id' => 2]));
 
         $writerEmailUrl = !empty($latestOrderCode)
             ? route('emails.index', ['account_id' => 1, 'search' => $latestOrderCode])

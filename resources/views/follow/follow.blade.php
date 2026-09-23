@@ -215,9 +215,11 @@
                                                     $maskedEmail = $isSuperAdmin ? $rawEmail : ($rawEmail ? mask_email_for_display($rawEmail) : '');
                                                     $maskedMobile = $isSuperAdmin ? $rawMobile : ($rawMobile ? mask_mobile_only($cleanCC, $rawMobile) : '');
 
+                                                    $orderCode = $order->order_id ?: (string) $order->id;
                                                     $orderRawWAPhone = preg_replace('/\D+/', '', (string)($cleanCC . $rawMobile));
                                                     $orderRawEmail = $rawEmail;
-                                                    $orderEmailUrl = route('emails.index', array_filter(['account_id' => 2, 'search' => $rawEmail]));
+                                                    $orderSearchTerm = $orderCode ?: $rawEmail;
+                                                    $orderEmailUrl = route('emails.index', array_filter(['account_id' => 2, 'search' => $orderSearchTerm]));
                                                     $orderWhatsAppUrl = !empty($orderRawWAPhone) ? route('whatsapp.chat', ['phone' => $orderRawWAPhone]) : route('whatsapp.chat');
                                                 @endphp
 

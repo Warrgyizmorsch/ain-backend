@@ -16,11 +16,12 @@
 
     {{-- Phone masking: full numbers are admin-only (role_id 1) --}}
     <script>
-        window.canViewFullPhone = @json(auth()->check() && auth()->user()->role_id == 1);
-        window.loggedInRoleId = @json(auth()->check() ? auth()->user()->role_id : null);
+        window.canViewFullPhone = @json(auth()->check() && (int)auth()->user()->role_id === 1);
+        window.loggedInRoleId = @json(auth()->check() ? (int)auth()->user()->role_id : null);
         window.maskPhoneForDisplay = function (phone) {
             if (!phone) return '';
             const str = String(phone).trim();
+            if (window.canViewFullPhone) return str;
             if (str.includes('*')) return str;
             const digits = str.replace(/\D+/g, '');
             let d = digits;
@@ -35,8 +36,7 @@
             }
             if (d.length === 11 && d.startsWith('0')) d = d.slice(1);
             if (d.length <= 4) return prefix + '*'.repeat(d.length);
-            if (d.length <= 6) return prefix + d.slice(0, 1) + '*'.repeat(d.length - 2) + d.slice(-1);
-            return prefix + d.slice(0, 2) + '*'.repeat(Math.max(4, d.length - 6)) + d.slice(-4);
+            return prefix + '*'.repeat(Math.max(4, d.length - 4)) + d.slice(-4);
         };
         window.maskEmailForDisplay = function (email) {
             if (window.canViewFullPhone) return email || '';

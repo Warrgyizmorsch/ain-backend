@@ -24,7 +24,7 @@ if (!function_exists('getUserRoleName')) {
 if (!function_exists('mask_phone_for_display')) {
     /**
      * Show full number only to admins (role_id 1). Everyone else sees
-     * the mobile number in 77******9811 format, keeping country code separate.
+     * the mobile number in masked format (only last 4 digits visible).
      */
     function mask_phone_for_display(?string $countryCode, ?string $mobile): string
     {
@@ -34,10 +34,14 @@ if (!function_exists('mask_phone_for_display')) {
                 return '';
             }
             $cleanCC = preg_replace('/\D+/', '', (string) $countryCode);
-            if (!empty($cleanCC)) {
+            if (!empty($cleanCC) && !str_starts_with(preg_replace('/\D+/', '', $mobileStr), $cleanCC)) {
                 return '+' . $cleanCC . ' ' . $mobileStr;
             }
             return $mobileStr;
+        }
+        $cleanCC = preg_replace('/\D+/', '', (string) $countryCode);
+        if (empty($cleanCC)) {
+            return mask_raw_phone($mobile);
         }
         return mask_mobile_only($countryCode, $mobile);
     }

@@ -6586,6 +6586,7 @@ document.addEventListener('DOMContentLoaded', function() {
     /* ── Helper to format search query display with masking for phone numbers ── */
     function maskSearchQueryForDisplay(val) {
         if (!val) return '';
+        if (window.canViewFullPhone) return String(val);
         const str = String(val).trim();
         if (/[a-zA-Z]/.test(str)) {
             return str;
@@ -6603,7 +6604,7 @@ document.addEventListener('DOMContentLoaded', function() {
             prefix = '+' + d.slice(0, d.length - 10) + ' ';
             d = d.slice(-10);
         }
-        return prefix + d.slice(0, 2) + '*'.repeat(Math.max(4, d.length - 6)) + d.slice(-4);
+        return prefix + '*'.repeat(Math.max(4, d.length - 4)) + d.slice(-4);
     }
 
     let currentTabFilter = 'all';
