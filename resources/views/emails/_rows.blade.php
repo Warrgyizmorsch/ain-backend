@@ -29,7 +29,7 @@
         if ($cachedAllRowLabels === null) {
             $cachedAllRowLabels = (isset($allLabels) && $allLabels instanceof \Illuminate\Support\Collection)
                 ? $allLabels
-                : \App\Models\WhatsappChatLabel::forEmail()->ordered()->get();
+                : \App\Models\WhatsappChatLabel::forEmailAccount($currentAccount ?? null)->ordered()->get();
         }
         $allRowLabels = $cachedAllRowLabels;
 

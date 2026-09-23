@@ -294,7 +294,7 @@ class EmailController extends Controller
             ['path' => $request->url(), 'query' => $request->query()]
         );
 
-        $allLabels = \App\Models\WhatsappChatLabel::forEmail()->ordered()->get();
+        $allLabels = \App\Models\WhatsappChatLabel::forEmailAccount($selectedAccount)->ordered()->get();
         $threadIds = $threadsCollection->pluck('thread_id')->filter()->unique()->all();
         $threadLabelsMap = !empty($threadIds)
             ? \App\Models\EmailThreadLabel::with('label')
@@ -603,7 +603,14 @@ class EmailController extends Controller
             ->ordered()
             ->get(['id', 'name', 'color']);
 
-        $allLabels = \App\Models\WhatsappChatLabel::forEmail()->ordered()->get();
+        $threadAccount = null;
+        if (!empty($email->email_configuration_id)) {
+            $threadAccount = EmailConfiguration::find($email->email_configuration_id);
+        }
+        if (!$threadAccount && session()->has('active_email_account_id')) {
+            $threadAccount = EmailConfiguration::find(session('active_email_account_id'));
+        }
+        $allLabels = \App\Models\WhatsappChatLabel::forEmailAccount($threadAccount)->ordered()->get();
 
         if ($request->ajax() || $request->wantsJson()) {
             $maskEmail = fn(?string $val) => $isSuperAdmin ? (string)$val : mask_email_for_display($val);
@@ -701,10 +708,15 @@ class EmailController extends Controller
 
         $configurations = EmailConfiguration::where('is_active', true)->get();
         $currentAccount = null;
-        $accountId = $request->get('account_id');
         if ($accountId) {
             $currentAccount = EmailConfiguration::find($accountId);
+        } elseif (!empty($email->email_configuration_id)) {
+            $currentAccount = EmailConfiguration::find($email->email_configuration_id);
+        } elseif (session()->has('active_email_account_id')) {
+            $currentAccount = EmailConfiguration::find(session('active_email_account_id'));
         }
+
+        $allLabels = \App\Models\WhatsappChatLabel::forEmailAccount($currentAccount)->ordered()->get();
 
         $stats = EmailMessage::selectRaw("
             COUNT(CASE WHEN direction = 'inbound' AND folder != 'trash' AND is_read = 0 THEN 1 END) as inbox_count,

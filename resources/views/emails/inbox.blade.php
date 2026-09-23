@@ -2461,7 +2461,7 @@
                         </a>
                     </li>
                     @php
-                        $sidebarLabels = $allLabels ?? \App\Models\WhatsappChatLabel::forEmail()->ordered()->get();
+                        $sidebarLabels = $allLabels ?? \App\Models\WhatsappChatLabel::forEmailAccount($currentAccount ?? null)->ordered()->get();
                     @endphp
                     @forelse($sidebarLabels as $lbl)
                         @php
@@ -5160,6 +5160,19 @@ function openEmailThread(id, pushToHistory = true) {
 
             // Pre-populate inline composer in Reply mode
             setInlineComposerMode('reply', data.email.from_email, data.email.subject);
+
+            // Rebuild threadLabelsChecklist if account-specific all_labels provided
+            if (data.all_labels && Array.isArray(data.all_labels)) {
+                const list = document.getElementById('threadLabelsChecklist');
+                if (list) {
+                    list.innerHTML = data.all_labels.map(lbl => `
+                        <label class="form-check form-check-custom form-check-solid d-flex align-items-center gap-2 p-1.5 rounded hover-bg-light cursor-pointer mb-0">
+                            <input class="form-check-input label-assign-checkbox" type="checkbox" value="${lbl.id}" id="label-chk-${lbl.id}" data-name="${(lbl.name || '').replace(/"/g, '&quot;')}" data-color="${lbl.color}" onchange="toggleActiveThreadLabel(${lbl.id}, this.checked)">
+                            <span class="badge px-2 py-1 fs-8 fw-bold" style="background-color: ${lbl.color}; color: #ffffff;">${(lbl.name || '').replace(/[&<>"']/g, '')}</span>
+                        </label>
+                    `).join('');
+                }
+            }
 
             // Render active thread labels
             renderDetailLabels(data.labels || (data.email ? data.email.labels : []) || []);

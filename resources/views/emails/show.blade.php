@@ -755,7 +755,7 @@
             </div>
             <ul class="duralux-nav-list">
                 @php
-                    $sidebarLabels = $allLabels ?? \App\Models\WhatsappChatLabel::forEmail()->ordered()->get();
+                    $sidebarLabels = $allLabels ?? \App\Models\WhatsappChatLabel::forEmailAccount($currentAccount ?? null)->ordered()->get();
                 @endphp
                 @foreach($sidebarLabels as $lbl)
                     <li class="duralux-nav-item">
@@ -801,7 +801,7 @@
                                 @php
                                     $clientEmail = $email->customer_email ?? '';
                                     $activeLabelIds = $threadLabelIds ?? \App\Models\EmailThreadLabel::where('thread_id', $email->thread_id)->pluck('label_id')->unique()->toArray();
-                                    $allLabelsList = $allLabels ?? \App\Models\WhatsappChatLabel::forEmail()->ordered()->get();
+                                    $allLabelsList = $allLabels ?? \App\Models\WhatsappChatLabel::forEmailAccount($currentAccount ?? null)->ordered()->get();
                                 @endphp
                                 @foreach($allLabelsList as $lbl)
                                     <label class="form-check form-check-custom form-check-solid d-flex align-items-center gap-2 p-1.5 rounded hover-bg-light cursor-pointer mb-0">

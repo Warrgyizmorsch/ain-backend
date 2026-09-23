@@ -45,8 +45,11 @@
                                     @if($label->is_whatsapp)
                                         <span class="badge badge-light-success fs-9 py-0 px-1" title="WhatsApp Channel">WA</span>
                                     @endif
-                                    @if($label->is_email)
-                                        <span class="badge badge-light-primary fs-9 py-0 px-1" title="Email Channel">Email</span>
+                                    @if($label->is_client_email)
+                                        <span class="badge badge-light-primary fs-9 py-0 px-1" title="Client Email">Client</span>
+                                    @endif
+                                    @if($label->is_writer_email)
+                                        <span class="badge badge-light-info fs-9 py-0 px-1" title="Writer Email">Writer</span>
                                     @endif
                                 </div>
                             </label>

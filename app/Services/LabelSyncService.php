@@ -224,11 +224,37 @@ class LabelSyncService
         }
 
         // Unregistered customer sync
-        $emailEligibleLabelIds = WhatsappChatLabel::whereIn('id', $labelIds)
-            ->where('is_email', true)
-            ->pluck('id')
-            ->map(fn($id) => (int) $id)
-            ->all();
+        $targetConfig = null;
+        if (!empty($threadId)) {
+            $msg = EmailMessage::where('thread_id', $threadId)->first(['email_configuration_id']);
+            if ($msg && $msg->email_configuration_id) {
+                $targetConfig = EmailConfiguration::find($msg->email_configuration_id);
+            }
+        }
+        $isWriterThread = $targetConfig && ((int)$targetConfig->id === 1 || stripos($targetConfig->name, 'writer') !== false);
+        $isClientThread = $targetConfig && ((int)$targetConfig->id === 2 || stripos($targetConfig->name, 'client') !== false);
+
+        if ($isWriterThread) {
+            $emailEligibleLabelIds = WhatsappChatLabel::whereIn('id', $labelIds)
+                ->where('is_writer_email', true)
+                ->pluck('id')
+                ->map(fn($id) => (int) $id)
+                ->all();
+        } elseif ($isClientThread) {
+            $emailEligibleLabelIds = WhatsappChatLabel::whereIn('id', $labelIds)
+                ->where('is_client_email', true)
+                ->pluck('id')
+                ->map(fn($id) => (int) $id)
+                ->all();
+        } else {
+            $emailEligibleLabelIds = WhatsappChatLabel::whereIn('id', $labelIds)
+                ->where(function ($q) {
+                    $q->where('is_client_email', true)->orWhere('is_writer_email', true)->orWhere('is_email', true);
+                })
+                ->pluck('id')
+                ->map(fn($id) => (int) $id)
+                ->all();
+        }
 
         $waEligibleLabelIds = WhatsappChatLabel::whereIn('id', $labelIds)
             ->where('is_whatsapp', true)
@@ -357,8 +383,22 @@ class LabelSyncService
             ->map(fn($id) => (int) $id)
             ->all();
 
+        $writerLabelIds = WhatsappChatLabel::whereIn('id', $labelIds)
+            ->where('is_writer_email', true)
+            ->pluck('id')
+            ->map(fn($id) => (int) $id)
+            ->all();
+
+        $clientLabelIds = WhatsappChatLabel::whereIn('id', $labelIds)
+            ->where('is_client_email', true)
+            ->pluck('id')
+            ->map(fn($id) => (int) $id)
+            ->all();
+
         $emailLabelIds = WhatsappChatLabel::whereIn('id', $labelIds)
-            ->where('is_email', true)
+            ->where(function ($q) {
+                $q->where('is_client_email', true)->orWhere('is_writer_email', true)->orWhere('is_email', true);
+            })
             ->pluck('id')
             ->map(fn($id) => (int) $id)
             ->all();
@@ -502,10 +542,24 @@ class LabelSyncService
                   ->all();
 
                 if (!empty($threadIds)) {
+                    $threadConfigMap = EmailMessage::whereIn('thread_id', $threadIds)
+                        ->whereNotNull('email_configuration_id')
+                        ->pluck('email_configuration_id', 'thread_id')
+                        ->all();
+
                     EmailThreadLabel::whereIn('thread_id', $threadIds)->delete();
                     $threadInserts = [];
                     foreach ($threadIds as $tId) {
-                        foreach ($emailLabelIds as $lId) {
+                        $cfgId = $threadConfigMap[$tId] ?? null;
+                        if ((int)$cfgId === 1) {
+                            $targetLabelIds = $writerLabelIds;
+                        } elseif ((int)$cfgId === 2) {
+                            $targetLabelIds = $clientLabelIds;
+                        } else {
+                            $targetLabelIds = $emailLabelIds;
+                        }
+
+                        foreach ($targetLabelIds as $lId) {
                             $threadInserts[] = [
                                 'thread_id'   => $tId,
                                 'email'       => $email,
