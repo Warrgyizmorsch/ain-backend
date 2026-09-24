@@ -107,7 +107,24 @@ class EmailController extends Controller
             $matchingContactEmails = [];
 
             // Only search users table if query is an email address or customer name, not an alphanumeric order code like UKS60312
-            if (filter_var($cleanSearch, FILTER_VALIDATE_EMAIL)) {
+            // If search query is a masked email (e.g. mi*****a@gmail.com)
+            if (strpos($cleanSearch, '*') !== false) {
+                $maskedPattern = preg_replace('/\*+/', '%', $cleanSearch);
+                $matchedUserEmails = User::query()
+                    ->where('email', 'like', $maskedPattern)
+                    ->limit(50)
+                    ->pluck('email')
+                    ->filter()
+                    ->all();
+                $matchedLeadEmails = Leads::query()
+                    ->where('email', 'like', $maskedPattern)
+                    ->limit(50)
+                    ->pluck('email')
+                    ->filter()
+                    ->all();
+                $matchingContactEmails = array_values(array_unique(array_merge($matchingContactEmails, $matchedUserEmails, $matchedLeadEmails)));
+            } elseif (filter_var($cleanSearch, FILTER_VALIDATE_EMAIL)) {
+                // Only search users table if query is an email address or customer name, not an alphanumeric order code like UKS60312
                 $matchingContactEmails = User::query()->where('email', $cleanSearch)->limit(5)->pluck('email')->all();
             } elseif (!preg_match('/^[a-zA-Z]{1,5}\d+$/', $cleanSearch) && strlen($cleanSearch) >= 3) {
                 $matchingContactEmails = User::query()
@@ -139,7 +156,7 @@ class EmailController extends Controller
             $query->where(function ($deepQuery) use ($terms, $matchingContactEmails) {
                 foreach ($terms as $term) {
                     $deepQuery->where(function ($fieldQuery) use ($term, $matchingContactEmails) {
-                        $like = "%{$term}%";
+                        $like = (strpos($term, '*') !== false) ? preg_replace('/\*+/', '%', $term) : "%{$term}%";
                         $fieldQuery->where('subject', 'like', $like)
                             ->orWhere('from_email', 'like', $like)
                             ->orWhere('from_name', 'like', $like)
@@ -222,17 +239,19 @@ class EmailController extends Controller
         // 5. Advanced Filter Popup fields
         if ($request->filled('filter_from')) {
             $fromTerm = trim($request->input('filter_from'));
-            $query->where(function($q) use ($fromTerm) {
-                $q->where('from_email', 'like', "%{$fromTerm}%")
-                  ->orWhere('from_name', 'like', "%{$fromTerm}%");
+            $fromLike = (strpos($fromTerm, '*') !== false) ? preg_replace('/\*+/', '%', $fromTerm) : "%{$fromTerm}%";
+            $query->where(function($q) use ($fromLike) {
+                $q->where('from_email', 'like', $fromLike)
+                  ->orWhere('from_name', 'like', $fromLike);
             });
         }
 
         if ($request->filled('filter_to')) {
             $toTerm = trim($request->input('filter_to'));
-            $query->where(function($q) use ($toTerm) {
-                $q->where('to_email', 'like', "%{$toTerm}%")
-                  ->orWhere('to_name', 'like', "%{$toTerm}%");
+            $toLike = (strpos($toTerm, '*') !== false) ? preg_replace('/\*+/', '%', $toTerm) : "%{$toTerm}%";
+            $query->where(function($q) use ($toLike) {
+                $q->where('to_email', 'like', $toLike)
+                  ->orWhere('to_name', 'like', $toLike);
             });
         }
 
@@ -2040,30 +2059,41 @@ class EmailController extends Controller
 
         if ($query !== '') {
             $terms = collect(preg_split('/\s+/', $query))->filter()->values();
+            $matchingContactEmails = [];
 
-            $matchingContactEmails = User::query()
-                ->where(function ($userQuery) use ($query, $terms) {
-                    $userQuery->where('name', 'like', "%{$query}%")
-                        ->orWhere('email', 'like', "%{$query}%")
-                        ->orWhere('mobile_no', 'like', "%{$query}%");
-                    foreach ($terms as $t) {
-                        $userQuery->orWhere('name', 'like', "%{$t}%")
-                                  ->orWhere('email', 'like', "%{$t}%");
-                    }
-                })
-                ->whereNotNull('email')
-                ->pluck('email')
-                ->filter()
-                ->all();
+            if (strpos($query, '*') !== false) {
+                $maskedPattern = preg_replace('/\*+/', '%', $query);
+                $matchedUserEmails = User::query()->where('email', 'like', $maskedPattern)->limit(20)->pluck('email')->filter()->all();
+                $matchedLeadEmails = Leads::query()->where('email', 'like', $maskedPattern)->limit(20)->pluck('email')->filter()->all();
+                $matchingContactEmails = array_values(array_unique(array_merge($matchedUserEmails, $matchedLeadEmails)));
+            } else {
+                $matchingContactEmails = User::query()
+                    ->where(function ($userQuery) use ($query, $terms) {
+                        $userQuery->where('name', 'like', "%{$query}%")
+                            ->orWhere('email', 'like', "%{$query}%")
+                            ->orWhere('mobile_no', 'like', "%{$query}%");
+                        foreach ($terms as $t) {
+                            $userQuery->orWhere('name', 'like', "%{$t}%")
+                                      ->orWhere('email', 'like', "%{$t}%");
+                        }
+                    })
+                    ->whereNotNull('email')
+                    ->pluck('email')
+                    ->filter()
+                    ->all();
+            }
 
             $emailQuery->where(function ($deepQuery) use ($query, $terms, $matchingContactEmails) {
-                $deepQuery->where('subject', 'like', "%{$query}%")
-                    ->orWhere('from_name', 'like', "%{$query}%")
-                    ->orWhere('from_email', 'like', "%{$query}%")
-                    ->orWhere('to_name', 'like', "%{$query}%")
-                    ->orWhere('to_email', 'like', "%{$query}%")
-                    ->orWhere('cc', 'like', "%{$query}%")
-                    ->orWhere('bcc', 'like', "%{$query}%");
+                $isMaskedQuery = strpos($query, '*') !== false;
+                $like = $isMaskedQuery ? preg_replace('/\*+/', '%', $query) : "%{$query}%";
+
+                $deepQuery->where('subject', 'like', $like)
+                    ->orWhere('from_name', 'like', $like)
+                    ->orWhere('from_email', 'like', $like)
+                    ->orWhere('to_name', 'like', $like)
+                    ->orWhere('to_email', 'like', $like)
+                    ->orWhere('cc', 'like', $like)
+                    ->orWhere('bcc', 'like', $like);
 
                 if (!empty($matchingContactEmails)) {
                     $deepQuery->orWhereIn('from_email', $matchingContactEmails)
@@ -2073,15 +2103,15 @@ class EmailController extends Controller
                 if ($terms->count() > 1) {
                     $deepQuery->orWhere(function ($subQ) use ($terms) {
                         foreach ($terms as $term) {
-                            $like = "%{$term}%";
-                            $subQ->where(function ($fq) use ($like) {
-                                $fq->where('subject', 'like', $like)
-                                   ->orWhere('from_name', 'like', $like)
-                                   ->orWhere('from_email', 'like', $like)
-                                   ->orWhere('to_name', 'like', $like)
-                                   ->orWhere('to_email', 'like', $like)
-                                   ->orWhere('cc', 'like', $like)
-                                   ->orWhere('bcc', 'like', $like);
+                            $termLike = (strpos($term, '*') !== false) ? preg_replace('/\*+/', '%', $term) : "%{$term}%";
+                            $subQ->where(function ($fq) use ($termLike) {
+                                $fq->where('subject', 'like', $termLike)
+                                   ->orWhere('from_name', 'like', $termLike)
+                                   ->orWhere('from_email', 'like', $termLike)
+                                   ->orWhere('to_name', 'like', $termLike)
+                                   ->orWhere('to_email', 'like', $termLike)
+                                   ->orWhere('cc', 'like', $termLike)
+                                   ->orWhere('bcc', 'like', $termLike);
                             });
                         }
                     });
@@ -2108,9 +2138,10 @@ class EmailController extends Controller
         // If subject/sender search yielded fewer than 6 and user typed query, fallback to body search
         if ($messages->count() < 6 && $query !== '') {
             $existingThreadIds = $messages->pluck('thread_id')->all();
+            $bodyLike = (strpos($query, '*') !== false) ? preg_replace('/\*+/', '%', $query) : "%{$query}%";
             $fallbackQuery = EmailMessage::where('folder', '!=', 'trash')
                 ->whereNotIn('thread_id', $existingThreadIds)
-                ->where('body_plain', 'like', "%{$query}%");
+                ->where('body_plain', 'like', $bodyLike);
             if ($accountId) {
                 $fallbackQuery->where('email_configuration_id', intval($accountId));
             }
@@ -2136,7 +2167,9 @@ class EmailController extends Controller
             ]);
         }
 
-        $results = $messages->map(function ($msg) {
+        $isSuperAdmin = Auth::check() && (int) Auth::user()->role_id === 1;
+
+        $results = $messages->map(function ($msg) use ($isSuperAdmin) {
             $date = $msg->received_at ?: $msg->created_at;
             $formattedDate = '';
             if ($date) {
@@ -2149,11 +2182,19 @@ class EmailController extends Controller
                 }
             }
 
-            // Participant display: like Gmail "Kriti Hinger, me"
-            $fromPart = $msg->from_name ?: explode('@', (string) $msg->from_email)[0];
+            // Participant display: like Gmail "Kriti Hinger, me" (masked for non-admin)
+            $displayFromEmail = $isSuperAdmin ? $msg->from_email : mask_email_for_display($msg->from_email);
+            $fromPart = $msg->from_name ?: explode('@', (string) $displayFromEmail)[0];
+            if (!$isSuperAdmin && filter_var($msg->from_name, FILTER_VALIDATE_EMAIL)) {
+                $fromPart = mask_email_for_display($msg->from_name);
+            }
             $participants = $fromPart;
             if ($msg->direction === 'outbound') {
-                $toPart = $msg->to_name ?: explode('@', (string) $msg->to_email)[0];
+                $displayToEmail = $isSuperAdmin ? $msg->to_email : mask_email_for_display($msg->to_email);
+                $toPart = $msg->to_name ?: explode('@', (string) $displayToEmail)[0];
+                if (!$isSuperAdmin && filter_var($msg->to_name, FILTER_VALIDATE_EMAIL)) {
+                    $toPart = mask_email_for_display($msg->to_name);
+                }
                 $participants = "me, " . ($toPart ?: 'recipient');
             }
 
@@ -2162,7 +2203,7 @@ class EmailController extends Controller
                 'thread_id' => $msg->thread_id,
                 'subject' => $msg->subject ?: '(no subject)',
                 'participants' => $participants,
-                'from_email' => $msg->from_email,
+                'from_email' => $displayFromEmail,
                 'has_attachments' => (bool) $msg->has_attachments,
                 'date_formatted' => $formattedDate,
                 'is_read' => (bool) $msg->is_read,

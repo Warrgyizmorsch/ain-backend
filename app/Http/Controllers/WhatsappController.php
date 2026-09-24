@@ -779,7 +779,7 @@ class WhatsappController extends Controller
                 'is_converted' => $isConverted ? 1 : 0,
                 'converted_by' => $convertedBy,
                 'lead_id' => $ord->lead_id ?: (optional($ord->lead)->id ?: optional($ord->frontendLead)->id),
-                'customer_email' => $orderCustomerEmail,
+                'customer_email' => mask_email_for_display($orderCustomerEmail),
                 'client_email_url' => $clientEmailUrl,
                 'writer_email_url' => $writerEmailUrl,
                 'edit_url' => route('edit', $ord->id),
@@ -798,8 +798,8 @@ class WhatsappController extends Controller
             'has_more' => ($page * $limit) < $total,
             'page' => $page,
             'customer_email' => $customerPrimaryEmail,
-            'client_email_url' => !empty($customerPrimaryEmail) ? route('emails.index', ['account_id' => 2, 'search' => $customerPrimaryEmail]) : null,
-            'writer_email_url' => !empty($firstOrderCode) ? route('emails.index', ['account_id' => 1, 'search' => $firstOrderCode]) : (!empty($customerPrimaryEmail) ? route('emails.index', ['account_id' => 1, 'search' => $customerPrimaryEmail]) : null),
+            'client_email_url' => !empty($customerPrimaryEmail) ? route('emails.index', ['account_id' => 2, 'search' => mask_email_for_display($customerPrimaryEmail)]) : null,
+            'writer_email_url' => !empty($firstOrderCode) ? route('emails.index', ['account_id' => 1, 'search' => $firstOrderCode]) : (!empty($customerPrimaryEmail) ? route('emails.index', ['account_id' => 1, 'search' => mask_email_for_display($customerPrimaryEmail)]) : null),
             'all_orders_url' => route('orders.index') . '?search=' . urlencode($cleanPhone),
         ]);
     }
@@ -2153,19 +2153,23 @@ class WhatsappController extends Controller
         $latestOrder = $ordersQuery ? (clone $ordersQuery)->latest('id')->first(['id', 'order_id']) : null;
         $latestOrderCode = $latestOrder ? trim((string)($latestOrder->order_id ?: $latestOrder->id)) : '';
 
+        // If non-admin, mask the email parameter in the URL so raw email is not exposed in the browser URL
+        $emailSearchParam = mask_email_for_display($linkedUserEmail);
+
         // Client Email header button is ONLY available if the customer is linked to a user with an email
         $clientEmailUrl = !empty($linkedUserEmail)
-            ? route('emails.index', ['account_id' => 2, 'search' => $linkedUserEmail])
+            ? route('emails.index', ['account_id' => 2, 'search' => $emailSearchParam])
             : null;
 
         $writerEmailUrl = !empty($latestOrderCode)
             ? route('emails.index', ['account_id' => 1, 'search' => $latestOrderCode])
-            : (!empty($linkedUserEmail) ? route('emails.index', ['account_id' => 1, 'search' => $linkedUserEmail]) : null);
+            : (!empty($linkedUserEmail) ? route('emails.index', ['account_id' => 1, 'search' => $emailSearchParam]) : null);
 
         return [
             'name' => $resolvedName,
             'phone' => $phone,
             'email' => $customerResolvedEmail,
+            'masked_email' => mask_email_for_display($customerResolvedEmail),
             'client_email_url' => $clientEmailUrl,
             'writer_email_url' => $writerEmailUrl,
             'leads_count' => $unconvertedLeadsCount,

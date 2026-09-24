@@ -2660,7 +2660,15 @@
                         <svg class="gmail-search-icon" width="20" height="20" viewBox="0 0 24 24" fill="#5f6368">
                             <path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
                         </svg>
-                        <input type="text" class="gmail-search-input" id="emailSearchInput" placeholder="Search in mail" autocomplete="off" value="{{ request('search', '') }}" onfocus="handleSearchFocus(event)" oninput="handleSearchInput(event)" onkeydown="handleSearchKeyDown(event)">
+                        @php
+                            $initialSearchVal = request('search', '');
+                            if ($initialSearchVal && (!Auth::check() || (int)Auth::user()->role_id !== 1)) {
+                                if (filter_var($initialSearchVal, FILTER_VALIDATE_EMAIL) || strpos($initialSearchVal, '@') !== false) {
+                                    $initialSearchVal = mask_email_for_display($initialSearchVal);
+                                }
+                            }
+                        @endphp
+                        <input type="text" class="gmail-search-input" id="emailSearchInput" placeholder="Search in mail" autocomplete="off" value="{{ $initialSearchVal }}" onfocus="handleSearchFocus(event)" oninput="handleSearchInput(event)" onkeydown="handleSearchKeyDown(event)">
                         <button type="button" class="gmail-clear-btn" id="clearSearchBtn" style="display: {{ request('search') ? 'inline-block' : 'none' }};" onclick="clearEmailSearch()" title="Clear search">
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
                                 <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
@@ -4394,7 +4402,11 @@ function selectLiveEmail(id) {
 
 function submitSearchFromDropdown() {
     const input = document.getElementById('emailSearchInput');
-    const val = input ? input.value.trim() : '';
+    let val = input ? input.value.trim() : '';
+    if (val && !window.canViewFullPhone && val.includes('@') && !val.includes('*') && window.maskEmailForDisplay) {
+        val = window.maskEmailForDisplay(val);
+        if (input) input.value = val;
+    }
     if (val) saveRecentSearch(val);
     closeSearchDropdown();
     closeEmailThread();
@@ -4682,8 +4694,15 @@ function updateEmailBrowserUrl(searchVal) {
     else browserUrl.searchParams.delete('account_id');
     if (currentLabelId) browserUrl.searchParams.set('label_id', currentLabelId);
     else browserUrl.searchParams.delete('label_id');
-    if (searchVal) browserUrl.searchParams.set('search', searchVal);
-    else browserUrl.searchParams.delete('search');
+    if (searchVal) {
+        let finalSearch = searchVal;
+        if (!window.canViewFullPhone && finalSearch.includes('@') && !finalSearch.includes('*') && window.maskEmailForDisplay) {
+            finalSearch = window.maskEmailForDisplay(finalSearch);
+        }
+        browserUrl.searchParams.set('search', finalSearch);
+    } else {
+        browserUrl.searchParams.delete('search');
+    }
     history.replaceState(history.state, '', browserUrl);
 }
 
@@ -5184,10 +5203,26 @@ function openEmailThread(id, pushToHistory = true) {
                 const colorIdx = Math.abs((m.from_email || 'u').split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)) % avatarColors.length;
                 const avatarBg = m.direction === 'outbound' ? 'background-color: #0b57d0;' : `background-color: ${avatarColors[colorIdx]};`;
                 const avatarLetter = (m.from_name || m.from_email || 'U').charAt(0).toUpperCase();
-                const fromName = escapeEmailText(m.from_name || m.from_email);
-                const fromEmail = escapeEmailText(m.from_email || '');
-                const toName = escapeEmailText(m.to_name || m.to_email || 'me');
-                const toEmail = escapeEmailText(m.to_email || '');
+                const isSuperAdmin = !!window.canViewFullPhone;
+                const rawFromEmail = m.raw_from_email || m.from_email || '';
+                const rawToEmail = m.raw_to_email || m.to_email || '';
+                const displayFromEmail = (!isSuperAdmin && window.maskEmailForDisplay) ? window.maskEmailForDisplay(rawFromEmail) : (m.from_email || rawFromEmail);
+                const displayToEmail = (!isSuperAdmin && window.maskEmailForDisplay) ? window.maskEmailForDisplay(rawToEmail) : (m.to_email || rawToEmail);
+
+                let rawFromName = m.from_name || displayFromEmail;
+                if (!isSuperAdmin && rawFromName && rawFromName.includes('@') && window.maskEmailForDisplay) {
+                    rawFromName = window.maskEmailForDisplay(rawFromName);
+                }
+                let rawToName = m.to_name || displayToEmail || 'me';
+                if (!isSuperAdmin && rawToName && rawToName.includes('@') && window.maskEmailForDisplay) {
+                    rawToName = window.maskEmailForDisplay(rawToName);
+                }
+
+                const fromName = escapeEmailText(rawFromName);
+                const fromEmail = escapeEmailText(displayFromEmail);
+                const toName = escapeEmailText(rawToName);
+                const toEmail = escapeEmailText(displayToEmail);
+                const copyFromEmail = isSuperAdmin ? rawFromEmail : displayFromEmail;
                 const dateStr = escapeEmailText(m.date_formatted || m.received_at || 'Just now');
                 const subject = escapeEmailText(m.subject || data.email.subject || '(No Subject)');
                 let cleanSnippet = m.snippet;
@@ -5296,7 +5331,7 @@ function openEmailThread(id, pushToHistory = true) {
                                                     class="btn btn-icon btn-sm p-0 flex-shrink-0 ms-1" 
                                                     style="width: 20px; height: 20px; min-width: 20px; border: none; background: transparent; color: #5f6368;" 
                                                     title="Copy Email: ${fromEmail}" 
-                                                    onclick="event.stopPropagation(); crmCopyToClipboard('${fromEmail}', 'Email copied!');">
+                                                    onclick="event.stopPropagation(); crmCopyToClipboard('${copyFromEmail}', 'Email copied!');">
                                                 <i class="fa fa-clone" style="font-size: 11px;"></i>
                                             </button>
                                             ${waUrl ? `
@@ -5336,7 +5371,7 @@ function openEmailThread(id, pushToHistory = true) {
                                     <button type="button" class="gmail-icon-btn ${data.email.is_starred ? 'text-warning' : ''}" onclick="event.stopPropagation(); toggleStar(${m.id}, this)" title="Star">
                                         <i class="fa ${data.email.is_starred ? 'fa-star' : 'fa-star-o'}"></i>
                                     </button>
-                                    <button type="button" class="gmail-icon-btn" onclick="event.stopPropagation(); openInlineComposer('reply', '${fromEmail}', '${subject.replace(/'/g, "\\'")}', ${m.id})" title="Reply">
+                                    <button type="button" class="gmail-icon-btn" onclick="event.stopPropagation(); openInlineComposer('reply', '${(rawFromEmail || fromEmail).replace(/'/g, "\\'")}', '${subject.replace(/'/g, "\\'")}', ${m.id})" title="Reply">
                                         <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z"/></svg>
                                     </button>
                                     <div class="dropdown d-inline-block" onclick="event.stopPropagation();">
@@ -5344,7 +5379,7 @@ function openEmailThread(id, pushToHistory = true) {
                                             <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>
                                         </button>
                                         <ul class="dropdown-menu dropdown-menu-end shadow-sm fs-8">
-                                            <li><a class="dropdown-item" href="javascript:void(0);" onclick="openInlineComposer('reply', '${fromEmail}', '${subject.replace(/'/g, "\\'")}', ${m.id})"><i class="fa fa-reply me-2 text-muted"></i> Reply</a></li>
+                                            <li><a class="dropdown-item" href="javascript:void(0);" onclick="openInlineComposer('reply', '${(rawFromEmail || fromEmail).replace(/'/g, "\\'")}', '${subject.replace(/'/g, "\\'")}', ${m.id})"><i class="fa fa-reply me-2 text-muted"></i> Reply</a></li>
                                             <li><a class="dropdown-item" href="javascript:void(0);" onclick="openInlineComposer('forward', '', '${subject.replace(/'/g, "\\'")}', ${m.id})"><i class="fa fa-share me-2 text-muted"></i> Forward</a></li>
                                             <li><a class="dropdown-item" href="javascript:void(0);" onclick="window.print()"><i class="fa fa-print me-2 text-muted"></i> Print</a></li>
                                             <li><hr class="dropdown-divider my-1"></li>

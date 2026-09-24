@@ -328,7 +328,7 @@
                     </button>
 
                     {{-- Client Email Button (Only shown when customer is linked to a user with email) --}}
-                    <a href="{{ $customerSummary['client_email_url'] ?? '#' }}" target="_blank" class="wab-header-action-btn wab-header-btn-client-email {{ empty($customerSummary['client_email_url']) ? 'd-none' : '' }}" id="waHeaderClientEmailBtn" title="{{ !empty($customerSummary['email']) ? 'Client Email: ' . $customerSummary['email'] : 'Client Email' }}">
+                    <a href="{{ $customerSummary['client_email_url'] ?? '#' }}" target="_blank" class="wab-header-action-btn wab-header-btn-client-email {{ empty($customerSummary['client_email_url']) ? 'd-none' : '' }}" id="waHeaderClientEmailBtn" title="{{ !empty($customerSummary['email']) ? 'Client Email: ' . mask_email_for_display($customerSummary['email']) : 'Client Email' }}">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
                         <span id="waHeaderClientEmailText">Client Email</span>
                     </a>
@@ -6179,8 +6179,9 @@ document.addEventListener('DOMContentLoaded', function() {
         const clientEmailBtn = document.getElementById('waHeaderClientEmailBtn');
         if (clientEmailBtn) {
             if (customer && customer.client_email_url) {
+                const displayEmail = (window.maskEmailForDisplay ? window.maskEmailForDisplay(customer.email || '') : (customer.masked_email || customer.email || ''));
                 clientEmailBtn.href = customer.client_email_url;
-                clientEmailBtn.title = 'Client Email: ' + (customer.email || '');
+                clientEmailBtn.title = 'Client Email: ' + displayEmail;
                 clientEmailBtn.classList.remove('d-none');
             } else {
                 clientEmailBtn.href = '#';
