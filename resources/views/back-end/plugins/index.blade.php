@@ -24,16 +24,19 @@
     <div class="d-flex flex-wrap justify-content-between align-items-center mb-6 gap-3">
         <div>
             <h1 class="fs-2 fw-bolder text-dark mb-1">
-                <i class="fa fa-plug text-primary me-2"></i>Plugins &amp; Integrations
+                <i class="fa fa-phone-volume text-primary me-2"></i>Call Plugins
             </h1>
             <div class="text-muted fw-bold fs-7">
-                Manage third-party integrations, email configurations &amp; Twilio voice plugins.
+                Manage your calling integrations — Twilio Voice Calling &amp; Next2Call Softphone.
             </div>
         </div>
         <div class="d-flex gap-2">
             <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#twilioSettingsModal">
-                <i class="fa fa-phone me-1"></i> Configure Twilio Call
+                <i class="fa fa-phone me-1"></i> Configure Twilio
             </button>
+            <a href="{{ route('plugins.next2call.page') }}" class="btn btn-sm btn-success">
+                <i class="fa fa-headphones me-1"></i> Configure Next2Call
+            </a>
         </div>
     </div>
 
@@ -44,10 +47,10 @@
         </div>
     @endif
 
-    <!-- Plugins Grid -->
+    <!-- Call Plugins Grid (Only Twilio & Next2Call) -->
     <div class="row g-6">
-        <!-- Twilio Voice Call Plugin Card -->
-        <div class="col-md-6 col-xl-4">
+        <!-- 1. Twilio Voice Call Plugin Card -->
+        <div class="col-lg-6">
             <div class="card h-100 border shadow-sm plugin-card {{ $isTwilioActive ? 'border-success' : '' }}">
                 <div class="card-body d-flex flex-column justify-content-between p-6">
                     <div>
@@ -105,58 +108,8 @@
             </div>
         </div>
 
-
-        <div class="col-md-6 col-xl-4">
-            <div class="card h-100 border shadow-sm plugin-card {{ ($activeEmailAccounts ?? 0) > 0 ? 'border-success' : '' }}">
-                <div class="card-body d-flex flex-column justify-content-between p-6">
-                    <div>
-                        <div class="d-flex align-items-center justify-content-between mb-4">
-                            <div class="symbol symbol-50px symbol-circle bg-light-danger p-3">
-                                <i class="fa fa-envelope text-danger fs-2"></i>
-                            </div>
-                            <span class="badge {{ ($activeEmailAccounts ?? 0) > 0 ? 'badge-light-success' : 'badge-light-danger' }} fs-8">
-                                {{ ($activeEmailAccounts ?? 0) > 0 ? 'Active (' . $activeEmailAccounts . ' Inboxes)' : 'Inactive' }}
-                            </span>
-                        </div>
-
-                        <div class="d-flex align-items-center gap-2 mb-2">
-                            <h3 class="fw-bolder text-dark mb-0">Email Client & Inbox</h3>
-                        </div>
-
-                        <p class="text-muted fs-7 mb-4">
-                            Multi-account SMTP & IMAP email management, Gmail-style threaded inbox, real-time message sync, rich HTML composer & one-click socket connection testing.
-                        </p>
-
-                        <div class="bg-light rounded p-3 mb-4 fs-8 text-muted">
-                            <div class="d-flex justify-content-between mb-1">
-                                <span>Configured Inboxes:</span>
-                                <strong class="text-dark">{{ $emailAccountsCount ?? 0 }} Accounts</strong>
-                            </div>
-                            <div class="d-flex justify-content-between mb-1">
-                                <span>Active Accounts:</span>
-                                <span class="badge badge-light-success">{{ $activeEmailAccounts ?? 0 }} Active</span>
-                            </div>
-                            <div class="d-flex justify-content-between">
-                                <span>Sync Protocol:</span>
-                                <strong class="text-dark">IMAP / SMTP Socket (Zero-ext)</strong>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="d-flex flex-wrap gap-2 pt-2 border-top">
-                        <a href="{{ route('emails.index') }}" class="btn btn-sm btn-light-primary flex-fill">
-                            <i class="fa fa-inbox me-1"></i> Open Inbox
-                        </a>
-                        <a href="{{ route('emails.settings') }}" class="btn btn-sm btn-light-success flex-fill">
-                            <i class="fa fa-cog me-1"></i> Settings &amp; Test
-                        </a>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Next2Call Softphone Plugin Card -->
-        <div class="col-md-6 col-xl-4">
+        <!-- 2. Next2Call Softphone Plugin Card -->
+        <div class="col-lg-6">
             <div class="card h-100 border shadow-sm plugin-card {{ $isN2cActive ? 'border-success' : '' }}">
                 <div class="card-body d-flex flex-column justify-content-between p-6">
                     <div>
@@ -202,66 +155,6 @@
                         </a>
                         <button type="button" class="btn btn-sm btn-light-primary flex-fill" onclick="window.openRingfyDialer && window.openRingfyDialer()">
                             <i class="fa fa-phone me-1"></i> Open Softphone
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-
-        <div class="col-md-6 col-xl-4">
-            <div class="card h-100 border border-dashed shadow-sm plugin-card opacity-75">
-                <div class="card-body d-flex flex-column justify-content-between p-6">
-                    <div>
-                        <div class="d-flex align-items-center justify-content-between mb-4">
-                            <div class="symbol symbol-50px symbol-circle bg-light-info p-3">
-                                <i class="fa fa-comments text-info fs-2"></i>
-                            </div>
-                            <span class="badge badge-light-secondary fs-8">Coming Soon</span>
-                        </div>
-
-                        <div class="d-flex align-items-center gap-2 mb-2">
-                            <h3 class="fw-bolder text-dark mb-0">Twilio SMS / OTP</h3>
-                        </div>
-
-                        <p class="text-muted fs-7 mb-4">
-                            Send instant SMS updates, payment links, and order status notifications directly to customer mobile numbers.
-                        </p>
-                    </div>
-
-                    <div class="pt-2 border-top">
-                        <button type="button" class="btn btn-sm btn-light w-100 disabled" disabled>
-                            <i class="fa fa-lock me-1"></i> Available Soon
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- AI Voice Agent (Upcoming) -->
-        <div class="col-md-6 col-xl-4">
-            <div class="card h-100 border border-dashed shadow-sm plugin-card opacity-75">
-                <div class="card-body d-flex flex-column justify-content-between p-6">
-                    <div>
-                        <div class="d-flex align-items-center justify-content-between mb-4">
-                            <div class="symbol symbol-50px symbol-circle bg-light-warning p-3">
-                                <i class="fa fa-robot text-warning fs-2"></i>
-                            </div>
-                            <span class="badge badge-light-secondary fs-8">Coming Soon</span>
-                        </div>
-
-                        <div class="d-flex align-items-center gap-2 mb-2">
-                            <h3 class="fw-bolder text-dark mb-0">AI Voice Assistant</h3>
-                        </div>
-
-                        <p class="text-muted fs-7 mb-4">
-                            Automated AI voice calls for order delivery followups, payment reminders, and customer feedback collection.
-                        </p>
-                    </div>
-
-                    <div class="pt-2 border-top">
-                        <button type="button" class="btn btn-sm btn-light w-100 disabled" disabled>
-                            <i class="fa fa-lock me-1"></i> Available Soon
                         </button>
                     </div>
                 </div>

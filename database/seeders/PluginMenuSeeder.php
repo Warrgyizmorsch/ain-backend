@@ -20,40 +20,50 @@ class PluginMenuSeeder extends Seeder
 
         $settingMenuId = $settingMenu ? $settingMenu->id : 2;
 
-        // 2. Insert or update Submenu for Plugins under Setting
+        // 2. Remove separate Next2Call submenu if previously created so only single "Call Plugin" submenu exists under Setting
+        DB::table('submenus')
+            ->where('menus_id', $settingMenuId)
+            ->where('routes', 'admin/plugins/next2call')
+            ->delete();
+
+        // 3. Insert or update single Submenu "Call Plugin" under Setting
         $existingSubmenu = DB::table('submenus')
             ->where('menus_id', $settingMenuId)
-            ->where('routes', 'admin/plugins')
+            ->where(function ($q) {
+                $q->where('routes', 'admin/plugins')
+                  ->orWhere('sub_menu_name', 'Plugin Settings')
+                  ->orWhere('sub_menu_name', 'Call Plugin');
+            })
             ->first();
 
         if ($existingSubmenu) {
             $pluginSubmenuId = $existingSubmenu->id;
             DB::table('submenus')->where('id', $pluginSubmenuId)->update([
-                'sub_menu_name' => 'Plugin Settings',
-                'menus_id' => $settingMenuId,
-                'routes' => 'admin/plugins',
-                'show' => 'Y',
-                'sort_order' => 10,
-                'updated_at' => $now,
+                'sub_menu_name' => 'Call Plugin',
+                'menus_id'      => $settingMenuId,
+                'routes'        => 'admin/plugins',
+                'show'          => 'Y',
+                'sort_order'    => 10,
+                'updated_at'    => $now,
             ]);
         } else {
             $maxSubmenuId = (int) DB::table('submenus')->max('id');
             $newSubmenuId = max($maxSubmenuId + 1, 100);
 
             DB::table('submenus')->insert([
-                'id' => $newSubmenuId,
-                'sub_menu_name' => 'Plugin Settings',
-                'menus_id' => $settingMenuId,
-                'routes' => 'admin/plugins',
-                'sort_order' => 10,
-                'show' => 'Y',
-                'created_at' => $now,
-                'updated_at' => $now,
+                'id'            => $newSubmenuId,
+                'sub_menu_name' => 'Call Plugin',
+                'menus_id'      => $settingMenuId,
+                'routes'        => 'admin/plugins',
+                'sort_order'    => 10,
+                'show'          => 'Y',
+                'created_at'    => $now,
+                'updated_at'    => $now,
             ]);
             $pluginSubmenuId = $newSubmenuId;
         }
 
-        // 3. Grant permission to Super Admin (role_id: 1)
+        // 4. Grant permission to Super Admin (role_id: 1)
         $permission = DB::table('permission')->where('role_id', 1)->first();
         $menuIds = $permission ? json_decode($permission->menu_id, true) : [];
         $submenuIds = $permission ? json_decode($permission->submenu_id, true) : [];
@@ -69,42 +79,6 @@ class PluginMenuSeeder extends Seeder
             $submenuIds[] = $pluginSubmenuId;
         }
 
-        // 3b. Insert or update separate Next2Call submenu under Setting
-        $existingN2cSubmenu = DB::table('submenus')
-            ->where('menus_id', $settingMenuId)
-            ->where('routes', 'admin/plugins/next2call')
-            ->first();
-
-        if ($existingN2cSubmenu) {
-            $n2cSubmenuId = $existingN2cSubmenu->id;
-            DB::table('submenus')->where('id', $n2cSubmenuId)->update([
-                'sub_menu_name' => 'Next2Call Softphone',
-                'menus_id'      => $settingMenuId,
-                'routes'        => 'admin/plugins/next2call',
-                'show'          => 'Y',
-                'sort_order'    => 11,
-                'updated_at'    => $now,
-            ]);
-        } else {
-            $maxId = (int) DB::table('submenus')->max('id');
-            $n2cSubmenuId = max($maxId + 1, 101);
-
-            DB::table('submenus')->insert([
-                'id'            => $n2cSubmenuId,
-                'sub_menu_name' => 'Next2Call Softphone',
-                'menus_id'      => $settingMenuId,
-                'routes'        => 'admin/plugins/next2call',
-                'sort_order'    => 11,
-                'show'          => 'Y',
-                'created_at'    => $now,
-                'updated_at'    => $now,
-            ]);
-        }
-
-        if (!in_array($n2cSubmenuId, array_map('intval', $submenuIds), true)) {
-            $submenuIds[] = $n2cSubmenuId;
-        }
-
         DB::table('permission')->updateOrInsert(
             ['role_id' => 1],
             [
@@ -115,24 +89,47 @@ class PluginMenuSeeder extends Seeder
             ]
         );
 
-        // 4. Seed Next2Call plugin entry in plugin_settings table
+        // 5. Seed Twilio & Next2Call plugin entries in plugin_settings table
         if (Schema::hasTable('plugin_settings')) {
+            DB::table('plugin_settings')->updateOrInsert(
+                ['plugin_key' => 'twilio_call'],
+                [
+                    'name'        => 'Twilio Voice Call',
+                    'category'    => 'communication',
+                    'description' => 'Bridge voice calls between agents and customers directly from the Orders page using Twilio Voice API & WebRTC Dialer.',
+                    'is_active'   => false,
+                    'settings'    => json_encode([
+                        'account_sid'          => '',
+                        'auth_token'           => '',
+                        'twilio_number'        => '',
+                        'api_key_sid'          => '',
+                        'api_secret'           => '',
+                        'twiml_app_sid'        => '',
+                        'default_agent_number' => '',
+                        'call_mode'            => 'webrtc',
+                        'record_calls'         => false,
+                    ]),
+                    'updated_at'  => $now,
+                    'created_at'  => $now,
+                ]
+            );
+
             DB::table('plugin_settings')->updateOrInsert(
                 ['plugin_key' => 'next2call'],
                 [
-                    'name' => 'Next2Call Softphone',
-                    'category' => 'communication',
+                    'name'        => 'Next2Call Softphone',
+                    'category'    => 'communication',
                     'description' => 'Direct in-browser WebRTC softphone calling & click-to-dial powered by Next2Call Ringfy PBX.',
-                    'is_active' => true,
-                    'settings' => json_encode([
-                        'user_id' => '10101',
-                        'password' => 'T2d8d1r5P6x0T8O8iUq',
-                        'sip_domain' => 'ringfy.next2call.com',
-                        'api_base_url' => 'https://ringfy.next2call.com',
+                    'is_active'   => true,
+                    'settings'    => json_encode([
+                        'user_id'            => '10101',
+                        'password'           => 'T2d8d1r5P6x0T8O8iUq',
+                        'sip_domain'         => 'ringfy.next2call.com',
+                        'api_base_url'       => 'https://ringfy.next2call.com',
                         'click_to_dial_path' => '/softphone/Phone/click-to-dial.html',
                     ]),
-                    'updated_at' => $now,
-                    'created_at' => $now,
+                    'updated_at'  => $now,
+                    'created_at'  => $now,
                 ]
             );
         }
