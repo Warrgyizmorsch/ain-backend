@@ -6,6 +6,8 @@ use App\Models\EmailMessage;
 use App\Models\EmailAttachment;
 use App\Models\EmailConfiguration;
 use App\Models\User;
+use App\Models\Leads;
+use App\Models\Order;
 use App\Services\EmailService;
 use App\Services\EmailHtmlSanitizer;
 use Illuminate\Http\Request;
