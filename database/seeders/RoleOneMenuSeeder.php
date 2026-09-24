@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 
 namespace Database\Seeders;
 
@@ -50,7 +50,7 @@ class RoleOneMenuSeeder extends Seeder
             ['name' => 'submenus', 'routes' => 'submenu', 'sort_order' => 2],
             ['name' => 'User Right', 'routes' => 'userright', 'sort_order' => 3],
             ['name' => 'WhatsApp Settings', 'routes' => 'whatsapp/settings', 'sort_order' => 4],
-            ['name' => 'Twilio Plugin', 'routes' => 'admin/plugins', 'sort_order' => 5],
+            ['name' => 'Call Plugin', 'routes' => 'admin/plugins', 'sort_order' => 5],
             ['name' => 'Email Settings', 'routes' => 'emails/settings', 'sort_order' => 6],
         ];
 
@@ -58,9 +58,15 @@ class RoleOneMenuSeeder extends Seeder
         DB::table('menu')->where('parent_id', 2)->where('routes', 'labels')->delete();
         DB::table('submenus')->where('menus_id', 2)->where('routes', 'labels')->delete();
 
-        // Update legacy names for admin/plugins (e.g. 'Twilio Calling' or 'Plugins') to 'Plugin Settings'
-        DB::table('menu')->where('parent_id', 2)->where('routes', 'admin/plugins')->update(['menu_name' => 'Twilio Plugin', 'updated_at' => now()]);
-        DB::table('submenus')->where('menus_id', 2)->where('routes', 'admin/plugins')->update(['sub_menu_name' => 'Twilio Plugin', 'updated_at' => now()]);
+        // Clean up separate Next2Call routes from Setting so only single "Call Plugin" appears
+        DB::table('menu')->where('parent_id', 2)->where('routes', 'admin/plugins/next2call')->delete();
+        DB::table('submenus')->where('menus_id', 2)->where('routes', 'admin/plugins/next2call')->delete();
+
+        // Update legacy names for admin/plugins (e.g. 'Twilio Calling', 'Twilio Plugin', 'Plugin Settings') to 'Call Plugin'
+        DB::table('menu')->where('parent_id', 2)->where('routes', 'admin/plugins')->update(['menu_name' => 'Call Plugin', 'updated_at' => now()]);
+        DB::table('submenus')->where('menus_id', 2)->where('routes', 'admin/plugins')->update(['sub_menu_name' => 'Call Plugin', 'updated_at' => now()]);
+        DB::table('submenus')->where('menus_id', 2)->whereIn('sub_menu_name', ['Twilio Calling', 'Twilio Plugin', 'Plugin Settings'])->update(['sub_menu_name' => 'Call Plugin', 'routes' => 'admin/plugins', 'updated_at' => now()]);
+        DB::table('menu')->where('parent_id', 2)->whereIn('menu_name', ['Twilio Calling', 'Twilio Plugin', 'Plugin Settings'])->update(['menu_name' => 'Call Plugin', 'routes' => 'admin/plugins', 'updated_at' => now()]);
 
         foreach ($settingItems as $item) {
             // Sync in 'menu' table (as child with parent_id = 2)
