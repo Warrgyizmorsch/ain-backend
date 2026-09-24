@@ -424,19 +424,33 @@
         </td>
 
         <td class="text-center" style="width:50px">
-            {!! $effectiveTitle ?: '<span class="badge badge-light-danger fs-7 fw-bold">Not Available</span>' !!}
-            <br>
+            @if($effectiveTitle)
+                <div class="d-inline-flex align-items-center justify-content-center flex-wrap">
+                    <span>{!! $effectiveTitle !!}</span>
+                    <button type="button" class="btn btn-icon btn-sm btn-active-light-primary ms-1 p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Project Title" data-copy-text="{{ strip_tags($effectiveTitle) }}" onclick="event.stopPropagation(); crmCopyToClipboard(this.getAttribute('data-copy-text'), 'Project Title copied!');">
+                        <i class="fa fa-clone fs-8 text-muted"></i>
+                    </button>
+                </div>
+            @else
+                <span class="badge badge-light-danger fs-7 fw-bold">Not Available</span>
+            @endif
             @if($effectiveSemester)
-            Semester: ({{ $effectiveSemester }})
+            <br>Semester: ({{ $effectiveSemester }})
             @endif
             @if($effectiveChapter)
-            <span class="badge badge-light-danger fs-7 fw-bold">{{ $effectiveChapter }}</span>
+            <br><span class="badge badge-light-danger fs-7 fw-bold">{{ $effectiveChapter }}</span>
             @endif
             @if($effectiveTech == '1' || $effectiveTech === 'on')
-            <span class="badge badge-light-success fs-7 fw-bold">Technical Work</span>
+            <br><span class="badge badge-light-success fs-7 fw-bold">Technical Work</span>
             @endif
             @if($effectiveModuleCode)
-            <span class="badge badge-light-danger fs-7 fw-bold">{{ $effectiveModuleCode }}</span>
+                <br>
+                <div class="d-inline-flex align-items-center justify-content-center mt-1">
+                    <span class="badge badge-light-danger fs-7 fw-bold">{{ $effectiveModuleCode }}</span>
+                    <button type="button" class="btn btn-icon btn-sm btn-active-light-primary ms-1 p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Module Code" data-copy-text="{{ $effectiveModuleCode }}" onclick="event.stopPropagation(); crmCopyToClipboard(this.getAttribute('data-copy-text'), 'Module Code copied!');">
+                        <i class="fa fa-clone fs-8 text-muted"></i>
+                    </button>
+                </div>
             @endif
         </td>
 

@@ -1360,15 +1360,19 @@ class OrderController extends Controller
                             ' . ($order->delivery_date != null ? \Carbon\Carbon::parse($order->delivery_date)->format('d M Y') : 'Not Available') . '
                             ' . ($order->draftrequired == 'Y' ? '<span class="badge badge-light-success fs-7 fw-bold">' . \Carbon\Carbon::parse($order->draft_date)->format('d M Y') . ' (' . (\Carbon\Carbon::parse($order->draft_time)->format('H:i')) . ')</span>' : '') . '
                             </td>
-                            <td>' . $order->title . '
-                                  ' . (auth()->user()->role_id ==  '1' ||  auth()->user()->role_id ==  '4' ||  auth()->user()->role_id ==  '9' ?
+                            <td>
+                                <div class="d-inline-flex align-items-center flex-wrap">
+                                    <span>' . $order->title . '</span>
+                                    ' . (!empty($order->title) ? '<button type="button" class="btn btn-icon btn-sm btn-active-light-primary ms-1 p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Project Title" data-copy-text="' . htmlspecialchars($order->title, ENT_QUOTES) . '" onclick="event.stopPropagation(); crmCopyToClipboard(this.getAttribute(\'data-copy-text\'), \'Project Title copied!\');"><i class="fa fa-clone fs-8 text-muted"></i></button>' : '') . '
+                                </div>
+                                ' . (auth()->user()->role_id ==  '1' ||  auth()->user()->role_id ==  '4' ||  auth()->user()->role_id ==  '9' ?
                 '
                                  <br>  ' . ($order->semester != '' ? '' . $order->semester . '' : '') . '
                             '
                 : '') . '
                             ' . ($order->chapter != '' ? '<span class="badge badge-light-danger fs-7 fw-bold">' . $order->chapter . '</span>' : '') . '
                             ' . ($order->tech == '1' ? '<span class="badge badge-light-success fs-7 fw-bold">Technical Work</span>' : '') . '
-                            ' . ($order->module_code != '' ? '<span class="badge badge-light-danger fs-7 fw-bold">' . $order->module_code . '</span>' : '') . '
+                            ' . ($order->module_code != '' ? '<br><div class="d-inline-flex align-items-center mt-1"><span class="badge badge-light-danger fs-7 fw-bold">' . $order->module_code . '</span><button type="button" class="btn btn-icon btn-sm btn-active-light-primary ms-1 p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Module Code" data-copy-text="' . htmlspecialchars($order->module_code, ENT_QUOTES) . '" onclick="event.stopPropagation(); crmCopyToClipboard(this.getAttribute(\'data-copy-text\'), \'Module Code copied!\');"><i class="fa fa-clone fs-8 text-muted"></i></button></div>' : '') . '
                             </td>
                             <td onclick="status(' . $order->id . ')">
                             ' . ($order->projectstatus ==  'Pending' ? '<span class="badge badge-light-danger fs-7 fw-bold" style="background:pink; color:white">' . $order->projectstatus . '</span>' : '') . '

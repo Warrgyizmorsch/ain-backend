@@ -5223,6 +5223,7 @@ function openEmailThread(id, pushToHistory = true) {
                 const toName = escapeEmailText(rawToName);
                 const toEmail = escapeEmailText(displayToEmail);
                 const copyFromEmail = isSuperAdmin ? rawFromEmail : displayFromEmail;
+                const copyToEmail = isSuperAdmin ? rawToEmail : (displayToEmail || (rawToName && rawToName.includes('@') ? rawToName : ''));
                 const dateStr = escapeEmailText(m.date_formatted || m.received_at || 'Just now');
                 const subject = escapeEmailText(m.subject || data.email.subject || '(No Subject)');
                 let cleanSnippet = m.snippet;
@@ -5344,25 +5345,54 @@ function openEmailThread(id, pushToHistory = true) {
                                                 <svg width="13" height="13" viewBox="0 0 16 16"><path d="M13.601 2.326A7.85 7.85 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.364 2.76 1.057 3.965L0 16l4.204-1.102a7.9 7.9 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.9 7.9 0 0 0 13.6 2.326zM7.994 14.521a6.6 6.6 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.56 6.56 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592m3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.73.73 0 0 0-.529.247c-.182.198-.691.677-.691 1.654s.707 2.002.806 2.134c.098.133 1.392 2.123 3.372 2.978.471.204.838.326 1.124.418.473.15.905.129 1.246.078.38-.058 1.17-.479 1.338-.943.166-.464.166-.862.116-.944-.049-.082-.182-.133-.38-.232"/></svg>
                                             </a>` : ''}
                                         </div>
-                                        <div class="dropdown" onclick="event.stopPropagation();">
-                                            <button type="button" class="gmail-to-me-btn" data-bs-toggle="dropdown" aria-expanded="false">
-                                                <span>to ${toName}</span>
-                                                <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg>
-                                            </button>
-                                            <div class="dropdown-menu gmail-details-card shadow-lg">
-                                                <div class="gmail-details-grid">
-                                                    <span class="text-muted">from:</span>
-                                                    <div><b>${fromName}</b> &lt;${fromEmail}&gt;</div>
-                                                    <span class="text-muted">to:</span>
-                                                    <div>${toEmail || toName}</div>
-                                                    <span class="text-muted">date:</span>
-                                                    <div>${dateStr}</div>
-                                                    <span class="text-muted">subject:</span>
-                                                    <div>${subject}</div>
-                                                    <span class="text-muted">security:</span>
-                                                    <div class="text-success"><svg width="13" height="13" viewBox="0 0 24 24" fill="#137333" class="me-1"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg> Standard encryption (TLS)</div>
+                                        <div class="d-inline-flex align-items-center" onclick="event.stopPropagation();">
+                                            <div class="dropdown">
+                                                <button type="button" class="gmail-to-me-btn" data-bs-toggle="dropdown" aria-expanded="false">
+                                                    <span>to ${toName}</span>
+                                                    <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg>
+                                                </button>
+                                                <div class="dropdown-menu gmail-details-card shadow-lg">
+                                                    <div class="gmail-details-grid">
+                                                        <span class="text-muted">from:</span>
+                                                        <div class="d-flex align-items-center gap-1">
+                                                            <span><b>${fromName}</b> &lt;${fromEmail}&gt;</span>
+                                                            <button type="button" 
+                                                                    class="btn btn-icon btn-sm p-0 flex-shrink-0 ms-1" 
+                                                                    style="width: 18px; height: 18px; min-width: 18px; border: none; background: transparent; color: #5f6368;" 
+                                                                    title="Copy Email: ${fromEmail}" 
+                                                                    onclick="crmCopyToClipboard('${copyFromEmail}', 'Email copied!');">
+                                                                <i class="fa fa-clone" style="font-size: 11px;"></i>
+                                                            </button>
+                                                        </div>
+                                                        <span class="text-muted">to:</span>
+                                                        <div class="d-flex align-items-center gap-1">
+                                                            <span>${toEmail || toName}</span>
+                                                            ${(copyToEmail || toEmail || (toName && toName.includes('@'))) ? `
+                                                            <button type="button" 
+                                                                    class="btn btn-icon btn-sm p-0 flex-shrink-0 ms-1" 
+                                                                    style="width: 18px; height: 18px; min-width: 18px; border: none; background: transparent; color: #5f6368;" 
+                                                                    title="Copy Email: ${toEmail || toName}" 
+                                                                    onclick="crmCopyToClipboard('${copyToEmail || toEmail || toName}', 'Email copied!');">
+                                                                <i class="fa fa-clone" style="font-size: 11px;"></i>
+                                                            </button>` : ''}
+                                                        </div>
+                                                        <span class="text-muted">date:</span>
+                                                        <div>${dateStr}</div>
+                                                        <span class="text-muted">subject:</span>
+                                                        <div>${subject}</div>
+                                                        <span class="text-muted">security:</span>
+                                                        <div class="text-success"><svg width="13" height="13" viewBox="0 0 24 24" fill="#137333" class="me-1"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg> Standard encryption (TLS)</div>
+                                                    </div>
                                                 </div>
                                             </div>
+                                            ${(copyToEmail || toEmail || (toName && toName.includes('@'))) ? `
+                                            <button type="button" 
+                                                    class="btn btn-icon btn-sm p-0 flex-shrink-0 ms-1" 
+                                                    style="width: 20px; height: 20px; min-width: 20px; border: none; background: transparent; color: #5f6368;" 
+                                                    title="Copy Email: ${toEmail || toName}" 
+                                                    onclick="event.stopPropagation(); crmCopyToClipboard('${copyToEmail || toEmail || toName}', 'Email copied!');">
+                                                <i class="fa fa-clone" style="font-size: 11px;"></i>
+                                            </button>` : ''}
                                         </div>
                                     </div>
                                 </div>

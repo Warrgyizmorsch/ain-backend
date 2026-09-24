@@ -482,9 +482,16 @@
         @endif
     </td>
     <td class="text-center">
-        {!! $lead->project_title
-        ? e($lead->project_title)
-        : '<span class="badge badge-light-danger fs-7 fw-bold">No Title</span>' !!}
+        @if($lead->project_title)
+            <div class="d-inline-flex align-items-center justify-content-center flex-wrap">
+                <span>{{ $lead->project_title }}</span>
+                <button type="button" class="btn btn-icon btn-sm btn-active-light-primary ms-1 p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Project Title" data-copy-text="{{ $lead->project_title }}" onclick="event.stopPropagation(); crmCopyToClipboard(this.getAttribute('data-copy-text'), 'Project Title copied!');">
+                    <i class="fa fa-clone fs-8 text-muted"></i>
+                </button>
+            </div>
+        @else
+            <span class="badge badge-light-danger fs-7 fw-bold">No Title</span>
+        @endif
         @if ($lead->semester)
         <br><span class="badge badge-light-success fs-7">Semester: {{ $lead->semester }}</span>
         @endif
@@ -492,7 +499,13 @@
         <br><span class="badge badge-light-success fs-7">Technical Work</span>
         @endif
         @if ($lead->module_code)
-        <br><span class="badge badge-light-danger fs-7">{{ $lead->module_code }}</span>
+            <br>
+            <div class="d-inline-flex align-items-center justify-content-center mt-1">
+                <span class="badge badge-light-danger fs-7">{{ $lead->module_code }}</span>
+                <button type="button" class="btn btn-icon btn-sm btn-active-light-primary ms-1 p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Module Code" data-copy-text="{{ $lead->module_code }}" onclick="event.stopPropagation(); crmCopyToClipboard(this.getAttribute('data-copy-text'), 'Module Code copied!');">
+                    <i class="fa fa-clone fs-8 text-muted"></i>
+                </button>
+            </div>
         @endif
     </td>
     <td class="text-center">
