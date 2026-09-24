@@ -371,10 +371,7 @@
         const DIALER_URL = widget?.dataset?.dialerUrl || '';
         const CTC_BASE = widget?.dataset?.ctcBase || '';
 
-        // Pre-load softphone in background so WebRTC SIP registration stays alive for incoming calls
-        if (frame && DIALER_URL && (!frame.src || frame.src === 'about:blank' || frame.src === window.location.href)) {
-            frame.src = DIALER_URL;
-        }
+
 
         // Restore saved position
         const savedPos = localStorage.getItem('ringfy_softphone_pos');
@@ -578,19 +575,24 @@
 
         // Listen for postMessage from Next2Call Ringfy PBX
         window.addEventListener('message', function (event) {
-            if (event.origin !== 'https://ringfy.next2call.com' && event.origin !== window.location.origin) return;
+            // Only accept explicit simulation event from our own origin
+            if (event.origin === window.location.origin) {
+                if (event.data && event.data.type === 'SIMULATE_NEXT2CALL_INBOUND') {
+                    const caller = event.data.caller || '08800826129';
+                    window.simulateNext2CallInbound && window.simulateNext2CallInbound(caller);
+                }
+                return;
+            }
+
+            // Otherwise, only accept messages from Next2Call PBX domain
+            if (event.origin !== 'https://ringfy.next2call.com') return;
 
             console.log('[Next2Call postMessage]:', event.data);
 
-            const dataStr = typeof event.data === 'string' ? event.data.toUpperCase() : JSON.stringify(event.data || {}).toUpperCase();
-
-            const isIncoming = dataStr.includes('INCOMING') ||
-                               dataStr.includes('RINGING') ||
-                               dataStr.includes('INVITE') ||
-                               dataStr.includes('CALL_START') ||
-                               dataStr.includes('CALL_RECEIVED') ||
+            const isIncoming = event.data === 'INCOMING_CALL' ||
                                event.data?.type === 'INCOMING_CALL' ||
-                               event.data?.event === 'incoming';
+                               event.data?.event === 'incoming_call' ||
+                               (typeof event.data === 'string' && event.data.trim() === 'INCOMING_CALL');
 
             const isHangup = event.data === 'CALL_HANGUP' ||
                              event.data?.type === 'CALL_HANGUP' ||
@@ -598,9 +600,7 @@
                              event.data?.type === 'hangup' ||
                              event.data?.event === 'hangup' ||
                              event.data?.type === 'CALL_DISCONNECTED' ||
-                             event.data === 'CALL_DISCONNECTED' ||
-                             dataStr.includes('HANGUP') ||
-                             dataStr.includes('DISCONNECTED');
+                             event.data === 'CALL_DISCONNECTED';
 
             if (isIncoming) {
                 // Incoming call received -> immediately open softphone popup on screen
