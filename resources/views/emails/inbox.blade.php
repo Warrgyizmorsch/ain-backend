@@ -2353,6 +2353,175 @@
         background: #991b1b !important;
     }
 
+    /* Modern Incoming Email Alert Toast */
+    .incoming-email-toast {
+        position: fixed;
+        bottom: 24px;
+        right: 24px;
+        width: 380px;
+        max-width: calc(100vw - 32px);
+        background: #ffffff;
+        border: 1px solid rgba(226, 232, 240, 0.9);
+        border-radius: 16px;
+        box-shadow: 0 20px 35px -5px rgba(15, 23, 42, 0.16), 0 10px 15px -5px rgba(15, 23, 42, 0.08), 0 0 0 1px rgba(226, 232, 240, 0.85);
+        padding: 16px 18px 14px;
+        z-index: 999999;
+        display: none;
+        opacity: 0;
+        transform: translateY(20px) scale(0.97);
+        transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1), transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        overflow: hidden;
+    }
+    .incoming-email-toast.show {
+        display: block;
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+    .incoming-email-toast .toast-avatar {
+        width: 40px;
+        height: 40px;
+        border-radius: 12px;
+        background: linear-gradient(135deg, #3b82f6, #6366f1);
+        color: #ffffff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: 15px;
+        flex-shrink: 0;
+        box-shadow: 0 4px 10px rgba(59, 130, 246, 0.25);
+    }
+    .incoming-email-toast .toast-badge {
+        background: #eef2ff;
+        color: #4338ca;
+        font-size: 11px;
+        font-weight: 700;
+        padding: 2px 8px;
+        border-radius: 6px;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+    }
+    .incoming-email-toast .toast-badge i {
+        font-size: 10px;
+    }
+    .incoming-email-toast .toast-time {
+        font-size: 11px;
+        color: #94a3b8;
+        font-weight: 500;
+    }
+    .incoming-email-toast .toast-sender {
+        font-size: 13.5px;
+        font-weight: 700;
+        color: #0f172a;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        margin-top: 3px;
+    }
+    .incoming-email-toast .toast-subject {
+        font-size: 12.5px;
+        font-weight: 600;
+        color: #334155;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        margin-top: 1px;
+    }
+    .incoming-email-toast .toast-preview {
+        font-size: 11.5px;
+        color: #64748b;
+        line-height: 1.4;
+        margin-top: 2px;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        word-break: break-word;
+    }
+    .incoming-email-toast .toast-close-btn {
+        background: transparent;
+        border: none;
+        width: 24px;
+        height: 24px;
+        border-radius: 6px;
+        color: #94a3b8;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        padding: 0;
+        transition: background-color 0.15s, color 0.15s;
+        flex-shrink: 0;
+    }
+    .incoming-email-toast .toast-close-btn:hover {
+        background: #f1f5f9;
+        color: #334155;
+    }
+    .incoming-email-toast .toast-actions {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 8px;
+        margin-top: 12px;
+        padding-top: 10px;
+        border-top: 1px solid #f1f5f9;
+    }
+    .incoming-email-toast .btn-toast-dismiss {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        color: #64748b;
+        font-size: 12px;
+        font-weight: 600;
+        padding: 6px 14px;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.15s ease;
+    }
+    .incoming-email-toast .btn-toast-dismiss:hover {
+        background: #f1f5f9;
+        color: #1e293b;
+    }
+    .incoming-email-toast .btn-toast-view {
+        background: linear-gradient(135deg, #2563eb, #1d4ed8);
+        border: none;
+        color: #ffffff;
+        font-size: 12px;
+        font-weight: 600;
+        padding: 6px 16px;
+        border-radius: 8px;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        box-shadow: 0 2px 6px rgba(37, 99, 235, 0.25);
+        transition: all 0.15s ease;
+    }
+    .incoming-email-toast .btn-toast-view:hover {
+        background: linear-gradient(135deg, #1d4ed8, #1e40af);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 10px rgba(37, 99, 235, 0.35);
+    }
+    .incoming-email-toast .toast-progress {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        height: 3px;
+        background: linear-gradient(90deg, #3b82f6, #6366f1);
+        width: 100%;
+        border-radius: 0 0 16px 16px;
+    }
+    @media (max-width: 576px) {
+        .incoming-email-toast {
+            bottom: 12px;
+            right: 12px;
+            left: 12px;
+            width: auto;
+            max-width: none;
+        }
+    }
+
     .pending-email-item {
         background: #fffbeb !important;
         border-color: #fbbf24 !important;
@@ -3170,29 +3339,31 @@
 </div>
 
 {{-- Real-time Incoming Email Floating Notification Card --}}
-<div id="incomingEmailAlert" style="position: fixed; top: 75px; right: 24px; z-index: 99999; max-width: 380px; width: 100%; display: none; background: #ffffff; border: 1.5px solid #3454d1; border-radius: 12px; box-shadow: 0 12px 32px rgba(15, 23, 42, 0.18); padding: 14px 16px;">
-    <div class="d-flex align-items-start justify-content-between gap-2">
-        <div class="d-flex align-items-center gap-3">
-            <div id="incomingAlertAvatar" style="width: 38px; height: 38px; border-radius: 50%; background: linear-gradient(135deg, #3454d1, #6366f1); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 14px; flex-shrink: 0;">U</div>
-            <div style="min-width: 0;">
+<div id="incomingEmailAlert" class="incoming-email-toast">
+    <div class="d-flex align-items-start gap-3">
+        <div id="incomingAlertAvatar" class="toast-avatar">U</div>
+        <div style="flex: 1; min-width: 0;">
+            <div class="d-flex align-items-center justify-content-between gap-2">
                 <div class="d-flex align-items-center gap-2">
-                    <span class="badge bg-primary fs-9 px-2 py-0.5">New Email</span>
-                    <span class="text-muted fs-9" id="incomingAlertTime">Just now</span>
+                    <span class="toast-badge"><i class="fa fa-envelope"></i> New Email</span>
+                    <span class="toast-time" id="incomingAlertTime">Just now</span>
                 </div>
-                <div class="fw-bold text-gray-900 fs-7 text-truncate mt-1" id="incomingAlertSender">Sender Name</div>
-                <div class="text-gray-700 fs-8 fw-semibold text-truncate" id="incomingAlertSubject">Subject Text</div>
+                <button type="button" class="toast-close-btn" onclick="closeIncomingAlert()" title="Close">
+                    <i class="fa fa-times"></i>
+                </button>
             </div>
+            <div class="toast-sender" id="incomingAlertSender">Sender Name</div>
+            <div class="toast-subject" id="incomingAlertSubject">Subject Text</div>
+            <div class="toast-preview" id="incomingAlertPreview"></div>
         </div>
-        <button type="button" class="btn btn-sm btn-icon btn-light" onclick="closeIncomingAlert()" style="width: 24px; height: 24px; border-radius: 50%;">
-            <i class="fa fa-times text-muted fs-8"></i>
+    </div>
+    <div class="toast-actions">
+        <button type="button" class="btn-toast-dismiss" onclick="closeIncomingAlert()">Dismiss</button>
+        <button type="button" class="btn-toast-view" id="incomingAlertOpenBtn" onclick="openIncomingEmailFromAlert()">
+            <i class="fa fa-envelope-open-o"></i> View Message
         </button>
     </div>
-    <div class="d-flex align-items-center justify-content-end gap-2 mt-2 pt-2 border-top">
-        <button type="button" class="btn btn-xs btn-light" onclick="closeIncomingAlert()">Dismiss</button>
-        <button type="button" class="btn btn-xs btn-primary fw-bold" id="incomingAlertOpenBtn" onclick="openIncomingEmailFromAlert()">
-            <i class="fa fa-envelope-open-o me-1"></i> View Message
-        </button>
-    </div>
+    <div id="incomingAlertProgress" class="toast-progress"></div>
 </div>
 
 {{-- Gmail-Style Attachment Preview Modal --}}
@@ -4698,24 +4869,84 @@ function showIncomingEmailAlertCard(email) {
     if (!alertBox || !email) return;
 
     incomingAlertEmailId = email.id;
-    document.getElementById('incomingAlertSender').textContent = email.from_name || email.from_email || 'New Message';
-    document.getElementById('incomingAlertSubject').textContent = (email.subject || '(No Subject)') + (email.preview ? ' - ' + email.preview : '');
-    document.getElementById('incomingAlertTime').textContent = email.created_at || 'Just now';
-    
-    const avatar = document.getElementById('incomingAlertAvatar');
-    if (avatar) {
-        avatar.textContent = (email.from_name || email.from_email || 'U').charAt(0).toUpperCase();
+
+    // Sender name / address
+    const sender = email.from_name || email.from_email || 'New Message';
+    const senderEl = document.getElementById('incomingAlertSender');
+    if (senderEl) senderEl.textContent = sender;
+
+    // Subject
+    const subjectEl = document.getElementById('incomingAlertSubject');
+    if (subjectEl) subjectEl.textContent = email.subject || '(No Subject)';
+
+    // Clean preview snippet (strip raw markdown asterisks, hashes, backticks, repetitive spaces)
+    const previewEl = document.getElementById('incomingAlertPreview');
+    if (previewEl) {
+        if (email.preview) {
+            let cleanPreview = String(email.preview)
+                .replace(/[*_#`~]/g, '')
+                .replace(/\s+/g, ' ')
+                .trim();
+            previewEl.textContent = cleanPreview;
+            previewEl.style.display = '-webkit-box';
+        } else {
+            previewEl.textContent = '';
+            previewEl.style.display = 'none';
+        }
     }
 
+    // Relative / creation time
+    const timeEl = document.getElementById('incomingAlertTime');
+    if (timeEl) timeEl.textContent = email.created_at || 'Just now';
+    
+    // Aesthetic Avatar by initial character
+    const avatar = document.getElementById('incomingAlertAvatar');
+    if (avatar) {
+        const char = (email.from_name || email.from_email || 'U').trim().charAt(0).toUpperCase();
+        avatar.textContent = char;
+        const gradients = [
+            'linear-gradient(135deg, #3b82f6, #1d4ed8)',
+            'linear-gradient(135deg, #8b5cf6, #6d28d9)',
+            'linear-gradient(135deg, #ec4899, #be185d)',
+            'linear-gradient(135deg, #06b6d4, #0e7490)',
+            'linear-gradient(135deg, #10b981, #047857)',
+            'linear-gradient(135deg, #f59e0b, #d97706)'
+        ];
+        const colorIdx = (char.charCodeAt(0) || 0) % gradients.length;
+        avatar.style.background = gradients[colorIdx];
+    }
+
+    // Reset countdown progress bar animation
+    const progressBar = document.getElementById('incomingAlertProgress');
+    if (progressBar) {
+        progressBar.style.transition = 'none';
+        progressBar.style.width = '100%';
+        setTimeout(() => {
+            progressBar.style.transition = 'width 8s linear';
+            progressBar.style.width = '0%';
+        }, 50);
+    }
+
+    // Trigger smooth slide & fade animation
     alertBox.style.display = 'block';
+    setTimeout(() => {
+        alertBox.classList.add('show');
+    }, 20);
 
     if (incomingAlertTimeout) clearTimeout(incomingAlertTimeout);
-    incomingAlertTimeout = setTimeout(closeIncomingAlert, 7000);
+    incomingAlertTimeout = setTimeout(closeIncomingAlert, 8000);
 }
 
 function closeIncomingAlert() {
     const alertBox = document.getElementById('incomingEmailAlert');
-    if (alertBox) alertBox.style.display = 'none';
+    if (alertBox) {
+        alertBox.classList.remove('show');
+        setTimeout(() => {
+            if (!alertBox.classList.contains('show')) {
+                alertBox.style.display = 'none';
+            }
+        }, 300);
+    }
     if (incomingAlertTimeout) clearTimeout(incomingAlertTimeout);
 }
 

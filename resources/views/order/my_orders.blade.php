@@ -143,11 +143,13 @@
 												@endif
 
 												@php
-													$orderCode = $order->order_id ?: (string) $order->id;
+													$clientConfig = \App\Models\EmailConfiguration::where('is_active', true)->where(function($q) { $q->where('name', 'Client')->orWhere('email_address', 'order@assignnmentinneed.com')->orWhere('is_default', true); })->first();
+													$clientAccountId = $clientConfig?->id ?? 2;
+													$orderCode = trim((string)($order->order_id ?: $order->id));
 													$orderRawWAPhone = preg_replace('/\D+/', '', (string)((optional($order->user)->countrycode ?? '') . (optional($order->user)->mobile_no ?? '')));
 													$orderRawEmail = optional($order->user)->email ?? '';
-													$orderSearchTerm = $orderCode ?: $orderRawEmail;
-													$orderEmailUrl = route('emails.index', array_filter(['account_id' => 2, 'search' => $orderSearchTerm]));
+													$orderSearchTerm = !empty($orderCode) ? $orderCode : $orderRawEmail;
+													$orderEmailUrl = route('emails.index', array_filter(['account_id' => $clientAccountId, 'search' => $orderSearchTerm]));
 													$orderWhatsAppUrl = !empty($orderRawWAPhone) ? route('whatsapp.chat', ['phone' => $orderRawWAPhone]) : route('whatsapp.chat');
 												@endphp
 

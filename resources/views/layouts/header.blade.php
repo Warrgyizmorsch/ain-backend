@@ -1,4 +1,4 @@
-﻿<!--begin::Header-->
+<!--begin::Header-->
 <div id="kt_header" class="header align-items-stretch">
 	<div class="container-fluid d-flex align-items-stretch justify-content-between">
 
@@ -192,6 +192,13 @@
 							}
 						</style>
 
+						@php
+							$headerClientAccount = \App\Models\EmailConfiguration::where('is_active', true)->where(function($q) { $q->where('name', 'Client')->orWhere('email_address', 'order@assignnmentinneed.com')->orWhere('is_default', true); })->first();
+							$headerWriterAccount = \App\Models\EmailConfiguration::where('is_active', true)->where(function($q) { $q->where('name', 'Writer')->orWhere('email_address', 'assignmentinneedhelp@gmail.com'); })->first();
+							$headerClientAccountId = $headerClientAccount?->id ?? 2;
+							$headerWriterAccountId = $headerWriterAccount?->id ?? 1;
+						@endphp
+
 						<!--begin::WhatsApp Header Button-->
 						<a href="{{ route('whatsapp.chat') }}" class="crm-header-nav-btn crm-nav-wa me-3" title="WhatsApp Chat">
 							<span class="crm-nav-icon">
@@ -202,6 +209,24 @@
 							<span class="crm-nav-text">WhatsApp</span>
 						</a>
 						<!--end::WhatsApp Header Button-->
+
+						<!--begin::Client Email Header Button-->
+						<a href="{{ route('emails.index', ['account_id' => $headerClientAccountId]) }}" class="crm-header-nav-btn crm-nav-client me-3" title="Client Email Channel">
+							<span class="crm-nav-icon">
+								<i class="fa fa-envelope fs-7"></i>
+							</span>
+							<span class="crm-nav-text">Client Email</span>
+						</a>
+						<!--end::Client Email Header Button-->
+
+						<!--begin::Writer Email Header Button-->
+						<a href="{{ route('emails.index', ['account_id' => $headerWriterAccountId]) }}" class="crm-header-nav-btn crm-nav-writer me-3" title="Writer Email Channel">
+							<span class="crm-nav-icon">
+								<i class="fa fa-envelope-open-text fs-7"></i>
+							</span>
+							<span class="crm-nav-text">Writer Email</span>
+						</a>
+						<!--end::Writer Email Header Button-->
 
 						@if(auth()->check() && auth()->user()->role_id == 1)
 							<div class="dropdown me-3">

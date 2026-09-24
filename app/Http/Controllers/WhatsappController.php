@@ -787,7 +787,7 @@ class WhatsappController extends Controller
             ];
         });
 
-        $customerPrimaryEmail = $userEmails[0] ?? ($matchingLeads->first()?->email ?? '');
+        $customerPrimaryEmail = !empty($userEmails[0]) ? trim((string)$userEmails[0]) : '';
         $firstOrder = $orders->first();
         $firstOrderCode = $firstOrder ? trim((string)($firstOrder->order_id ?: $firstOrder->id)) : '';
 
@@ -798,8 +798,8 @@ class WhatsappController extends Controller
             'has_more' => ($page * $limit) < $total,
             'page' => $page,
             'customer_email' => $customerPrimaryEmail,
-            'client_email_url' => !empty($customerPrimaryEmail) ? route('emails.index', ['account_id' => 2, 'search' => $customerPrimaryEmail]) : route('emails.index', ['account_id' => 2]),
-            'writer_email_url' => !empty($firstOrderCode) ? route('emails.index', ['account_id' => 1, 'search' => $firstOrderCode]) : (!empty($customerPrimaryEmail) ? route('emails.index', ['account_id' => 1, 'search' => $customerPrimaryEmail]) : route('emails.index', ['account_id' => 1])),
+            'client_email_url' => !empty($customerPrimaryEmail) ? route('emails.index', ['account_id' => 2, 'search' => $customerPrimaryEmail]) : null,
+            'writer_email_url' => !empty($firstOrderCode) ? route('emails.index', ['account_id' => 1, 'search' => $firstOrderCode]) : (!empty($customerPrimaryEmail) ? route('emails.index', ['account_id' => 1, 'search' => $customerPrimaryEmail]) : null),
             'all_orders_url' => route('orders.index') . '?search=' . urlencode($cleanPhone),
         ]);
     }
@@ -2138,17 +2138,29 @@ class WhatsappController extends Controller
             ->where('created_at', '>=', now()->subHours(24))
             ->exists();
 
-        $customerResolvedEmail = $existingUser?->email ?: ($existingLead?->email ?: ($userEmails[0] ?? null));
+        // Linked user email (strictly from users table associated with this customer)
+        $linkedUserEmail = null;
+        if ($existingUser && !empty(trim((string)$existingUser->email))) {
+            $linkedUserEmail = trim((string)$existingUser->email);
+        } elseif (!empty($userEmails)) {
+            $firstEmail = trim((string)$userEmails[0]);
+            if (!empty($firstEmail)) {
+                $linkedUserEmail = $firstEmail;
+            }
+        }
+
+        $customerResolvedEmail = $linkedUserEmail ?: ($existingLead?->email ?: null);
         $latestOrder = $ordersQuery ? (clone $ordersQuery)->latest('id')->first(['id', 'order_id']) : null;
         $latestOrderCode = $latestOrder ? trim((string)($latestOrder->order_id ?: $latestOrder->id)) : '';
 
-        $clientEmailUrl = !empty($latestOrderCode)
-            ? route('emails.index', ['account_id' => 2, 'search' => $latestOrderCode])
-            : (!empty($customerResolvedEmail) ? route('emails.index', ['account_id' => 2, 'search' => $customerResolvedEmail]) : route('emails.index', ['account_id' => 2]));
+        // Client Email header button is ONLY available if the customer is linked to a user with an email
+        $clientEmailUrl = !empty($linkedUserEmail)
+            ? route('emails.index', ['account_id' => 2, 'search' => $linkedUserEmail])
+            : null;
 
         $writerEmailUrl = !empty($latestOrderCode)
             ? route('emails.index', ['account_id' => 1, 'search' => $latestOrderCode])
-            : (!empty($customerResolvedEmail) ? route('emails.index', ['account_id' => 1, 'search' => $customerResolvedEmail]) : route('emails.index', ['account_id' => 1]));
+            : (!empty($linkedUserEmail) ? route('emails.index', ['account_id' => 1, 'search' => $linkedUserEmail]) : null);
 
         return [
             'name' => $resolvedName,

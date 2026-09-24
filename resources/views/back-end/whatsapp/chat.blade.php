@@ -327,6 +327,12 @@
                         <span id="waHeaderCheckOrdersText">Orders @if(($customerSummary['orders_count'] ?? 0) > 0)({{ $customerSummary['orders_count'] }})@endif</span>
                     </button>
 
+                    {{-- Client Email Button (Only shown when customer is linked to a user with email) --}}
+                    <a href="{{ $customerSummary['client_email_url'] ?? '#' }}" target="_blank" class="wab-header-action-btn wab-header-btn-client-email {{ empty($customerSummary['client_email_url']) ? 'd-none' : '' }}" id="waHeaderClientEmailBtn" title="{{ !empty($customerSummary['email']) ? 'Client Email: ' . $customerSummary['email'] : 'Client Email' }}">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+                        <span id="waHeaderClientEmailText">Client Email</span>
+                    </a>
+
 
                     {{-- Create Lead Button (Circle Plus Icon Only) --}}
                     <button type="button" class="wab-header-icon-btn wab-header-btn-create-lead" data-bs-toggle="modal" data-bs-target="#kt_modal_create_appaa_newLeads" id="waHeaderCreateLeadBtn" title="Create New Lead">
@@ -1232,7 +1238,7 @@
      CHECK LEADS MODAL (AJAX Preloader & On-Demand Load)
 ══════════════════════════════════════════════════ --}}
 <div class="modal fade" id="waCheckLeadsModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered mw-1000px modal-dialog-scrollable">
+    <div class="modal-dialog modal-dialog-centered modal-xl modal-dialog-scrollable" style="max-width: 95vw; width: 1400px; margin: 1.5rem auto;">
         <div class="modal-content wab-modal-content">
             <div class="modal-header wab-modal-header" style="background:linear-gradient(135deg,#1565c0,#0d47a1)">
                 <div class="wab-modal-icon" style="background:rgba(255,255,255,0.2)">
@@ -1252,7 +1258,7 @@
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
             </div>
-            <div class="modal-body p-0" id="waLeadsScrollBody" style="max-height:460px;overflow-y:auto">
+            <div class="modal-body p-0" id="waLeadsScrollBody" style="max-height: calc(85vh - 130px); min-height: 400px; overflow-y: auto;">
                 {{-- Spinner / Preloader --}}
                 <div id="waLeadsPreloader" class="text-center py-5">
                     <div class="spinner-border text-primary" role="status" style="width:2.5rem;height:2.5rem">
@@ -1310,7 +1316,7 @@
      CHECK ORDERS MODAL (AJAX Preloader & On-Demand Load)
 ══════════════════════════════════════════════════ --}}
 <div class="modal fade" id="waCheckOrdersModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered mw-1000px modal-dialog-scrollable">
+    <div class="modal-dialog modal-dialog-centered modal-xl modal-dialog-scrollable" style="max-width: 95vw; width: 1400px; margin: 1.5rem auto;">
         <div class="modal-content wab-modal-content">
             <div class="modal-header wab-modal-header" style="background:linear-gradient(135deg,#6a1b9a,#4a148c);padding:14px 20px;">
                 <div class="d-flex align-items-center gap-3">
@@ -1329,7 +1335,7 @@
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
             </div>
-            <div class="modal-body p-0" id="waOrdersScrollBody" style="max-height:460px;overflow-y:auto">
+            <div class="modal-body p-0" id="waOrdersScrollBody" style="max-height: calc(85vh - 130px); min-height: 400px; overflow-y: auto;">
                 {{-- Spinner / Preloader --}}
                 <div id="waOrdersPreloader" class="text-center py-5">
                     <div class="spinner-border" role="status" style="width:2.5rem;height:2.5rem;color:#6a1b9a">
@@ -1348,17 +1354,17 @@
 
                 {{-- Table Wrap --}}
                 <div id="waOrdersTableWrap" class="table-responsive d-none">
-                    <table class="table table-bordered table-hover align-middle mb-0 fs-8 wab-crm-border-table" id="waOrdersTable" style="border:1px solid #cbd5e1 !important">
+                    <table class="table table-bordered table-hover align-middle mb-0 fs-8 wab-crm-border-table w-100" id="waOrdersTable" style="border:1px solid #cbd5e1 !important; width: 100%;">
                         <thead class="bg-light fw-bolder text-uppercase text-gray-800 fs-9 position-sticky top-0" style="z-index:2;background:#f1f5f9 !important">
                             <tr>
-                                <th style="border:1px solid #cbd5e1 !important;width:40px;text-align:center">#</th>
-                                <th style="border:1px solid #cbd5e1 !important;min-width:140px;text-align:start">Order ID &amp; Labels</th>
-                                <th style="border:1px solid #cbd5e1 !important;min-width:160px;text-align:start">Title &amp; Service</th>
-                                <th style="border:1px solid #cbd5e1 !important;width:75px;text-align:center">Words</th>
-                                <th style="border:1px solid #cbd5e1 !important;min-width:140px;text-align:start">Total, Paid &amp; Due</th>
-                                <th style="border:1px solid #cbd5e1 !important;width:120px;text-align:center">Project Status</th>
-                                <th style="border:1px solid #cbd5e1 !important;min-width:190px;text-align:start">Dates</th>
-                                <th style="border:1px solid #cbd5e1 !important;min-width:185px;text-align:center">Actions</th>
+                                <th style="border:1px solid #cbd5e1 !important;width:38px;text-align:center">#</th>
+                                <th style="border:1px solid #cbd5e1 !important;width:130px;text-align:start">Order ID &amp; Labels</th>
+                                <th style="border:1px solid #cbd5e1 !important;min-width:180px;text-align:start">Title &amp; Service</th>
+                                <th style="border:1px solid #cbd5e1 !important;width:60px;text-align:center">Words</th>
+                                <th style="border:1px solid #cbd5e1 !important;width:135px;text-align:start">Total, Paid &amp; Due</th>
+                                <th style="border:1px solid #cbd5e1 !important;width:110px;text-align:center">Project Status</th>
+                                <th style="border:1px solid #cbd5e1 !important;width:190px;text-align:start">Dates</th>
+                                <th style="border:1px solid #cbd5e1 !important;width:190px;text-align:center">Actions</th>
                             </tr>
                         </thead>
                         <tbody id="waOrdersTbody"></tbody>
@@ -1384,7 +1390,7 @@
      ORDER PAYMENT MODAL (Clean Component Loader)
 ══════════════════════════════════════════════════ --}}
 <div class="modal fade" id="waOrderPaymentModal" tabindex="-1" aria-hidden="true" style="z-index: 1065;">
-    <div class="modal-dialog modal-dialog-centered mw-1000px modal-dialog-scrollable">
+    <div class="modal-dialog modal-dialog-centered modal-xl modal-dialog-scrollable" style="max-width: 95vw; width: 1150px; margin: 1.5rem auto;">
         <div class="modal-content wab-modal-content">
             <div class="modal-header wab-modal-header" style="background:linear-gradient(135deg,#059669,#10b981)">
                 <div class="wab-modal-icon" style="background:rgba(255,255,255,0.2)">
@@ -1401,7 +1407,7 @@
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
             </div>
-            <div class="modal-body p-0 position-relative" id="waPaymentModalBody" style="max-height: 520px; overflow-y: auto; background: #f8fafc;">
+            <div class="modal-body p-0 position-relative" id="waPaymentModalBody" style="max-height: calc(85vh - 130px); min-height: 480px; overflow-y: auto; background: #f8fafc;">
                 <div id="waPaymentModalLoader" class="text-center py-5">
                     <div class="spinner-border text-success" role="status" style="width:2.5rem;height:2.5rem">
                         <span class="visually-hidden">Loading...</span>
@@ -2353,7 +2359,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                 ${badgesHtml ? `<div class="d-flex flex-wrap gap-1 mt-1">${badgesHtml}</div>` : ''}
                             </td>
                             <td class="align-middle" style="border:1px solid #cbd5e1 !important">
-                                <div class="fw-bold text-dark text-truncate" style="max-width:200px" title="${ord.title}">
+                                <div class="fw-bold text-dark text-truncate" style="max-width:320px" title="${ord.title}">
                                     ${ord.title}
                                 </div>
                                 <div class="text-muted fs-9">${ord.service_type}</div>
@@ -5818,6 +5824,8 @@ document.addEventListener('DOMContentLoaded', function() {
         if (leadsBtn) leadsBtn.classList.add('d-none');
         const ordersBtn = document.getElementById('waHeaderCheckOrdersBtn');
         if (ordersBtn) ordersBtn.classList.add('d-none');
+        const clientEmailBtn = document.getElementById('waHeaderClientEmailBtn');
+        if (clientEmailBtn) clientEmailBtn.classList.add('d-none');
         const labelRow = document.querySelector('.wab-chat-label-row');
         if (labelRow) labelRow.remove();
 
@@ -5991,6 +5999,7 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('wabChatActionButtons')?.classList.add('d-none');
         document.getElementById('waHeaderCheckLeadsBtn')?.classList.add('d-none');
         document.getElementById('waHeaderCheckOrdersBtn')?.classList.add('d-none');
+        document.getElementById('waHeaderClientEmailBtn')?.classList.add('d-none');
 
         // 4. Show blank welcome placeholder
         document.querySelector('.wab-blank-chat')?.classList.remove('d-none');
@@ -6163,6 +6172,20 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (ordersText) ordersText.textContent = `Orders (${ordersCount})`;
             } else {
                 ordersBtn.classList.add('d-none');
+            }
+        }
+
+        // Update Client Email header button visibility and URL
+        const clientEmailBtn = document.getElementById('waHeaderClientEmailBtn');
+        if (clientEmailBtn) {
+            if (customer && customer.client_email_url) {
+                clientEmailBtn.href = customer.client_email_url;
+                clientEmailBtn.title = 'Client Email: ' + (customer.email || '');
+                clientEmailBtn.classList.remove('d-none');
+            } else {
+                clientEmailBtn.href = '#';
+                clientEmailBtn.title = 'Client Email';
+                clientEmailBtn.classList.add('d-none');
             }
         }
 

@@ -30,9 +30,9 @@ class EmailConfigurationSeeder extends Seeder
                 'incoming_encryption' => 'ssl',
                 'incoming_username' => 'assignmentinneedhelp@gmail.com',
                 'incoming_password' => 'wickkjpporzqnnuz',
-                'is_default' => true,
+                'is_default' => false,
                 'is_active' => true,
-                'sort_order' => 1,
+                'sort_order' => 2,
             ],
             [
                 'name' => 'Client',
@@ -50,9 +50,9 @@ class EmailConfigurationSeeder extends Seeder
                 'incoming_encryption' => 'ssl',
                 'incoming_username' => 'order@assignnmentinneed.com',
                 'incoming_password' => 'nnrjmhorihcfgwyw',
-                'is_default' => false,
+                'is_default' => true,
                 'is_active' => true,
-                'sort_order' => 2,
+                'sort_order' => 1,
             ],
         ];
 
@@ -62,8 +62,8 @@ class EmailConfigurationSeeder extends Seeder
             'order@assignnmentinneed.com'
         ])->delete();
 
-        // If setting assignmentinneedhelp@gmail.com as default, ensure others aren't marked default
-        EmailConfiguration::where('email_address', '!=', 'assignmentinneedhelp@gmail.com')
+        // Ensure order@assignnmentinneed.com is the default email account
+        EmailConfiguration::where('email_address', '!=', 'order@assignnmentinneed.com')
             ->update(['is_default' => false]);
 
         foreach ($accounts as $accountData) {

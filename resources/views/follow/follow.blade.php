@@ -215,11 +215,13 @@
                                                     $maskedEmail = $isSuperAdmin ? $rawEmail : ($rawEmail ? mask_email_for_display($rawEmail) : '');
                                                     $maskedMobile = $isSuperAdmin ? $rawMobile : ($rawMobile ? mask_mobile_only($cleanCC, $rawMobile) : '');
 
-                                                    $orderCode = $order->order_id ?: (string) $order->id;
+                                                    $clientConfig = \App\Models\EmailConfiguration::where('is_active', true)->where(function($q) { $q->where('name', 'Client')->orWhere('email_address', 'order@assignnmentinneed.com')->orWhere('is_default', true); })->first();
+                                                    $clientAccountId = $clientConfig?->id ?? 2;
+                                                    $orderCode = trim((string)($order->order_id ?: $order->id));
                                                     $orderRawWAPhone = preg_replace('/\D+/', '', (string)($cleanCC . $rawMobile));
                                                     $orderRawEmail = $rawEmail;
-                                                    $orderSearchTerm = $orderCode ?: $rawEmail;
-                                                    $orderEmailUrl = route('emails.index', array_filter(['account_id' => 2, 'search' => $orderSearchTerm]));
+                                                    $orderSearchTerm = !empty($orderCode) ? $orderCode : $rawEmail;
+                                                    $orderEmailUrl = route('emails.index', array_filter(['account_id' => $clientAccountId, 'search' => $orderSearchTerm]));
                                                     $orderWhatsAppUrl = !empty($orderRawWAPhone) ? route('whatsapp.chat', ['phone' => $orderRawWAPhone]) : route('whatsapp.chat');
                                                 @endphp
 

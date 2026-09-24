@@ -89,7 +89,9 @@ class EmailController extends Controller
             $selectedAccount = $configurations->firstWhere('id', (int) $sessAccountId) ?: EmailConfiguration::find($sessAccountId);
         }
         if (!$selectedAccount && $configurations->isNotEmpty()) {
-            $selectedAccount = $configurations->first();
+            $selectedAccount = $configurations->firstWhere('is_default', true)
+                ?: $configurations->firstWhere('name', 'Client')
+                ?: $configurations->first();
             $accountId = $selectedAccount?->id;
         }
 
@@ -119,6 +121,19 @@ class EmailController extends Controller
                     ->pluck('email')
                     ->filter()
                     ->all();
+            }
+
+            // Also resolve customer email if search query is an order code (e.g. UKS60312 or numeric ID)
+            $orderCustomerEmails = \App\Models\Order::query()
+                ->where('order_id', $cleanSearch)
+                ->orWhere('id', is_numeric($cleanSearch) ? (int)$cleanSearch : 0)
+                ->with('user:id,email')
+                ->get()
+                ->pluck('user.email')
+                ->filter()
+                ->all();
+            if (!empty($orderCustomerEmails)) {
+                $matchingContactEmails = array_values(array_unique(array_merge($matchingContactEmails, $orderCustomerEmails)));
             }
 
             $query->where(function ($deepQuery) use ($terms, $matchingContactEmails) {
