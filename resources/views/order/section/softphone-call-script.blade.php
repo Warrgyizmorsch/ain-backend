@@ -2,6 +2,9 @@
 @php
     $n2cPlugin = \App\Models\PluginSetting::where('plugin_key', 'next2call')->first();
     $n2cIsActive = (bool) ($n2cPlugin?->is_active ?? true);
+    if (!auth()->check() || !$n2cIsActive) {
+        return;
+    }
     $n2cSettings = $n2cPlugin?->settings ?? [];
 
     $userId = !empty($n2cSettings['user_id']) ? $n2cSettings['user_id'] : config('services.softphone.user_id', '10101');
@@ -37,57 +40,14 @@
 @endphp
 
 <style>
-    /* Next2Call Floating Launcher Button */
+    /* Next2Call Floating Launcher Button (Hidden per user request: only opens during incoming or outgoing calls) */
     .ringfy-softphone-launcher {
-        position: fixed;
-        right: 24px;
-        bottom: 24px;
-        width: 58px;
-        height: 58px;
-        border: 0;
-        border-radius: 50%;
-        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-        color: #ffffff;
-        box-shadow: 0 10px 30px rgba(16, 185, 129, 0.45);
-        z-index: 9998;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 22px;
-        cursor: pointer;
-        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-    .ringfy-softphone-launcher:hover {
-        transform: scale(1.08) translateY(-2px);
-        box-shadow: 0 14px 36px rgba(16, 185, 129, 0.55);
-        color: #ffffff;
-    }
-    .ringfy-softphone-launcher:active {
-        transform: scale(0.96);
-    }
-    .ringfy-softphone-launcher .launcher-badge {
-        position: absolute;
-        top: -3px;
-        right: -3px;
-        background: #1e293b;
-        color: #10b981;
-        font-size: 10px;
-        font-weight: 700;
-        border-radius: 10px;
-        padding: 2px 6px;
-        border: 2px solid #ffffff;
-        letter-spacing: 0.5px;
-    }
-
-    /* Hide launcher when widget is open */
-    .ringfy-softphone-widget.is-open ~ .ringfy-softphone-launcher {
-        opacity: 0.4;
-        transform: scale(0.85);
+        display: none !important;
     }
 
     /* Next2Call Main Popup Widget */
     .ringfy-softphone-widget {
-        display: none;
+        display: flex;
         position: fixed;
         bottom: 24px;
         right: 24px;
@@ -101,15 +61,17 @@
         z-index: 9999;
         flex-direction: column;
         overflow: hidden;
-        transition: height 0.25s ease, width 0.25s ease;
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+        transform: translateY(20px) scale(0.96);
+        transition: opacity 0.25s ease, transform 0.25s ease, visibility 0.25s ease, height 0.25s ease, width 0.25s ease;
     }
     .ringfy-softphone-widget.is-open {
-        display: flex;
-        animation: ringfySlideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-    }
-    @keyframes ringfySlideUp {
-        from { opacity: 0; transform: translateY(20px) scale(0.96); }
-        to   { opacity: 1; transform: translateY(0) scale(1); }
+        opacity: 1;
+        visibility: visible;
+        pointer-events: auto;
+        transform: translateY(0) scale(1);
     }
 
     /* Minimized state */
@@ -313,8 +275,8 @@
     }
 </style>
 
-<!-- Floating Launcher Button -->
-<button type="button" id="ringfySoftphoneLauncher" class="ringfy-softphone-launcher" title="Open Next2Call Softphone" aria-label="Open Softphone">
+<!-- Floating Launcher Button (Hidden per user request: only opens during incoming or outgoing calls) -->
+<button type="button" id="ringfySoftphoneLauncher" class="ringfy-softphone-launcher" style="display: none !important;" title="Open Next2Call Softphone" aria-label="Open Softphone">
     <i class="fa fa-phone"></i>
     <span class="launcher-badge">{{ $userId }}</span>
 </button>
@@ -389,7 +351,7 @@
 </div>
 
 <script>
-    document.addEventListener('DOMContentLoaded', function () {
+    function initRingfySoftphoneWidget() {
         const widget = document.getElementById('ringfySoftphoneWidget');
         const handle = document.getElementById('ringfySoftphoneHandle');
         const launcher = document.getElementById('ringfySoftphoneLauncher');
@@ -408,6 +370,11 @@
 
         const DIALER_URL = widget?.dataset?.dialerUrl || '';
         const CTC_BASE = widget?.dataset?.ctcBase || '';
+
+        // Pre-load softphone in background so WebRTC SIP registration stays alive for incoming calls
+        if (frame && DIALER_URL && (!frame.src || frame.src === 'about:blank' || frame.src === window.location.href)) {
+            frame.src = DIALER_URL;
+        }
 
         // Restore saved position
         const savedPos = localStorage.getItem('ringfy_softphone_pos');
@@ -552,17 +519,38 @@
 
             console.log('[Next2Call postMessage]:', event.data);
 
+            const dataStr = typeof event.data === 'string' ? event.data.toUpperCase() : JSON.stringify(event.data || {}).toUpperCase();
+
+            const isIncoming = dataStr.includes('INCOMING') ||
+                               dataStr.includes('RINGING') ||
+                               dataStr.includes('INVITE') ||
+                               dataStr.includes('CALL_START') ||
+                               dataStr.includes('CALL_RECEIVED') ||
+                               event.data?.type === 'INCOMING_CALL' ||
+                               event.data?.event === 'incoming';
+
             const isHangup = event.data === 'CALL_HANGUP' ||
                              event.data?.type === 'CALL_HANGUP' ||
                              event.data?.type === 'CLOSE_PHONE_POPUP' ||
                              event.data?.type === 'hangup' ||
                              event.data?.event === 'hangup' ||
                              event.data?.type === 'CALL_DISCONNECTED' ||
-                             event.data === 'CALL_DISCONNECTED';
+                             event.data === 'CALL_DISCONNECTED' ||
+                             dataStr.includes('HANGUP') ||
+                             dataStr.includes('DISCONNECTED');
 
-            if (isHangup) {
+            if (isIncoming) {
+                // Incoming call received -> immediately open softphone popup on screen
+                widget.classList.add('is-open');
+                widget.classList.remove('is-minimized');
+                activeBanner?.classList.add('is-active');
+                activeText.textContent = 'Incoming Call...';
+            } else if (isHangup) {
                 activeBanner?.classList.remove('is-active');
                 activeText.textContent = 'Call Disconnected';
+                setTimeout(function () {
+                    closeSoftphoneWidget();
+                }, 2000);
             }
         });
 
@@ -570,8 +558,9 @@
             widget.classList.remove('is-open');
             widget.classList.remove('is-minimized');
             activeBanner?.classList.remove('is-active');
-            if (frame) {
-                frame.removeAttribute('src');
+            loader?.classList.remove('is-loading');
+            if (frame && DIALER_URL && frame.src !== DIALER_URL) {
+                frame.src = DIALER_URL;
             }
         }
 
@@ -682,6 +671,12 @@
                 dialNext2CallNumber(cleanMobile);
             }
         };
-    });
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initRingfySoftphoneWidget);
+    } else {
+        initRingfySoftphoneWidget();
+    }
 </script>
 @endonce

@@ -54,8 +54,26 @@ class PluginController extends Controller
             ]
         );
 
+        $next2callPlugin = PluginSetting::firstOrCreate(
+            ['plugin_key' => 'next2call'],
+            [
+                'name' => 'Next2Call Softphone',
+                'category' => 'communication',
+                'description' => 'Direct in-browser WebRTC softphone calling & click-to-dial powered by Next2Call Ringfy PBX.',
+                'is_active' => true,
+                'settings' => [
+                    'user_id' => config('services.softphone.user_id', '10101'),
+                    'password' => config('services.softphone.password', 'T2d8d1r5P6x0T8O8iUq'),
+                    'sip_domain' => config('services.softphone.sip_domain', 'ringfy.next2call.com'),
+                    'api_base_url' => 'https://ringfy.next2call.com',
+                    'click_to_dial_path' => '/softphone/Phone/click-to-dial.html',
+                ],
+            ]
+        );
+
         return view('back-end.plugins.index', [
             'twilioPlugin' => $twilioPlugin,
+            'next2callPlugin' => $next2callPlugin,
             'currentUserPhone' => $currentUserPhone,
             'emailAccountsCount' => $emailAccountsCount,
             'activeEmailAccounts' => $activeEmailAccounts,
@@ -182,7 +200,7 @@ class PluginController extends Controller
             'is_active' => ['nullable'],
         ]);
 
-        $isActive = $request->boolean('is_active', true);
+        $isActive = $request->has('is_active') ? $request->boolean('is_active') : false;
 
         $plugin = PluginSetting::firstOrNew(['plugin_key' => 'next2call']);
         $plugin->name = 'Next2Call Softphone';
@@ -229,6 +247,18 @@ class PluginController extends Controller
         $password = $settings['password'] ?? config('services.softphone.password', 'T2d8d1r5P6x0T8O8iUq');
         $sipDomain = $settings['sip_domain'] ?? config('services.softphone.sip_domain', 'ringfy.next2call.com');
         $path = $settings['click_to_dial_path'] ?? '/softphone/Phone/click-to-dial.html';
+
+        if (Auth::check()) {
+            $authUser = Auth::user();
+            if (!empty($authUser->sip)) {
+                $userId = $authUser->sip;
+            } elseif (!empty($authUser->call_id)) {
+                $userId = $authUser->call_id;
+            }
+            if (!empty($authUser->sip_password)) {
+                $password = $authUser->sip_password;
+            }
+        }
 
         $number = preg_replace('/[^0-9]/', '', $validated['test_phone_number']);
         if (str_starts_with($number, '91') && strlen($number) === 12) {

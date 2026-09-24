@@ -13,7 +13,10 @@
     $agentNumber = $twilioSettings['default_agent_number'] ?? ($currentUserPhone ?? '');
     $callMode = $twilioSettings['call_mode'] ?? 'webrtc';
 
-
+    $n2cSettings = optional($next2callPlugin)->settings ?? [];
+    $isN2cActive = (bool) (optional($next2callPlugin)->is_active ?? true);
+    $n2cUserId = $n2cSettings['user_id'] ?? '10101';
+    $n2cSipDomain = $n2cSettings['sip_domain'] ?? 'ringfy.next2call.com';
 @endphp
 
 <div class="container-fluid py-5">
@@ -147,6 +150,59 @@
                         <a href="{{ route('emails.settings') }}" class="btn btn-sm btn-light-success flex-fill">
                             <i class="fa fa-cog me-1"></i> Settings &amp; Test
                         </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Next2Call Softphone Plugin Card -->
+        <div class="col-md-6 col-xl-4">
+            <div class="card h-100 border shadow-sm plugin-card {{ $isN2cActive ? 'border-success' : '' }}">
+                <div class="card-body d-flex flex-column justify-content-between p-6">
+                    <div>
+                        <div class="d-flex align-items-center justify-content-between mb-4">
+                            <div class="symbol symbol-50px symbol-circle bg-light-success p-3">
+                                <i class="fa fa-headphones text-success fs-2"></i>
+                            </div>
+                            <div class="form-check form-switch form-check-custom form-check-solid">
+                                <input class="form-check-input h-20px w-35px cursor-pointer" type="checkbox" id="next2callPluginToggle" {{ $isN2cActive ? 'checked' : '' }} onchange="togglePluginStatus('next2call', this.checked)">
+                            </div>
+                        </div>
+
+                        <div class="d-flex align-items-center gap-2 mb-2">
+                            <h3 class="fw-bolder text-dark mb-0">Next2Call Softphone</h3>
+                            <span id="next2callStatusBadge" class="badge {{ $isN2cActive ? 'badge-light-success' : 'badge-light-danger' }} fs-8">
+                                {{ $isN2cActive ? 'Active' : 'Inactive' }}
+                            </span>
+                        </div>
+
+                        <p class="text-muted fs-7 mb-4">
+                            In-browser WebRTC softphone calling &amp; click-to-dial powered by Next2Call Ringfy PBX. Full keypad dialer popup, quick call &amp; extension support.
+                        </p>
+
+                        <div class="bg-light rounded p-3 mb-4 fs-8 text-muted">
+                            <div class="d-flex justify-content-between mb-1">
+                                <span>SIP Extension:</span>
+                                <strong class="text-dark">{{ $n2cUserId ?: '10101' }}</strong>
+                            </div>
+                            <div class="d-flex justify-content-between mb-1">
+                                <span>SIP Server:</span>
+                                <strong class="text-dark">{{ $n2cSipDomain }}</strong>
+                            </div>
+                            <div class="d-flex justify-content-between">
+                                <span>Dialer Mode:</span>
+                                <span class="badge badge-light-success text-uppercase">Ringfy WebRTC</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-flex flex-wrap gap-2 pt-2 border-top">
+                        <a href="{{ route('plugins.next2call.page') }}" class="btn btn-sm btn-light-success flex-fill">
+                            <i class="fa fa-cog me-1"></i> Settings &amp; Test
+                        </a>
+                        <button type="button" class="btn btn-sm btn-light-primary flex-fill" onclick="window.openRingfyDialer && window.openRingfyDialer()">
+                            <i class="fa fa-phone me-1"></i> Open Softphone
+                        </button>
                     </div>
                 </div>
             </div>
@@ -480,11 +536,14 @@ function togglePluginStatus(pluginKey, isActive) {
             is_active: isActive ? 1 : 0
         },
         success: function(res) {
-            const badge = $('#twilioStatusBadge');
-            if (isActive) {
-                badge.removeClass('badge-light-danger').addClass('badge-light-success').text('Active');
-            } else {
-                badge.removeClass('badge-light-success').addClass('badge-light-danger').text('Inactive');
+            const badgeId = pluginKey === 'twilio_call' ? '#twilioStatusBadge' : '#' + pluginKey + 'StatusBadge';
+            const badge = $(badgeId);
+            if (badge.length) {
+                if (isActive) {
+                    badge.removeClass('badge-light-danger').addClass('badge-light-success').text('Active');
+                } else {
+                    badge.removeClass('badge-light-success').addClass('badge-light-danger').text('Inactive');
+                }
             }
             Swal.fire({
                 icon: 'success',
@@ -494,7 +553,8 @@ function togglePluginStatus(pluginKey, isActive) {
             });
         },
         error: function(xhr) {
-            $('#twilioPluginToggle').prop('checked', !isActive);
+            const toggleId = pluginKey === 'twilio_call' ? '#twilioPluginToggle' : '#' + pluginKey + 'PluginToggle';
+            $(toggleId).prop('checked', !isActive);
             Swal.fire('Error', xhr.responseJSON?.message || 'Failed to update status', 'error');
         }
     });

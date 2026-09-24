@@ -122,6 +122,7 @@
                             </div>
                             <div class="col-12 d-flex align-items-center gap-3">
                                 <div class="form-check form-switch form-check-custom form-check-solid">
+                                    <input type="hidden" name="is_active" value="0">
                                     <input class="form-check-input h-20px w-35px" type="checkbox" name="is_active"
                                            id="n2cActiveCheck" value="1" {{ $isActive ? 'checked' : '' }}>
                                     <label class="form-check-label fw-semibold ms-2" for="n2cActiveCheck">Plugin Active</label>
