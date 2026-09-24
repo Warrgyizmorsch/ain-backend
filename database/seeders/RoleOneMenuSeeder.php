@@ -311,32 +311,70 @@ class RoleOneMenuSeeder extends Seeder
         // 4.1 PLUGIN SETTINGS (Twilio Voice & Next2Call Softphone)
         // =============================================================
         if (Schema::hasTable('plugin_settings')) {
-            DB::table('plugin_settings')->updateOrInsert(
-                ['plugin_key' => 'twilio_call'],
-                [
+            $existingTwilio = DB::table('plugin_settings')->where('plugin_key', 'twilio_call')->first();
+            if (!$existingTwilio) {
+                DB::table('plugin_settings')->insert([
+                    'plugin_key' => 'twilio_call',
                     'name' => 'Twilio Voice Call',
                     'category' => 'communication',
-                    'description' => 'Bridge calls between agents and customers directly from the Orders page using Twilio Voice API & WebRTC Dialer.',
-                    'is_active' => false,
+                    'description' => 'Bridge voice calls between agents and customers directly from the Orders page using Twilio Voice API & WebRTC Dialer.',
+                    'is_active' => true,
                     'settings' => json_encode([
-                        'account_sid' => '',
-                        'auth_token' => '',
-                        'twilio_number' => '',
-                        'api_key_sid' => '',
-                        'api_secret' => '',
-                        'twiml_app_sid' => '',
-                        'default_agent_number' => '',
+                        'account_sid' => env('TWILIO_ACCOUNT_SID', env('TWILIO_SID', 'ACce3d9633593afbeda1054ac03f555ab3')),
+                        'auth_token' => env('TWILIO_AUTH_TOKEN', env('TWILIO_TOKEN', '')),
+                        'twilio_number' => env('TWILIO_NUMBER', env('TWILIO_PHONE_NUMBER', env('TWILIO_FROM', '+15054963739'))),
+                        'api_key_sid' => env('TWILIO_API_KEY_SID', env('TWILIO_API_KEY', 'SK68c36d375a7551364289a1b85a83e38b')),
+                        'api_secret' => env('TWILIO_API_SECRET', env('TWILIO_SECRET', 'rNXWstz1t72NSD4n60eT1uz2mZZLzfWe')),
+                        'twiml_app_sid' => env('TWILIO_TWIML_APP_SID', env('TWILIO_APP_SID', 'APde9388f580c06d9c737fbc995a3601a7')),
+                        'default_agent_number' => env('TWILIO_AGENT_NUMBER', ''),
                         'call_mode' => 'webrtc',
                         'record_calls' => false,
                     ]),
                     'updated_at' => now(),
                     'created_at' => now(),
-                ]
-            );
+                ]);
+            } else {
+                // DO NOT overwrite! Only populate empty fields with .env / working defaults if missing
+                $twSettings = json_decode($existingTwilio->settings ?? '[]', true) ?: [];
+                $needsTwUpdate = false;
 
-            DB::table('plugin_settings')->updateOrInsert(
-                ['plugin_key' => 'next2call'],
-                [
+                if (empty($twSettings['account_sid'])) {
+                    $twSettings['account_sid'] = env('TWILIO_ACCOUNT_SID', env('TWILIO_SID', 'ACce3d9633593afbeda1054ac03f555ab3'));
+                    $needsTwUpdate = true;
+                }
+                if (empty($twSettings['auth_token']) && (env('TWILIO_AUTH_TOKEN') || env('TWILIO_TOKEN'))) {
+                    $twSettings['auth_token'] = env('TWILIO_AUTH_TOKEN', env('TWILIO_TOKEN'));
+                    $needsTwUpdate = true;
+                }
+                if (empty($twSettings['twilio_number'])) {
+                    $twSettings['twilio_number'] = env('TWILIO_NUMBER', env('TWILIO_PHONE_NUMBER', env('TWILIO_FROM', '+15054963739')));
+                    $needsTwUpdate = true;
+                }
+                if (empty($twSettings['api_key_sid'])) {
+                    $twSettings['api_key_sid'] = env('TWILIO_API_KEY_SID', env('TWILIO_API_KEY', 'SK68c36d375a7551364289a1b85a83e38b'));
+                    $needsTwUpdate = true;
+                }
+                if (empty($twSettings['api_secret'])) {
+                    $twSettings['api_secret'] = env('TWILIO_API_SECRET', env('TWILIO_SECRET', 'rNXWstz1t72NSD4n60eT1uz2mZZLzfWe'));
+                    $needsTwUpdate = true;
+                }
+                if (empty($twSettings['twiml_app_sid'])) {
+                    $twSettings['twiml_app_sid'] = env('TWILIO_TWIML_APP_SID', env('TWILIO_APP_SID', 'APde9388f580c06d9c737fbc995a3601a7'));
+                    $needsTwUpdate = true;
+                }
+
+                if ($needsTwUpdate) {
+                    DB::table('plugin_settings')->where('plugin_key', 'twilio_call')->update([
+                        'settings' => json_encode($twSettings),
+                        'updated_at' => now(),
+                    ]);
+                }
+            }
+
+            $existingN2c = DB::table('plugin_settings')->where('plugin_key', 'next2call')->first();
+            if (!$existingN2c) {
+                DB::table('plugin_settings')->insert([
+                    'plugin_key' => 'next2call',
                     'name' => 'Next2Call Softphone',
                     'category' => 'communication',
                     'description' => 'Direct in-browser WebRTC softphone calling & click-to-dial powered by Next2Call Ringfy PBX.',
@@ -350,8 +388,8 @@ class RoleOneMenuSeeder extends Seeder
                     ]),
                     'updated_at' => now(),
                     'created_at' => now(),
-                ]
-            );
+                ]);
+            }
         }
 
         // Keep the existing Break Time Report page available from the

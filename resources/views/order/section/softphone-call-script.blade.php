@@ -513,9 +513,72 @@
             loader?.classList.remove('is-loading');
         });
 
+        // Realistic Dual-Tone Multi-Frequency (DTMF / Ringback) Audio Tone Generator
+        let ringAudioCtx = null;
+        let ringInterval = null;
+
+        function playRingTone() {
+            stopRingTone();
+            try {
+                const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
+                if (!AudioCtxClass) return;
+                ringAudioCtx = new AudioCtxClass();
+
+                function ringBurst() {
+                    if (!ringAudioCtx || ringAudioCtx.state === 'closed') return;
+                    if (ringAudioCtx.state === 'suspended') {
+                        ringAudioCtx.resume();
+                    }
+                    const now = ringAudioCtx.currentTime;
+                    const osc1 = ringAudioCtx.createOscillator();
+                    const osc2 = ringAudioCtx.createOscillator();
+                    const gain = ringAudioCtx.createGain();
+
+                    osc1.type = 'sine';
+                    osc1.frequency.setValueAtTime(440, now);
+                    osc2.type = 'sine';
+                    osc2.frequency.setValueAtTime(480, now);
+
+                    gain.gain.setValueAtTime(0, now);
+                    gain.gain.linearRampToValueAtTime(0.12, now + 0.05);
+                    gain.gain.setValueAtTime(0.12, now + 1.6);
+                    gain.gain.linearRampToValueAtTime(0, now + 1.8);
+
+                    osc1.connect(gain);
+                    osc2.connect(gain);
+                    gain.connect(ringAudioCtx.destination);
+
+                    osc1.start(now);
+                    osc2.start(now);
+                    osc1.stop(now + 1.8);
+                    osc2.stop(now + 1.8);
+                }
+
+                ringBurst();
+                ringInterval = setInterval(ringBurst, 3500);
+
+                setTimeout(function () {
+                    stopRingTone();
+                }, 30000);
+            } catch (err) {
+                console.warn('[Softphone] Ring audio notice:', err);
+            }
+        }
+
+        function stopRingTone() {
+            if (ringInterval) {
+                clearInterval(ringInterval);
+                ringInterval = null;
+            }
+            if (ringAudioCtx) {
+                try { ringAudioCtx.close(); } catch (e) {}
+                ringAudioCtx = null;
+            }
+        }
+
         // Listen for postMessage from Next2Call Ringfy PBX
         window.addEventListener('message', function (event) {
-            if (event.origin !== 'https://ringfy.next2call.com') return;
+            if (event.origin !== 'https://ringfy.next2call.com' && event.origin !== window.location.origin) return;
 
             console.log('[Next2Call postMessage]:', event.data);
 
@@ -544,8 +607,11 @@
                 widget.classList.add('is-open');
                 widget.classList.remove('is-minimized');
                 activeBanner?.classList.add('is-active');
-                activeText.textContent = 'Incoming Call...';
+                const caller = event.data?.caller || event.data?.from || '';
+                activeText.textContent = caller ? 'Incoming Call: ' + caller : 'Incoming Call...';
+                playRingTone();
             } else if (isHangup) {
+                stopRingTone();
                 activeBanner?.classList.remove('is-active');
                 activeText.textContent = 'Call Disconnected';
                 setTimeout(function () {
@@ -555,6 +621,7 @@
         });
 
         function closeSoftphoneWidget() {
+            stopRingTone();
             widget.classList.remove('is-open');
             widget.classList.remove('is-minimized');
             activeBanner?.classList.remove('is-active');
@@ -579,13 +646,25 @@
 
         // Expose globally
         window.openRingfyDialer = function (number = '') {
+            stopRingTone();
             if (number && quickInput) {
                 quickInput.value = number;
             }
             openDialerInWidget();
         };
 
+        window.simulateNext2CallInbound = function (callerNumber = '08800826129') {
+            widget.classList.add('is-open');
+            widget.classList.remove('is-minimized');
+            activeBanner?.classList.add('is-active');
+            activeText.textContent = 'Incoming Call: ' + callerNumber;
+            if (quickInput) quickInput.value = callerNumber;
+            playRingTone();
+            openDialerInWidget();
+        };
+
         window.closeRingfySoftphone = function () {
+            stopRingTone();
             closeSoftphoneWidget();
         };
 

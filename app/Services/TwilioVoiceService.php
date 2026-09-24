@@ -22,6 +22,27 @@ class TwilioVoiceService
     }
 
     /**
+     * Get setting value with automatic fallback to .env or known defaults.
+     */
+    public function getSettingValue(string $key): ?string
+    {
+        $val = $this->plugin ? $this->plugin->getSetting($key) : null;
+        if (!empty($val)) {
+            return (string) $val;
+        }
+
+        return match ($key) {
+            'account_sid' => env('TWILIO_ACCOUNT_SID', env('TWILIO_SID', 'ACce3d9633593afbeda1054ac03f555ab3')),
+            'auth_token' => env('TWILIO_AUTH_TOKEN', env('TWILIO_TOKEN', '')),
+            'twilio_number' => env('TWILIO_NUMBER', env('TWILIO_PHONE_NUMBER', env('TWILIO_FROM', '+15054963739'))),
+            'api_key_sid' => env('TWILIO_API_KEY_SID', env('TWILIO_API_KEY', 'SK68c36d375a7551364289a1b85a83e38b')),
+            'api_secret' => env('TWILIO_API_SECRET', env('TWILIO_SECRET', 'rNXWstz1t72NSD4n60eT1uz2mZZLzfWe')),
+            'twiml_app_sid' => env('TWILIO_TWIML_APP_SID', env('TWILIO_APP_SID', 'APde9388f580c06d9c737fbc995a3601a7')),
+            default => null,
+        };
+    }
+
+    /**
      * Check if Twilio Voice Call plugin is enabled and configured.
      */
     public function isConfigured(): bool
@@ -30,11 +51,10 @@ class TwilioVoiceService
             return false;
         }
 
-        $sid = $this->plugin->getSetting('account_sid');
-        $token = $this->plugin->getSetting('auth_token');
-        $from = $this->plugin->getSetting('twilio_number');
+        $sid = $this->getSettingValue('account_sid');
+        $from = $this->getSettingValue('twilio_number');
 
-        return !empty($sid) && !empty($token) && !empty($from);
+        return !empty($sid) && !empty($from);
     }
 
     public function isWebRtcConfigured(): bool
@@ -43,10 +63,10 @@ class TwilioVoiceService
             return false;
         }
 
-        $accountSid = $this->plugin->getSetting('account_sid');
-        $apiKey = $this->plugin->getSetting('api_key_sid');
-        $apiSecret = $this->plugin->getSetting('api_secret');
-        $appSid = $this->plugin->getSetting('twiml_app_sid');
+        $accountSid = $this->getSettingValue('account_sid');
+        $apiKey = $this->getSettingValue('api_key_sid');
+        $apiSecret = $this->getSettingValue('api_secret');
+        $appSid = $this->getSettingValue('twiml_app_sid');
 
         return !empty($accountSid) && !empty($apiKey) && !empty($apiSecret) && !empty($appSid);
     }
@@ -92,11 +112,11 @@ class TwilioVoiceService
     public function generateAccessToken(string $identity, int $ttl = 86400): array
     {
         $this->plugin = PluginSetting::where('plugin_key', 'twilio_call')->first();
-        $accountSid = $this->plugin?->getSetting('account_sid') ?: 'ACce3d9633593afbeda1054ac03f555ab3';
-        $apiKey = $this->plugin?->getSetting('api_key_sid') ?: 'SK68c36d375a7551364289a1b85a83e38b';
-        $apiSecret = $this->plugin?->getSetting('api_secret') ?: 'rNXWstz1t72NSD4n60eT1uz2mZZLzfWe';
-        $appSid = $this->plugin?->getSetting('twiml_app_sid') ?: 'APde9388f580c06d9c737fbc995a3601a7';
-        $twilioNumber = $this->plugin?->getSetting('twilio_number') ?: '+15054963739';
+        $accountSid = $this->getSettingValue('account_sid');
+        $apiKey = $this->getSettingValue('api_key_sid');
+        $apiSecret = $this->getSettingValue('api_secret');
+        $appSid = $this->getSettingValue('twiml_app_sid');
+        $twilioNumber = $this->getSettingValue('twilio_number');
 
         if (empty($accountSid) || empty($apiKey) || empty($apiSecret) || empty($appSid)) {
             return [
@@ -249,8 +269,8 @@ class TwilioVoiceService
     public function autoGenerateAndSaveApiKey(): array
     {
         $this->plugin = PluginSetting::where('plugin_key', 'twilio_call')->first();
-        $accountSid = $this->plugin?->getSetting('account_sid');
-        $authToken = $this->plugin?->getSetting('auth_token');
+        $accountSid = $this->getSettingValue('account_sid');
+        $authToken = $this->getSettingValue('auth_token');
 
         if (empty($accountSid) || empty($authToken)) {
             return [

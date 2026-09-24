@@ -45,14 +45,52 @@ class PluginController extends Controller
                 'name' => 'Twilio Voice Call',
                 'category' => 'communication',
                 'description' => 'Bridge voice calls between agents and customers directly from the Orders page using Twilio Voice API & WebRTC Dialer.',
-                'is_active' => false,
+                'is_active' => true,
                 'settings' => [
-                    'account_sid' => '', 'auth_token' => '', 'twilio_number' => '',
-                    'api_key_sid' => '', 'api_secret' => '', 'twiml_app_sid' => '',
-                    'default_agent_number' => '', 'call_mode' => 'webrtc', 'record_calls' => false,
+                    'account_sid' => env('TWILIO_ACCOUNT_SID', env('TWILIO_SID', 'ACce3d9633593afbeda1054ac03f555ab3')),
+                    'auth_token' => env('TWILIO_AUTH_TOKEN', env('TWILIO_TOKEN', '')),
+                    'twilio_number' => env('TWILIO_NUMBER', env('TWILIO_PHONE_NUMBER', env('TWILIO_FROM', '+15054963739'))),
+                    'api_key_sid' => env('TWILIO_API_KEY_SID', env('TWILIO_API_KEY', 'SK68c36d375a7551364289a1b85a83e38b')),
+                    'api_secret' => env('TWILIO_API_SECRET', env('TWILIO_SECRET', 'rNXWstz1t72NSD4n60eT1uz2mZZLzfWe')),
+                    'twiml_app_sid' => env('TWILIO_TWIML_APP_SID', env('TWILIO_APP_SID', 'APde9388f580c06d9c737fbc995a3601a7')),
+                    'default_agent_number' => env('TWILIO_AGENT_NUMBER', ''),
+                    'call_mode' => 'webrtc',
+                    'record_calls' => false,
                 ],
             ]
         );
+
+        // If existing settings have empty keys, fallback to .env or working defaults
+        $twCurrent = $twilioPlugin->settings ?? [];
+        $twChanged = false;
+        if (empty($twCurrent['account_sid'])) {
+            $twCurrent['account_sid'] = env('TWILIO_ACCOUNT_SID', env('TWILIO_SID', 'ACce3d9633593afbeda1054ac03f555ab3'));
+            $twChanged = true;
+        }
+        if (empty($twCurrent['auth_token']) && (env('TWILIO_AUTH_TOKEN') || env('TWILIO_TOKEN'))) {
+            $twCurrent['auth_token'] = env('TWILIO_AUTH_TOKEN', env('TWILIO_TOKEN'));
+            $twChanged = true;
+        }
+        if (empty($twCurrent['twilio_number'])) {
+            $twCurrent['twilio_number'] = env('TWILIO_NUMBER', env('TWILIO_PHONE_NUMBER', env('TWILIO_FROM', '+15054963739')));
+            $twChanged = true;
+        }
+        if (empty($twCurrent['api_key_sid'])) {
+            $twCurrent['api_key_sid'] = env('TWILIO_API_KEY_SID', env('TWILIO_API_KEY', 'SK68c36d375a7551364289a1b85a83e38b'));
+            $twChanged = true;
+        }
+        if (empty($twCurrent['api_secret'])) {
+            $twCurrent['api_secret'] = env('TWILIO_API_SECRET', env('TWILIO_SECRET', 'rNXWstz1t72NSD4n60eT1uz2mZZLzfWe'));
+            $twChanged = true;
+        }
+        if (empty($twCurrent['twiml_app_sid'])) {
+            $twCurrent['twiml_app_sid'] = env('TWILIO_TWIML_APP_SID', env('TWILIO_APP_SID', 'APde9388f580c06d9c737fbc995a3601a7'));
+            $twChanged = true;
+        }
+        if ($twChanged) {
+            $twilioPlugin->settings = $twCurrent;
+            $twilioPlugin->save();
+        }
 
         $next2callPlugin = PluginSetting::firstOrCreate(
             ['plugin_key' => 'next2call'],

@@ -38,6 +38,9 @@
             </div>
         </div>
         <div class="d-flex gap-2 align-items-center">
+            <button type="button" class="btn btn-light-info" data-bs-toggle="modal" data-bs-target="#next2callTestCallModal">
+                <i class="fa fa-phone-volume me-2"></i>Test Call Modal
+            </button>
             <button type="button" class="btn btn-success" onclick="window.openRingfyDialer()">
                 <i class="fa fa-phone me-2"></i>Open Softphone on Screen
             </button>
@@ -209,12 +212,21 @@
                     <p class="text-muted fs-7 mb-3">
                         Enter any customer or test number below. The Next2Call softphone popup will open directly on your screen and place the call.
                     </p>
-                    <div class="input-group mb-3">
+                    <div class="input-group mb-2">
                         <span class="input-group-text"><i class="fa fa-phone"></i></span>
                         <input type="text" id="testPhoneInput" class="form-control form-control-solid"
-                               placeholder="e.g. 9876543210 or 08800826129" value="{{ $currentUserPhone }}">
+                               placeholder="e.g. 9876543210 or 08800826129" value="{{ $currentUserPhone ?: '08800826129' }}">
                         <button type="button" class="btn btn-success" onclick="triggerTestCall()">
                             <i class="fa fa-phone me-1"></i>Call Now
+                        </button>
+                    </div>
+
+                    <div class="d-flex gap-2 mb-3">
+                        <button type="button" class="btn btn-sm btn-light-warning flex-fill" onclick="window.simulateNext2CallInbound && window.simulateNext2CallInbound(document.getElementById('testPhoneInput').value.trim() || '08800826129')">
+                            <i class="fa fa-bell me-1"></i>Ring Inbound (Incoming)
+                        </button>
+                        <button type="button" class="btn btn-sm btn-light-info flex-fill" data-bs-toggle="modal" data-bs-target="#next2callTestCallModal">
+                            <i class="fa fa-phone-volume me-1"></i>Open Test Modal
                         </button>
                     </div>
 
@@ -285,6 +297,89 @@
         </div>
 
     </div>{{-- /row --}}
+</div>
+
+<!-- Modal: Next2Call Test Call (Incoming & Outgoing Testing) -->
+<div class="modal fade" id="next2callTestCallModal" tabindex="-1" aria-labelledby="next2callTestCallModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bolder" id="next2callTestCallModalLabel">
+                    <i class="fa fa-headphones text-success me-2"></i> Test Next2Call Softphone Calling
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="next2callTestCallForm">
+                @csrf
+                <div class="modal-body p-6">
+                    <p class="text-muted fs-7 mb-4">
+                        Test both <strong>Incoming</strong> (simulated inbound ringing popup with caller ID) and <strong>Outgoing</strong> (in-browser WebRTC softphone click-to-dial) using Next2Call Ringfy PBX.
+                    </p>
+
+                    <div class="mb-4">
+                        <label class="form-label fw-bold required">Test Phone / Caller Number</label>
+                        <input type="text" id="n2c_test_phone_number" name="test_phone_number" class="form-control font-monospace" placeholder="e.g. 08800826129" value="{{ $currentUserPhone ?: '08800826129' }}" required>
+                        <div class="text-muted fs-8 mt-1">
+                            Used as simulated caller number for <strong>Incoming Call</strong>, and destination number for <strong>Outgoing Call</strong>.
+                        </div>
+                    </div>
+
+                    <!-- Quick Preset Badges -->
+                    <div class="mb-4">
+                        <label class="form-label fw-bold fs-8 text-muted mb-2">QUICK TEST PRESETS:</label>
+                        <div class="d-flex flex-wrap gap-2">
+                            <button type="button" class="btn btn-xs btn-light-success py-1 px-2 fs-8" onclick="setN2cTestNumber('08800826129')">
+                                <i class="fa fa-phone me-1"></i> Domestic (08800826129)
+                            </button>
+                            <button type="button" class="btn btn-xs btn-light-primary py-1 px-2 fs-8" onclick="setN2cTestNumber('+918800826129')">
+                                <i class="fa fa-mobile-alt me-1"></i> Mobile (+918800826129)
+                            </button>
+                            <button type="button" class="btn btn-xs btn-light-warning py-1 px-2 fs-8" onclick="setN2cTestNumber('447403511446')">
+                                <i class="fa fa-globe me-1"></i> USA/UK (447403511446)
+                            </button>
+                            <button type="button" class="btn btn-xs btn-light-dark py-1 px-2 fs-8" onclick="setN2cTestNumber('{{ $userId ?: '10101' }}')">
+                                <i class="fa fa-user-circle me-1"></i> Ext ({{ $userId ?: '10101' }})
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Active Configuration Info -->
+                    <div class="bg-light rounded p-3 fs-8 text-muted mb-3">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span>SIP Extension:</span>
+                            <strong class="text-dark">{{ $userId ?: '10101' }}</strong>
+                        </div>
+                        <div class="d-flex justify-content-between mb-1">
+                            <span>SIP Domain:</span>
+                            <strong class="text-dark">{{ $sipDomain }}</strong>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <span>Status:</span>
+                            <span class="badge {{ $isActive ? 'badge-light-success' : 'badge-light-danger' }} fs-8">
+                                {{ $isActive ? 'Active' : 'Inactive' }}
+                            </span>
+                        </div>
+                    </div>
+
+                    <div id="n2cTestStatusContainer" class="d-none mt-3"></div>
+                </div>
+                <div class="modal-footer d-flex flex-wrap justify-content-between gap-2">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Close</button>
+                    <div class="d-flex flex-wrap gap-2">
+                        <button type="button" class="btn btn-warning" id="n2cTestInboundBtn" onclick="testNext2CallInbound()">
+                            <i class="fa fa-bell me-1"></i> Ring Inbound (Incoming Test)
+                        </button>
+                        <button type="button" class="btn btn-info" id="n2cTestOutboundBtn" onclick="testNext2CallOutbound()">
+                            <i class="fa fa-laptop me-1"></i> Outbound Call (Softphone)
+                        </button>
+                        <button type="submit" id="n2cStartTestApiBtn" class="btn btn-success">
+                            <i class="fa fa-link me-1"></i> <span id="n2cTestBtnText">Test PBX URL</span>
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
 </div>
 
 @push('scripts')
@@ -371,6 +466,127 @@ function toggleInlineSoftphone() {
         icon.className = 'fa fa-eye me-1';
     }
 }
+
+// Next2Call Modal Test Helpers
+function setN2cTestNumber(val) {
+    const input = document.getElementById('n2c_test_phone_number');
+    if (input) input.value = val;
+}
+
+function testNext2CallInbound() {
+    const testNum = (document.getElementById('n2c_test_phone_number')?.value || '').trim() || '08800826129';
+    $('#next2callTestCallModal').modal('hide');
+
+    if (typeof window.simulateNext2CallInbound === 'function') {
+        window.simulateNext2CallInbound(testNum);
+    } else {
+        window.postMessage({
+            type: 'INCOMING_CALL',
+            caller: testNum,
+            event: 'incoming'
+        }, window.location.origin);
+    }
+
+    Swal && Swal.fire({
+        icon: 'success',
+        title: 'Incoming Call Dispatched!',
+        html: `Next2Call Softphone is ringing on your screen from <strong>${testNum}</strong>.<br><small class="text-muted">Check the softphone widget popup at the bottom-right of your screen.</small>`,
+        timer: 4500,
+        showConfirmButton: true
+    });
+}
+
+function testNext2CallOutbound() {
+    const testNum = (document.getElementById('n2c_test_phone_number')?.value || '').trim();
+    if (!testNum) {
+        Swal && Swal.fire('Error', 'Please enter a test phone number.', 'warning');
+        return;
+    }
+    $('#next2callTestCallModal').modal('hide');
+
+    if (typeof window.dialNext2CallNumber === 'function') {
+        window.dialNext2CallNumber(testNum);
+    } else if (typeof window.openRingfyDialer === 'function') {
+        window.openRingfyDialer(testNum);
+    }
+
+    Swal && Swal.fire({
+        icon: 'info',
+        title: 'Dialing via Softphone...',
+        text: `Opening Next2Call softphone dialer for ${testNum}.`,
+        timer: 2500,
+        showConfirmButton: false
+    });
+}
+
+$('#next2callTestCallForm').on('submit', function(e) {
+    e.preventDefault();
+    const btn = $('#n2cStartTestApiBtn');
+    const statusBox = $('#n2cTestStatusContainer');
+    const testNumber = $('#n2c_test_phone_number').val().trim();
+
+    if (!testNumber) {
+        Swal && Swal.fire('Error', 'Please enter a test phone number.', 'warning');
+        return;
+    }
+
+    btn.prop('disabled', true);
+    $('#n2cTestBtnText').text('Generating PBX URL...');
+    statusBox.removeClass('d-none').html(`
+        <div class="alert alert-light-info d-flex align-items-center">
+            <i class="fa fa-spinner fa-spin fs-4 text-info me-3"></i>
+            <div>Validating Next2Call PBX click-to-dial URL for <strong>${testNumber}</strong>...</div>
+        </div>
+    `);
+
+    $.ajax({
+        url: "{{ route('plugins.next2call.test') }}",
+        type: "POST",
+        headers: { 'X-CSRF-TOKEN': "{{ csrf_token() }}" },
+        contentType: 'application/json',
+        data: JSON.stringify({
+            test_phone_number: testNumber
+        }),
+        success: function(res) {
+            btn.prop('disabled', false);
+            $('#n2cTestBtnText').text('Test PBX URL');
+            if (res.success) {
+                statusBox.html(`
+                    <div class="alert alert-success d-flex flex-column gap-2">
+                        <div class="d-flex align-items-center">
+                            <i class="fa fa-check-circle fs-3 text-success me-3"></i>
+                            <div>
+                                <strong>PBX Click-to-Dial Generated Successfully!</strong><br>
+                                <span class="badge badge-success">Target: ${res.target_number || testNumber}</span> | Extension: <code>${res.user_id || '10101'}</code>
+                            </div>
+                        </div>
+                        <div class="text-break fs-9 bg-white p-2 rounded border font-monospace text-muted mt-1">
+                            ${res.dial_url}
+                        </div>
+                    </div>
+                `);
+            } else {
+                statusBox.html(`
+                    <div class="alert alert-danger d-flex align-items-center">
+                        <i class="fa fa-exclamation-triangle fs-3 text-danger me-3"></i>
+                        <div><strong>Error:</strong> ${res.message || 'Failed to generate test URL.'}</div>
+                    </div>
+                `);
+            }
+        },
+        error: function(xhr) {
+            btn.prop('disabled', false);
+            $('#n2cTestBtnText').text('Test PBX URL');
+            let errMsg = xhr.responseJSON?.message || 'Failed to generate Next2Call test URL.';
+            statusBox.html(`
+                <div class="alert alert-danger d-flex align-items-center">
+                    <i class="fa fa-exclamation-triangle fs-3 text-danger me-3"></i>
+                    <div><strong>Test Failed:</strong> ${errMsg}</div>
+                </div>
+            `);
+        }
+    });
+});
 </script>
 @endpush
 
