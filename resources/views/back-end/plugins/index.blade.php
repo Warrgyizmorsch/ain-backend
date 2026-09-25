@@ -30,14 +30,6 @@
                 Manage your calling integrations — Twilio Voice Calling &amp; Next2Call Softphone.
             </div>
         </div>
-        <div class="d-flex gap-2">
-            <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#twilioSettingsModal">
-                <i class="fa fa-phone me-1"></i> Configure Twilio
-            </button>
-            <a href="{{ route('plugins.next2call.page') }}" class="btn btn-sm btn-success">
-                <i class="fa fa-headphones me-1"></i> Configure Next2Call
-            </a>
-        </div>
     </div>
 
     @if(session('success'))
@@ -47,50 +39,60 @@
         </div>
     @endif
 
-    <!-- Call Plugins Grid (Only Twilio & Next2Call) -->
+    <!-- Call Plugins Grid (Twilio & Next2Call) -->
     <div class="row g-6">
         <!-- 1. Twilio Voice Call Plugin Card -->
         <div class="col-lg-6">
-            <div class="card h-100 border shadow-sm plugin-card {{ $isTwilioActive ? 'border-success' : '' }}">
-                <div class="card-body d-flex flex-column justify-content-between p-6">
+            <div class="card h-100 border shadow-sm plugin-card {{ $isTwilioActive ? 'border-primary' : 'border-secondary' }}" style="overflow: hidden; border-radius: 12px;">
+                <!-- Card Header Flush with Top -->
+                <div class="card-header border-bottom py-4 px-6 d-flex align-items-center justify-content-between {{ $isTwilioActive ? 'bg-light-primary' : 'bg-light' }}">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="symbol symbol-45px symbol-circle {{ $isTwilioActive ? 'bg-primary' : 'bg-secondary' }} d-flex align-items-center justify-content-center shadow-sm">
+                            <i class="fa fa-phone text-white fs-3"></i>
+                        </div>
+                        <div>
+                            <div class="d-flex align-items-center gap-2">
+                                <h3 class="fw-bolder text-dark mb-0 fs-5">Twilio Voice Call</h3>
+                                <span id="twilioStatusBadge" class="badge {{ $isTwilioActive ? 'badge-light-success text-success' : 'badge-light-danger text-danger' }} fs-8 fw-bold">
+                                    <i class="fa fa-circle me-1 fs-9 {{ $isTwilioActive ? 'text-success' : 'text-danger' }}"></i>{{ $isTwilioActive ? 'Active' : 'Inactive' }}
+                                </span>
+                            </div>
+                            <div class="text-muted fs-8 mt-1">Direct WebRTC browser calling &amp; click-to-dial</div>
+                        </div>
+                    </div>
+                    <div class="card-toolbar d-flex align-items-center gap-2">
+                        <div class="form-check form-switch form-check-custom form-check-solid">
+                            <input class="form-check-input h-25px w-45px cursor-pointer" type="checkbox" id="twilioPluginToggle" {{ $isTwilioActive ? 'checked' : '' }} onchange="togglePluginStatus('twilio_call', this.checked)" title="Enable / Disable Twilio">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Card Body -->
+                <div class="card-body p-6 d-flex flex-column justify-content-between">
                     <div>
-                        <div class="d-flex align-items-center justify-content-between mb-4">
-                            <div class="symbol symbol-50px symbol-circle bg-light-primary p-3">
-                                <i class="fa fa-phone text-primary fs-2"></i>
-                            </div>
-                            <div class="form-check form-switch form-check-custom form-check-solid">
-                                <input class="form-check-input h-20px w-35px cursor-pointer" type="checkbox" id="twilioPluginToggle" {{ $isTwilioActive ? 'checked' : '' }} onchange="togglePluginStatus('twilio_call', this.checked)">
-                            </div>
-                        </div>
-
-                        <div class="d-flex align-items-center gap-2 mb-2">
-                            <h3 class="fw-bolder text-dark mb-0">Twilio Voice Call</h3>
-                            <span id="twilioStatusBadge" class="badge {{ $isTwilioActive ? 'badge-light-success' : 'badge-light-danger' }} fs-8">
-                                {{ $isTwilioActive ? 'Active' : 'Inactive' }}
-                            </span>
-                        </div>
-
                         <p class="text-muted fs-7 mb-4">
                             Direct WebRTC browser calling &amp; click-to-call directly from Orders page. Includes Live Softphone dialer with Hold, Mute &amp; Inbound ringing.
                         </p>
 
-                        <div class="bg-light rounded p-3 mb-4 fs-8 text-muted">
-                            <div class="d-flex justify-content-between mb-1">
-                                <span>Twilio Number:</span>
-                                <strong class="text-dark">{{ $twilioNumber ?: 'Not configured' }}</strong>
+                        <!-- Live Configuration Details -->
+                        <div class="bg-light rounded p-4 mb-4 border fs-7">
+                            <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
+                                <span class="text-muted fw-semibold"><i class="fa fa-phone me-2 text-primary"></i>Twilio Number:</span>
+                                <strong class="text-dark font-monospace fs-7">{{ $twilioNumber ?: 'Not configured' }}</strong>
                             </div>
-                            <div class="d-flex justify-content-between mb-1">
-                                <span>Call Mode:</span>
-                                <span class="badge {{ $callMode === 'webrtc' ? 'badge-light-success' : 'badge-light-info' }} text-uppercase">{{ $callMode }}</span>
+                            <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
+                                <span class="text-muted fw-semibold"><i class="fa fa-sliders-h me-2 text-primary"></i>Call Mode:</span>
+                                <span class="badge {{ $callMode === 'webrtc' ? 'badge-light-success text-success' : 'badge-light-primary text-primary' }} text-uppercase fw-bolder">{{ $callMode }}</span>
                             </div>
-                            <div class="d-flex justify-content-between">
-                                <span>TwiML App SID:</span>
-                                <strong class="text-dark">{{ $twimlAppSid ? substr($twimlAppSid, 0, 10) . '...' : 'Not configured' }}</strong>
+                            <div class="d-flex justify-content-between align-items-center py-2">
+                                <span class="text-muted fw-semibold"><i class="fa fa-layer-group me-2 text-primary"></i>TwiML App SID:</span>
+                                <strong class="text-dark font-monospace fs-8">{{ $twimlAppSid ? substr($twimlAppSid, 0, 16) . '...' : 'Not configured' }}</strong>
                             </div>
                         </div>
                     </div>
 
-                    <div class="d-flex flex-wrap gap-2 pt-2 border-top">
+                    <!-- Action Buttons Toolbar -->
+                    <div class="d-flex flex-wrap gap-2 pt-3 border-top">
                         <button type="button" class="btn btn-sm btn-light-primary flex-fill" data-bs-toggle="modal" data-bs-target="#twilioSettingsModal">
                             <i class="fa fa-cog me-1"></i> Settings
                         </button>
@@ -110,54 +112,64 @@
 
         <!-- 2. Next2Call Softphone Plugin Card -->
         <div class="col-lg-6">
-            <div class="card h-100 border shadow-sm plugin-card {{ $isN2cActive ? 'border-success' : '' }}">
-                <div class="card-body d-flex flex-column justify-content-between p-6">
+            <div class="card h-100 border shadow-sm plugin-card {{ $isN2cActive ? 'border-success' : 'border-secondary' }}" style="overflow: hidden; border-radius: 12px;">
+                <!-- Card Header Flush with Top -->
+                <div class="card-header border-bottom py-4 px-6 d-flex align-items-center justify-content-between {{ $isN2cActive ? 'bg-light-success' : 'bg-light' }}">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="symbol symbol-45px symbol-circle {{ $isN2cActive ? 'bg-success' : 'bg-secondary' }} d-flex align-items-center justify-content-center shadow-sm">
+                            <i class="fa fa-headphones text-white fs-3"></i>
+                        </div>
+                        <div>
+                            <div class="d-flex align-items-center gap-2">
+                                <h3 class="fw-bolder text-dark mb-0 fs-5">Next2Call Softphone</h3>
+                                <span id="next2callStatusBadge" class="badge {{ $isN2cActive ? 'badge-light-success text-success' : 'badge-light-danger text-danger' }} fs-8 fw-bold">
+                                    <i class="fa fa-circle me-1 fs-9 {{ $isN2cActive ? 'text-success' : 'text-danger' }}"></i>{{ $isN2cActive ? 'Active' : 'Inactive' }}
+                                </span>
+                            </div>
+                            <div class="text-muted fs-8 mt-1">In-browser WebRTC softphone &amp; click-to-dial powered by Ringfy</div>
+                        </div>
+                    </div>
+                    <div class="card-toolbar d-flex align-items-center gap-2">
+                        <div class="form-check form-switch form-check-custom form-check-solid">
+                            <input class="form-check-input h-25px w-45px cursor-pointer" type="checkbox" id="next2callPluginToggle" {{ $isN2cActive ? 'checked' : '' }} onchange="togglePluginStatus('next2call', this.checked)" title="Enable / Disable Next2Call">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Card Body -->
+                <div class="card-body p-6 d-flex flex-column justify-content-between">
                     <div>
-                        <div class="d-flex align-items-center justify-content-between mb-4">
-                            <div class="symbol symbol-50px symbol-circle bg-light-success p-3">
-                                <i class="fa fa-headphones text-success fs-2"></i>
-                            </div>
-                            <div class="form-check form-switch form-check-custom form-check-solid">
-                                <input class="form-check-input h-20px w-35px cursor-pointer" type="checkbox" id="next2callPluginToggle" {{ $isN2cActive ? 'checked' : '' }} onchange="togglePluginStatus('next2call', this.checked)">
-                            </div>
-                        </div>
-
-                        <div class="d-flex align-items-center gap-2 mb-2">
-                            <h3 class="fw-bolder text-dark mb-0">Next2Call Softphone</h3>
-                            <span id="next2callStatusBadge" class="badge {{ $isN2cActive ? 'badge-light-success' : 'badge-light-danger' }} fs-8">
-                                {{ $isN2cActive ? 'Active' : 'Inactive' }}
-                            </span>
-                        </div>
-
                         <p class="text-muted fs-7 mb-4">
                             In-browser WebRTC softphone calling &amp; click-to-dial powered by Next2Call Ringfy PBX. Full keypad dialer popup, quick call &amp; extension support.
                         </p>
 
-                        <div class="bg-light rounded p-3 mb-4 fs-8 text-muted">
-                            <div class="d-flex justify-content-between mb-1">
-                                <span>SIP Extension:</span>
-                                <strong class="text-dark">{{ $n2cUserId ?: '10101' }}</strong>
+                        <!-- Live Configuration Details -->
+                        <div class="bg-light rounded p-4 mb-4 border fs-7">
+                            <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
+                                <span class="text-muted fw-semibold"><i class="fa fa-user-circle me-2 text-success"></i>SIP Extension:</span>
+                                <strong class="text-dark font-monospace fs-7">{{ $n2cUserId ?: '10101' }}</strong>
                             </div>
-                            <div class="d-flex justify-content-between mb-1">
-                                <span>SIP Server:</span>
-                                <strong class="text-dark">{{ $n2cSipDomain }}</strong>
+                            <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
+                                <span class="text-muted fw-semibold"><i class="fa fa-server me-2 text-success"></i>SIP Server:</span>
+                                <strong class="text-dark font-monospace fs-7">{{ $n2cSipDomain }}</strong>
                             </div>
-                            <div class="d-flex justify-content-between">
-                                <span>Dialer Mode:</span>
-                                <span class="badge badge-light-success text-uppercase">Ringfy WebRTC</span>
+                            <div class="d-flex justify-content-between align-items-center py-2">
+                                <span class="text-muted fw-semibold"><i class="fa fa-headset me-2 text-success"></i>Dialer Mode:</span>
+                                <span class="badge badge-light-success text-success text-uppercase fw-bolder">Ringfy WebRTC</span>
                             </div>
                         </div>
                     </div>
 
-                    <div class="d-flex flex-wrap gap-2 pt-2 border-top">
+                    <!-- Action Buttons Toolbar -->
+                    <div class="d-flex flex-wrap gap-2 pt-3 border-top">
                         <a href="{{ route('plugins.next2call.page') }}" class="btn btn-sm btn-light-success flex-fill">
                             <i class="fa fa-cog me-1"></i> Settings
                         </a>
-                        <button type="button" class="btn btn-sm btn-light-info flex-fill" data-bs-toggle="modal" data-bs-target="#next2callTestCallModal">
-                            <i class="fa fa-phone-volume me-1"></i> Test Call
-                        </button>
                         <button type="button" class="btn btn-sm btn-light-primary flex-fill" onclick="window.openRingfyDialer && window.openRingfyDialer()">
                             <i class="fa fa-phone me-1"></i> Open Softphone
+                        </button>
+                        <button type="button" class="btn btn-sm btn-light-info flex-fill" data-bs-toggle="modal" data-bs-target="#next2callTestCallModal">
+                            <i class="fa fa-phone-volume me-1"></i> Test Call
                         </button>
                     </div>
                 </div>
@@ -519,9 +531,9 @@ function togglePluginStatus(pluginKey, isActive) {
             const badge = $(badgeId);
             if (badge.length) {
                 if (isActive) {
-                    badge.removeClass('badge-light-danger').addClass('badge-light-success').text('Active');
+                    badge.removeClass('badge-light-danger text-danger').addClass('badge-light-success text-success').html('<i class="fa fa-circle me-1 fs-9 text-success"></i>Active');
                 } else {
-                    badge.removeClass('badge-light-success').addClass('badge-light-danger').text('Inactive');
+                    badge.removeClass('badge-light-success text-success').addClass('badge-light-danger text-danger').html('<i class="fa fa-circle me-1 fs-9 text-danger"></i>Inactive');
                 }
             }
             Swal.fire({

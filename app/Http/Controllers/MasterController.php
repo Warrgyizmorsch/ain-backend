@@ -195,10 +195,13 @@ class MasterController extends Controller
         $fromDate = $request->input('dateFrom');
         $toDate = $request->input('dateTo');
         $Uid = $request->input('uid');
+        if (auth()->check() && (int) auth()->user()->role_id !== 1) {
+            $Uid = null;
+        }
         $company_accounts = $request->input('company_accounts');
         $p_name = $request->input('p_name');
 
-        $query = Payment::with('order.user')
+        $query = Payment::with(['order.user', 'order.lead'])
         //     ->orderByRaw("
         //     CASE
         //         WHEN account_status = 1 AND (payee_name IS NULL OR payee_name = '') THEN 0
@@ -1076,20 +1079,12 @@ class MasterController extends Controller
         // Auto-shift existing labels with sequence >= targetSeq up by +1
         \App\Models\WhatsappChatLabel::where('sequence', '>=', $targetSeq)->increment('sequence', 1);
 
-        $isWhatsapp = $request->has('is_whatsapp') ? 1 : 0;
-        $isCrm = $request->has('is_crm') ? 1 : 0;
-        $isClientEmail = $request->has('is_client_email') ? 1 : 0;
-        $isWriterEmail = $request->has('is_writer_email') ? 1 : 0;
-        $isEmail = ($isClientEmail || $isWriterEmail) ? 1 : 0;
-
         \App\Models\WhatsappChatLabel::create([
             'name' => trim($request->input('name')),
             'color' => $request->input('color'),
-            'is_whatsapp' => $isWhatsapp,
-            'is_client_email' => $isClientEmail,
-            'is_writer_email' => $isWriterEmail,
-            'is_email' => $isEmail,
-            'is_crm' => $isCrm,
+            'is_whatsapp' => $request->has('is_whatsapp') ? 1 : 0,
+            'is_email' => $request->has('is_email') ? 1 : 0,
+            'is_crm' => $request->has('is_crm') ? 1 : 0,
             'sequence' => $targetSeq,
             'created_by' => auth()->id(),
         ]);
@@ -1125,63 +1120,12 @@ class MasterController extends Controller
                 ->increment('sequence', 1);
         }
 
-        $isWhatsapp = $request->has('is_whatsapp') ? 1 : 0;
-        $isCrm = $request->has('is_crm') ? 1 : 0;
-        $isClientEmail = $request->has('is_client_email') ? 1 : 0;
-        $isWriterEmail = $request->has('is_writer_email') ? 1 : 0;
-        $isEmail = ($isClientEmail || $isWriterEmail) ? 1 : 0;
-
-        // If unchecking any channel flag, immediately purge assignments on that channel
-        if (!$isWhatsapp) {
-            \App\Models\WhatsappChatContactLabel::where('label_id', $label->id)->delete();
-        }
-        if (!$isCrm) {
-            \App\Models\CrmUserLabel::where('label_id', $label->id)->delete();
-        }
-        if (!$isEmail) {
-            \App\Models\EmailThreadLabel::where('label_id', $label->id)->delete();
-        } else {
-            // Selective email account assignment purge
-            if (!$isClientEmail) {
-                $clientConfig = \App\Models\EmailConfiguration::where('name', 'like', '%client%')->orWhere('id', 2)->first();
-                if ($clientConfig) {
-                    $clientThreadIds = \App\Models\EmailMessage::where('email_configuration_id', $clientConfig->id)
-                        ->whereNotNull('thread_id')
-                        ->pluck('thread_id')
-                        ->unique()
-                        ->all();
-                    if (!empty($clientThreadIds)) {
-                        \App\Models\EmailThreadLabel::where('label_id', $label->id)
-                            ->whereIn('thread_id', $clientThreadIds)
-                            ->delete();
-                    }
-                }
-            }
-            if (!$isWriterEmail) {
-                $writerConfig = \App\Models\EmailConfiguration::where('name', 'like', '%writer%')->orWhere('id', 1)->first();
-                if ($writerConfig) {
-                    $writerThreadIds = \App\Models\EmailMessage::where('email_configuration_id', $writerConfig->id)
-                        ->whereNotNull('thread_id')
-                        ->pluck('thread_id')
-                        ->unique()
-                        ->all();
-                    if (!empty($writerThreadIds)) {
-                        \App\Models\EmailThreadLabel::where('label_id', $label->id)
-                            ->whereIn('thread_id', $writerThreadIds)
-                            ->delete();
-                    }
-                }
-            }
-        }
-
         $label->update([
             'name' => trim($request->input('name')),
             'color' => $request->input('color'),
-            'is_whatsapp' => $isWhatsapp,
-            'is_client_email' => $isClientEmail,
-            'is_writer_email' => $isWriterEmail,
-            'is_email' => $isEmail,
-            'is_crm' => $isCrm,
+            'is_whatsapp' => $request->has('is_whatsapp') ? 1 : 0,
+            'is_email' => $request->has('is_email') ? 1 : 0,
+            'is_crm' => $request->has('is_crm') ? 1 : 0,
             'sequence' => $targetSeq,
         ]);
 
@@ -1197,10 +1141,9 @@ class MasterController extends Controller
     {
         $label = \App\Models\WhatsappChatLabel::findOrFail($id);
         
-        // Clean assignments across all channels
+        // Clean assignments
         \App\Models\WhatsappChatContactLabel::where('label_id', $label->id)->delete();
         \App\Models\EmailThreadLabel::where('label_id', $label->id)->delete();
-        \App\Models\CrmUserLabel::where('label_id', $label->id)->delete();
         
         $label->delete();
 

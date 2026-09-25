@@ -225,6 +225,37 @@ class RoleOneMenuSeeder extends Seeder
         DB::table('submenus')->where('menus_id', $callHistoryMenuId)->delete();
 
         // =============================================================
+        // 3.2 NEXT FOLLOWUP MAIN MENU
+        // =============================================================
+        $nextFollowupMenu = DB::table('menu')->where('routes', 'next-followups')->whereNull('parent_id')->first();
+        if (!$nextFollowupMenu) {
+            $nextFollowupMenuId = DB::table('menu')->insertGetId([
+                'menu_name' => 'Next Followup',
+                'icon_class' => 'fa fa-calendar-check-o',
+                'show_menu' => 'Y',
+                'routes' => 'next-followups',
+                'sort_order' => 6,
+                'parent_id' => null,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        } else {
+            $nextFollowupMenuId = $nextFollowupMenu->id;
+            DB::table('menu')->where('id', $nextFollowupMenuId)->update([
+                'menu_name' => 'Next Followup',
+                'icon_class' => 'fa fa-calendar-check-o',
+                'show_menu' => 'Y',
+                'parent_id' => null,
+                'routes' => 'next-followups',
+                'sort_order' => 6,
+                'updated_at' => now(),
+            ]);
+        }
+
+        DB::table('menu')->where('parent_id', $nextFollowupMenuId)->delete();
+        DB::table('submenus')->where('menus_id', $nextFollowupMenuId)->delete();
+
+        // =============================================================
         // 4. SEED INITIAL EMAIL CONFIGS (Assignment Help & Write Email)
         // =============================================================
         // Remove old / legacy accounts (including 'App' / anshulsuthar)
@@ -452,7 +483,7 @@ class RoleOneMenuSeeder extends Seeder
         // Dashboard, WhatsApp, Emails, and Call History. Keep every other menu after them.
         DB::table('menu')
             ->whereNull('parent_id')
-            ->whereNotIn('id', [1, 24, $emailMenuId, $callHistoryMenuId])
+            ->whereNotIn('id', [1, 24, $emailMenuId, $callHistoryMenuId, $nextFollowupMenuId])
             ->where('sort_order', '<', 5)
             ->update([
                 'sort_order' => 5,

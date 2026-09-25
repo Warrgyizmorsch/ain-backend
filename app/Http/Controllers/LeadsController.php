@@ -25,6 +25,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
 use App\Jobs\ExportLeadsJob;
 use App\Models\Source;
+use App\Models\LeadFollowup;
 
 class LeadsController extends Controller
 {
@@ -2877,4 +2878,345 @@ public function duplicateLeads(Request $request)
     );
 }
 
+    // =====================================
+    // LEAD FOLLOWUPS (Side Drawer & Next Followups)
+    // =====================================
+    public function getFollowups($id)
+    {
+        $lead = Leads::with(['user'])->find($id);
+        if (!$lead) {
+            return response()->json(['status' => false, 'message' => 'Lead not found.'], 404);
+        }
+
+        $followups = LeadFollowup::with(['user:id,name', 'doneByUser:id,name'])
+            ->where('lead_id', $id)
+            ->where('lead_type', 'lead')
+            ->orderBy('created_at', 'desc')
+            ->get()
+            ->map(function ($f) {
+                $today = Carbon::today()->toDateString();
+                $fDate = Carbon::parse($f->followup_date)->toDateString();
+                $isDone = ($f->status === 'done');
+                $isToday = (!$isDone && $fDate === $today);
+                $isOverdue = (!$isDone && $fDate < $today);
+                $isUpcoming = (!$isDone && $fDate > $today);
+
+                return [
+                    'id' => $f->id,
+                    'message' => $f->message,
+                    'followup_date' => $f->followup_date,
+                    'followup_date_formatted' => Carbon::parse($f->followup_date)->format('d M, Y'),
+                    'created_at_formatted' => Carbon::parse($f->created_at)->format('d M, Y h:i A'),
+                    'user_name' => $f->user->name ?? 'Staff',
+                    'status' => $f->status,
+                    'is_done' => $isDone,
+                    'is_today' => $isToday,
+                    'is_overdue' => $isOverdue,
+                    'is_upcoming' => $isUpcoming,
+                    'done_by_name' => $f->doneByUser->name ?? null,
+                    'done_at_formatted' => $f->done_at ? Carbon::parse($f->done_at)->format('d M, Y h:i A') : null,
+                ];
+            });
+
+        $leadName = $lead->user->name ?? $lead->user_name ?? ('Lead #' . $lead->id);
+        $leadPhone = $lead->user->mobile_no ?? $lead->mobile ?? '';
+        $leadEmail = $lead->user->email ?? $lead->email ?? '';
+        $leadCountryCode = $lead->user->countrycode ?? $lead->countrycode ?? '';
+
+        return response()->json([
+            'status' => true,
+            'lead' => [
+                'id' => $lead->id,
+                'order_id' => $lead->order_id ?: ('LEAD-' . $lead->id),
+                'name' => $leadName,
+                'email' => $leadEmail,
+                'mobile' => $leadPhone,
+                'countrycode' => $leadCountryCode,
+                'project_title' => $lead->project_title ?: 'N/A',
+                'lead_status' => $lead->lead_status ?: 'Normal',
+                'price' => $lead->price ?: '0',
+                'deadline' => $lead->deadline ?: 'N/A',
+                'next_followup_date' => $lead->next_followup_date ? Carbon::parse($lead->next_followup_date)->format('d M, Y') : null,
+            ],
+            'followups' => $followups
+        ]);
+    }
+
+    public function storeFollowup(Request $request, $id)
+    {
+        $today = Carbon::today()->toDateString();
+
+        $request->validate([
+            'message' => 'required|string',
+            'followup_date' => 'required|date|after_or_equal:' . $today,
+        ], [
+            'followup_date.after_or_equal' => 'Next followup date must be today or a future date.',
+            'followup_date.required' => 'Please select the next followup date.',
+            'message.required' => 'Please enter a followup message/note.',
+        ]);
+
+        $lead = Leads::find($id);
+        if (!$lead) {
+            return response()->json(['status' => false, 'message' => 'Lead not found.'], 404);
+        }
+
+        $followup = LeadFollowup::create([
+            'lead_id' => $id,
+            'lead_type' => 'lead',
+            'user_id' => Auth::id(),
+            'message' => trim($request->message),
+            'followup_date' => $request->followup_date,
+            'status' => 'pending',
+        ]);
+
+        $lead->update([
+            'next_followup_date' => $request->followup_date,
+        ]);
+
+        $followup->load(['user:id,name']);
+
+        return response()->json([
+            'status' => true,
+            'message' => 'Followup note added successfully!',
+            'followup' => [
+                'id' => $followup->id,
+                'message' => $followup->message,
+                'followup_date' => $followup->followup_date,
+                'followup_date_formatted' => Carbon::parse($followup->followup_date)->format('d M, Y'),
+                'created_at_formatted' => Carbon::parse($followup->created_at)->format('d M, Y h:i A'),
+                'user_name' => $followup->user->name ?? Auth::user()->name ?? 'Staff',
+                'status' => 'pending',
+                'is_done' => false,
+                'is_today' => (Carbon::parse($followup->followup_date)->toDateString() === $today),
+                'is_overdue' => false,
+                'is_upcoming' => (Carbon::parse($followup->followup_date)->toDateString() > $today),
+            ]
+        ]);
+    }
+
+    public function markFollowupDone(Request $request, $id)
+    {
+        $followup = LeadFollowup::find($id);
+        if (!$followup) {
+            return response()->json(['status' => false, 'message' => 'Followup not found.'], 404);
+        }
+
+        $followup->update([
+            'status' => 'done',
+            'done_by' => Auth::id(),
+            'done_at' => Carbon::now(),
+        ]);
+
+        $nextPending = LeadFollowup::where('lead_id', $followup->lead_id)
+            ->where('lead_type', 'lead')
+            ->where('status', 'pending')
+            ->orderBy('followup_date', 'asc')
+            ->first();
+
+        Leads::where('id', $followup->lead_id)->update([
+            'next_followup_date' => $nextPending ? $nextPending->followup_date : null,
+        ]);
+
+        return response()->json([
+            'status' => true,
+            'message' => 'Followup marked as completed!',
+            'next_pending_date' => $nextPending ? Carbon::parse($nextPending->followup_date)->format('d M, Y') : null
+        ]);
+    }
+
+    public function showNextFollowups(Request $request)
+    {
+        $today = Carbon::today()->toDateString();
+        $search = $request->get('search');
+        $fromDate = $request->get('fromDate');
+        $toDate = $request->get('toDate');
+        $tab = $request->get('tab', 'all');
+        $userTerm = $request->get('user');
+        $uid = $request->get('uid');
+
+        $baseQuery = LeadFollowup::with([
+            'lead' => function ($q) {
+                $q->with(['user', 'creator:id,name', 'source:id,source_name']);
+            },
+            'user:id,name',
+            'doneByUser:id,name',
+        ])->where('lead_type', 'lead');
+
+        // Customer Search (uid or user term via dropdown or text)
+        if (!empty($uid) || !empty($userTerm)) {
+            $rawTerm = trim((string)($userTerm ?: $uid));
+            $cleanDigits = preg_replace('/\D+/', '', $rawTerm);
+            $last10 = (strlen($cleanDigits) >= 10) ? substr($cleanDigits, -10) : $cleanDigits;
+            $searchUserIds = [];
+
+            if (!empty($uid) && is_numeric($uid) && strlen($uid) <= 8) {
+                $searchUserIds[] = (int) $uid;
+            }
+
+            if (!empty($rawTerm)) {
+                $foundIds = function_exists('find_user_ids_by_search_term') ? find_user_ids_by_search_term($rawTerm) : [];
+                $searchUserIds = array_unique(array_merge($searchUserIds, $foundIds));
+            }
+
+            $baseQuery->whereHas('lead', function ($lq) use ($searchUserIds, $rawTerm, $cleanDigits, $last10) {
+                $lq->where(function ($sub) use ($searchUserIds, $rawTerm, $cleanDigits, $last10) {
+                    if (!empty($searchUserIds)) {
+                        $sub->whereIn('emp_id', $searchUserIds);
+                    }
+                    if (strlen($cleanDigits) >= 2) {
+                        $sub->orWhere('mobile', 'like', "%{$cleanDigits}%")
+                            ->orWhere('mobile2', 'like', "%{$cleanDigits}%")
+                            ->orWhere('mobile', 'like', "%{$last10}%")
+                            ->orWhere('mobile2', 'like', "%{$last10}%")
+                            ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile, '')) LIKE ?", ["%{$cleanDigits}%"]);
+                    }
+                    if (!empty($rawTerm)) {
+                        $sub->orWhere('user_name', 'like', "%{$rawTerm}%")
+                            ->orWhere('email', 'like', "%{$rawTerm}%");
+                    }
+                    $sub->orWhereHas('user', function ($uq) use ($searchUserIds, $rawTerm, $cleanDigits, $last10) {
+                        if (!empty($searchUserIds)) {
+                            $uq->whereIn('id', $searchUserIds);
+                        }
+                        if (strlen($cleanDigits) >= 2) {
+                            $uq->orWhere('mobile_no', 'like', "%{$cleanDigits}%")
+                               ->orWhere('mobile_no2', 'like', "%{$cleanDigits}%")
+                               ->orWhere('mobile_no', 'like', "%{$last10}%")
+                               ->orWhere('mobile_no2', 'like', "%{$last10}%");
+                        }
+                        if (!empty($rawTerm)) {
+                            $uq->orWhere('name', 'like', "%{$rawTerm}%")
+                               ->orWhere('email', 'like', "%{$rawTerm}%");
+                        }
+                    });
+                });
+            });
+        }
+
+        // General search (order_id, project_title, message, etc.)
+        if (!empty($search)) {
+            $baseQuery->where(function ($q) use ($search) {
+                $q->where('message', 'like', "%{$search}%")
+                  ->orWhereHas('lead', function ($lq) use ($search) {
+                      $lq->where('order_id', 'like', "%{$search}%")
+                         ->orWhere('project_title', 'like', "%{$search}%")
+                         ->orWhere('user_name', 'like', "%{$search}%")
+                         ->orWhere('mobile', 'like', "%{$search}%")
+                         ->orWhere('email', 'like', "%{$search}%");
+                      if (is_numeric($search)) {
+                          $lq->orWhere('emp_id', (int)$search)
+                             ->orWhere('id', (int)$search);
+                      }
+                      $lq->orWhereHas('user', function ($uq) use ($search) {
+                          $uq->where('name', 'like', "%{$search}%")
+                             ->orWhere('mobile_no', 'like', "%{$search}%")
+                             ->orWhere('email', 'like', "%{$search}%");
+                          if (is_numeric($search)) {
+                              $uq->orWhere('id', (int)$search);
+                          }
+                      });
+                  });
+            });
+        }
+
+        if (!empty($fromDate)) {
+            $baseQuery->whereDate('followup_date', '>=', $fromDate);
+        }
+        if (!empty($toDate)) {
+            $baseQuery->whereDate('followup_date', '<=', $toDate);
+        }
+
+        // All Pending Follow-ups: Today on top, Tomorrow / Upcoming below, then Overdue / Past
+        $allQuery = (clone $baseQuery)
+            ->where('status', 'pending')
+            ->orderByRaw("
+                CASE 
+                    WHEN DATE(followup_date) = '{$today}' THEN 1
+                    WHEN DATE(followup_date) > '{$today}' THEN 2
+                    ELSE 3
+                END ASC,
+                followup_date ASC,
+                id DESC
+            ");
+
+        // Today query: Pending follow-ups due today
+        $todayQuery = (clone $baseQuery)
+            ->where('status', 'pending')
+            ->whereDate('followup_date', '=', $today)
+            ->orderBy('id', 'desc');
+
+        // Overdue query: Pending follow-ups before today
+        $overdueQuery = (clone $baseQuery)
+            ->where('status', 'pending')
+            ->whereDate('followup_date', '<', $today)
+            ->orderBy('followup_date', 'asc')
+            ->orderBy('id', 'desc');
+
+        // Done query: Completed follow-ups
+        $doneQuery = (clone $baseQuery)
+            ->where('status', 'done')
+            ->orderByRaw("COALESCE(done_at, updated_at) DESC")
+            ->orderBy('id', 'desc');
+
+        // AJAX Tab Data & Infinite Scroll Request Handler
+        if ($request->ajax()) {
+            $currentPage = (int) $request->get('page', 1);
+            if ($tab === 'today') {
+                $paginator = $todayQuery->paginate(20, ['*'], 'page', $currentPage);
+            } elseif ($tab === 'overdue') {
+                $paginator = $overdueQuery->paginate(20, ['*'], 'page', $currentPage);
+            } elseif ($tab === 'done') {
+                $paginator = $doneQuery->paginate(20, ['*'], 'page', $currentPage);
+            } else {
+                $paginator = $allQuery->paginate(20, ['*'], 'page', $currentPage);
+            }
+
+            $html = '';
+            foreach ($paginator as $idx => $followup) {
+                $html .= view('back-end.leads.partials.next-followup-row', [
+                    'followup' => $followup,
+                    'loopIndex' => ($currentPage - 1) * 20 + $idx + 1,
+                    'isOverdueTab' => ($tab === 'overdue' || ($followup->followup_date < $today && $followup->status !== 'done')),
+                    'isDoneTab' => ($tab === 'done' || $followup->status === 'done')
+                ])->render();
+            }
+
+            return response()->json([
+                'status' => true,
+                'tab' => $tab,
+                'html' => $html,
+                'count' => $paginator->count(),
+                'total' => $paginator->total(),
+                'has_more' => $paginator->hasMorePages(),
+                'current_page' => $paginator->currentPage(),
+                'next_page' => $paginator->currentPage() + 1,
+                'counts' => [
+                    'all' => (clone $allQuery)->count(),
+                    'today' => (clone $todayQuery)->count(),
+                    'overdue' => (clone $overdueQuery)->count(),
+                    'done' => (clone $doneQuery)->count(),
+                ]
+            ]);
+        }
+
+        // On initial page load: only calculate badge counts, NO rows pre-loaded upfront
+        $allCount = (clone $allQuery)->count();
+        $todayCount = (clone $todayQuery)->count();
+        $overdueCount = (clone $overdueQuery)->count();
+        $doneCount = (clone $doneQuery)->count();
+
+        return view('back-end.leads.next-followups', compact(
+            'allCount',
+            'todayCount',
+            'overdueCount',
+            'doneCount',
+            'today',
+            'search',
+            'userTerm',
+            'uid',
+            'fromDate',
+            'toDate',
+            'tab'
+        ));
+    }
 }

@@ -202,6 +202,7 @@
     @include('back-end.leads.partials.create')
     @include('back-end.leads.partials.create-next-lead')
     @include('back-end.leads.partials.next-leads-list-modal', ['nextLeads' => collect(), 'creators' => $employees ?? collect()])
+    @include('back-end.leads.partials.followup-drawer')
 </div>
 @include('back-end.leads.partials.preloader')
 @if(isset($lead) || (isset($leads) && count($leads)))

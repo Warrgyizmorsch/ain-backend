@@ -454,7 +454,15 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/next-lead/store', [\App\Http\Controllers\NextLeadController::class, 'store'])->name('nextlead.store');
         Route::get('/next-lead/list', [\App\Http\Controllers\NextLeadController::class, 'list'])->name('nextlead.list');
         Route::post('/next-lead/convert/{id}', [\App\Http\Controllers\NextLeadController::class, 'convert'])->name('nextlead.convert');
+
+        // Lead Followup Routes
+        Route::get('/followups/{id}', [LeadsController::class, 'getFollowups'])->name('lead.followups.get');
+        Route::post('/followups/{id}', [LeadsController::class, 'storeFollowup'])->name('lead.followups.store');
+        Route::post('/followups/{id}/done', [LeadsController::class, 'markFollowupDone'])->name('lead.followups.done');
+        Route::get('/next-followups', [LeadsController::class, 'showNextFollowups'])->name('lead.next-followups');
     });
+
+    Route::get('/next-followups', [LeadsController::class, 'showNextFollowups'])->name('next-followups');
 
     // Order management
     Route::prefix('orders')->group(function () {

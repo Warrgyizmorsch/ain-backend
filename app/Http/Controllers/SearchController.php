@@ -23,7 +23,7 @@ class SearchController extends Controller
 
     public function search(Request $request)
     {
-        $query = trim((string)$request->input('user'));
+        $query = trim((string)($request->input('user') ?? $request->input('query') ?? $request->input('term') ?? $request->input('search') ?? $request->input('q')));
     
         if (!$query || (strlen($query) < 2 && !is_numeric($query))) {
             return response()->json([]);
@@ -41,7 +41,7 @@ class SearchController extends Controller
                             if (!empty($userIds)) {
                                 $q->whereIn('id', $userIds);
                             }
-                            if (is_numeric($query)) {
+                            if (is_numeric($query) && strlen($query) <= 8) {
                                 $q->orWhere('id', (int) $query);
                             }
                             $q->orWhere('name', 'like', "%$query%")
@@ -53,14 +53,76 @@ class SearchController extends Controller
                                       ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile_no, '')) LIKE ?", ["%$cleanPattern%"])
                                       ->orWhereRaw("CONCAT(IFNULL(countrycode2, ''), IFNULL(mobile_no2, '')) LIKE ?", ["%$cleanPattern%"]);
                                 }
-                            } else if (strlen($cleanDigits) >= 4) {
+                            } else if (strlen($cleanDigits) >= 2) {
+                                $last10 = (strlen($cleanDigits) >= 10) ? substr($cleanDigits, -10) : $cleanDigits;
                                 $q->orWhere('mobile_no', 'like', "%$cleanDigits%")
                                   ->orWhere('mobile_no2', 'like', "%$cleanDigits%")
+                                  ->orWhere('mobile_no', 'like', "%$last10%")
+                                  ->orWhere('mobile_no2', 'like', "%$last10%")
                                   ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile_no, '')) LIKE ?", ["%$cleanDigits%"]);
                             }
                         })
                         ->take(10)
                         ->get();
+
+        // Also search Leads table so customer phone numbers, emails, or names on leads are found
+        if ($results->count() < 10) {
+            $existingMobiles = $results->pluck('mobile_no')->filter()->map(function($m) {
+                return preg_replace('/\D+/', '', (string)$m);
+            })->toArray();
+            $existingEmails = $results->pluck('email')->filter()->map(function($e) {
+                return strtolower(trim((string)$e));
+            })->toArray();
+
+            $last10Digits = (strlen($cleanDigits) >= 10) ? substr($cleanDigits, -10) : $cleanDigits;
+
+            $leadMatches = \App\Models\Leads::select('emp_id as id', 'user_name as name', 'email', 'mobile as mobile_no', 'countrycode')
+                ->where(function($lq) use ($query, $cleanDigits, $last10Digits, $hasAsterisk, $cleanPattern) {
+                    if ($hasAsterisk && !empty($cleanPattern)) {
+                        $lq->where('mobile', 'like', "%{$cleanPattern}%")
+                           ->orWhere('mobile2', 'like', "%{$cleanPattern}%");
+                    } elseif (strlen($cleanDigits) >= 2) {
+                        $lq->where('mobile', 'like', "%{$cleanDigits}%")
+                           ->orWhere('mobile2', 'like', "%{$cleanDigits}%")
+                           ->orWhere('mobile', 'like', "%{$last10Digits}%")
+                           ->orWhere('mobile2', 'like', "%{$last10Digits}%")
+                           ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile, '')) LIKE ?", ["%{$cleanDigits}%"]);
+                    } else {
+                        $lq->where('user_name', 'like', "%{$query}%")
+                           ->orWhere('email', 'like', "%{$query}%");
+                    }
+                })
+                ->whereNotNull('user_name')
+                ->where('user_name', '!=', '')
+                ->orderBy('id', 'desc')
+                ->take(15)
+                ->get();
+
+            foreach ($leadMatches as $leadItem) {
+                $rawMob = preg_replace('/\D+/', '', (string)$leadItem->mobile_no);
+                $rawEmail = strtolower(trim((string)$leadItem->email));
+
+                if (!empty($rawMob) && in_array($rawMob, $existingMobiles)) {
+                    continue;
+                }
+                if (!empty($rawEmail) && in_array($rawEmail, $existingEmails)) {
+                    continue;
+                }
+
+                if (!empty($rawMob)) {
+                    $existingMobiles[] = $rawMob;
+                }
+                if (!empty($rawEmail)) {
+                    $existingEmails[] = $rawEmail;
+                }
+
+                $results->push($leadItem);
+
+                if ($results->count() >= 10) {
+                    break;
+                }
+            }
+        }
 
         $results->transform(function ($user) {
             $isSuperAdmin = auth()->check() && (int) auth()->user()->role_id === 1;

@@ -48,10 +48,10 @@
                                         <th class='px-2'>Sr.No.</th>
                                         <th>Date</th>
                                         <th>Order Code</th>
-                                        @if (auth()->user()->role_id == 1)
-                                            <th>Client</th>
+                                        @if (auth()->check() && (int) auth()->user()->role_id === 1)
+                                        <th>Client</th>
                                         @else
-                                            <th>title</th>
+                                        <th>Title</th>
                                         @endif
                                         
                                         <th>Amount</th>
@@ -103,8 +103,11 @@
                                                         text-align: center;
                                                         min-width: 120px;
                                                     ">
-                                                        <div class="fw-bold">
-                                                            {{ $payment->order->order_id }}
+                                                        <div class="fw-bold d-inline-flex align-items-center justify-content-center">
+                                                            <span>{{ $payment->order->order_id }}</span>
+                                                            <button type="button" class="btn btn-icon btn-sm btn-active-light-primary ms-1 p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Order ID" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $payment->order->order_id }}', 'Order ID copied!');">
+                                                                <i class="fa fa-clone fs-8 text-muted"></i>
+                                                            </button>
                                                         </div>
 
                                                         <small style="color: {{ $payment->revoke_resolved ? '#50cd89' : '#f1416c' }}">
@@ -114,7 +117,12 @@
 
                                                 @else
 
-                                                    {{ $payment->order->order_id }}
+                                                    <div class="d-inline-flex align-items-center justify-content-center">
+                                                        <span>{{ $payment->order->order_id }}</span>
+                                                        <button type="button" class="btn btn-icon btn-sm btn-active-light-primary ms-1 p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Order ID" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $payment->order->order_id }}', 'Order ID copied!');">
+                                                            <i class="fa fa-clone fs-8 text-muted"></i>
+                                                        </button>
+                                                    </div>
 
                                                 @endif
 
@@ -122,25 +130,68 @@
                                                 N/A
                                             @endif
                                         </td>
+                                        @if (auth()->check() && (int) auth()->user()->role_id === 1)
                                         <td>
-                                            @if (auth()->user()->role_id == 1)
-                                                @if(optional($payment->order->user)->name)
-                                                    {{ $payment->order->user->name }} <br>
-                                                    <span>
-                                                        @if(optional($payment->order->user)->mobile_no)
-                                                            {{ $payment->order->user->mobile_no }} <br>
-                                                        @endif
-                                                        @if(optional($payment->order->user)->email)
-                                                            ({{ $payment->order->user->email }})
-                                                        @endif
-                                                    </span>
-                                                @else
-                                                    N/A
+                                            @php
+                                                $clientUser = optional($payment->order)->user;
+                                                $clientLead = optional($payment->order)->lead;
+                                                $clientName = $clientUser?->name ?: ($clientLead?->user_name);
+
+                                                $clientMobile = $clientUser?->mobile_no;
+                                                if (empty($clientMobile) || str_contains((string)$clientMobile, '*')) {
+                                                    if (!empty($clientLead?->mobile) && !str_contains((string)$clientLead->mobile, '*')) {
+                                                        $clientMobile = $clientLead->mobile;
+                                                    }
+                                                }
+
+                                                $clientEmail = $clientUser?->email;
+                                                if (empty($clientEmail) || str_contains((string)$clientEmail, '*')) {
+                                                    if (!empty($clientLead?->email) && !str_contains((string)$clientLead->email, '*') && !str_contains((string)$clientLead->email, 'anshjangid')) {
+                                                        $clientEmail = $clientLead->email;
+                                                    }
+                                                }
+                                            @endphp
+                                            @if($clientUser && ($clientName || $clientMobile || $clientEmail))
+                                                @if($clientName)
+                                                    <span class="fw-bold text-dark">{{ $clientName }}</span><br>
+                                                @endif
+                                                @if($clientMobile)
+                                                    <div class="d-inline-flex align-items-center my-1">
+                                                        <span class="badge badge-light-danger fs-7 fw-bold">{{ $clientMobile }}</span>
+                                                        <button type="button" class="btn btn-icon btn-sm btn-active-light-danger ms-1 p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Mobile" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $clientMobile }}', 'Mobile number copied!');">
+                                                            <i class="fa fa-clone fs-8 text-danger"></i>
+                                                        </button>
+                                                    </div><br>
+                                                @endif
+                                                @if($clientEmail)
+                                                    <div class="d-inline-flex align-items-center my-1">
+                                                        <span class="text-gray-600 fs-8 text-break">({{ $clientEmail }})</span>
+                                                        <button type="button" class="btn btn-icon btn-sm btn-active-light-primary ms-1 p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Email" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $clientEmail }}', 'Email copied!');">
+                                                            <i class="fa fa-clone fs-8 text-muted"></i>
+                                                        </button>
+                                                    </div>
                                                 @endif
                                             @else
-                                                {{ optional($payment->order)->title ?? 'N/A' }}
+                                                <span class="text-muted fs-8">-</span>
                                             @endif
                                         </td>
+                                        @else
+                                        <td>
+                                            @php
+                                                $orderTitle = optional($payment->order)->title;
+                                            @endphp
+                                            @if(!empty($orderTitle))
+                                                <div class="d-inline-flex align-items-center">
+                                                    <span class="text-gray-800 fw-bold fs-7 text-break" style="max-width: 260px;">{{ $orderTitle }}</span>
+                                                    <button type="button" class="btn btn-icon btn-sm btn-active-light-primary ms-1 p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Title" onclick="event.stopPropagation(); crmCopyToClipboard('{{ addslashes($orderTitle) }}', 'Title copied!');">
+                                                        <i class="fa fa-clone fs-8 text-muted"></i>
+                                                    </button>
+                                                </div>
+                                            @else
+                                                <span class="text-muted fs-8">-</span>
+                                            @endif
+                                        </td>
+                                        @endif
 
                                         <td>
                                         {{$payment->paid_amount  }}
@@ -148,7 +199,18 @@
                                         @if (auth()->user()->role_id == 1)
                                         <td>{{ $payment->payment_update_by }}</td>
                                         @endif
-                                         <td>{{ $payment->payee_name }}</td>
+                                         <td>
+                                             @if(!empty($payment->payee_name))
+                                                 <div class="d-inline-flex align-items-center">
+                                                     <span>{{ $payment->payee_name }}</span>
+                                                     <button type="button" class="btn btn-icon btn-sm btn-active-light-primary ms-1 p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Payee Name" onclick="event.stopPropagation(); crmCopyToClipboard('{{ addslashes($payment->payee_name) }}', 'Payee name copied!');">
+                                                         <i class="fa fa-clone fs-8 text-muted"></i>
+                                                     </button>
+                                                 </div>
+                                             @else
+                                                 <span class="text-muted fs-8">-</span>
+                                             @endif
+                                         </td>
                                          <td>{{ $payment->company_accounts }}</td>
                                          <td>
                                              @if($payment->screenshot)
@@ -398,4 +460,47 @@
 
 
 
+<script>
+    if (typeof window.crmCopyToClipboard !== 'function') {
+        window.crmCopyToClipboard = function(text, msg) {
+            if (!text) return;
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(text).then(() => {
+                    if (typeof Swal !== 'undefined') {
+                        Swal.fire({
+                            toast: true,
+                            position: 'top-end',
+                            icon: 'success',
+                            title: msg || 'Copied to clipboard!',
+                            showConfirmButton: false,
+                            timer: 1500
+                        });
+                    }
+                });
+            } else {
+                const ta = document.createElement('textarea');
+                ta.value = text;
+                ta.style.position = 'fixed';
+                ta.style.left = '-9999px';
+                document.body.appendChild(ta);
+                ta.focus();
+                ta.select();
+                try {
+                    document.execCommand('copy');
+                    if (typeof Swal !== 'undefined') {
+                        Swal.fire({
+                            toast: true,
+                            position: 'top-end',
+                            icon: 'success',
+                            title: msg || 'Copied to clipboard!',
+                            showConfirmButton: false,
+                            timer: 1500
+                        });
+                    }
+                } catch(e) {}
+                document.body.removeChild(ta);
+            }
+        };
+    }
+</script>
 @endsection

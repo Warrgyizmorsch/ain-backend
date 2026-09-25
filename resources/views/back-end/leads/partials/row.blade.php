@@ -100,6 +100,25 @@
                 </button>
             </div>
 
+            <!-- Follow-up Button -->
+            <div class="w-100 d-flex justify-content-center mt-1">
+                <button type="button" 
+                        onclick="openLeadFollowupDrawer({{ $lead->id }})" 
+                        class="btn btn-sm btn-light-primary w-100 py-1 px-2 fs-8 fw-bolder d-flex align-items-center justify-content-center gap-1 shadow-xs" 
+                        style="max-width: 148px; border: 1px solid #b5d8ff;"
+                        title="Lead Follow-ups">
+                    <i class="fa fa-calendar-check-o text-primary fs-8"></i>
+                    <span>Followup</span>
+                    @if(!empty($lead->next_followup_date))
+                        <span id="lead_followup_badge_{{ $lead->id }}" class="badge badge-primary px-1 py-0 fs-9 ms-1" title="Next Followup: {{ \Carbon\Carbon::parse($lead->next_followup_date)->format('d M') }}">
+                            {{ \Carbon\Carbon::parse($lead->next_followup_date)->format('d M') }}
+                        </span>
+                    @else
+                        <span id="lead_followup_badge_{{ $lead->id }}" class="badge badge-secondary px-1 py-0 fs-9 ms-1 d-none"></span>
+                    @endif
+                </button>
+            </div>
+
             <!-- Row 3: Select Lead Reason Dropdown -->
             <div class="w-100 d-flex justify-content-center mt-1.5">
                 <select

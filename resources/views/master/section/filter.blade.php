@@ -15,19 +15,20 @@
 				<script>
 					document.addEventListener('DOMContentLoaded', function() {
 						const searchInput = document.getElementById('searchInput');
+						if (searchInput) {
+							searchInput.addEventListener('input', function(event) {
+								const inputValue = event.target.value;
+								const sanitizedValue = inputValue.replace(/\s/g, ''); // Remove spaces
 
-						searchInput.addEventListener('input', function(event) {
-							const inputValue = event.target.value;
-							const sanitizedValue = inputValue.replace(/\s/g, ''); // Remove spaces
-
-							// Update input value without spaces
-							if (inputValue !== sanitizedValue) {
-								searchInput.value = sanitizedValue;
-							}
-						});
+								// Update input value without spaces
+								if (inputValue !== sanitizedValue) {
+									searchInput.value = sanitizedValue;
+								}
+							});
+						}
 					});
 				</script>
-                @if(auth()->user()->role_id == 1)
+				@if (auth()->check() && (int) auth()->user()->role_id === 1)
                 <div class="col-md-3 fv-row">
                     <input type="text" list="searchDatalist" id="searchInput" class="form-control form-control-solid" placeholder="Search..." autocomplete="off">
                     <!-- Datalist for displaying search results -->
@@ -48,7 +49,7 @@
                                 $.ajax({
                                     url: "{{ route('search-order') }}",
                                     type: "GET",
-                                    data: { user: searchValue },
+                                    data: { user: searchValue, unmask: 1 },
                                     success: function (response) {
                                         var results = '';
                                         if (response.length > 0) {
@@ -92,7 +93,7 @@
                         });
                     });
                 </script>
-                @endif
+				@endif
 				<div class="col-md-3 fv-row">
                     <input type="date" name="dateFrom" id="" class="form-control form-control-solid" placeholder="Search By Date">
                 </div>

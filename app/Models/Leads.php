@@ -8,9 +8,12 @@ use Illuminate\Database\Eloquent\Model;
 class Leads extends Model
 {
     use HasFactory;
+
     protected $casts = [
-    'assign_type' => 'integer',
-];
+        'assign_type' => 'integer',
+        'next_followup_date' => 'date',
+    ];
+
     protected $fillable = [
         'user_name',
         'email',
@@ -44,6 +47,7 @@ class Leads extends Model
         'coupon_discount_amount',
         'coupon_original_amount',
         'created_by',
+        'next_followup_date',
     ];
 
     protected static function booted()
@@ -62,6 +66,16 @@ class Leads extends Model
                 }
             }
         });
+    }
+
+    public function followups()
+    {
+        return $this->hasMany(LeadFollowup::class, 'lead_id')->orderBy('created_at', 'desc');
+    }
+
+    public function latestFollowup()
+    {
+        return $this->hasOne(LeadFollowup::class, 'lead_id')->latestOfMany();
     }
 
     public function call()
