@@ -291,6 +291,61 @@
         background: #ffffff;
     }
 
+    /* Floating Number Mask Overlays */
+    .n2c-mask-overlay-center {
+        position: absolute;
+        top: 76px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 290px;
+        height: 64px;
+        background: #202029;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        z-index: 10;
+        pointer-events: none;
+        border-radius: 8px;
+    }
+    .n2c-mask-center-name {
+        color: #ffffff;
+        font-size: 16px;
+        font-weight: 700;
+        line-height: 1.2;
+        margin-bottom: 3px;
+        max-width: 260px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .n2c-mask-center-num {
+        color: #10b981;
+        font-size: 15px;
+        font-weight: 600;
+        font-family: monospace, sans-serif;
+        letter-spacing: 1px;
+    }
+    .n2c-mask-overlay-top {
+        position: absolute;
+        top: 36px;
+        left: 88px;
+        width: 145px;
+        height: 22px;
+        background: #202029;
+        color: #10b981;
+        font-family: monospace, sans-serif;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.5px;
+        display: flex;
+        align-items: center;
+        z-index: 10;
+        pointer-events: none;
+        border-radius: 4px;
+        padding-left: 2px;
+    }
+
     @media (max-width: 575.98px) {
         .n2c-softphone-box {
             right: 10px;
@@ -316,6 +371,9 @@
             </span>
         </div>
         <div class="n2c-header-actions">
+            <button type="button" class="n2c-header-btn" id="n2cQuickEndBtn" style="background:#f1416c; color:#fff; width:auto; padding:0 8px; font-weight:600; font-size:11px; gap:4px; display:inline-flex;" title="End Call & Close">
+                <i class="fa fa-phone-slash"></i> End
+            </button>
             <button type="button" class="n2c-header-btn" id="n2cToggleKeypadBtn" title="Toggle Next2Call Keypad">
                 <i class="fa fa-th"></i>
             </button>
@@ -440,23 +498,50 @@
             document.body.style.userSelect = '';
         });
 
-        // Number Masking Helper: Shows first few digits with country code, masks remaining with *****
+        // Number Masking Helper: Shows +CC + ****** + Last 4 Digits (e.g. +91 ******2299)
+        // Matches CRM pattern mask_mobile_only() & crmMaskPhone()
         function maskNumber(raw) {
-            if (!raw) return '*****';
-            const digits = String(raw).trim().replace(/\D/g, '');
-            if (digits.startsWith('91') && digits.length >= 12) {
-                // e.g. 919610092299 -> +91 96100*****
-                return '+91 ' + digits.substring(2, 7) + '*****';
-            } else if (digits.length === 10) {
-                // e.g. 9610092299 -> +91 96100*****
-                return '+91 ' + digits.substring(0, 5) + '*****';
-            } else if (digits.startsWith('44') && digits.length >= 10) {
-                // e.g. UK +44 7123*****
-                return '+44 ' + digits.substring(2, 6) + '*****';
-            } else if (digits.length > 6) {
-                return '+' + digits.substring(0, digits.length - 5) + '*****';
+            if (!raw) return '******';
+            const str = String(raw).trim();
+            if (!str) return '******';
+
+            // Super Admin (role_id 1) sees full unmasked phone number
+            const isSuperAdmin = {{ Auth::check() && (int) Auth::user()->role_id === 1 ? 'true' : 'false' }};
+            if (isSuperAdmin) {
+                return str;
             }
-            return digits.substring(0, 3) + '*****';
+
+            let prefix = '';
+            let digits = str.replace(/\D/g, '');
+
+            if (str.startsWith('+')) {
+                const ccMatch = str.match(/^(\+\d{1,3})/);
+                if (ccMatch) {
+                    prefix = ccMatch[1] + ' ';
+                    digits = str.replace(/\D/g, '').slice(ccMatch[1].replace(/\D/g, '').length);
+                }
+            } else if (digits.startsWith('91') && digits.length >= 12) {
+                prefix = '+91 ';
+                digits = digits.slice(2);
+            } else if (digits.startsWith('44') && digits.length >= 11) {
+                prefix = '+44 ';
+                digits = digits.slice(2);
+            } else if (digits.length === 10) {
+                prefix = '+91 ';
+            }
+
+            // Strip leading zero if 11 digits (e.g. 09610092299 -> 9610092299)
+            if (digits.length === 11 && digits.startsWith('0')) {
+                digits = digits.slice(1);
+            }
+
+            // Mask all except last 4 digits (e.g. +91 ******2299)
+            if (digits.length <= 4) {
+                return prefix + '*'.repeat(Math.max(4, digits.length));
+            }
+            const visible_end = digits.slice(-4);
+            const masked_mid = '*'.repeat(Math.max(4, digits.length - 4));
+            return prefix + masked_mid + visible_end;
         }
 
         // Call Duration Timer
@@ -479,9 +564,21 @@
             }
         }
 
-        function mountIframe(url) {
+        function mountIframe(url, contactName = 'Customer', maskedNum = '') {
             if (!iframeWrap) return;
+            iframeWrap.style.display = 'block';
             iframeWrap.innerHTML = `
+                <!-- Overlay 1: Covers Line 1 cleartext number -->
+                <div class="n2c-mask-overlay-top" id="n2cMaskTop">
+                    <span id="n2cMaskTopNum">${maskedNum}</span>
+                </div>
+
+                <!-- Overlay 2: Covers center callingDisplayName & callingDisplayNumber above avatar -->
+                <div class="n2c-mask-overlay-center" id="n2cMaskCenter">
+                    <div class="n2c-mask-center-name" id="n2cMaskCenterName">${contactName}</div>
+                    <div class="n2c-mask-center-num" id="n2cMaskCenterNum">${maskedNum}</div>
+                </div>
+
                 <iframe
                     id="ringfySoftphoneFrame"
                     class="n2c-softphone-iframe"
@@ -518,12 +615,10 @@
                 }
             } catch (e) {}
 
-            // 3. Allow 300ms for SIP BYE / CANCEL packets to reach Asterisk PBX before destroying DOM element
-            setTimeout(function () {
-                if (iframeWrap && (!widget || !widget.classList.contains('is-open'))) {
-                    iframeWrap.innerHTML = '';
-                }
-            }, 350);
+            // 3. Clean up DOM
+            if (iframeWrap && (!widget || !widget.classList.contains('is-open'))) {
+                iframeWrap.innerHTML = '';
+            }
         }
 
         // Close & Reset Widget (Instant Disconnect)
@@ -541,14 +636,18 @@
                 widget.style.display = 'none';
             }
 
-            // Reset view state
-            if (callingCard) callingCard.style.display = 'flex';
+            // Immediately vanish and empty iframe wrap so no list or history is visible
             if (iframeWrap) {
+                iframeWrap.style.display = 'none';
                 iframeWrap.classList.remove('is-visible');
                 iframeWrap.classList.add('is-hidden');
+                iframeWrap.innerHTML = '';
             }
 
-            // Immediately signal hangup and cleanly reset iframe
+            // Reset view state
+            if (callingCard) callingCard.style.display = 'flex';
+
+            // Signal Asterisk/PBX
             destroyAndResetIframe();
 
             if (statusBadge) statusBadge.innerHTML = '<i class="fa fa-circle text-muted me-1" style="font-size: 6px;"></i> Ready';
@@ -566,21 +665,36 @@
             }
         }
 
+        // Quick End button in header (Instant 0ms End & Close)
+        const quickEndBtn = document.getElementById('n2cQuickEndBtn');
+        quickEndBtn?.addEventListener('click', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (iframeWrap) {
+                iframeWrap.style.display = 'none';
+                iframeWrap.innerHTML = '';
+            }
+            closeSoftphoneWidget();
+        });
+
         // Hangup Button Click (Instant Call Disconnect by Agent)
         hangupBtn?.addEventListener('click', function (e) {
             e.preventDefault();
             e.stopPropagation();
-            if (statusBadge) statusBadge.innerHTML = '<span class="text-danger fw-bold"><i class="fa fa-phone-slash me-1"></i> Disconnecting...</span>';
-            // Trigger call termination immediately
-            destroyAndResetIframe();
-            setTimeout(function () {
-                closeSoftphoneWidget();
-            }, 250);
+            if (iframeWrap) {
+                iframeWrap.style.display = 'none';
+                iframeWrap.innerHTML = '';
+            }
+            closeSoftphoneWidget();
         });
 
         closeBtn?.addEventListener('click', function (e) {
             e.preventDefault();
             e.stopPropagation();
+            if (iframeWrap) {
+                iframeWrap.style.display = 'none';
+                iframeWrap.innerHTML = '';
+            }
             closeSoftphoneWidget();
         });
 
@@ -662,8 +776,8 @@
                                 data?.type === 'CONNECTED';
 
             const isIncoming = data === 'INCOMING_CALL' ||
-                               data?.type === 'INCOMING_CALL' ||
-                               data?.event === 'incoming_call';
+                                data?.type === 'INCOMING_CALL' ||
+                                data?.event === 'incoming_call';
 
             if (isRegistrationFailed) {
                 console.warn('[Softphone] SIP Registration failed (403 Forbidden).');
@@ -709,16 +823,15 @@
             }
 
             if (isHangup) {
-                console.log('[Softphone] Remote hangup / PBX terminate received, closing widget smoothly...');
+                console.log('[Softphone] Remote hangup / PBX terminate received, closing widget immediately (0ms)...');
                 stopCallTimer();
-                if (statusBadge) statusBadge.innerHTML = '<span class="text-muted"><i class="fa fa-phone-slash me-1"></i> Call Ended</span>';
-                if (avatarRing) {
-                    avatarRing.style.animation = 'none';
-                    avatarRing.style.borderColor = '#6c757d';
+                // Immediately vanish the iframe DOM so no buddy list/number list is ever rendered!
+                if (iframeWrap) {
+                    iframeWrap.style.display = 'none';
+                    iframeWrap.innerHTML = '';
                 }
-                setTimeout(function () {
-                    closeSoftphoneWidget();
-                }, 500);
+                closeSoftphoneWidget();
+                return;
             } else if (isConnected) {
                 isCallActive = true;
                 if (statusBadge) statusBadge.textContent = 'Connected';
@@ -773,6 +886,7 @@
             }, 4500);
 
             const targetUrl = CTC_BASE + '&d=' + encodeURIComponent(num);
+            const maskedNum = maskNumber(num);
 
             // Open Widget (Only during call!)
             if (widget) {
@@ -790,10 +904,10 @@
             // Update UI with Contact Name & Masked Number in header & card
             const headerTitleEl = document.getElementById('n2cHeaderTitle');
             if (headerTitleEl) {
-                headerTitleEl.innerHTML = `<span style="color:#fff; font-weight:700;">${contactName || 'Customer'}</span> <span style="color:#10b981; font-family:monospace; font-size:11px; margin-left:4px;">${maskNumber(num)}</span>`;
+                headerTitleEl.innerHTML = `<span style="color:#fff; font-weight:700;">${contactName || 'Customer'}</span> <span style="color:#10b981; font-family:monospace; font-size:11px; margin-left:4px;">${maskedNum}</span>`;
             }
             if (customerNameEl) customerNameEl.textContent = contactName || 'Customer';
-            if (maskedNumberEl) maskedNumberEl.textContent = maskNumber(num);
+            if (maskedNumberEl) maskedNumberEl.textContent = maskedNum;
             if (statusBadge) statusBadge.innerHTML = '<i class="fa fa-spinner fa-spin me-1"></i> Calling...';
             if (avatarRing) {
                 avatarRing.style.background = '';
@@ -809,8 +923,8 @@
             // Start timer immediately
             startCallTimer();
 
-            // Mount and load iframe with direct click-to-dial URL
-            mountIframe(targetUrl);
+            // Mount and load iframe with direct click-to-dial URL and Twilio-style mask overlays
+            mountIframe(targetUrl, contactName || 'Customer', maskedNum);
         };
 
         window.dialNumber = function (mobile, countryCode = '', contactName = 'Customer') {
@@ -852,11 +966,20 @@
 
                 const data = await response.json();
                 if (response.ok && data.success) {
-                    if (data.customer_name && customerNameEl && (!contactName || contactName === 'Customer')) {
-                        customerNameEl.textContent = data.customer_name;
+                    if (data.customer_name) {
+                        if (customerNameEl && (!contactName || contactName === 'Customer')) {
+                            customerNameEl.textContent = data.customer_name;
+                        }
+                        const centerNameEl = document.getElementById('n2cMaskCenterName');
+                        if (centerNameEl) centerNameEl.textContent = data.customer_name;
                     }
-                    if (data.target_number && maskedNumberEl) {
-                        maskedNumberEl.textContent = maskNumber(data.target_number);
+                    if (data.target_number) {
+                        const m = maskNumber(data.target_number);
+                        if (maskedNumberEl) maskedNumberEl.textContent = m;
+                        const topNumEl = document.getElementById('n2cMaskTopNum');
+                        const centerNumEl = document.getElementById('n2cMaskCenterNum');
+                        if (topNumEl) topNumEl.textContent = m;
+                        if (centerNumEl) centerNumEl.textContent = m;
                     }
                     if (data.url) {
                         const currentFrame = document.getElementById('ringfySoftphoneFrame');
