@@ -30,7 +30,14 @@
         'SipPassword' => $password,
     ]);
 
-    $n2cCtcBaseUrl = "https://{$sipDomain}{$clickToDialPath}?" . http_build_query([
+    $n2cExternalCtcUrl = "https://{$sipDomain}{$clickToDialPath}?" . http_build_query([
+        'profileName' => $userId,
+        'SipDomain'   => $sipDomain,
+        'SipUsername' => $userId,
+        'SipPassword' => $password,
+    ]);
+
+    $n2cCtcBaseUrl = route('softphone.client') . '?' . http_build_query([
         'profileName' => $userId,
         'SipDomain'   => $sipDomain,
         'SipUsername' => $userId,
@@ -296,7 +303,8 @@
 <!-- Twilio-Style Next2Call Softphone Floating Widget Box -->
 <div id="ringfySoftphoneWidget" class="n2c-softphone-box" aria-live="polite"
      data-dialer-url="{{ $n2cDialerUrl }}"
-     data-ctc-base="{{ $n2cCtcBaseUrl }}">
+     data-ctc-base="{{ $n2cCtcBaseUrl }}"
+     data-external-ctc="{{ $n2cExternalCtcUrl }}">
     
     <!-- Drag Header -->
     <div id="ringfySoftphoneHandle" class="n2c-softphone-header">
@@ -486,21 +494,36 @@
 
         function destroyAndResetIframe() {
             if (!iframeWrap) return;
-            // 1. Post hangup signals to iframe
             try {
                 const currentFrame = document.getElementById('ringfySoftphoneFrame');
                 if (currentFrame && currentFrame.contentWindow) {
+                    // 1. Directly invoke Asterisk SIP cancel/bye inside iframe (works for local embed)
+                    try {
+                        if (typeof currentFrame.contentWindow.cancelSession === 'function') {
+                            currentFrame.contentWindow.cancelSession(1);
+                        }
+                        if (typeof currentFrame.contentWindow.endSession === 'function') {
+                            currentFrame.contentWindow.endSession(1);
+                        }
+                        if (typeof currentFrame.contentWindow.teardownSession === 'function' && typeof currentFrame.contentWindow.FindLineByNumber === 'function') {
+                            var line = currentFrame.contentWindow.FindLineByNumber(1);
+                            if (line) currentFrame.contentWindow.teardownSession(line);
+                        }
+                    } catch (e) {}
+
+                    // 2. Post hangup signals to iframe
                     currentFrame.contentWindow.postMessage({ type: 'HANGUP', action: 'hangup' }, '*');
-                    currentFrame.contentWindow.postMessage({ type: 'CLOSE_PHONE_POPUP' }, '*');
-                    currentFrame.contentWindow.postMessage({ type: 'CALL_HANGUP' }, '*');
-                    currentFrame.contentWindow.postMessage('CLOSE_PHONE_POPUP', '*');
-                    currentFrame.contentWindow.postMessage('CALL_HANGUP', '*');
                     currentFrame.contentWindow.postMessage('HANGUP', '*');
+                    currentFrame.contentWindow.postMessage({ type: 'CLOSE_PHONE_POPUP' }, '*');
                 }
             } catch (e) {}
 
-            // 2. Completely destroy the iframe element from DOM to instantly kill all WebRTC streams, WebSockets & SIP call
-            iframeWrap.innerHTML = '';
+            // 3. Allow 300ms for SIP BYE / CANCEL packets to reach Asterisk PBX before destroying DOM element
+            setTimeout(function () {
+                if (iframeWrap && (!widget || !widget.classList.contains('is-open'))) {
+                    iframeWrap.innerHTML = '';
+                }
+            }, 350);
         }
 
         // Close & Reset Widget (Instant Disconnect)
@@ -525,7 +548,7 @@
                 iframeWrap.classList.add('is-hidden');
             }
 
-            // Immediately destroy iframe so PBX & audio disconnects instantly
+            // Immediately signal hangup and cleanly reset iframe
             destroyAndResetIframe();
 
             if (statusBadge) statusBadge.innerHTML = '<i class="fa fa-circle text-muted me-1" style="font-size: 6px;"></i> Ready';
@@ -545,8 +568,12 @@
         hangupBtn?.addEventListener('click', function (e) {
             e.preventDefault();
             e.stopPropagation();
-            if (statusBadge) statusBadge.textContent = 'Call Disconnected';
-            closeSoftphoneWidget();
+            if (statusBadge) statusBadge.innerHTML = '<span class="text-danger fw-bold"><i class="fa fa-phone-slash me-1"></i> Disconnecting...</span>';
+            // Trigger call termination immediately
+            destroyAndResetIframe();
+            setTimeout(function () {
+                closeSoftphoneWidget();
+            }, 250);
         });
 
         closeBtn?.addEventListener('click', function (e) {
@@ -594,11 +621,15 @@
             if (statusBadge) statusBadge.textContent = isMuted ? 'Muted' : 'Connected';
         });
 
-        // Listen for postMessage from Next2Call PBX
+        // Listen for postMessage from Softphone PBX (both local embed & next2call domains)
         window.addEventListener('message', function (event) {
-            if (!event.origin.includes('next2call.com')) return;
+            const originOk = event.origin.includes('next2call.com') ||
+                             event.origin === window.location.origin ||
+                             window.location.origin.includes('localhost') ||
+                             window.location.origin.includes('127.0.0.1');
+            if (!originOk) return;
 
-            console.log('[Next2Call postMessage]:', event.data);
+            console.log('[Softphone postMessage]:', event.data);
 
             let data = event.data;
             if (typeof data === 'string') {
@@ -607,19 +638,21 @@
                 } catch (e) {}
             }
 
-            // Next2Call web_hook_on_terminate sends { type: "CLOSE_PHONE_POPUP" }
-            const isHangup = data === 'CLOSE_PHONE_POPUP' ||
-                             data === 'CALL_HANGUP' ||
-                             data === 'hangup' ||
+            const isRegistrationFailed = data === 'SIP_REGISTRATION_FAILED' ||
+                                         data?.type === 'SIP_REGISTRATION_FAILED' ||
+                                         data?.type === 'REGISTRATION_FAILED';
+
+            const isRegistered = data === 'SIP_REGISTERED' ||
+                                 data?.type === 'SIP_REGISTERED';
+
+            const isHangup = data === 'CALL_TERMINATED' ||
+                             data?.type === 'CALL_TERMINATED' ||
+                             data === 'CLOSE_PHONE_POPUP' ||
                              data?.type === 'CLOSE_PHONE_POPUP' ||
+                             data === 'CALL_HANGUP' ||
                              data?.type === 'CALL_HANGUP' ||
-                             data?.action === 'CLOSE_PHONE_POPUP' ||
-                             data?.event === 'CLOSE_PHONE_POPUP' ||
-                             data?.type === 'hangup' ||
-                             data?.event === 'hangup' ||
                              data?.type === 'CALL_DISCONNECTED' ||
-                             data === 'CALL_DISCONNECTED' ||
-                             (typeof data === 'string' && (data.includes('CLOSE_PHONE_POPUP') || data.includes('CALL_HANGUP') || data.includes('hangup')));
+                             data === 'CALL_DISCONNECTED';
 
             const isConnected = data === 'CALL_ACCEPTED' ||
                                 data?.type === 'CALL_ACCEPTED' ||
@@ -630,56 +663,60 @@
                                data?.type === 'INCOMING_CALL' ||
                                data?.event === 'incoming_call';
 
-            if (isHangup) {
-                const elapsed = Date.now() - callInitiatedAt;
-                console.log('[Next2Call postMessage] Close/Hangup received. Elapsed:', elapsed, 'ms. isCallActive:', isCallActive);
-
-                // Early close: If message arrives within ~4.5s of click and call was NOT active:
-                // Next2Call web_hook_on_registrationFailed or web_hook_on_unregistered triggered this due to SIP 403 Forbidden!
-                if (!isCallActive && elapsed < 4500) {
-                    console.warn('[Next2Call] Registration failed before call established (SIP 403 Forbidden).');
-                    stopCallTimer();
-                    if (statusBadge) {
-                        statusBadge.innerHTML = '<span class="text-danger fw-bold"><i class="fa fa-exclamation-triangle me-1"></i> Registration Failed (403)</span>';
-                    }
-                    if (timerTextEl) {
-                        timerTextEl.innerHTML = '<span class="text-danger">Forbidden (403)</span>';
-                    }
-                    if (avatarRing) {
-                        avatarRing.style.animation = 'none';
-                        avatarRing.style.background = 'rgba(241, 65, 108, 0.15)';
-                        avatarRing.style.borderColor = '#f1416c';
-                        avatarRing.style.color = '#f1416c';
-                    }
-                    if (noticeBox) {
-                        noticeBox.className = 'n2c-notice-box n2c-notice-danger';
-                        noticeBox.innerHTML = `
-                            <strong>Next2Call PBX: 403 Forbidden</strong><br>
-                            <span style="font-size: 11px; color: #ffccd5; display: block; margin: 4px 0 8px 0; text-align: left; line-height: 1.4;">
-                                • IP <b>103.216.80.217</b> allow karein: <a href="http://ipallow.next2call.com/" target="_blank" style="color: #60a5fa; text-decoration: underline;">ipallow.next2call.com</a> (Key: <code>CLT-5009FAA4F58D</code>)<br>
-                                • Dusre tab me open Next2Call / 10101 dialer ko band karein.<br>
-                                • UAT Domain <b>uat-ain.londonstreetstore.com</b> Next2Call PBX pe whitelist karwayein.
-                            </span>
-                            <button type="button" class="btn btn-sm btn-light py-1 px-3 fs-8 text-dark fw-bold mt-1" id="n2cDirectPopupBtn" style="border-radius: 20px;">
-                                <i class="fa fa-external-link-alt text-primary me-1"></i> Open Directly in Popup
-                            </button>
-                        `;
-                        noticeBox.style.display = 'block';
-
-                        document.getElementById('n2cDirectPopupBtn')?.addEventListener('click', function () {
-                            const directUrl = CTC_BASE + '&d=' + encodeURIComponent(currentFullNumber);
-                            window.open(directUrl, 'Next2CallSoftphone', 'width=380,height=620,menubar=no,toolbar=no,location=no');
-                        });
-                    }
-                    return;
+            if (isRegistrationFailed) {
+                console.warn('[Softphone] SIP Registration failed (403 Forbidden).');
+                stopCallTimer();
+                if (statusBadge) {
+                    statusBadge.innerHTML = '<span class="text-danger fw-bold"><i class="fa fa-exclamation-triangle me-1"></i> Registration Failed (403)</span>';
                 }
+                if (timerTextEl) {
+                    timerTextEl.innerHTML = '<span class="text-danger">Forbidden (403)</span>';
+                }
+                if (avatarRing) {
+                    avatarRing.style.animation = 'none';
+                    avatarRing.style.background = 'rgba(241, 65, 108, 0.15)';
+                    avatarRing.style.borderColor = '#f1416c';
+                    avatarRing.style.color = '#f1416c';
+                }
+                if (noticeBox) {
+                    noticeBox.className = 'n2c-notice-box n2c-notice-danger';
+                    noticeBox.innerHTML = `
+                        <strong>Next2Call PBX: 403 Forbidden</strong><br>
+                        <span style="font-size: 11px; color: #ffccd5; display: block; margin: 4px 0 8px 0; text-align: left; line-height: 1.4;">
+                            • IP <b>103.216.80.217</b> allow karein: <a href="http://ipallow.next2call.com/" target="_blank" style="color: #60a5fa; text-decoration: underline;">ipallow.next2call.com</a> (Key: <code>CLT-5009FAA4F58D</code>)<br>
+                            • Dusre tab me open Next2Call / 10101 dialer ko band karein.<br>
+                            • UAT Domain <b>uat-ain.londonstreetstore.com</b> Next2Call PBX pe whitelist karwayein.
+                        </span>
+                        <button type="button" class="btn btn-sm btn-light py-1 px-3 fs-8 text-dark fw-bold mt-1" id="n2cDirectPopupBtn" style="border-radius: 20px;">
+                            <i class="fa fa-external-link-alt text-primary me-1"></i> Open Directly in Popup
+                        </button>
+                    `;
+                    noticeBox.style.display = 'block';
 
-                // If call was active or ringing (> 4500ms): remote customer cut the call or PBX completed the call!
-                console.log('[Next2Call] Hangup detected from remote customer / PBX, closing immediately');
-                if (statusBadge) statusBadge.innerHTML = '<span class="text-muted">Call Ended</span>';
+                    document.getElementById('n2cDirectPopupBtn')?.addEventListener('click', function () {
+                        const directUrl = (widget?.dataset?.externalCtc || widget?.dataset?.ctcBase || '') + '&d=' + encodeURIComponent(currentFullNumber);
+                        window.open(directUrl, 'Next2CallSoftphone', 'width=380,height=620,menubar=no,toolbar=no,location=no');
+                    });
+                }
+                return;
+            }
+
+            if (isRegistered) {
+                if (statusBadge) statusBadge.innerHTML = '<i class="fa fa-phone text-success me-1"></i> Ringing...';
+                return;
+            }
+
+            if (isHangup) {
+                console.log('[Softphone] Remote hangup / PBX terminate received, closing widget smoothly...');
+                stopCallTimer();
+                if (statusBadge) statusBadge.innerHTML = '<span class="text-muted"><i class="fa fa-phone-slash me-1"></i> Call Ended</span>';
+                if (avatarRing) {
+                    avatarRing.style.animation = 'none';
+                    avatarRing.style.borderColor = '#6c757d';
+                }
                 setTimeout(function () {
                     closeSoftphoneWidget();
-                }, 800);
+                }, 500);
             } else if (isConnected) {
                 isCallActive = true;
                 if (statusBadge) statusBadge.textContent = 'Connected';

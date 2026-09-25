@@ -1708,14 +1708,29 @@ class OrderController extends Controller
             'SipPassword' => $password,
         ]);
 
+        $localEmbedUrl = route('softphone.client') . '?' . $query;
+
         return response()->json([
             'success' => true,
-            'url' => $callUrl,
-            'softphone_url' => $callUrl,
+            'url' => $localEmbedUrl,
+            'softphone_url' => $localEmbedUrl,
+            'external_url' => $callUrl,
             'dialer_url' => $dialerUrl,
             'target_number' => $targetNumber,
             'customer_name' => $customerName,
         ], 200, [], JSON_UNESCAPED_SLASHES);
+    }
+
+    public function next2callClient(Request $request)
+    {
+        $n2cPlugin = \App\Models\PluginSetting::where('plugin_key', 'next2call')->first();
+        $n2cSettings = $n2cPlugin?->settings ?? [];
+
+        $userId = $request->get('SipUsername', $n2cSettings['user_id'] ?? '');
+        $password = $request->get('SipPassword', $n2cSettings['password'] ?? '');
+        $sipDomain = $request->get('SipDomain', $n2cSettings['sip_domain'] ?? 'ringfy.next2call.com');
+
+        return view('order.section.next2call-client', compact('userId', 'password', 'sipDomain'));
     }
 
     private function fetchSoftphoneToken(string $baseUrl, string $userId, string $password): string
