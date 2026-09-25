@@ -37,7 +37,7 @@
         'SipPassword' => $password,
     ]);
 
-    $n2cCtcBaseUrl = route('softphone.client') . '?' . http_build_query([
+    $n2cCtcBaseUrl = "https://{$sipDomain}{$clickToDialPath}?" . http_build_query([
         'profileName' => $userId,
         'SipDomain'   => $sipDomain,
         'SipUsername' => $userId,
@@ -51,7 +51,7 @@
         position: fixed;
         right: 25px;
         bottom: 30px;
-        width: 320px;
+        width: 350px;
         max-width: calc(100vw - 30px);
         background: #1e1e2d;
         color: #ffffff;
@@ -280,7 +280,7 @@
     }
     /* Visible mode: shows full Next2Call interface when Keypad is toggled */
     .n2c-iframe-container.is-visible {
-        height: 480px;
+        height: 540px;
         display: block;
     }
     .n2c-softphone-iframe {
@@ -310,7 +310,7 @@
     <div id="ringfySoftphoneHandle" class="n2c-softphone-header">
         <div class="n2c-title-wrap">
             <i class="fa fa-phone text-success fs-7"></i>
-            <span class="n2c-title-text">Next2Call Voice</span>
+            <span class="n2c-title-text" id="n2cHeaderTitle">Next2Call Voice</span>
             <span class="n2c-status-badge" id="n2cStatusBadge">
                 <i class="fa fa-circle text-success me-1" style="font-size: 6px;"></i> Ready
             </span>
@@ -558,6 +558,8 @@
                 avatarRing.style.borderColor = '';
                 avatarRing.style.color = '';
             }
+            const headerTitleEl = document.getElementById('n2cHeaderTitle');
+            if (headerTitleEl) headerTitleEl.textContent = 'Next2Call Voice';
             if (noticeBox) {
                 noticeBox.style.display = 'none';
                 noticeBox.innerHTML = '';
@@ -593,7 +595,7 @@
             } else {
                 iframeWrap.classList.remove('is-hidden');
                 iframeWrap.classList.add('is-visible');
-                // Ensure frame exists with dialer if empty
+                if (callingCard) callingCard.style.display = 'none';
                 const currentFrame = document.getElementById('ringfySoftphoneFrame');
                 if (!currentFrame || !currentFrame.src || currentFrame.src === 'about:blank') {
                     mountIframe(DIALER_URL);
@@ -778,14 +780,18 @@
                 widget.classList.add('is-open');
             }
 
-            // Ensure Calling Card is visible, iframe stays running in background
-            if (callingCard) callingCard.style.display = 'flex';
+            // Display Next2Call dialer directly so user has full control and real hangup button
+            if (callingCard) callingCard.style.display = 'none';
             if (iframeWrap) {
-                iframeWrap.classList.remove('is-visible');
-                iframeWrap.classList.add('is-hidden');
+                iframeWrap.classList.remove('is-hidden');
+                iframeWrap.classList.add('is-visible');
             }
 
-            // Update UI with Contact Name & Masked Number
+            // Update UI with Contact Name & Masked Number in header & card
+            const headerTitleEl = document.getElementById('n2cHeaderTitle');
+            if (headerTitleEl) {
+                headerTitleEl.innerHTML = `<span style="color:#fff; font-weight:700;">${contactName || 'Customer'}</span> <span style="color:#10b981; font-family:monospace; font-size:11px; margin-left:4px;">${maskNumber(num)}</span>`;
+            }
             if (customerNameEl) customerNameEl.textContent = contactName || 'Customer';
             if (maskedNumberEl) maskedNumberEl.textContent = maskNumber(num);
             if (statusBadge) statusBadge.innerHTML = '<i class="fa fa-spinner fa-spin me-1"></i> Calling...';

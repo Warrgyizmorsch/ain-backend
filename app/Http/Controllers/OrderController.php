@@ -1708,13 +1708,10 @@ class OrderController extends Controller
             'SipPassword' => $password,
         ]);
 
-        $localEmbedUrl = route('softphone.client') . '?' . $query;
-
         return response()->json([
             'success' => true,
-            'url' => $localEmbedUrl,
-            'softphone_url' => $localEmbedUrl,
-            'external_url' => $callUrl,
+            'url' => $callUrl,
+            'softphone_url' => $callUrl,
             'dialer_url' => $dialerUrl,
             'target_number' => $targetNumber,
             'customer_name' => $customerName,
