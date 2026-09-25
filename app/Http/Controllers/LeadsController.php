@@ -3159,7 +3159,7 @@ public function duplicateLeads(Request $request)
             ->orderBy('id', 'desc');
 
         // AJAX Tab Data & Infinite Scroll Request Handler
-        if ($request->ajax()) {
+        if ($request->ajax() || $request->get('ajax') == 1) {
             $currentPage = (int) $request->get('page', 1);
             if ($tab === 'today') {
                 $paginator = $todayQuery->paginate(20, ['*'], 'page', $currentPage);

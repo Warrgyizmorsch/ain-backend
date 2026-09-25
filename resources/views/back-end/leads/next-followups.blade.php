@@ -104,17 +104,19 @@
                                    value="{{ request('search') }}">
                         </div>
 
-                        <!-- Customer Live Search with Dropdown (Matching follow.blade.php) -->
+                        <!-- Customer Live Search with Dropdown (Matching Orders filter & follow.blade.php) -->
                         <div class="col-md-3 fv-row position-relative" style="overflow: visible !important;">
                             <label class="form-label fw-bold fs-7">Customer (Name / Number / Email)</label>
                             <div class="position-relative" style="overflow: visible !important;">
                                 <input type="text" 
+                                       list="searchDatalist"
                                        id="searchInput" 
                                        name="user" 
                                        class="form-control form-control-solid pe-10 fs-7 h-42px" 
                                        placeholder="Search by Name, Number, Email..." 
                                        autocomplete="off" 
                                        value="{{ request('user') }}">
+                                <datalist id="searchDatalist"></datalist>
                                 <span id="searchSpinner" class="position-absolute end-0 top-50 translate-middle-y me-3" style="display:none; pointer-events: none; z-index: 10;">
                                     <span class="spinner-border spinner-border-sm text-primary" role="status" style="width: 1.1rem; height: 1.1rem; border-width: 2px;">
                                         <span class="visually-hidden">Loading...</span>
@@ -372,42 +374,24 @@
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
 <script>
-$(document).ready(function () {
-    // Helper to resolve routes relative to current host origin to prevent CORS failures
-    function resolveAppUrl(rawUrl) {
-        try {
-            const urlObj = new URL(rawUrl, window.location.origin);
-            if (window.location.origin === urlObj.origin) {
-                return rawUrl;
-            }
-            return window.location.origin + urlObj.pathname + urlObj.search;
-        } catch (e) {
-            return rawUrl;
+(function() {
+    // Universal dynamic endpoint resolver - works seamlessly on localhost subfolders, virtual hosts, and production
+    function getAppEndpoint(endpointName) {
+        const curPath = window.location.pathname;
+        const cleanEndpoint = endpointName.replace(/^\/+/, '');
+        if (curPath.includes('next-followups')) {
+            return curPath.replace(/next-followups\/?.*$/, cleanEndpoint);
         }
+        return '/' + cleanEndpoint;
     }
 
-    const tabAjaxUrl = resolveAppUrl("{{ route('next-followups') }}");
-    const searchOrderUrl = resolveAppUrl("{{ route('search-order') }}");
+    const tabAjaxUrl = window.location.pathname;
+    const searchOrderUrl = getAppEndpoint('search-order');
 
     let activeTab = '{{ $tab }}';
-    let tabLoaded = {
-        all: false,
-        today: false,
-        overdue: false,
-        done: false
-    };
-    let paginationPages = {
-        all: 1,
-        today: 1,
-        overdue: 1,
-        done: 1
-    };
-    let hasMorePages = {
-        all: false,
-        today: false,
-        overdue: false,
-        done: false
-    };
+    let tabLoaded = { all: false, today: false, overdue: false, done: false };
+    let paginationPages = { all: 1, today: 1, overdue: 1, done: 1 };
+    let hasMorePages = { all: false, today: false, overdue: false, done: false };
     let isLoading = false;
 
     function getEmptyTabHtml(tabName) {
@@ -463,6 +447,9 @@ $(document).ready(function () {
     }
 
     function fetchTabData(tabName, page = 1, append = false) {
+        if (!window.jQuery) return;
+        const $ = window.jQuery;
+
         if (isLoading) return;
         isLoading = true;
 
@@ -484,7 +471,8 @@ $(document).ready(function () {
         }
 
         const formData = $('#nextFollowUpFilterForm').serializeArray();
-        const cleanData = formData.filter(item => item.name !== 'tab' && item.name !== 'page');
+        const cleanData = formData.filter(item => item.name !== 'tab' && item.name !== 'page' && item.name !== 'ajax');
+        cleanData.push({ name: 'ajax', value: 1 });
         cleanData.push({ name: 'tab', value: tabName });
         cleanData.push({ name: 'page', value: page });
 
@@ -541,7 +529,8 @@ $(document).ready(function () {
                     $('#infinite_scroll_end').hide();
                 }
             },
-            error: function () {
+            error: function (xhr, status, error) {
+                console.error('Failed to load follow-ups:', error);
                 isLoading = false;
                 $('#infinite_scroll_loader').hide();
                 if (!append) {
@@ -549,8 +538,13 @@ $(document).ready(function () {
                         <tr class="empty-row">
                             <td colspan="8" class="text-center py-10 text-danger">
                                 <i class="fa fa-exclamation-triangle fs-2 text-danger mb-2 d-block"></i>
-                                <span>Failed to load follow-ups.</span>
-                                <a href="javascript:void(0)" onclick="fetchTabData('${tabName}', 1, false)" class="fw-bold text-primary ms-2">Retry</a>
+                                <div class="fw-bold fs-6 mb-1">Failed to load follow-ups</div>
+                                <span class="text-muted fs-7">Please check your connection and retry.</span>
+                                <div class="mt-3">
+                                    <button type="button" onclick="fetchTabData('${tabName}', 1, false)" class="btn btn-sm btn-light-primary fw-bold">
+                                        <i class="fa fa-refresh me-1"></i> Try Again
+                                    </button>
+                                </div>
                             </td>
                         </tr>
                     `);
@@ -562,7 +556,9 @@ $(document).ready(function () {
     // Switch Tab - Loads via AJAX if not loaded yet
     window.switchFollowupTab = function(tabName, forceReload = false) {
         activeTab = tabName;
-        $('#active_tab_input').val(tabName);
+        if (window.jQuery) {
+            window.jQuery('#active_tab_input').val(tabName);
+        }
 
         try {
             const url = new URL(window.location.href);
@@ -573,195 +569,31 @@ $(document).ready(function () {
         if (!tabLoaded[tabName] || forceReload) {
             fetchTabData(tabName, 1, false);
         } else {
-            if (hasMorePages[activeTab]) {
-                $('#infinite_scroll_end').hide();
-            } else {
-                const rowCount = $('#tbody_followups_' + activeTab + ' tr:not(.empty-row):not(.tab-loading-row)').length;
-                if (rowCount > 0) {
-                    $('#infinite_scroll_end').show();
-                } else {
+            if (window.jQuery) {
+                const $ = window.jQuery;
+                if (hasMorePages[activeTab]) {
                     $('#infinite_scroll_end').hide();
+                } else {
+                    const rowCount = $('#tbody_followups_' + activeTab + ' tr:not(.empty-row):not(.tab-loading-row)').length;
+                    if (rowCount > 0) {
+                        $('#infinite_scroll_end').show();
+                    } else {
+                        $('#infinite_scroll_end').hide();
+                    }
                 }
             }
         }
     };
 
-    // Filter Form Submit via AJAX
-    $('#nextFollowUpFilterForm').on('submit', function (e) {
-        e.preventDefault();
-        tabLoaded = { all: false, today: false, overdue: false, done: false };
-
-        try {
-            const url = new URL(window.location.href);
-            url.searchParams.set('tab', activeTab);
-            const searchVal = $('#search').val();
-            const userVal = $('#searchInput').val();
-            const uidVal = $('#selectedValue').val();
-            const fromVal = $('#fromDate').val();
-            const toVal = $('#toDate').val();
-
-            if (searchVal) url.searchParams.set('search', searchVal); else url.searchParams.delete('search');
-            if (userVal) url.searchParams.set('user', userVal); else url.searchParams.delete('user');
-            if (uidVal) url.searchParams.set('uid', uidVal); else url.searchParams.delete('uid');
-            if (fromVal) url.searchParams.set('fromDate', fromVal); else url.searchParams.delete('fromDate');
-            if (toVal) url.searchParams.set('toDate', toVal); else url.searchParams.delete('toDate');
-            window.history.replaceState({}, '', url.toString());
-        } catch(e) {}
-
-        fetchTabData(activeTab, 1, false);
-    });
-
-    // Reset Filters Button
-    $('#btnResetFilters').on('click', function (e) {
-        e.preventDefault();
-        $('#search').val('');
-        $('#searchInput').val('');
-        $('#selectedValue').val('');
-        $('#searchResultss').removeClass('show').css('display', 'none').empty();
-        $('#searchSpinner').hide();
-        $('#fromDate').val('');
-        $('#toDate').val('');
-
-        tabLoaded = { all: false, today: false, overdue: false, done: false };
-
-        try {
-            const url = new URL(window.location.origin + window.location.pathname);
-            url.searchParams.set('tab', activeTab);
-            window.history.replaceState({}, '', url.toString());
-        } catch(e) {}
-
-        fetchTabData(activeTab, 1, false);
-    });
-
-    // Infinite Scroll
-    $(window).on('scroll', function () {
-        if (isLoading) return;
-        if (!hasMorePages[activeTab]) return;
-
-        const scrollHeight = $(document).height();
-        const scrollPos = $(window).height() + $(window).scrollTop();
-
-        if ((scrollHeight - scrollPos) / scrollHeight < 0.15) {
-            const nextPage = (paginationPages[activeTab] || 1) + 1;
-            fetchTabData(activeTab, nextPage, true);
-        }
-    });
-
-    // ─────────────────────────────────────────────────────────────────────────────
-    // LIVE CUSTOMER SEARCH (Exact follow.blade.php Implementation with Cross-Origin Fix)
-    // ─────────────────────────────────────────────────────────────────────────────
-    let searchTimeout = null;
-
-    function doUserSearch() {
-        var searchValue = $('#searchInput').val();
-        clearTimeout(searchTimeout);
-
-        if (searchValue && searchValue.trim().length >= 2) {
-            var query = searchValue.trim();
-            $('#searchSpinner').show();
-            $('#searchResultss').html(
-                '<div class="p-3 text-center text-muted fs-7 d-flex align-items-center justify-content-center gap-2">' +
-                    '<span class="spinner-border spinner-border-sm text-primary" role="status" style="width: 1.1rem; height: 1.1rem; border-width: 2px;"></span>' +
-                    '<span>Searching users...</span>' +
-                '</div>'
-            ).addClass('show').css('display', 'block');
-
-            searchTimeout = setTimeout(function () {
-                $.ajax({
-                    url: searchOrderUrl,
-                    type: "GET",
-                    data: { user: query },
-                    success: function (response) {
-                        $('#searchSpinner').hide();
-                        var customDropdownHtml = '';
-                        if (response && response.length > 0) {
-                            $.each(response, function (key, value) {
-                                var mobileStr = value.mobile_no ? ' | 📞 ' + value.mobile_no : '';
-                                var emailStr = value.email ? value.email : '';
-
-                                customDropdownHtml += '<a href="javascript:void(0)" class="dropdown-item user-select-item p-3 border-bottom text-wrap" ' +
-                                    'data-id="' + value.id + '" data-email="' + emailStr + '" data-name="' + value.name + '" data-mobile="' + (value.mobile_no || '') + '" style="display: block; cursor: pointer;">' +
-                                    '<div class="fw-bolder text-dark fs-6">' + value.name + '</div>' +
-                                    '<div class="text-muted fs-7">' + emailStr + mobileStr + '</div>' +
-                                    '</a>';
-                            });
-
-                            $('#searchResultss').html(customDropdownHtml).addClass('show').css('display', 'block');
-                        } else {
-                            $('#searchResultss').html('<div class="p-3 text-muted fs-7 text-center">No results found</div>').addClass('show').css('display', 'block');
-                        }
-                    },
-                    error: function () {
-                        $('#searchSpinner').hide();
-                        $('#searchResultss').html('<div class="p-3 text-danger fs-7 text-center">Error loading results</div>').addClass('show').css('display', 'block');
-                    }
-                });
-            }, 120);
-        } else {
-            $('#searchSpinner').hide();
-            $('#searchResultss').removeClass('show').css('display', 'none').empty();
-            if (!searchValue || searchValue.trim().length === 0) {
-                $('#selectedValue').val('');
-            }
-        }
-    }
-
-    // Input & Keyup events (handles typing in real-time)
-    $('#searchInput').on('input keyup', function () {
-        doUserSearch();
-    });
-
-    // Paste event support
-    $('#searchInput').on('paste', function () {
-        $('#searchSpinner').show();
-        setTimeout(function () {
-            doUserSearch();
-        }, 30);
-    });
-
-    // Focus event
-    $('#searchInput').on('focus', function () {
-        var val = $(this).val();
-        if (val && val.trim().length >= 2) {
-            doUserSearch();
-        }
-    });
-
-    // Selection from custom dropdown
-    $(document).on('click', '#searchResultss .user-select-item', function (e) {
-        e.preventDefault();
-        e.stopPropagation();
-        var selectedId = $(this).attr('data-id');
-        var selectedEmail = $(this).attr('data-email');
-        var selectedName = $(this).attr('data-name');
-        var selectedMobile = $(this).attr('data-mobile');
-        var label = selectedName + (selectedMobile ? ' (' + selectedMobile + ')' : (selectedEmail ? ' (' + selectedEmail + ')' : ''));
-
-        $('#searchInput').val(label);
-        $('#selectedValue').val(selectedId);
-        $('#searchResultss').removeClass('show').css('display', 'none').empty();
-        $('#searchSpinner').hide();
-    });
-
-    // Close dropdown on outside click
-    $(document).on('click', function (e) {
-        if (!$(e.target).closest('#searchInput, #searchResultss').length) {
-            $('#searchResultss').removeClass('show').css('display', 'none');
-        }
-    });
-
-    // Enter key closes dropdown
-    $('#searchInput').on('keypress', function (e) {
-        if (e.which === 13) {
-            $('#searchResultss').removeClass('show').css('display', 'none');
-        }
-    });
+    window.fetchTabData = fetchTabData;
 
     // ─────────────────────────────────────────────────────────────────────────────
     // MARK DONE BUTTON: REAL-TIME (Zero confirmation dialogs, immediate UI response)
     // ─────────────────────────────────────────────────────────────────────────────
     window.handleDoneClick = function(followupId, btnEl) {
         if (!followupId) return;
+        if (!window.jQuery) return;
+        const $ = window.jQuery;
 
         const $btn = $(btnEl);
         if ($btn.hasClass('disabled') || $btn.prop('disabled')) return;
@@ -800,9 +632,8 @@ $(document).ready(function () {
 
         tabLoaded.done = false;
 
-        // 4. Background server update using origin-resolved URL
-        const rawDoneUrl = "{{ route('lead.followups.done', ['id' => ':id']) }}".replace(':id', followupId);
-        const doneUrl = resolveAppUrl(rawDoneUrl);
+        // 4. Background server update using universal dynamic endpoint
+        const doneUrl = getAppEndpoint('lead/followups/' + followupId + '/done');
 
         $.ajax({
             url: doneUrl,
@@ -834,8 +665,220 @@ $(document).ready(function () {
         });
     };
 
-    // Initial AJAX Load: Fetch the active tab data immediately on page load
-    switchFollowupTab(activeTab, true);
-});
+    // ─────────────────────────────────────────────────────────────────────────────
+    // MAIN INITIALIZATION WHEN JQUERY IS READY
+    // ─────────────────────────────────────────────────────────────────────────────
+    function initApp() {
+        if (!window.jQuery) {
+            setTimeout(initApp, 50);
+            return;
+        }
+        const $ = window.jQuery;
+
+        // Filter Form Submit via AJAX
+        $('#nextFollowUpFilterForm').on('submit', function (e) {
+            e.preventDefault();
+            tabLoaded = { all: false, today: false, overdue: false, done: false };
+
+            try {
+                const url = new URL(window.location.href);
+                url.searchParams.set('tab', activeTab);
+                const searchVal = $('#search').val();
+                const userVal = $('#searchInput').val();
+                const uidVal = $('#selectedValue').val();
+                const fromVal = $('#fromDate').val();
+                const toVal = $('#toDate').val();
+
+                if (searchVal) url.searchParams.set('search', searchVal); else url.searchParams.delete('search');
+                if (userVal) url.searchParams.set('user', userVal); else url.searchParams.delete('user');
+                if (uidVal) url.searchParams.set('uid', uidVal); else url.searchParams.delete('uid');
+                if (fromVal) url.searchParams.set('fromDate', fromVal); else url.searchParams.delete('fromDate');
+                if (toVal) url.searchParams.set('toDate', toVal); else url.searchParams.delete('toDate');
+                window.history.replaceState({}, '', url.toString());
+            } catch(e) {}
+
+            fetchTabData(activeTab, 1, false);
+        });
+
+        // Reset Filters Button
+        $('#btnResetFilters').on('click', function (e) {
+            e.preventDefault();
+            $('#search').val('');
+            $('#searchInput').val('');
+            $('#selectedValue').val('');
+            $('#searchDatalist').empty();
+            $('#searchResultss').removeClass('show').css('display', 'none').empty();
+            $('#searchSpinner').hide();
+            $('#fromDate').val('');
+            $('#toDate').val('');
+
+            tabLoaded = { all: false, today: false, overdue: false, done: false };
+
+            try {
+                const url = new URL(window.location.origin + window.location.pathname);
+                url.searchParams.set('tab', activeTab);
+                window.history.replaceState({}, '', url.toString());
+            } catch(e) {}
+
+            fetchTabData(activeTab, 1, false);
+        });
+
+        // Infinite Scroll
+        $(window).on('scroll', function () {
+            if (isLoading) return;
+            if (!hasMorePages[activeTab]) return;
+
+            const scrollHeight = $(document).height();
+            const scrollPos = $(window).height() + $(window).scrollTop();
+
+            if ((scrollHeight - scrollPos) / scrollHeight < 0.15) {
+                const nextPage = (paginationPages[activeTab] || 1) + 1;
+                fetchTabData(activeTab, nextPage, true);
+            }
+        });
+
+        // ─────────────────────────────────────────────────────────────────────────────
+        // LIVE CUSTOMER SEARCH (Matching Orders & follow.blade.php)
+        // ─────────────────────────────────────────────────────────────────────────────
+        let searchTimeout = null;
+
+        function doUserSearch() {
+            var searchValue = $('#searchInput').val();
+            clearTimeout(searchTimeout);
+
+            if (searchValue && searchValue.trim().length >= 2) {
+                var query = searchValue.trim();
+                $('#searchSpinner').show();
+                $('#searchResultss').html(
+                    '<div class="p-3 text-center text-muted fs-7 d-flex align-items-center justify-content-center gap-2">' +
+                        '<span class="spinner-border spinner-border-sm text-primary" role="status" style="width: 1.1rem; height: 1.1rem; border-width: 2px;"></span>' +
+                        '<span>Searching users...</span>' +
+                    '</div>'
+                ).addClass('show').css('display', 'block');
+
+                searchTimeout = setTimeout(function () {
+                    $.ajax({
+                        url: searchOrderUrl,
+                        type: "GET",
+                        data: { user: query },
+                        success: function (response) {
+                            $('#searchSpinner').hide();
+                            var customDropdownHtml = '';
+                            $('#searchDatalist').empty();
+
+                            if (response && response.length > 0) {
+                                $.each(response, function (key, value) {
+                                    var mobileStr = value.mobile_no ? ' | 📞 ' + value.mobile_no : '';
+                                    var emailStr = value.email ? value.email : '';
+                                    var mobileSuffix = value.mobile_no ? ' (' + value.mobile_no + ')' : '';
+
+                                    // Populate datalist option (Orders filter style)
+                                    $('#searchDatalist').append('<option data-id="' + value.id + '" value="' + (value.email || value.name) + '">' + value.name + mobileSuffix + '</option>');
+
+                                    // Populate custom styled floating dropdown
+                                    customDropdownHtml += '<a href="javascript:void(0)" class="dropdown-item user-select-item p-3 border-bottom text-wrap" ' +
+                                        'data-id="' + value.id + '" data-email="' + emailStr + '" data-name="' + value.name + '" data-mobile="' + (value.mobile_no || '') + '" style="display: block; cursor: pointer;">' +
+                                        '<div class="fw-bolder text-dark fs-6">' + value.name + '</div>' +
+                                        '<div class="text-muted fs-7">' + emailStr + mobileStr + '</div>' +
+                                        '</a>';
+                                });
+
+                                $('#searchResultss').html(customDropdownHtml).addClass('show').css('display', 'block');
+                            } else {
+                                $('#searchResultss').html('<div class="p-3 text-muted fs-7 text-center">No results found</div>').addClass('show').css('display', 'block');
+                            }
+                        },
+                        error: function (xhr, status, error) {
+                            console.error('Search order error:', error);
+                            $('#searchSpinner').hide();
+                            $('#searchResultss').html('<div class="p-3 text-danger fs-7 text-center">Error loading results</div>').addClass('show').css('display', 'block');
+                        }
+                    });
+                }, 120);
+            } else {
+                $('#searchSpinner').hide();
+                $('#searchResultss').removeClass('show').css('display', 'none').empty();
+                if (!searchValue || searchValue.trim().length === 0) {
+                    $('#selectedValue').val('');
+                }
+            }
+        }
+
+        window.doUserSearch = doUserSearch;
+
+        // Input & Keyup events (real-time live typing)
+        $('#searchInput').on('input keyup', function () {
+            doUserSearch();
+        });
+
+        // Datalist selection change handler (Matching Orders filter style)
+        $('#searchInput').on('change', function() {
+            var val = $(this).val();
+            var selectedOption = $('#searchDatalist option').filter(function () {
+                return $(this).val() === val;
+            });
+            if (selectedOption.length > 0) {
+                var selectedId = selectedOption.attr('data-id') || selectedOption.data('id');
+                $('#selectedValue').val(selectedId);
+                $('#searchResultss').removeClass('show').css('display', 'none');
+            }
+        });
+
+        // Paste event support
+        $('#searchInput').on('paste', function () {
+            $('#searchSpinner').show();
+            setTimeout(function () {
+                doUserSearch();
+            }, 30);
+        });
+
+        // Focus event
+        $('#searchInput').on('focus', function () {
+            var val = $(this).val();
+            if (val && val.trim().length >= 2) {
+                doUserSearch();
+            }
+        });
+
+        // Selection from custom dropdown item click
+        $(document).on('click', '#searchResultss .user-select-item', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            var selectedId = $(this).attr('data-id');
+            var selectedEmail = $(this).attr('data-email');
+            var selectedName = $(this).attr('data-name');
+            var selectedMobile = $(this).attr('data-mobile');
+            var label = selectedName + (selectedMobile ? ' (' + selectedMobile + ')' : (selectedEmail ? ' (' + selectedEmail + ')' : ''));
+
+            $('#searchInput').val(label);
+            $('#selectedValue').val(selectedId);
+            $('#searchResultss').removeClass('show').css('display', 'none').empty();
+            $('#searchSpinner').hide();
+        });
+
+        // Close dropdown on outside click
+        $(document).on('click', function (e) {
+            if (!$(e.target).closest('#searchInput, #searchResultss').length) {
+                $('#searchResultss').removeClass('show').css('display', 'none');
+            }
+        });
+
+        // Enter key closes dropdown
+        $('#searchInput').on('keypress', function (e) {
+            if (e.which === 13) {
+                $('#searchResultss').removeClass('show').css('display', 'none');
+            }
+        });
+
+        // Initial AJAX Load: Fetch the active tab data immediately
+        switchFollowupTab(activeTab, true);
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initApp);
+    } else {
+        initApp();
+    }
+})();
 </script>
 @endsection
