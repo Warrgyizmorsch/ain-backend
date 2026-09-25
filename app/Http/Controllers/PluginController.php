@@ -47,12 +47,12 @@ class PluginController extends Controller
                 'description' => 'Bridge voice calls between agents and customers directly from the Orders page using Twilio Voice API & WebRTC Dialer.',
                 'is_active' => true,
                 'settings' => [
-                    'account_sid' => env('TWILIO_ACCOUNT_SID', env('TWILIO_SID', 'ACce3d9633593afbeda1054ac03f555ab3')),
+                    'account_sid' => env('TWILIO_ACCOUNT_SID', env('TWILIO_SID', '')),
                     'auth_token' => env('TWILIO_AUTH_TOKEN', env('TWILIO_TOKEN', '')),
-                    'twilio_number' => env('TWILIO_NUMBER', env('TWILIO_PHONE_NUMBER', env('TWILIO_FROM', '+15054963739'))),
-                    'api_key_sid' => env('TWILIO_API_KEY_SID', env('TWILIO_API_KEY', 'SK68c36d375a7551364289a1b85a83e38b')),
-                    'api_secret' => env('TWILIO_API_SECRET', env('TWILIO_SECRET', 'rNXWstz1t72NSD4n60eT1uz2mZZLzfWe')),
-                    'twiml_app_sid' => env('TWILIO_TWIML_APP_SID', env('TWILIO_APP_SID', 'APde9388f580c06d9c737fbc995a3601a7')),
+                    'twilio_number' => env('TWILIO_NUMBER', env('TWILIO_PHONE_NUMBER', env('TWILIO_FROM', ''))),
+                    'api_key_sid' => env('TWILIO_API_KEY_SID', env('TWILIO_API_KEY', '')),
+                    'api_secret' => env('TWILIO_API_SECRET', env('TWILIO_SECRET', '')),
+                    'twiml_app_sid' => env('TWILIO_TWIML_APP_SID', env('TWILIO_APP_SID', '')),
                     'default_agent_number' => env('TWILIO_AGENT_NUMBER', ''),
                     'call_mode' => 'webrtc',
                     'record_calls' => false,
@@ -60,31 +60,31 @@ class PluginController extends Controller
             ]
         );
 
-        // If existing settings have empty keys, fallback to .env or working defaults
+        // If existing settings have empty keys, fallback to .env
         $twCurrent = $twilioPlugin->settings ?? [];
         $twChanged = false;
-        if (empty($twCurrent['account_sid'])) {
-            $twCurrent['account_sid'] = env('TWILIO_ACCOUNT_SID', env('TWILIO_SID', 'ACce3d9633593afbeda1054ac03f555ab3'));
+        if (empty($twCurrent['account_sid']) && (env('TWILIO_ACCOUNT_SID') || env('TWILIO_SID'))) {
+            $twCurrent['account_sid'] = env('TWILIO_ACCOUNT_SID', env('TWILIO_SID'));
             $twChanged = true;
         }
         if (empty($twCurrent['auth_token']) && (env('TWILIO_AUTH_TOKEN') || env('TWILIO_TOKEN'))) {
             $twCurrent['auth_token'] = env('TWILIO_AUTH_TOKEN', env('TWILIO_TOKEN'));
             $twChanged = true;
         }
-        if (empty($twCurrent['twilio_number'])) {
-            $twCurrent['twilio_number'] = env('TWILIO_NUMBER', env('TWILIO_PHONE_NUMBER', env('TWILIO_FROM', '+15054963739')));
+        if (empty($twCurrent['twilio_number']) && (env('TWILIO_NUMBER') || env('TWILIO_PHONE_NUMBER') || env('TWILIO_FROM'))) {
+            $twCurrent['twilio_number'] = env('TWILIO_NUMBER', env('TWILIO_PHONE_NUMBER', env('TWILIO_FROM')));
             $twChanged = true;
         }
-        if (empty($twCurrent['api_key_sid'])) {
-            $twCurrent['api_key_sid'] = env('TWILIO_API_KEY_SID', env('TWILIO_API_KEY', 'SK68c36d375a7551364289a1b85a83e38b'));
+        if (empty($twCurrent['api_key_sid']) && (env('TWILIO_API_KEY_SID') || env('TWILIO_API_KEY'))) {
+            $twCurrent['api_key_sid'] = env('TWILIO_API_KEY_SID', env('TWILIO_API_KEY'));
             $twChanged = true;
         }
-        if (empty($twCurrent['api_secret'])) {
-            $twCurrent['api_secret'] = env('TWILIO_API_SECRET', env('TWILIO_SECRET', 'rNXWstz1t72NSD4n60eT1uz2mZZLzfWe'));
+        if (empty($twCurrent['api_secret']) && (env('TWILIO_API_SECRET') || env('TWILIO_SECRET'))) {
+            $twCurrent['api_secret'] = env('TWILIO_API_SECRET', env('TWILIO_SECRET'));
             $twChanged = true;
         }
-        if (empty($twCurrent['twiml_app_sid'])) {
-            $twCurrent['twiml_app_sid'] = env('TWILIO_TWIML_APP_SID', env('TWILIO_APP_SID', 'APde9388f580c06d9c737fbc995a3601a7'));
+        if (empty($twCurrent['twiml_app_sid']) && (env('TWILIO_TWIML_APP_SID') || env('TWILIO_APP_SID'))) {
+            $twCurrent['twiml_app_sid'] = env('TWILIO_TWIML_APP_SID', env('TWILIO_APP_SID'));
             $twChanged = true;
         }
         if ($twChanged) {
@@ -100,9 +100,9 @@ class PluginController extends Controller
                 'description' => 'Direct in-browser WebRTC softphone calling & click-to-dial powered by Next2Call Ringfy PBX.',
                 'is_active' => true,
                 'settings' => [
-                    'user_id' => config('services.softphone.user_id', '10101'),
-                    'password' => config('services.softphone.password', 'T2d8d1r5P6x0T8O8iUq'),
-                    'sip_domain' => config('services.softphone.sip_domain', 'ringfy.next2call.com'),
+                    'user_id' => '',
+                    'password' => '',
+                    'sip_domain' => 'ringfy.next2call.com',
                     'api_base_url' => 'https://ringfy.next2call.com',
                     'click_to_dial_path' => '/softphone/Phone/click-to-dial.html',
                 ],
@@ -131,9 +131,9 @@ class PluginController extends Controller
                 'description' => 'Direct in-browser WebRTC softphone calling & click-to-dial powered by Next2Call Ringfy PBX.',
                 'is_active' => true,
                 'settings' => [
-                    'user_id' => config('services.softphone.user_id', '10101'),
-                    'password' => config('services.softphone.password', 'T2d8d1r5P6x0T8O8iUq'),
-                    'sip_domain' => config('services.softphone.sip_domain', 'ringfy.next2call.com'),
+                    'user_id' => '',
+                    'password' => '',
+                    'sip_domain' => 'ringfy.next2call.com',
                     'api_base_url' => 'https://ringfy.next2call.com',
                     'click_to_dial_path' => '/softphone/Phone/click-to-dial.html',
                 ],
@@ -281,9 +281,9 @@ class PluginController extends Controller
         $plugin = PluginSetting::where('plugin_key', 'next2call')->first();
         $settings = $plugin?->settings ?? [];
 
-        $userId = $settings['user_id'] ?? config('services.softphone.user_id', '10101');
-        $password = $settings['password'] ?? config('services.softphone.password', 'T2d8d1r5P6x0T8O8iUq');
-        $sipDomain = $settings['sip_domain'] ?? config('services.softphone.sip_domain', 'ringfy.next2call.com');
+        $userId = $settings['user_id'] ?? '';
+        $password = $settings['password'] ?? '';
+        $sipDomain = $settings['sip_domain'] ?? 'ringfy.next2call.com';
         $path = $settings['click_to_dial_path'] ?? '/softphone/Phone/click-to-dial.html';
 
         if (Auth::check()) {
@@ -298,10 +298,10 @@ class PluginController extends Controller
         }
 
         $number = preg_replace('/[^0-9]/', '', $validated['test_phone_number']);
-        if (str_starts_with($number, '91') && strlen($number) === 12) {
-            $number = '0' . substr($number, 2);
+        if (str_starts_with($number, '0') && strlen($number) === 11) {
+            $number = '91' . substr($number, 1);
         } elseif (strlen($number) === 10) {
-            $number = '0' . $number;
+            $number = '91' . $number;
         }
 
         $query = http_build_query([

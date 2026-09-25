@@ -1638,6 +1638,7 @@ class OrderController extends Controller
         $countryCode = $validated['country_code'] ?? '';
         $mobile = $validated['mobile'] ?? '';
 
+        $customerName = 'Customer';
         // Fetch countrycode & mobile_no directly from users DB table if order_id is provided
         if (!empty($validated['order_id'])) {
             $order = Order::with('user')->find($validated['order_id']);
@@ -1647,6 +1648,9 @@ class OrderController extends Controller
                 }
                 if (!empty($order->user->mobile_no)) {
                     $mobile = $order->user->mobile_no;
+                }
+                if (!empty($order->user->name)) {
+                    $customerName = $order->user->name;
                 }
             }
         }
@@ -1663,9 +1667,9 @@ class OrderController extends Controller
         $n2cPlugin = \App\Models\PluginSetting::where('plugin_key', 'next2call')->first();
         $n2cSettings = $n2cPlugin?->settings ?? [];
 
-        $userId = !empty($n2cSettings['user_id']) ? $n2cSettings['user_id'] : config('services.softphone.user_id', '10101');
-        $password = !empty($n2cSettings['password']) ? $n2cSettings['password'] : config('services.softphone.password', 'T2d8d1r5P6x0T8O8iUq');
-        $sipDomain = !empty($n2cSettings['sip_domain']) ? $n2cSettings['sip_domain'] : config('services.softphone.sip_domain', 'ringfy.next2call.com');
+        $userId = !empty($n2cSettings['user_id']) ? $n2cSettings['user_id'] : '';
+        $password = !empty($n2cSettings['password']) ? $n2cSettings['password'] : '';
+        $sipDomain = !empty($n2cSettings['sip_domain']) ? $n2cSettings['sip_domain'] : 'ringfy.next2call.com';
         $clickToDialPath = !empty($n2cSettings['click_to_dial_path']) ? $n2cSettings['click_to_dial_path'] : '/softphone/Phone/click-to-dial.html';
 
         if (auth()->check()) {
@@ -1710,6 +1714,7 @@ class OrderController extends Controller
             'softphone_url' => $callUrl,
             'dialer_url' => $dialerUrl,
             'target_number' => $targetNumber,
+            'customer_name' => $customerName,
         ], 200, [], JSON_UNESCAPED_SLASHES);
     }
 
@@ -1781,32 +1786,22 @@ class OrderController extends Controller
             return '';
         }
 
-        // Check if Indian number (country code 91 or starts with 91/0 with 10-12 digits)
-        $isIndia = ($cleanCountryCode === '91')
-            || (str_starts_with($cleanMobile, '91') && strlen($cleanMobile) >= 12)
-            || (empty($cleanCountryCode) && (strlen($cleanMobile) == 10 || (strlen($cleanMobile) == 11 && str_starts_with($cleanMobile, '0'))));
-
-        if ($isIndia) {
-            // Per Next2Call HTML JS sample: contactNumber.startsWith("91") -> "0" + number.substring(2)
-            // Format 10-digit Indian numbers with leading zero for Next2Call SIP Trunk (e.g., 08800826129)
-            $tenDigits = substr($cleanMobile, -10);
-            return '0' . $tenDigits;
+        // If number starts with 0 and is 11 digits (e.g. 09610092299), strip leading 0
+        if (str_starts_with($cleanMobile, '0') && strlen($cleanMobile) === 11) {
+            $cleanMobile = substr($cleanMobile, 1);
         }
 
-        // Check if UK number (country code 44 or starts with 44)
-        $isUK = ($cleanCountryCode === '44')
-            || (str_starts_with($cleanMobile, '44') && strlen($cleanMobile) >= 11);
-
-        if ($isUK) {
-            if (str_starts_with($cleanMobile, '44')) {
+        // If country code is provided
+        if (!empty($cleanCountryCode)) {
+            if (str_starts_with($cleanMobile, $cleanCountryCode)) {
                 return $cleanMobile;
             }
-            return '44' . ltrim($cleanMobile, '0');
+            return $cleanCountryCode . ltrim($cleanMobile, '0');
         }
 
-        // Generic fallback for other country codes
-        if (!empty($cleanCountryCode) && !str_starts_with($cleanMobile, $cleanCountryCode)) {
-            return $cleanCountryCode . ltrim($cleanMobile, '0');
+        // Default 10-digit number without country code: prefix 91 (India)
+        if (strlen($cleanMobile) === 10) {
+            return '91' . $cleanMobile;
         }
 
         return $cleanMobile;

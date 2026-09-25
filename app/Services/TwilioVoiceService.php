@@ -32,12 +32,12 @@ class TwilioVoiceService
         }
 
         return match ($key) {
-            'account_sid' => env('TWILIO_ACCOUNT_SID', env('TWILIO_SID', 'ACce3d9633593afbeda1054ac03f555ab3')),
-            'auth_token' => env('TWILIO_AUTH_TOKEN', env('TWILIO_TOKEN', '')),
-            'twilio_number' => env('TWILIO_NUMBER', env('TWILIO_PHONE_NUMBER', env('TWILIO_FROM', '+15054963739'))),
-            'api_key_sid' => env('TWILIO_API_KEY_SID', env('TWILIO_API_KEY', 'SK68c36d375a7551364289a1b85a83e38b')),
-            'api_secret' => env('TWILIO_API_SECRET', env('TWILIO_SECRET', 'rNXWstz1t72NSD4n60eT1uz2mZZLzfWe')),
-            'twiml_app_sid' => env('TWILIO_TWIML_APP_SID', env('TWILIO_APP_SID', 'APde9388f580c06d9c737fbc995a3601a7')),
+            'account_sid' => env('TWILIO_ACCOUNT_SID', env('TWILIO_SID')),
+            'auth_token' => env('TWILIO_AUTH_TOKEN', env('TWILIO_TOKEN')),
+            'twilio_number' => env('TWILIO_NUMBER', env('TWILIO_PHONE_NUMBER', env('TWILIO_FROM'))),
+            'api_key_sid' => env('TWILIO_API_KEY_SID', env('TWILIO_API_KEY')),
+            'api_secret' => env('TWILIO_API_SECRET', env('TWILIO_SECRET')),
+            'twiml_app_sid' => env('TWILIO_TWIML_APP_SID', env('TWILIO_APP_SID')),
             default => null,
         };
     }

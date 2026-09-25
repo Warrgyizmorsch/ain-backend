@@ -25,8 +25,8 @@
 
         // 1. Next2Call Softphone (Direct in-browser WebRTC click-to-dial via Ringfy PBX)
         if (isN2cConfigured && typeof window.dialNext2CallNumber === 'function') {
-            console.log('[Softphone Dispatcher] Calling via Next2Call Softphone:', cleanPhone);
-            window.dialNext2CallNumber(cleanPhone);
+            console.log('[Softphone Dispatcher] Calling via Next2Call Softphone:', cleanPhone, name);
+            window.dialNext2CallNumber(cleanPhone, '', name);
             return;
         }
 
@@ -42,8 +42,8 @@
 
         // 3. Fallback: If Next2Call dial function is ready on the page
         if (typeof window.dialNext2CallNumber === 'function') {
-            console.log('[Softphone Dispatcher] Calling via Next2Call (fallback):', cleanPhone);
-            window.dialNext2CallNumber(cleanPhone);
+            console.log('[Softphone Dispatcher] Calling via Next2Call (fallback):', cleanPhone, name);
+            window.dialNext2CallNumber(cleanPhone, '', name);
             return;
         }
 

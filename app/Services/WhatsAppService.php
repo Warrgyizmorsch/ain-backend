@@ -13,8 +13,11 @@ class WhatsAppService
 
     public function __construct()
     {
-        $this->url = env('AISENSY_API_URL');
-        $this->apiKey = env('AISENSY_API_KEY');
+        $waSetting = \App\Models\WhatsappSetting::where('is_active', true)->first();
+        $settings = $waSetting?->settings ?? [];
+
+        $this->url = !empty($settings['api_url']) ? $settings['api_url'] : env('AISENSY_API_URL');
+        $this->apiKey = !empty($settings['api_key']) ? $settings['api_key'] : env('AISENSY_API_KEY');
     }
 
     public function sendTextMessage($to, $message)

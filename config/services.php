@@ -66,9 +66,9 @@ return [
         'secret_key' => env('RECAPTCHA_SECRET_KEY'),
     ],
     'softphone' => [
-        'user_id' => env('SOFTPHONE_USER_ID', '10101'),
-        'password' => env('SOFTPHONE_PASSWORD', 'T2d8d1r5P6x0T8O8iUq'),
-        'sip_domain' => env('SOFTPHONE_SIP_DOMAIN', 'ringfy.next2call.com'),
+        'user_id' => env('SOFTPHONE_USER_ID', ''),
+        'password' => env('SOFTPHONE_PASSWORD', ''),
+        'sip_domain' => env('SOFTPHONE_SIP_DOMAIN', ''),
     ],
    
 
