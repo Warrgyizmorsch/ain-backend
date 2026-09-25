@@ -291,61 +291,6 @@
         background: #ffffff;
     }
 
-    /* Floating Number Mask Overlays */
-    .n2c-mask-overlay-center {
-        position: absolute;
-        top: 76px;
-        left: 50%;
-        transform: translateX(-50%);
-        width: 290px;
-        height: 64px;
-        background: #202029;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        z-index: 10;
-        pointer-events: none;
-        border-radius: 8px;
-    }
-    .n2c-mask-center-name {
-        color: #ffffff;
-        font-size: 16px;
-        font-weight: 700;
-        line-height: 1.2;
-        margin-bottom: 3px;
-        max-width: 260px;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
-    .n2c-mask-center-num {
-        color: #10b981;
-        font-size: 15px;
-        font-weight: 600;
-        font-family: monospace, sans-serif;
-        letter-spacing: 1px;
-    }
-    .n2c-mask-overlay-top {
-        position: absolute;
-        top: 36px;
-        left: 88px;
-        width: 145px;
-        height: 22px;
-        background: #202029;
-        color: #10b981;
-        font-family: monospace, sans-serif;
-        font-size: 11px;
-        font-weight: 600;
-        letter-spacing: 0.5px;
-        display: flex;
-        align-items: center;
-        z-index: 10;
-        pointer-events: none;
-        border-radius: 4px;
-        padding-left: 2px;
-    }
-
     @media (max-width: 575.98px) {
         .n2c-softphone-box {
             right: 10px;
@@ -564,21 +509,10 @@
             }
         }
 
-        function mountIframe(url, contactName = 'Customer', maskedNum = '') {
+        function mountIframe(url) {
             if (!iframeWrap) return;
             iframeWrap.style.display = 'block';
             iframeWrap.innerHTML = `
-                <!-- Overlay 1: Covers Line 1 cleartext number -->
-                <div class="n2c-mask-overlay-top" id="n2cMaskTop">
-                    <span id="n2cMaskTopNum">${maskedNum}</span>
-                </div>
-
-                <!-- Overlay 2: Covers center callingDisplayName & callingDisplayNumber above avatar -->
-                <div class="n2c-mask-overlay-center" id="n2cMaskCenter">
-                    <div class="n2c-mask-center-name" id="n2cMaskCenterName">${contactName}</div>
-                    <div class="n2c-mask-center-num" id="n2cMaskCenterNum">${maskedNum}</div>
-                </div>
-
                 <iframe
                     id="ringfySoftphoneFrame"
                     class="n2c-softphone-iframe"
@@ -923,8 +857,8 @@
             // Start timer immediately
             startCallTimer();
 
-            // Mount and load iframe with direct click-to-dial URL and Twilio-style mask overlays
-            mountIframe(targetUrl, contactName || 'Customer', maskedNum);
+            // Mount and load iframe with direct click-to-dial URL
+            mountIframe(targetUrl);
         };
 
         window.dialNumber = function (mobile, countryCode = '', contactName = 'Customer') {
@@ -966,20 +900,11 @@
 
                 const data = await response.json();
                 if (response.ok && data.success) {
-                    if (data.customer_name) {
-                        if (customerNameEl && (!contactName || contactName === 'Customer')) {
-                            customerNameEl.textContent = data.customer_name;
-                        }
-                        const centerNameEl = document.getElementById('n2cMaskCenterName');
-                        if (centerNameEl) centerNameEl.textContent = data.customer_name;
+                    if (data.customer_name && customerNameEl && (!contactName || contactName === 'Customer')) {
+                        customerNameEl.textContent = data.customer_name;
                     }
-                    if (data.target_number) {
-                        const m = maskNumber(data.target_number);
-                        if (maskedNumberEl) maskedNumberEl.textContent = m;
-                        const topNumEl = document.getElementById('n2cMaskTopNum');
-                        const centerNumEl = document.getElementById('n2cMaskCenterNum');
-                        if (topNumEl) topNumEl.textContent = m;
-                        if (centerNumEl) centerNumEl.textContent = m;
+                    if (data.target_number && maskedNumberEl) {
+                        maskedNumberEl.textContent = maskNumber(data.target_number);
                     }
                     if (data.url) {
                         const currentFrame = document.getElementById('ringfySoftphoneFrame');
