@@ -1629,6 +1629,8 @@ class OrderController extends Controller
 
     public function softphoneCallUrl(Request $request)
     {
+        $this->autoAllowNext2CallIp($request->ip());
+
         $validated = $request->validate([
             'order_id' => ['nullable', 'integer'],
             'country_code' => ['nullable', 'string', 'max:10'],
@@ -1728,6 +1730,35 @@ class OrderController extends Controller
         $sipDomain = $request->get('SipDomain', $n2cSettings['sip_domain'] ?? 'ringfy.next2call.com');
 
         return view('order.section.next2call-client', compact('userId', 'password', 'sipDomain'));
+    }
+
+    private function autoAllowNext2CallIp(?string $clientIp = null): void
+    {
+        try {
+            $ip = $clientIp;
+            if (!$ip || in_array($ip, ['127.0.0.1', '::1', 'localhost']) || str_starts_with($ip, '192.168.') || str_starts_with($ip, '10.')) {
+                $ip = Cache::remember('next2call_wan_ip', 180, function () {
+                    $ctx = stream_context_create(['http' => ['timeout' => 2]]);
+                    return @trim(file_get_contents('https://api.ipify.org', false, $ctx)) ?: null;
+                });
+            }
+
+            if ($ip && filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+                $lastAllowedIp = Cache::get('next2call_allowed_ip');
+                if ($lastAllowedIp !== $ip) {
+                    $res = Http::timeout(3)->asForm()->post('http://ipallow.next2call.com/ipallow/process_ip.php', [
+                        'client_id'  => 'CLT-5009FAA4F58D',
+                        'ip_address' => $ip,
+                    ]);
+                    if ($res->successful()) {
+                        Cache::put('next2call_allowed_ip', $ip, 1800);
+                        Log::info('[Softphone] Auto-allowed IP on Next2Call PBX: ' . $ip);
+                    }
+                }
+            }
+        } catch (\Throwable $e) {
+            Log::warning('[Softphone] Auto IP allow error: ' . $e->getMessage());
+        }
     }
 
     private function fetchSoftphoneToken(string $baseUrl, string $userId, string $password): string
