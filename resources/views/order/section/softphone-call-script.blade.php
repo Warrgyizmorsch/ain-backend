@@ -750,6 +750,14 @@
             }
 
             if (isHangup) {
+                // If call was initiated less than 4.5s ago and hasn't connected yet,
+                // ignore initial unregistered noise from Next2Call startup
+                const isEarlyInit = !isCallActive && callInitiatedAt > 0 && (Date.now() - callInitiatedAt < 4500);
+                if (isEarlyInit && (data === 'CLOSE_PHONE_POPUP' || data?.type === 'CLOSE_PHONE_POPUP')) {
+                    console.log('[Softphone] Ignoring early CLOSE_PHONE_POPUP during initialization phase...');
+                    return;
+                }
+
                 console.log('[Softphone] Remote hangup / PBX terminate received, closing widget immediately (0ms)...');
                 stopCallTimer();
                 // Immediately vanish the iframe DOM so no buddy list/number list is ever rendered!
@@ -901,8 +909,8 @@
                     }
                     if (data.url) {
                         const currentFrame = document.getElementById('ringfySoftphoneFrame');
-                        if (currentFrame && currentFrame.src !== data.url) {
-                            currentFrame.src = data.url;
+                        if (!currentFrame || !currentFrame.src || currentFrame.src === 'about:blank') {
+                            mountIframe(data.url);
                         }
                     }
                 }
