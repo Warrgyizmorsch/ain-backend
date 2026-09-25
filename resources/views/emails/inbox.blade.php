@@ -248,6 +248,72 @@
         position: relative;
     }
 
+    /* Deadline Type Toolbar & Pill Filter Styles */
+    .deadline-type-header-badge {
+        background: #f58220;
+        color: #ffffff;
+        font-weight: 700;
+        font-size: 12px;
+        padding: 5px 12px;
+        border-radius: 6px;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        box-shadow: 0 1px 2px rgba(245, 130, 32, 0.25);
+        user-select: none;
+        white-space: nowrap;
+    }
+    .deadline-type-header-badge i {
+        font-size: 12px;
+    }
+    .deadline-pill-container {
+        display: inline-flex;
+        align-items: center;
+        background: #ffffff;
+        border: 1px solid #d9d9d9;
+        border-radius: 8px;
+        padding: 3px;
+        gap: 4px;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+    }
+    .deadline-pill-btn {
+        border: 1px solid transparent;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 700;
+        padding: 4px 11px;
+        line-height: 1.2;
+        cursor: pointer;
+        white-space: nowrap;
+        outline: none;
+        transition: all 0.15s ease-in-out;
+    }
+    .deadline-pill-btn:hover {
+        filter: brightness(0.96);
+        transform: translateY(-1px);
+    }
+    .deadline-pill-btn.active {
+        box-shadow: 0 0 0 2px currentColor;
+        font-weight: 800;
+        filter: brightness(0.94);
+    }
+    .deadline-pill-less2 {
+        background: #fff0f3 !important;
+        color: #e11d48 !important;
+    }
+    .deadline-pill-35 {
+        background: #fffbeb !important;
+        color: #b45309 !important;
+    }
+    .deadline-pill-615 {
+        background: #eff6ff !important;
+        color: #2563eb !important;
+    }
+    .deadline-pill-above15 {
+        background: #ecfdf5 !important;
+        color: #059669 !important;
+    }
+
     /* Google Mail Top Header: Search Bar & Account Chip */
     .gmail-top-header {
         height: 60px;
@@ -2648,6 +2714,45 @@
                         <li class="px-4 py-2 text-muted fs-8">No labels found</li>
                     @endforelse
                 </ul>
+
+                @if($isWriterEmail ?? false)
+                {{-- Deadline Type Section (Only for Writer Email) --}}
+                <div class="duralux-section-label mt-4">
+                    <span>Deadline Type</span>
+                </div>
+                <ul class="duralux-nav-list" id="deadlineTypeSidebarList">
+                    <li class="duralux-nav-item">
+                        <a href="javascript:void(0);" class="duralux-nav-link {{ empty($deadlineType) ? 'active' : '' }}" data-deadline="" onclick="filterDeadlineType('', this)">
+                            <span class="duralux-dot" style="background: #6c757d;"></span>
+                            <span class="duralux-nav-text">All Deadlines</span>
+                        </a>
+                    </li>
+                    <li class="duralux-nav-item">
+                        <a href="javascript:void(0);" class="duralux-nav-link {{ $deadlineType == 'less_2' ? 'active' : '' }}" data-deadline="less_2" onclick="filterDeadlineType('less_2', this)">
+                            <span class="duralux-dot" style="background: #e11d48;"></span>
+                            <span class="duralux-nav-text">&lt; 2 Days</span>
+                        </a>
+                    </li>
+                    <li class="duralux-nav-item">
+                        <a href="javascript:void(0);" class="duralux-nav-link {{ $deadlineType == '3_5' ? 'active' : '' }}" data-deadline="3_5" onclick="filterDeadlineType('3_5', this)">
+                            <span class="duralux-dot" style="background: #d97706;"></span>
+                            <span class="duralux-nav-text">3-5 Days</span>
+                        </a>
+                    </li>
+                    <li class="duralux-nav-item">
+                        <a href="javascript:void(0);" class="duralux-nav-link {{ $deadlineType == '6_15' ? 'active' : '' }}" data-deadline="6_15" onclick="filterDeadlineType('6_15', this)">
+                            <span class="duralux-dot" style="background: #2563eb;"></span>
+                            <span class="duralux-nav-text">6-15 Days</span>
+                        </a>
+                    </li>
+                    <li class="duralux-nav-item">
+                        <a href="javascript:void(0);" class="duralux-nav-link {{ $deadlineType == 'above_15' ? 'active' : '' }}" data-deadline="above_15" onclick="filterDeadlineType('above_15', this)">
+                            <span class="duralux-dot" style="background: #059669;"></span>
+                            <span class="duralux-nav-text">15 Days &amp; Above</span>
+                        </a>
+                    </li>
+                </ul>
+                @endif
             </div>
         </div>
 
@@ -2742,6 +2847,30 @@
                                     <label class="col-sm-3 col-form-label text-muted fs-8 py-0">Doesn't have</label>
                                     <div class="col-sm-9">
                                         <input type="text" class="form-control form-control-sm gmail-adv-input" id="advFilterDoesntHave" placeholder="Excluded words">
+                                    </div>
+                                </div>
+                                {{-- Deadline Type Filter (< 2 Days, 3-5 Days, 6-15 Days, 15 Days & Above) --}}
+                                <div class="row align-items-center g-2">
+                                    <label class="col-sm-3 col-form-label text-muted fs-8 py-0">Deadline Type</label>
+                                    <div class="col-sm-9">
+                                        <select class="form-select form-select-sm gmail-adv-input" id="advFilterDeadlineType">
+                                            <option value="">All Deadlines</option>
+                                            <option value="less_2" {{ request('deadline_type') == 'less_2' ? 'selected' : '' }}>&lt; 2 Days</option>
+                                            <option value="3_5" {{ request('deadline_type') == '3_5' ? 'selected' : '' }}>3-5 Days</option>
+                                            <option value="6_15" {{ request('deadline_type') == '6_15' ? 'selected' : '' }}>6-15 Days</option>
+                                            <option value="above_15" {{ request('deadline_type') == 'above_15' ? 'selected' : '' }}>15 Days &amp; Above</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="row align-items-center g-2">
+                                    <label class="col-sm-3 col-form-label text-muted fs-8 py-0">Order Code</label>
+                                    <div class="col-sm-9">
+                                        <input type="text" class="form-control form-control-sm gmail-adv-input" id="advFilterOrderCode" list="advOrderCodeDatalist" placeholder="Order Code (e.g. UKS60312)" autocomplete="off" value="{{ request('order_code') }}">
+                                        <datalist id="advOrderCodeDatalist">
+                                            @foreach(($recentOrderCodes ?? []) as $ordCode)
+                                                <option value="{{ $ordCode }}">{{ $ordCode }}</option>
+                                            @endforeach
+                                        </datalist>
                                     </div>
                                 </div>
                                 <div class="row align-items-center g-2">
@@ -2872,6 +3001,34 @@
                                 <li><a class="dropdown-item" href="javascript:void(0);" onclick="markAllAsRead()"><i class="fa fa-envelope-open-o me-2 text-muted"></i> Mark all as read</a></li>
                             </ul>
                         </div>
+
+                        @if($isWriterEmail ?? false)
+                        {{-- Deadline Type Header Filter Bar (Only for Writer Email) --}}
+                        <div class="d-inline-flex align-items-center gap-2 ms-3" id="deadlineTypeToolbarGroup">
+                            <div class="deadline-type-header-badge">
+                                <i class="fa fa-clock-o"></i>
+                                <span>Deadline Type</span>
+                            </div>
+                            <div class="deadline-pill-container">
+                                <button type="button" class="deadline-pill-btn deadline-pill-less2 {{ request('deadline_type') == 'less_2' ? 'active' : '' }}" 
+                                        data-deadline="less_2" onclick="toggleDeadlineType('less_2')" title="Deadline <= 2 Days">
+                                    &lt; 2 Days
+                                </button>
+                                <button type="button" class="deadline-pill-btn deadline-pill-35 {{ request('deadline_type') == '3_5' ? 'active' : '' }}" 
+                                        data-deadline="3_5" onclick="toggleDeadlineType('3_5')" title="Deadline 3-5 Days">
+                                    3-5 Days
+                                </button>
+                                <button type="button" class="deadline-pill-btn deadline-pill-615 {{ request('deadline_type') == '6_15' ? 'active' : '' }}" 
+                                        data-deadline="6_15" onclick="toggleDeadlineType('6_15')" title="Deadline 6-15 Days">
+                                    6-15 Days
+                                </button>
+                                <button type="button" class="deadline-pill-btn deadline-pill-above15 {{ request('deadline_type') == 'above_15' ? 'active' : '' }}" 
+                                        data-deadline="above_15" onclick="toggleDeadlineType('above_15')" title="Deadline 15 Days & Above">
+                                    15 Days &amp; Above
+                                </button>
+                            </div>
+                        </div>
+                        @endif
                     </div>
 
                     <div class="duralux-toolbar-right d-flex align-items-center gap-2">
@@ -4533,7 +4690,18 @@ function applyAdvancedFilter(e) {
         filter_doesnt_have: document.getElementById('advFilterDoesntHave')?.value.trim() || '',
         filter_date_within: document.getElementById('advFilterDateWithin')?.value || '',
         filter_date_ref: document.getElementById('advFilterDateRef')?.value || '',
+        filter_order_code: document.getElementById('advFilterOrderCode')?.value.trim() || '',
+        deadline_type: document.getElementById('advFilterDeadlineType')?.value || '',
     };
+
+    // Synchronize pills and sidebar
+    const dt = activeAdvancedFilters.deadline_type;
+    document.querySelectorAll('.deadline-pill-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.getAttribute('data-deadline') === dt);
+    });
+    document.querySelectorAll('#deadlineTypeSidebarList .duralux-nav-link').forEach(link => {
+        link.classList.toggle('active', (link.getAttribute('data-deadline') || '') === dt);
+    });
 
     const hasAttachment = document.getElementById('advFilterHasAttachment')?.checked || false;
     activeFilterChips.has_attachment = hasAttachment;
@@ -4554,8 +4722,78 @@ function applyAdvancedFilter(e) {
 function resetAdvancedFilter() {
     const form = document.getElementById('gmailAdvancedFilterForm');
     if (form) form.reset();
+
+    if (activeAdvancedFilters) {
+        delete activeAdvancedFilters.deadline_type;
+        delete activeAdvancedFilters.filter_order_code;
+    }
     activeAdvancedFilters = null;
+
+    document.querySelectorAll('.deadline-pill-btn').forEach(btn => btn.classList.remove('active'));
+    document.querySelectorAll('#deadlineTypeSidebarList .duralux-nav-link').forEach(link => {
+        link.classList.toggle('active', (link.getAttribute('data-deadline') || '') === '');
+    });
+
     closeAdvancedFilterPopup();
+    closeEmailThread();
+    reloadEmailList(true);
+}
+
+// ── DEADLINE TYPE FILTER (< 2 Days, 3-5 Days, 6-15 Days, 15 Days & Above) ────
+function toggleDeadlineType(type) {
+    const current = (activeAdvancedFilters && activeAdvancedFilters.deadline_type) || '';
+    const newType = (current === type) ? '' : type;
+
+    activeAdvancedFilters = activeAdvancedFilters || {};
+    if (newType) {
+        activeAdvancedFilters.deadline_type = newType;
+    } else {
+        delete activeAdvancedFilters.deadline_type;
+    }
+
+    // Synchronize popup input
+    const advSel = document.getElementById('advFilterDeadlineType');
+    if (advSel) advSel.value = newType;
+
+    // Synchronize toolbar pills
+    document.querySelectorAll('.deadline-pill-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.getAttribute('data-deadline') === newType);
+    });
+
+    // Synchronize sidebar links
+    document.querySelectorAll('#deadlineTypeSidebarList .duralux-nav-link').forEach(link => {
+        const linkType = link.getAttribute('data-deadline') || '';
+        link.classList.toggle('active', linkType === newType);
+    });
+
+    closeEmailThread();
+    reloadEmailList(true);
+}
+
+function filterDeadlineType(type, element) {
+    activeAdvancedFilters = activeAdvancedFilters || {};
+    if (type) {
+        activeAdvancedFilters.deadline_type = type;
+    } else {
+        delete activeAdvancedFilters.deadline_type;
+    }
+
+    // Synchronize popup input
+    const advSel = document.getElementById('advFilterDeadlineType');
+    if (advSel) advSel.value = type;
+
+    // Synchronize toolbar pills
+    document.querySelectorAll('.deadline-pill-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.getAttribute('data-deadline') === (type || ''));
+    });
+
+    // Synchronize sidebar links
+    if (element) {
+        document.querySelectorAll('#deadlineTypeSidebarList .duralux-nav-link').forEach(link => link.classList.remove('active'));
+        element.classList.add('active');
+    }
+
+    closeEmailThread();
     reloadEmailList(true);
 }
 
@@ -4583,6 +4821,8 @@ function appendSearchFilterParams(url, searchVal) {
         if (activeAdvancedFilters.filter_doesnt_have) url.searchParams.set('filter_doesnt_have', activeAdvancedFilters.filter_doesnt_have);
         if (activeAdvancedFilters.filter_date_within) url.searchParams.set('filter_date_within', activeAdvancedFilters.filter_date_within);
         if (activeAdvancedFilters.filter_date_ref) url.searchParams.set('filter_date_ref', activeAdvancedFilters.filter_date_ref);
+        if (activeAdvancedFilters.filter_order_code) url.searchParams.set('order_code', activeAdvancedFilters.filter_order_code);
+        if (activeAdvancedFilters.deadline_type) url.searchParams.set('deadline_type', activeAdvancedFilters.deadline_type);
     }
 }
 
@@ -4592,6 +4832,24 @@ let isLoadingMore = false;
 
 document.addEventListener('DOMContentLoaded', function() {
     initInfiniteScroll();
+
+    // Check for initial URL query parameters for deadline_type or order_code
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.has('deadline_type') || urlParams.has('order_code')) {
+        activeAdvancedFilters = activeAdvancedFilters || {};
+        if (urlParams.get('deadline_type')) {
+            const dt = urlParams.get('deadline_type');
+            activeAdvancedFilters.deadline_type = dt;
+            document.querySelectorAll('.deadline-pill-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.getAttribute('data-deadline') === dt);
+            });
+            document.querySelectorAll('#deadlineTypeSidebarList .duralux-nav-link').forEach(link => {
+                link.classList.toggle('active', (link.getAttribute('data-deadline') || '') === dt);
+            });
+        }
+        if (urlParams.get('order_code')) activeAdvancedFilters.filter_order_code = urlParams.get('order_code');
+    }
+
     const searchInput = document.getElementById('emailSearchInput');
     const initSearchVal = searchInput ? searchInput.value.trim() : '';
     if (initSearchVal) {

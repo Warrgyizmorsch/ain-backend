@@ -294,6 +294,72 @@ class EmailController extends Controller
             $query->whereBetween('created_at', [$refDate->copy()->subDays($days)->startOfDay(), $refDate->copy()->addDays($days)->endOfDay()]);
         }
 
+        // 6. Deadline Type Filter (< 2 Days, 3-5 Days, 6-15 Days, 15 Days & Above) & Order Code Filter
+        $deadlineType = trim((string)($request->input('deadline_type') ?? ''));
+        $filterOrderCode = trim((string)($request->input('order_code') ?? $request->input('filter_order_code') ?? ''));
+
+        if (!empty($deadlineType) || !empty($filterOrderCode)) {
+            $matchingCodes = [];
+
+            if (!empty($deadlineType)) {
+                $orderQuery = Order::query()->whereNotNull('order_id')->where('order_id', '!=', '');
+
+                // Match duration difference between delivery_date / deadline and order_date / created_at (NOT writer_deadline)
+                $gapSql = "CASE 
+                    WHEN delivery_date IS NOT NULL AND order_date IS NOT NULL THEN DATEDIFF(delivery_date, order_date)
+                    WHEN delivery_date IS NOT NULL THEN DATEDIFF(delivery_date, DATE(created_at))
+                    WHEN deadline REGEXP '^[0-9]+$' THEN CAST(deadline AS SIGNED)
+                    ELSE NULL 
+                END";
+
+                if (in_array($deadlineType, ['less_2', '<2', '< 2 Days', '2'])) {
+                    $orderQuery->whereRaw("({$gapSql}) <= 2");
+                } elseif (in_array($deadlineType, ['3_5', '3-5', '3-5 Days'])) {
+                    $orderQuery->whereRaw("({$gapSql}) >= 3 AND ({$gapSql}) <= 5");
+                } elseif (in_array($deadlineType, ['6_15', '6-15', '6-15 Days'])) {
+                    $orderQuery->whereRaw("({$gapSql}) >= 6 AND ({$gapSql}) <= 15");
+                } elseif (in_array($deadlineType, ['above_15', '>15', '15 Days & Above', '15+'])) {
+                    $orderQuery->whereRaw("({$gapSql}) >= 16");
+                }
+
+                if (!empty($filterOrderCode)) {
+                    $orderQuery->where('order_id', 'like', "%{$filterOrderCode}%");
+                }
+
+                $matchingCodes = $orderQuery->limit(500)->pluck('order_id')->filter()->unique()->values()->all();
+
+                if (empty($matchingCodes)) {
+                    if (!empty($filterOrderCode)) {
+                        $matchingCodes = [$filterOrderCode];
+                    } else {
+                        $query->whereRaw('0 = 1');
+                    }
+                }
+            } elseif (!empty($filterOrderCode)) {
+                $matchingCodes = [$filterOrderCode];
+            }
+
+            if (!empty($matchingCodes)) {
+                $query->where(function ($eq) use ($matchingCodes) {
+                    if (count($matchingCodes) <= 15) {
+                        foreach ($matchingCodes as $code) {
+                            $eq->orWhere('subject', 'like', "%{$code}%")
+                               ->orWhere('body_plain', 'like', "%{$code}%")
+                               ->orWhere('body_html', 'like', "%{$code}%");
+                        }
+                    } else {
+                        $chunks = array_chunk($matchingCodes, 20);
+                        foreach ($chunks as $chunk) {
+                            $escaped = array_map(fn($c) => preg_quote($c, '/'), $chunk);
+                            $pattern = implode('|', $escaped);
+                            $eq->orWhere('subject', 'REGEXP', $pattern)
+                               ->orWhere('body_plain', 'REGEXP', $pattern);
+                        }
+                    }
+                });
+            }
+        }
+
         // Fetch latest message per thread to display in list (lightweight 20 per page)
         $threadsQuery = clone $query;
         $latestMessageIds = $threadsQuery->selectRaw('MAX(id) as id')
@@ -396,9 +462,11 @@ class EmailController extends Controller
         $unreadCount = $counts['inbox'] ?? 0;
         $emails = $threads;
 
-        // Only pre-render folder cache on fresh default inbox loads (skip on search to make opening emails instant)
+        // Only pre-render folder cache on fresh default inbox loads (skip on search / order filters to make opening emails instant)
+        $isWriterEmail = $selectedAccount && ($selectedAccount->id == 1 || stripos($selectedAccount->name, 'writer') !== false);
         $folderHtmlCache = [];
-        if (empty($search)) {
+        $isFiltered = !empty($search) || !empty($filterOrderCode) || !empty($deadlineType);
+        if (!$isFiltered) {
             $cacheSource = EmailMessage::select([
                     'id', 'thread_id', 'from_email', 'from_name', 'to_email', 'to_name',
                     'subject', 'body_plain', 'folder', 'direction', 'status',
@@ -446,6 +514,19 @@ class EmailController extends Controller
             }
         }
 
+        $recentOrderCodes = Cache::remember('emails_recent_order_codes_list', 180, function () {
+            return \App\Models\Order::query()
+                ->whereNotNull('order_id')
+                ->where('order_id', '!=', '')
+                ->orderByDesc('id')
+                ->limit(50)
+                ->pluck('order_id')
+                ->filter()
+                ->unique()
+                ->values()
+                ->all();
+        });
+
         return view('emails.inbox', compact(
             'threads',
             'emails',
@@ -463,7 +544,10 @@ class EmailController extends Controller
             'folderHtmlCache',
             'allLabels',
             'threadLabelsMap',
-            'emailClientContacts'
+            'emailClientContacts',
+            'recentOrderCodes',
+            'isWriterEmail',
+            'deadlineType'
         ));
     }
 
