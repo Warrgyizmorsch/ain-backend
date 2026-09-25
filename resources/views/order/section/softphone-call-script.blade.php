@@ -449,6 +449,31 @@
             }
         }
 
+        function destroyAndResetIframe() {
+            if (!iframeWrap) return;
+            // 1. Post hangup signals to iframe
+            try {
+                const currentFrame = document.getElementById('ringfySoftphoneFrame');
+                if (currentFrame && currentFrame.contentWindow) {
+                    currentFrame.contentWindow.postMessage({ type: 'HANGUP', action: 'hangup' }, '*');
+                    currentFrame.contentWindow.postMessage({ type: 'CALL_HANGUP' }, '*');
+                    currentFrame.contentWindow.postMessage('CALL_HANGUP', '*');
+                    currentFrame.src = 'about:blank';
+                }
+            } catch (e) {}
+
+            // 2. Completely remove and recreate iframe in DOM to instantly kill all WebRTC streams & WebSockets
+            iframeWrap.innerHTML = `
+                <iframe
+                    id="ringfySoftphoneFrame"
+                    class="n2c-softphone-iframe"
+                    src="about:blank"
+                    allow="microphone; camera; speaker-selection; display-capture; autoplay; fullscreen"
+                    allowfullscreen>
+                </iframe>
+            `;
+        }
+
         // Close & Reset Widget
         function closeSoftphoneWidget() {
             stopCallTimer();
@@ -461,23 +486,24 @@
                 iframeWrap.classList.add('is-hidden');
             }
 
-            // Immediately clear iframe src to terminate active WebRTC session & audio
-            if (frame) {
-                frame.removeAttribute('src');
-                frame.src = '';
-            }
+            // Immediately destroy iframe so PBX & audio disconnects instantly
+            destroyAndResetIframe();
 
             if (statusBadge) statusBadge.innerHTML = '<i class="fa fa-circle text-muted me-1" style="font-size: 6px;"></i> Ready';
             if (avatarRing) avatarRing.style.animation = 'none';
         }
 
-        // Hangup Button Click
-        hangupBtn?.addEventListener('click', function () {
-            if (statusBadge) statusBadge.textContent = 'Disconnecting...';
-            setTimeout(closeSoftphoneWidget, 300);
+        // Hangup Button Click (Instant Call Disconnect)
+        hangupBtn?.addEventListener('click', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (statusBadge) statusBadge.textContent = 'Call Disconnected';
+            closeSoftphoneWidget();
         });
 
-        closeBtn?.addEventListener('click', function () {
+        closeBtn?.addEventListener('click', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
             closeSoftphoneWidget();
         });
 
@@ -493,8 +519,9 @@
                 iframeWrap.classList.remove('is-hidden');
                 iframeWrap.classList.add('is-visible');
                 // Ensure frame has dialer if empty
-                if (frame && (!frame.src || frame.src === 'about:blank')) {
-                    frame.src = DIALER_URL;
+                const currentFrame = document.getElementById('ringfySoftphoneFrame');
+                if (currentFrame && (!currentFrame.src || currentFrame.src === 'about:blank')) {
+                    currentFrame.src = DIALER_URL;
                 }
             }
         }
@@ -504,7 +531,8 @@
 
         // Popout External Button
         externalBtn?.addEventListener('click', function () {
-            const currentSrc = frame?.src || DIALER_URL;
+            const currentFrame = document.getElementById('ringfySoftphoneFrame');
+            const currentSrc = (currentFrame && currentFrame.src && currentFrame.src !== 'about:blank') ? currentFrame.src : DIALER_URL;
             if (currentSrc) {
                 window.open(currentSrc, 'Next2CallSoftphone', 'width=380,height=600,menubar=no,toolbar=no,location=no');
             }
@@ -545,7 +573,7 @@
                 console.log('[Next2Call] Call Hangup received');
                 if (statusBadge) statusBadge.textContent = 'Call Ended';
                 stopCallTimer();
-                setTimeout(closeSoftphoneWidget, 1200);
+                setTimeout(closeSoftphoneWidget, 1000);
             } else if (isConnected) {
                 if (statusBadge) statusBadge.textContent = 'Connected';
                 startCallTimer();
@@ -605,9 +633,10 @@
             startCallTimer();
 
             // Load iframe with direct click-to-dial URL
-            if (frame) {
-                frame.setAttribute('allow', 'microphone; camera; speaker-selection; display-capture; autoplay; fullscreen');
-                frame.src = targetUrl;
+            const currentFrame = document.getElementById('ringfySoftphoneFrame');
+            if (currentFrame) {
+                currentFrame.setAttribute('allow', 'microphone; camera; speaker-selection; display-capture; autoplay; fullscreen');
+                currentFrame.src = targetUrl;
             }
         };
 
@@ -656,8 +685,9 @@
                     if (data.target_number && maskedNumberEl) {
                         maskedNumberEl.textContent = maskNumber(data.target_number);
                     }
-                    if (data.url && frame) {
-                        frame.src = data.url;
+                    const currentFrame = document.getElementById('ringfySoftphoneFrame');
+                    if (data.url && currentFrame) {
+                        currentFrame.src = data.url;
                     }
                 }
             } catch (err) {
