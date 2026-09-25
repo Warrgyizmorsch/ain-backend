@@ -315,20 +315,6 @@
                 <i class="fa fa-circle text-success me-1" style="font-size: 6px;"></i> Ready
             </span>
         </div>
-        <div class="n2c-header-actions">
-            <button type="button" class="n2c-header-btn" id="n2cQuickEndBtn" style="background:#f1416c; color:#fff; width:auto; padding:0 8px; font-weight:600; font-size:11px; gap:4px; display:inline-flex;" title="End Call & Close">
-                <i class="fa fa-phone-slash"></i> End
-            </button>
-            <button type="button" class="n2c-header-btn" id="n2cToggleKeypadBtn" title="Toggle Next2Call Keypad">
-                <i class="fa fa-th"></i>
-            </button>
-            <button type="button" class="n2c-header-btn" id="n2cExternalBtn" title="Open in New Tab">
-                <i class="fa fa-external-link-alt"></i>
-            </button>
-            <button type="button" class="n2c-header-btn" id="n2cCloseBtn" title="Close">
-                <i class="fa fa-times"></i>
-            </button>
-        </div>
     </div>
 
     <!-- Active Calling Card (Twilio Sleek Style) -->
@@ -630,6 +616,13 @@
                 iframeWrap.innerHTML = '';
             }
             closeSoftphoneWidget();
+        });
+
+        // Close widget with Escape key if needed
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape' && widget && widget.classList.contains('is-open')) {
+                closeSoftphoneWidget();
+            }
         });
 
         // Toggle Keypad View
