@@ -653,8 +653,23 @@
                     }
                     if (noticeBox) {
                         noticeBox.className = 'n2c-notice-box n2c-notice-danger';
-                        noticeBox.innerHTML = '<strong>Next2Call PBX Registration Failed (403 Forbidden)</strong><br><span style="font-size: 11px; color: #ffccd5;">Your Public IP must be whitelisted on <a href="http://ipallow.next2call.com/" target="_blank" style="color: #60a5fa; text-decoration: underline;">ipallow.next2call.com</a> (Key: <code>CLT-5009FAA4F58D</code>) and ensure no other browser tab is using extension 10101.</span>';
+                        noticeBox.innerHTML = `
+                            <strong>Next2Call PBX: 403 Forbidden</strong><br>
+                            <span style="font-size: 11px; color: #ffccd5; display: block; margin: 4px 0 8px 0; text-align: left; line-height: 1.4;">
+                                • IP <b>103.216.80.217</b> allow karein: <a href="http://ipallow.next2call.com/" target="_blank" style="color: #60a5fa; text-decoration: underline;">ipallow.next2call.com</a> (Key: <code>CLT-5009FAA4F58D</code>)<br>
+                                • Dusre tab me open Next2Call / 10101 dialer ko band karein.<br>
+                                • UAT Domain <b>uat-ain.londonstreetstore.com</b> Next2Call PBX pe whitelist karwayein.
+                            </span>
+                            <button type="button" class="btn btn-sm btn-light py-1 px-3 fs-8 text-dark fw-bold mt-1" id="n2cDirectPopupBtn" style="border-radius: 20px;">
+                                <i class="fa fa-external-link-alt text-primary me-1"></i> Open Directly in Popup
+                            </button>
+                        `;
                         noticeBox.style.display = 'block';
+
+                        document.getElementById('n2cDirectPopupBtn')?.addEventListener('click', function () {
+                            const directUrl = CTC_BASE + '&d=' + encodeURIComponent(currentFullNumber);
+                            window.open(directUrl, 'Next2CallSoftphone', 'width=380,height=620,menubar=no,toolbar=no,location=no');
+                        });
                     }
                     return;
                 }
