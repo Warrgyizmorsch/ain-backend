@@ -910,6 +910,111 @@
                 console.warn('[Next2Call Softphone] Server endpoint fallback:', err);
             }
         };
+
+        // =========================================================================
+        // Seamless In-Call Navigation Engine:
+        // Keeps WebRTC voice call 100% active and connected when agent clicks other
+        // CRM pages, orders, menus, or customer history during a live call!
+        // =========================================================================
+        async function n2cSeamlessNavigateTo(url) {
+            try {
+                if ($('#n2c-nav-progress').length === 0) {
+                    $('body').append('<div id="n2c-nav-progress" style="position:fixed;top:0;left:0;height:3px;background:#10b981;width:0%;z-index:999999;transition:width 0.3s ease;box-shadow:0 0 10px #10b981;"></div>');
+                }
+                $('#n2c-nav-progress').css('width', '40%').show();
+
+                const response = await fetch(url, {
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                });
+
+                if (!response.ok) {
+                    window.location.href = url;
+                    return;
+                }
+
+                $('#n2c-nav-progress').css('width', '80%');
+                const html = await response.text();
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+
+                const newTitle = doc.querySelector('title')?.innerText || document.title;
+                const newMain = doc.querySelector('main.content') || doc.querySelector('#kt_content') || doc.querySelector('#kt_wrapper');
+                const currentMain = document.querySelector('main.content') || document.querySelector('#kt_content') || document.querySelector('#kt_wrapper');
+
+                if (newMain && currentMain) {
+                    currentMain.innerHTML = newMain.innerHTML;
+                    document.title = newTitle;
+                    window.history.pushState({ path: url }, newTitle, url);
+
+                    // Re-run inline/embedded scripts in the new content
+                    const scripts = newMain.querySelectorAll('script');
+                    scripts.forEach(s => {
+                        const newScript = document.createElement('script');
+                        if (s.src) {
+                            newScript.src = s.src;
+                        } else {
+                            newScript.textContent = s.textContent;
+                        }
+                        document.body.appendChild(newScript);
+                    });
+
+                    // Update active menu link
+                    $('.menu-link').removeClass('active');
+                    $(`a[href="${url}"]`).addClass('active');
+
+                    // Fire ready/resize events
+                    $(document).trigger('ready');
+                    window.dispatchEvent(new Event('resize'));
+                } else {
+                    window.location.href = url;
+                }
+
+                $('#n2c-nav-progress').css('width', '100%');
+                setTimeout(() => $('#n2c-nav-progress').fadeOut(200).css('width', '0%'), 250);
+            } catch (err) {
+                console.error('[Next2Call] Seamless navigation error, falling back:', err);
+                window.location.href = url;
+            }
+        }
+
+        // 1. Intercept internal CRM link clicks while softphone widget is open with live call
+        $(document).on('click', 'a[href]', function(e) {
+            const href = $(this).attr('href');
+            if (!href || href.startsWith('#') || href.startsWith('javascript:') || href.startsWith('mailto:') || href.startsWith('tel:') || $(this).attr('target') === '_blank' || $(this).attr('download')) {
+                return;
+            }
+
+            // Only intercept if within same origin (internal CRM navigation)
+            if (href.startsWith('http://') || href.startsWith('https://')) {
+                if (!href.startsWith(window.location.origin)) {
+                    return;
+                }
+            }
+
+            // If a live call is active or softphone popup is open: do NOT reload page, navigate seamlessly!
+            if (widget && widget.classList.contains('is-open')) {
+                e.preventDefault();
+                n2cSeamlessNavigateTo(href);
+            }
+        });
+
+        // 2. Handle browser Back/Forward buttons during active call
+        window.addEventListener('popstate', function(e) {
+            if (widget && widget.classList.contains('is-open')) {
+                n2cSeamlessNavigateTo(window.location.href);
+            }
+        });
+
+        // 3. Beforeunload guard: warn agent if they accidentally hit refresh or close tab during call
+        window.addEventListener('beforeunload', function(e) {
+            if (widget && widget.classList.contains('is-open') && isCallActive) {
+                e.preventDefault();
+                e.returnValue = 'Live Next2Call call chal rahi hai. Page reload karne se call disconnect ho jayegi.';
+                return e.returnValue;
+            }
+        });
     }
 
     if (document.readyState === 'loading') {
