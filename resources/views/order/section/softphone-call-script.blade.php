@@ -449,6 +449,19 @@
             }
         }
 
+        function mountIframe(url) {
+            if (!iframeWrap) return;
+            iframeWrap.innerHTML = `
+                <iframe
+                    id="ringfySoftphoneFrame"
+                    class="n2c-softphone-iframe"
+                    src="${url}"
+                    allow="microphone; camera; speaker-selection; display-capture; autoplay; fullscreen"
+                    allowfullscreen>
+                </iframe>
+            `;
+        }
+
         function destroyAndResetIframe() {
             if (!iframeWrap) return;
             // 1. Post hangup signals to iframe
@@ -456,28 +469,25 @@
                 const currentFrame = document.getElementById('ringfySoftphoneFrame');
                 if (currentFrame && currentFrame.contentWindow) {
                     currentFrame.contentWindow.postMessage({ type: 'HANGUP', action: 'hangup' }, '*');
+                    currentFrame.contentWindow.postMessage({ type: 'CLOSE_PHONE_POPUP' }, '*');
                     currentFrame.contentWindow.postMessage({ type: 'CALL_HANGUP' }, '*');
+                    currentFrame.contentWindow.postMessage('CLOSE_PHONE_POPUP', '*');
                     currentFrame.contentWindow.postMessage('CALL_HANGUP', '*');
-                    currentFrame.src = 'about:blank';
+                    currentFrame.contentWindow.postMessage('HANGUP', '*');
                 }
             } catch (e) {}
 
-            // 2. Completely remove and recreate iframe in DOM to instantly kill all WebRTC streams & WebSockets
-            iframeWrap.innerHTML = `
-                <iframe
-                    id="ringfySoftphoneFrame"
-                    class="n2c-softphone-iframe"
-                    src="about:blank"
-                    allow="microphone; camera; speaker-selection; display-capture; autoplay; fullscreen"
-                    allowfullscreen>
-                </iframe>
-            `;
+            // 2. Completely destroy the iframe element from DOM to instantly kill all WebRTC streams, WebSockets & SIP call
+            iframeWrap.innerHTML = '';
         }
 
-        // Close & Reset Widget
+        // Close & Reset Widget (Instant Disconnect)
         function closeSoftphoneWidget() {
             stopCallTimer();
-            if (widget) widget.classList.remove('is-open');
+            if (widget) {
+                widget.classList.remove('is-open');
+                widget.style.display = 'none';
+            }
 
             // Reset view state
             if (callingCard) callingCard.style.display = 'flex';
@@ -493,7 +503,7 @@
             if (avatarRing) avatarRing.style.animation = 'none';
         }
 
-        // Hangup Button Click (Instant Call Disconnect)
+        // Hangup Button Click (Instant Call Disconnect by Agent)
         hangupBtn?.addEventListener('click', function (e) {
             e.preventDefault();
             e.stopPropagation();
@@ -518,10 +528,10 @@
             } else {
                 iframeWrap.classList.remove('is-hidden');
                 iframeWrap.classList.add('is-visible');
-                // Ensure frame has dialer if empty
+                // Ensure frame exists with dialer if empty
                 const currentFrame = document.getElementById('ringfySoftphoneFrame');
-                if (currentFrame && (!currentFrame.src || currentFrame.src === 'about:blank')) {
-                    currentFrame.src = DIALER_URL;
+                if (!currentFrame || !currentFrame.src || currentFrame.src === 'about:blank') {
+                    mountIframe(DIALER_URL);
                 }
             }
         }
@@ -548,38 +558,52 @@
 
         // Listen for postMessage from Next2Call PBX
         window.addEventListener('message', function (event) {
-            if (event.origin !== 'https://ringfy.next2call.com') return;
+            if (!event.origin.includes('next2call.com')) return;
 
             console.log('[Next2Call postMessage]:', event.data);
 
-            const isHangup = event.data === 'CALL_HANGUP' ||
-                             event.data?.type === 'CALL_HANGUP' ||
-                             event.data?.type === 'CLOSE_PHONE_POPUP' ||
-                             event.data?.type === 'hangup' ||
-                             event.data?.event === 'hangup' ||
-                             event.data?.type === 'CALL_DISCONNECTED' ||
-                             event.data === 'CALL_DISCONNECTED';
+            let data = event.data;
+            if (typeof data === 'string') {
+                try {
+                    data = JSON.parse(data);
+                } catch (e) {}
+            }
 
-            const isConnected = event.data === 'CALL_ACCEPTED' ||
-                                event.data?.type === 'CALL_ACCEPTED' ||
-                                event.data?.type === 'CALL_CONNECTED' ||
-                                event.data?.type === 'CONNECTED';
+            // Next2Call web_hook_on_terminate sends { type: "CLOSE_PHONE_POPUP" }
+            const isHangup = data === 'CLOSE_PHONE_POPUP' ||
+                             data === 'CALL_HANGUP' ||
+                             data === 'hangup' ||
+                             data?.type === 'CLOSE_PHONE_POPUP' ||
+                             data?.type === 'CALL_HANGUP' ||
+                             data?.action === 'CLOSE_PHONE_POPUP' ||
+                             data?.event === 'CLOSE_PHONE_POPUP' ||
+                             data?.type === 'hangup' ||
+                             data?.event === 'hangup' ||
+                             data?.type === 'CALL_DISCONNECTED' ||
+                             data === 'CALL_DISCONNECTED' ||
+                             (typeof data === 'string' && (data.includes('CLOSE_PHONE_POPUP') || data.includes('CALL_HANGUP') || data.includes('hangup')));
 
-            const isIncoming = event.data === 'INCOMING_CALL' ||
-                               event.data?.type === 'INCOMING_CALL' ||
-                               event.data?.event === 'incoming_call';
+            const isConnected = data === 'CALL_ACCEPTED' ||
+                                data?.type === 'CALL_ACCEPTED' ||
+                                data?.type === 'CALL_CONNECTED' ||
+                                data?.type === 'CONNECTED';
+
+            const isIncoming = data === 'INCOMING_CALL' ||
+                               data?.type === 'INCOMING_CALL' ||
+                               data?.event === 'incoming_call';
 
             if (isHangup) {
-                console.log('[Next2Call] Call Hangup received');
-                if (statusBadge) statusBadge.textContent = 'Call Ended';
-                stopCallTimer();
-                setTimeout(closeSoftphoneWidget, 1000);
+                console.log('[Next2Call] Hangup detected from remote customer / PBX, closing immediately');
+                closeSoftphoneWidget();
             } else if (isConnected) {
                 if (statusBadge) statusBadge.textContent = 'Connected';
                 startCallTimer();
             } else if (isIncoming) {
-                const caller = event.data?.caller || event.data?.from || 'Incoming';
-                if (widget) widget.classList.add('is-open');
+                const caller = data?.caller || data?.from || 'Incoming';
+                if (widget) {
+                    widget.style.display = 'flex';
+                    widget.classList.add('is-open');
+                }
                 if (customerNameEl) customerNameEl.textContent = 'Incoming Call';
                 if (maskedNumberEl) maskedNumberEl.textContent = maskNumber(caller);
                 if (statusBadge) statusBadge.textContent = 'Ringing...';
@@ -614,7 +638,10 @@
             const targetUrl = CTC_BASE + '&d=' + encodeURIComponent(num);
 
             // Open Widget (Only during call!)
-            if (widget) widget.classList.add('is-open');
+            if (widget) {
+                widget.style.display = 'flex';
+                widget.classList.add('is-open');
+            }
 
             // Ensure Calling Card is visible, iframe stays running in background
             if (callingCard) callingCard.style.display = 'flex';
@@ -632,12 +659,8 @@
             // Start timer immediately
             startCallTimer();
 
-            // Load iframe with direct click-to-dial URL
-            const currentFrame = document.getElementById('ringfySoftphoneFrame');
-            if (currentFrame) {
-                currentFrame.setAttribute('allow', 'microphone; camera; speaker-selection; display-capture; autoplay; fullscreen');
-                currentFrame.src = targetUrl;
-            }
+            // Mount and load iframe with direct click-to-dial URL
+            mountIframe(targetUrl);
         };
 
         window.dialNumber = function (mobile, countryCode = '', contactName = 'Customer') {
@@ -685,9 +708,11 @@
                     if (data.target_number && maskedNumberEl) {
                         maskedNumberEl.textContent = maskNumber(data.target_number);
                     }
-                    const currentFrame = document.getElementById('ringfySoftphoneFrame');
-                    if (data.url && currentFrame) {
-                        currentFrame.src = data.url;
+                    if (data.url) {
+                        const currentFrame = document.getElementById('ringfySoftphoneFrame');
+                        if (currentFrame && currentFrame.src !== data.url) {
+                            currentFrame.src = data.url;
+                        }
                     }
                 }
             } catch (err) {
