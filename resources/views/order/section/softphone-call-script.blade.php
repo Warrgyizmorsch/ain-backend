@@ -186,6 +186,21 @@
         border-radius: 50%;
         animation: n2cPulseRing 1.2s infinite;
     }
+    .n2c-notice-box {
+        font-size: 11px;
+        line-height: 1.45;
+        padding: 8px 12px;
+        margin: 0 14px 14px 14px;
+        border-radius: 8px;
+        text-align: center;
+        width: calc(100% - 28px);
+        box-sizing: border-box;
+    }
+    .n2c-notice-danger {
+        background: rgba(241, 65, 108, 0.15);
+        color: #ff859d;
+        border: 1px solid rgba(241, 65, 108, 0.35);
+    }
 
     /* Actions (Mute, Hangup, Keypad) */
     .n2c-action-bar {
@@ -318,6 +333,8 @@
             <span id="n2cCallTimerText">00:00</span>
         </div>
 
+        <div id="n2cCallNotice" class="n2c-notice-box" style="display: none;"></div>
+
         <!-- In-Call Actions (Mute, Hangup, Keypad) -->
         <div class="n2c-action-bar">
             <button type="button" class="n2c-call-btn n2c-btn-mute" id="n2cMuteBtn" title="Mute Microphone">
@@ -338,7 +355,7 @@
             id="ringfySoftphoneFrame"
             class="n2c-softphone-iframe"
             src=""
-            allow="microphone; camera; speaker-selection; display-capture; autoplay; fullscreen"
+            allow="microphone; camera; display-capture; autoplay; fullscreen"
             allowfullscreen>
         </iframe>
     </div>
@@ -372,6 +389,11 @@
         let callSeconds = 0;
         let isMuted = false;
         let currentFullNumber = '';
+        let callInitiatedAt = 0;
+        let isCallActive = false;
+        let activeCallTimerSafety = null;
+
+        const noticeBox = document.getElementById('n2cCallNotice');
 
         // Draggable Widget Logic
         let isDragging = false;
@@ -456,7 +478,7 @@
                     id="ringfySoftphoneFrame"
                     class="n2c-softphone-iframe"
                     src="${url}"
-                    allow="microphone; camera; speaker-selection; display-capture; autoplay; fullscreen"
+                    allow="microphone; camera; display-capture; autoplay; fullscreen"
                     allowfullscreen>
                 </iframe>
             `;
@@ -484,6 +506,13 @@
         // Close & Reset Widget (Instant Disconnect)
         function closeSoftphoneWidget() {
             stopCallTimer();
+            if (activeCallTimerSafety) {
+                clearTimeout(activeCallTimerSafety);
+                activeCallTimerSafety = null;
+            }
+            isCallActive = false;
+            callInitiatedAt = 0;
+
             if (widget) {
                 widget.classList.remove('is-open');
                 widget.style.display = 'none';
@@ -500,7 +529,16 @@
             destroyAndResetIframe();
 
             if (statusBadge) statusBadge.innerHTML = '<i class="fa fa-circle text-muted me-1" style="font-size: 6px;"></i> Ready';
-            if (avatarRing) avatarRing.style.animation = 'none';
+            if (avatarRing) {
+                avatarRing.style.animation = 'none';
+                avatarRing.style.background = '';
+                avatarRing.style.borderColor = '';
+                avatarRing.style.color = '';
+            }
+            if (noticeBox) {
+                noticeBox.style.display = 'none';
+                noticeBox.innerHTML = '';
+            }
         }
 
         // Hangup Button Click (Instant Call Disconnect by Agent)
@@ -593,9 +631,42 @@
                                data?.event === 'incoming_call';
 
             if (isHangup) {
+                const elapsed = Date.now() - callInitiatedAt;
+                console.log('[Next2Call postMessage] Close/Hangup received. Elapsed:', elapsed, 'ms. isCallActive:', isCallActive);
+
+                // Early close: If message arrives within ~4.5s of click and call was NOT active:
+                // Next2Call web_hook_on_registrationFailed or web_hook_on_unregistered triggered this due to SIP 403 Forbidden!
+                if (!isCallActive && elapsed < 4500) {
+                    console.warn('[Next2Call] Registration failed before call established (SIP 403 Forbidden).');
+                    stopCallTimer();
+                    if (statusBadge) {
+                        statusBadge.innerHTML = '<span class="text-danger fw-bold"><i class="fa fa-exclamation-triangle me-1"></i> Registration Failed (403)</span>';
+                    }
+                    if (timerTextEl) {
+                        timerTextEl.innerHTML = '<span class="text-danger">Forbidden (403)</span>';
+                    }
+                    if (avatarRing) {
+                        avatarRing.style.animation = 'none';
+                        avatarRing.style.background = 'rgba(241, 65, 108, 0.15)';
+                        avatarRing.style.borderColor = '#f1416c';
+                        avatarRing.style.color = '#f1416c';
+                    }
+                    if (noticeBox) {
+                        noticeBox.className = 'n2c-notice-box n2c-notice-danger';
+                        noticeBox.innerHTML = '<strong>Next2Call PBX Registration Failed (403 Forbidden)</strong><br><span style="font-size: 11px; color: #ffccd5;">Your Public IP must be whitelisted on <a href="http://ipallow.next2call.com/" target="_blank" style="color: #60a5fa; text-decoration: underline;">ipallow.next2call.com</a> (Key: <code>CLT-5009FAA4F58D</code>) and ensure no other browser tab is using extension 10101.</span>';
+                        noticeBox.style.display = 'block';
+                    }
+                    return;
+                }
+
+                // If call was active or ringing (> 4500ms): remote customer cut the call or PBX completed the call!
                 console.log('[Next2Call] Hangup detected from remote customer / PBX, closing immediately');
-                closeSoftphoneWidget();
+                if (statusBadge) statusBadge.innerHTML = '<span class="text-muted">Call Ended</span>';
+                setTimeout(function () {
+                    closeSoftphoneWidget();
+                }, 800);
             } else if (isConnected) {
+                isCallActive = true;
                 if (statusBadge) statusBadge.textContent = 'Connected';
                 startCallTimer();
             } else if (isIncoming) {
@@ -635,6 +706,18 @@
             }
 
             currentFullNumber = num;
+            callInitiatedAt = Date.now();
+            isCallActive = false;
+
+            if (activeCallTimerSafety) {
+                clearTimeout(activeCallTimerSafety);
+            }
+            activeCallTimerSafety = setTimeout(function () {
+                if (widget && widget.classList.contains('is-open')) {
+                    isCallActive = true;
+                }
+            }, 4500);
+
             const targetUrl = CTC_BASE + '&d=' + encodeURIComponent(num);
 
             // Open Widget (Only during call!)
@@ -654,7 +737,16 @@
             if (customerNameEl) customerNameEl.textContent = contactName || 'Customer';
             if (maskedNumberEl) maskedNumberEl.textContent = maskNumber(num);
             if (statusBadge) statusBadge.innerHTML = '<i class="fa fa-spinner fa-spin me-1"></i> Calling...';
-            if (avatarRing) avatarRing.style.animation = 'n2cPulseRing 1.4s infinite';
+            if (avatarRing) {
+                avatarRing.style.background = '';
+                avatarRing.style.borderColor = '';
+                avatarRing.style.color = '';
+                avatarRing.style.animation = 'n2cPulseRing 1.4s infinite';
+            }
+            if (noticeBox) {
+                noticeBox.style.display = 'none';
+                noticeBox.innerHTML = '';
+            }
 
             // Start timer immediately
             startCallTimer();

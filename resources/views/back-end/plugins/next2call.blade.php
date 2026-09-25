@@ -171,7 +171,7 @@
                         data-src="{{ $dialerUrl }}"
                         src=""
                         style="width: 100%; height: 560px; border: 0;"
-                        allow="microphone; camera; speaker-selection; display-capture; autoplay; fullscreen"
+                        allow="microphone; camera; display-capture; autoplay; fullscreen"
                         allowfullscreen>
                     </iframe>
                 </div>
