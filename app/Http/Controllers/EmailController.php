@@ -302,8 +302,6 @@ class EmailController extends Controller
             $matchingCodes = [];
 
             if (!empty($deadlineType)) {
-                $orderQuery = Order::query()->whereNotNull('order_id')->where('order_id', '!=', '');
-
                 // Match duration difference between delivery_date / deadline and order_date / created_at (NOT writer_deadline)
                 $gapSql = "CASE 
                     WHEN delivery_date IS NOT NULL AND order_date IS NOT NULL THEN DATEDIFF(delivery_date, order_date)
@@ -312,21 +310,69 @@ class EmailController extends Controller
                     ELSE NULL 
                 END";
 
-                if (in_array($deadlineType, ['less_2', '<2', '< 2 Days', '2'])) {
-                    $orderQuery->whereRaw("({$gapSql}) <= 2");
-                } elseif (in_array($deadlineType, ['3_5', '3-5', '3-5 Days'])) {
-                    $orderQuery->whereRaw("({$gapSql}) >= 3 AND ({$gapSql}) <= 5");
-                } elseif (in_array($deadlineType, ['6_15', '6-15', '6-15 Days'])) {
-                    $orderQuery->whereRaw("({$gapSql}) >= 6 AND ({$gapSql}) <= 15");
-                } elseif (in_array($deadlineType, ['above_15', '>15', '15 Days & Above', '15+'])) {
-                    $orderQuery->whereRaw("({$gapSql}) >= 16");
+                $gapCondition = match (true) {
+                    in_array($deadlineType, ['less_2', '<2', '< 2 Days', '2']) => "({$gapSql}) <= 2",
+                    in_array($deadlineType, ['3_5', '3-5', '3-5 Days']) => "({$gapSql}) >= 3 AND ({$gapSql}) <= 5",
+                    in_array($deadlineType, ['6_15', '6-15', '6-15 Days']) => "({$gapSql}) >= 6 AND ({$gapSql}) <= 15",
+                    in_array($deadlineType, ['above_15', '>15', '15 Days & Above', '15+']) => "({$gapSql}) >= 16",
+                    default => null,
+                };
+
+                // A. Extract candidate order codes from recent emails in this mailbox so no email with an order code is ever missed
+                $recentMailQuery = EmailMessage::query()->where('folder', '!=', 'trash');
+                if ($selectedAccount && !empty($selectedAccount->id)) {
+                    $recentMailQuery->where('email_configuration_id', $selectedAccount->id);
                 }
+                $recentMailSamples = $recentMailQuery->orderByDesc('id')->limit(2000)->get(['subject', 'body_plain']);
+
+                $candidateCodes = [];
+                foreach ($recentMailSamples as $m) {
+                    if (!empty($m->subject) && preg_match_all('/\b([A-Za-z]{2,5}\d{3,7})\b/', $m->subject, $matches)) {
+                        foreach ($matches[1] as $c) {
+                            $candidateCodes[strtoupper($c)] = true;
+                        }
+                    }
+                    if (!empty($m->body_plain)) {
+                        $bodySample = substr($m->body_plain, 0, 400);
+                        if (preg_match_all('/\b([A-Za-z]{2,5}\d{3,7})\b/', $bodySample, $matches)) {
+                            foreach ($matches[1] as $c) {
+                                $candidateCodes[strtoupper($c)] = true;
+                            }
+                        }
+                    }
+                }
+                $candidateCodes = array_keys($candidateCodes);
 
                 if (!empty($filterOrderCode)) {
-                    $orderQuery->where('order_id', 'like', "%{$filterOrderCode}%");
+                    $candidateCodes[] = strtoupper($filterOrderCode);
+                    $candidateCodes = array_values(array_unique($candidateCodes));
                 }
 
-                $matchingCodes = $orderQuery->limit(500)->pluck('order_id')->filter()->unique()->values()->all();
+                // B. Query matching candidate orders against the deadline gap condition
+                $matchedCandidateCodes = [];
+                if (!empty($candidateCodes) && $gapCondition) {
+                    $orderCandidateQuery = Order::query()
+                        ->whereIn('order_id', $candidateCodes)
+                        ->whereRaw($gapCondition);
+                    if (!empty($filterOrderCode)) {
+                        $orderCandidateQuery->where('order_id', 'like', "%{$filterOrderCode}%");
+                    }
+                    $matchedCandidateCodes = $orderCandidateQuery->pluck('order_id')->filter()->unique()->values()->all();
+                }
+
+                // C. Also include recent orders matching the deadline gap (ordered by latest ID)
+                $recentOrdersQuery = Order::query()
+                    ->whereNotNull('order_id')
+                    ->where('order_id', '!=', '');
+                if ($gapCondition) {
+                    $recentOrdersQuery->whereRaw($gapCondition);
+                }
+                if (!empty($filterOrderCode)) {
+                    $recentOrdersQuery->where('order_id', 'like', "%{$filterOrderCode}%");
+                }
+                $recentMatchingCodes = $recentOrdersQuery->orderByDesc('id')->limit(300)->pluck('order_id')->filter()->unique()->values()->all();
+
+                $matchingCodes = array_values(array_unique(array_merge($matchedCandidateCodes, $recentMatchingCodes)));
 
                 if (empty($matchingCodes)) {
                     if (!empty($filterOrderCode)) {
@@ -344,11 +390,10 @@ class EmailController extends Controller
                     if (count($matchingCodes) <= 15) {
                         foreach ($matchingCodes as $code) {
                             $eq->orWhere('subject', 'like', "%{$code}%")
-                               ->orWhere('body_plain', 'like', "%{$code}%")
-                               ->orWhere('body_html', 'like', "%{$code}%");
+                               ->orWhere('body_plain', 'like', "%{$code}%");
                         }
                     } else {
-                        $chunks = array_chunk($matchingCodes, 20);
+                        $chunks = array_chunk($matchingCodes, 25);
                         foreach ($chunks as $chunk) {
                             $escaped = array_map(fn($c) => preg_quote($c, '/'), $chunk);
                             $pattern = implode('|', $escaped);
@@ -407,9 +452,26 @@ class EmailController extends Controller
 
         $emailClientContacts = $this->clientContactsForEmails($threadsCollection);
 
+        // Fetch Order details for displayed emails to render duration badge (< 2 Days, 3-5 Days, etc.)
+        $displayedCodes = [];
+        foreach ($threadsCollection as $m) {
+            if (!empty($m->subject) && preg_match_all('/\b([A-Za-z]{2,5}\d{3,7})\b/', $m->subject, $matches)) {
+                foreach ($matches[1] as $c) {
+                    $displayedCodes[strtoupper($c)] = true;
+                }
+            }
+        }
+        $ordersMap = !empty($displayedCodes)
+            ? \App\Models\Order::query()
+                ->whereIn('order_id', array_keys($displayedCodes))
+                ->select(['id', 'order_id', 'order_date', 'delivery_date', 'deadline', 'created_at', 'status', 'projectstatus'])
+                ->get()
+                ->keyBy(fn($o) => strtoupper($o->order_id))
+            : collect();
+
         if ($request->ajax() && $request->boolean('partial')) {
             return response(
-                view('emails._rows', compact('emailClientContacts', 'threadLabelsMap', 'allLabels') + ['emails' => $threads, 'isAppend' => false])->render()
+                view('emails._rows', compact('emailClientContacts', 'threadLabelsMap', 'allLabels', 'ordersMap') + ['emails' => $threads, 'isAppend' => false])->render()
             )->withHeaders([
                 'Cache-Control' => 'no-store, private',
                 'X-Email-Partial' => 'rows',
@@ -419,7 +481,7 @@ class EmailController extends Controller
         if ($request->ajax() && ($request->get('scroll') == '1' || $request->has('page'))) {
             return response()->json([
                 'success' => true,
-                'html' => view('emails._rows', compact('emailClientContacts', 'threadLabelsMap', 'allLabels') + ['emails' => $threads, 'isAppend' => true])->render(),
+                'html' => view('emails._rows', compact('emailClientContacts', 'threadLabelsMap', 'allLabels', 'ordersMap') + ['emails' => $threads, 'isAppend' => true])->render(),
                 'has_more' => $threads->hasMorePages(),
                 'current_page' => $threads->currentPage(),
                 'total' => $threads->total(),
@@ -489,6 +551,22 @@ class EmailController extends Controller
                 $cacheSource->concat($threadsCollection)
             );
 
+            $cacheCodes = [];
+            foreach ($cacheSource as $m) {
+                if (!empty($m->subject) && preg_match_all('/\b([A-Za-z]{2,5}\d{3,7})\b/', $m->subject, $matches)) {
+                    foreach ($matches[1] as $c) {
+                        $cacheCodes[strtoupper($c)] = true;
+                    }
+                }
+            }
+            $cacheOrdersMap = !empty($cacheCodes)
+                ? \App\Models\Order::query()
+                    ->whereIn('order_id', array_keys($cacheCodes))
+                    ->select(['id', 'order_id', 'order_date', 'delivery_date', 'deadline', 'created_at', 'status', 'projectstatus'])
+                    ->get()
+                    ->keyBy(fn($o) => strtoupper($o->order_id))
+                : collect();
+
             foreach (['inbox', 'all', 'sent', 'drafts', 'starred', 'trash'] as $cacheFolder) {
                 $folderMessages = $cacheSource->filter(function ($message) use ($cacheFolder) {
                     return match ($cacheFolder) {
@@ -510,6 +588,7 @@ class EmailController extends Controller
                     'emailClientContacts' => $cacheClientContacts,
                     'threadLabelsMap' => $cacheThreadLabelsMap,
                     'allLabels' => $allLabels,
+                    'ordersMap' => $cacheOrdersMap,
                 ])->render();
             }
         }
@@ -547,7 +626,8 @@ class EmailController extends Controller
             'emailClientContacts',
             'recentOrderCodes',
             'isWriterEmail',
-            'deadlineType'
+            'deadlineType',
+            'ordersMap'
         ));
     }
 

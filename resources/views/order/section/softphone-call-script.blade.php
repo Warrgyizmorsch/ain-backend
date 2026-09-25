@@ -14,12 +14,11 @@
 
     if (auth()->check()) {
         $authUser = auth()->user();
-        if (!empty($authUser->sip)) {
+        if (!empty($authUser->sip) && !empty($authUser->sip_password)) {
             $userId = $authUser->sip;
-        } elseif (!empty($authUser->call_id)) {
+            $password = $authUser->sip_password;
+        } elseif (!empty($authUser->call_id) && !empty($authUser->sip_password)) {
             $userId = $authUser->call_id;
-        }
-        if (!empty($authUser->sip_password)) {
             $password = $authUser->sip_password;
         }
     }
@@ -611,12 +610,11 @@
                 activeText.textContent = caller ? 'Incoming Call: ' + caller : 'Incoming Call...';
                 playRingTone();
             } else if (isHangup) {
+                console.log("Call disconnected");
                 stopRingTone();
                 activeBanner?.classList.remove('is-active');
                 activeText.textContent = 'Call Disconnected';
-                setTimeout(function () {
-                    closeSoftphoneWidget();
-                }, 2000);
+                closeSoftphoneWidget();
             }
         });
 
@@ -626,8 +624,9 @@
             widget.classList.remove('is-minimized');
             activeBanner?.classList.remove('is-active');
             loader?.classList.remove('is-loading');
-            if (frame && DIALER_URL && frame.src !== DIALER_URL) {
-                frame.src = DIALER_URL;
+            if (frame) {
+                frame.removeAttribute('src');
+                frame.src = '';
             }
         }
 
@@ -679,6 +678,9 @@
                 num = '0' + num.substring(2);
             } else if (num.length === 10) {
                 num = '0' + num;
+            } else if (num.startsWith('440')) {
+                // UK Number: strip extra leading 0 after 44
+                num = '44' + num.substring(3);
             }
 
             const targetUrl = CTC_BASE + '&d=' + encodeURIComponent(num);
@@ -691,6 +693,10 @@
 
             if (quickInput) quickInput.value = num;
             if (frame) frame.src = targetUrl;
+        };
+
+        window.dialNumber = function (mobile) {
+            window.dialNext2CallNumber(mobile);
         };
 
         window.openRingfySoftphone = async function (orderId, countryCode = '', mobile = '') {

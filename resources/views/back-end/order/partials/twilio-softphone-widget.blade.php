@@ -1,4 +1,11 @@
 @once
+@php
+    $twilioPlugin = \App\Models\PluginSetting::where('plugin_key', 'twilio_call')->first();
+    $isTwilioActive = (bool) ($twilioPlugin?->is_active ?? true);
+    if (!auth()->check() || !$isTwilioActive) {
+        return;
+    }
+@endphp
 <!-- Twilio Voice WebRTC SDK -->
 <script src="https://cdn.jsdelivr.net/npm/@twilio/voice-sdk@2.11.0/dist/twilio.min.js"></script>
 <script>

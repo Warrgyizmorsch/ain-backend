@@ -87,6 +87,55 @@
             $cleanSnippetText = trim(preg_replace('/\s+/', ' ', strip_tags($email->body_plain ?: $email->body_html)));
         }
         $plainSnippet = Str::limit($cleanSnippetText, 120);
+
+        // Extract Order ID if present in subject or snippet to render Order Duration Badge (< 2 Days, 3-5 Days, etc.)
+        $rowOrderCode = null;
+        if (!empty($email->subject) && preg_match('/\b([A-Za-z]{2,5}\d{3,7})\b/', $email->subject, $orderMatch)) {
+            $rowOrderCode = strtoupper($orderMatch[1]);
+        } elseif (!empty($plainSnippet) && preg_match('/\b([A-Za-z]{2,5}\d{3,7})\b/', $plainSnippet, $orderMatch)) {
+            $rowOrderCode = strtoupper($orderMatch[1]);
+        }
+
+        $rowOrder = null;
+        if ($rowOrderCode) {
+            if (isset($ordersMap) && isset($ordersMap[$rowOrderCode])) {
+                $rowOrder = $ordersMap[$rowOrderCode];
+            } else {
+                $rowOrder = \App\Models\Order::query()
+                    ->where('order_id', $rowOrderCode)
+                    ->select(['id', 'order_id', 'order_date', 'delivery_date', 'deadline', 'created_at', 'status', 'projectstatus'])
+                    ->first();
+            }
+        }
+
+        $rowOrderDurationBadge = '';
+        if ($rowOrder) {
+            $orderDate = $rowOrder->order_date ?? ($rowOrder->created_at ?? null);
+            $endDate = $rowOrder->delivery_date ?? ($rowOrder->deadline ?? null);
+            if (!empty($orderDate) && !empty($endDate)) {
+                try {
+                    $start = \Carbon\Carbon::parse($orderDate)->startOfDay();
+                    $end = \Carbon\Carbon::parse($endDate)->startOfDay();
+                    $days = (int) $start->diffInDays($end, false);
+
+                    if ($days <= 2) {
+                        $badgeText = '&lt; 2 Days';
+                        $badgeStyle = 'background-color: #fff0f3; color: #e11d48; border: 1px solid rgba(241, 65, 108, 0.4);';
+                    } elseif ($days >= 3 && $days <= 5) {
+                        $badgeText = '3-5 Days';
+                        $badgeStyle = 'background-color: #fffbeb; color: #b45309; border: 1px solid rgba(255, 199, 0, 0.45);';
+                    } elseif ($days >= 6 && $days <= 15) {
+                        $badgeText = '6-15 Days';
+                        $badgeStyle = 'background-color: #eff6ff; color: #1d4ed8; border: 1px solid rgba(0, 158, 247, 0.4);';
+                    } else {
+                        $badgeText = '15 Days &amp; Above';
+                        $badgeStyle = 'background-color: #ecfdf5; color: #047857; border: 1px solid rgba(80, 205, 137, 0.4);';
+                    }
+
+                    $rowOrderDurationBadge = '<span class="badge fw-bold flex-shrink-0 me-1" style="' . $badgeStyle . ' border-radius: 4px; padding: 2px 7px; font-size: 11px; line-height: 1.2;" title="Order Duration: ' . $days . ' Days (' . $start->format('d M Y') . ' to ' . $end->format('d M Y') . ')">' . $badgeText . '</span>';
+                } catch (\Throwable $e) {}
+            }
+        }
     @endphp
 
     <div class="gmail-row duralux-email-item {{ $isUnread ? 'unread' : 'is-read' }} {{ $isPending ? 'pending-email-item' : '' }}" 
@@ -149,6 +198,11 @@
         {{-- Main Message Snippet & Labels (One Continuous Line) --}}
         <div class="gmail-row-content duralux-item-content">
             <div class="gmail-content-line duralux-email-body-preview">
+                {{-- Order Duration Badge (< 2 Days, 3-5 Days, 6-15 Days, 15 Days & Above) --}}
+                @if(!empty($rowOrderDurationBadge))
+                    {!! $rowOrderDurationBadge !!}
+                @endif
+
                 {{-- Gmail Style Labels --}}
                 @if($rowLabels->count() > 0)
                     <span class="gmail-row-labels" id="row-labels-badges-{{ $email->id }}" onclick="event.stopPropagation();">

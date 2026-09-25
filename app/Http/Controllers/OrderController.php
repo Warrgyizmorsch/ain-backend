@@ -1670,12 +1670,11 @@ class OrderController extends Controller
 
         if (auth()->check()) {
             $user = auth()->user();
-            if (!empty($user->sip)) {
+            if (!empty($user->sip) && !empty($user->sip_password)) {
                 $userId = $user->sip;
-            } elseif (!empty($user->call_id)) {
+                $password = $user->sip_password;
+            } elseif (!empty($user->call_id) && !empty($user->sip_password)) {
                 $userId = $user->call_id;
-            }
-            if (!empty($user->sip_password)) {
                 $password = $user->sip_password;
             }
         }

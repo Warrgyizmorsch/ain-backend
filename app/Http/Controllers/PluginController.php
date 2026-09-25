@@ -288,12 +288,11 @@ class PluginController extends Controller
 
         if (Auth::check()) {
             $authUser = Auth::user();
-            if (!empty($authUser->sip)) {
+            if (!empty($authUser->sip) && !empty($authUser->sip_password)) {
                 $userId = $authUser->sip;
-            } elseif (!empty($authUser->call_id)) {
+                $password = $authUser->sip_password;
+            } elseif (!empty($authUser->call_id) && !empty($authUser->sip_password)) {
                 $userId = $authUser->call_id;
-            }
-            if (!empty($authUser->sip_password)) {
                 $password = $authUser->sip_password;
             }
         }
