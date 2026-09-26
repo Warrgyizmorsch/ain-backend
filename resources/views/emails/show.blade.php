@@ -958,7 +958,10 @@
                                             <div class="gmail-att-card" onclick="openAttachmentPreview({{ $att->id }}, '{{ $safeName }}', '{{ $sizeStr }}', '{{ $att->mime_type }}', '{{ $viewUrl }}', '{{ $dlUrl }}', '{{ $previewHtmlUrl }}')">
                                                 <div class="gmail-att-card-preview">
                                                     @if($isImg)
-                                                        <img src="{{ $viewUrl }}" alt="{{ $cleanName }}">
+                                                        <img src="{{ $viewUrl }}" alt="" style="width:100%;height:100%;object-fit:cover;" onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='flex';">
+                                                        <div class="gmail-att-fallback-icon" style="display:none;width:100%;height:100%;align-items:center;justify-content:center;">
+                                                            <svg width="28" height="28" viewBox="0 0 24 24" fill="#0b57d0"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
+                                                        </div>
                                                     @elseif($ext === 'pdf' || str_contains($att->mime_type ?? '', 'pdf'))
                                                         <svg width="28" height="28" viewBox="0 0 24 24" fill="#c5221f"><path d="M20 2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-8.5 7.5c0 .83-.67 1.5-1.5 1.5H9v2H7.5V7H10c.83 0 1.5.67 1.5 1.5v1zm5 2c0 .83-.67 1.5-1.5 1.5h-2.5V7H15c.83 0 1.5.67 1.5 1.5v3zm4-3H19v1h1.5V11H19v2h-1.5V7h3v1.5zM9 9.5h1v-1H9v1zm4.5 2h1v-3h-1v3z"/></svg>
                                                     @elseif(in_array($ext, ['doc', 'docx']) || str_contains($att->mime_type ?? '', 'word'))
@@ -1230,7 +1233,12 @@ function openAttachmentPreview(attId, filename, sizeStr, mimeType, viewUrl, down
     if (isImage) {
         bodyWrap.innerHTML = `
             <div class="p-3 d-flex align-items-center justify-content-center w-100 h-100">
-                <img src="${viewUrl}" alt="${filename}" style="max-width: 95%; max-height: 75vh; object-fit: contain; border-radius: 8px; box-shadow: 0 8px 30px rgba(0,0,0,0.5);" />
+                <img src="${viewUrl}" alt="${filename}" style="max-width: 95%; max-height: 75vh; object-fit: contain; border-radius: 8px; box-shadow: 0 8px 30px rgba(0,0,0,0.5);" onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='flex';" />
+                <div style="display:none; flex-direction:column; align-items:center; justify-content:center; color:#9aa0a6; padding: 40px;">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="#9aa0a6" class="mb-3"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
+                    <div style="font-size:15px; font-weight:600; color:#fff; margin-bottom:4px;">Image Preview Unavailable</div>
+                    <div style="font-size:12px; color:#bdc1c6;">The image file could not be loaded from server.</div>
+                </div>
             </div>
         `;
     } else if (isPdf) {

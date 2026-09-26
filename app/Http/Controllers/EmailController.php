@@ -1526,7 +1526,9 @@ class EmailController extends Controller
         $path = Storage::disk('local')->path($attachment->file_path);
         if (!file_exists($path)) {
             $legacyPath = storage_path('app/public/' . $attachment->file_path);
-            if (!file_exists($legacyPath)) abort(404, 'Attachment file not found');
+            if (!file_exists($legacyPath)) {
+                return back()->with('error', 'Attachment file is no longer available on the server.');
+            }
             $path = $legacyPath;
         }
 
@@ -1547,7 +1549,15 @@ class EmailController extends Controller
         $path = Storage::disk('local')->path($attachment->file_path);
         if (!file_exists($path)) {
             $legacyPath = storage_path('app/public/' . $attachment->file_path);
-            if (!file_exists($legacyPath)) abort(404, 'Attachment file not found');
+            if (!file_exists($legacyPath)) {
+                $ext = strtolower(pathinfo($attachment->filename ?: '', PATHINFO_EXTENSION));
+                $isImg = in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg']) || str_starts_with($attachment->mime_type ?? '', 'image/');
+                if ($isImg) {
+                    $svg = '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="120" viewBox="0 0 200 120"><rect width="200" height="120" fill="#eef2f6"/><g fill="#0b57d0" transform="translate(86, 46)"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></g></svg>';
+                    return response($svg, 200, ['Content-Type' => 'image/svg+xml']);
+                }
+                abort(404, 'Attachment file not found');
+            }
             $path = $legacyPath;
         }
 

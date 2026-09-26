@@ -5518,7 +5518,12 @@ function openEmailThread(id, pushToHistory = true) {
                                     return `
                                         <div class="gmail-att-card" onclick="openAttachmentPreview(${att.id}, '${safeNameArg}', '${sizeStr}', '${att.mime_type || ''}', '${viewUrl}', '${dlUrl}', '${previewHtmlUrl}')">
                                             <div class="gmail-att-card-preview">
-                                                ${isImg ? `<img src="${viewUrl}" alt="${cleanName}" onerror="this.parentElement.innerHTML='${getAttachmentIconSvg(att.mime_type, att.filename).replace(/'/g, "\\'")}'" />` : getAttachmentIconSvg(att.mime_type, att.filename)}
+                                                ${isImg ? `
+                                                    <img src="${viewUrl}" alt="" style="width:100%;height:100%;object-fit:cover;" onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='flex';" />
+                                                    <div class="gmail-att-fallback-icon" style="display:none;width:100%;height:100%;align-items:center;justify-content:center;">
+                                                        ${getAttachmentIconSvg(att.mime_type, att.filename)}
+                                                    </div>
+                                                ` : getAttachmentIconSvg(att.mime_type, att.filename)}
                                                 <div class="gmail-att-card-overlay">
                                                     <button type="button" class="gmail-att-action-btn" title="Preview" onclick="event.stopPropagation(); openAttachmentPreview(${att.id}, '${safeNameArg}', '${sizeStr}', '${att.mime_type || ''}', '${viewUrl}', '${dlUrl}', '${previewHtmlUrl}')">
                                                         <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
@@ -5962,7 +5967,12 @@ function openAttachmentPreview(attId, filename, sizeStr, mimeType, viewUrl, down
     if (isImage) {
         bodyWrap.innerHTML = `
             <div class="p-3 d-flex align-items-center justify-content-center w-100 h-100">
-                <img src="${viewUrl}" alt="${filename}" style="max-width: 95%; max-height: 75vh; object-fit: contain; border-radius: 8px; box-shadow: 0 8px 30px rgba(0,0,0,0.5);" />
+                <img src="${viewUrl}" alt="${filename}" style="max-width: 95%; max-height: 75vh; object-fit: contain; border-radius: 8px; box-shadow: 0 8px 30px rgba(0,0,0,0.5);" onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='flex';" />
+                <div style="display:none; flex-direction:column; align-items:center; justify-content:center; color:#9aa0a6; padding: 40px;">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="#9aa0a6" class="mb-3"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
+                    <div style="font-size:15px; font-weight:600; color:#fff; margin-bottom:4px;">Image Preview Unavailable</div>
+                    <div style="font-size:12px; color:#bdc1c6;">The image file could not be loaded from server.</div>
+                </div>
             </div>
         `;
     } else if (isPdf) {
