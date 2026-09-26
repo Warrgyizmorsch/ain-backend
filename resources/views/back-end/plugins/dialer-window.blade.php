@@ -280,16 +280,16 @@
         const msg = String(err.message || '');
 
         if (code === 31005 || msg.includes('31005') || msg.includes('HANGUP')) {
-            return `The destination phone number <strong>${phoneNumber || 'dialed'}</strong> is invalid, disconnected, or rejected by the telecom carrier network.<br><br><span class="badge bg-danger fs-8">Twilio Error 31005 / 13224 (Invalid Phone Number)</span><br><br><small class="text-muted">Please verify that the customer's phone number is active and reachable.</small>`;
+            return `The destination phone number <strong>${phoneNumber || 'dialed'}</strong> was disconnected or rejected by the telecom carrier network.<br><br><span class="badge bg-danger fs-8">Twilio Error 31005 / Carrier Rejection</span><br><br><small class="text-muted">Please verify that the customer's phone number is active and reachable.</small>`;
         }
         if (code === 21211 || code === 13224) {
-            return `The phone number format is invalid or does not exist on the telecom network.`;
+            return `The phone number format <strong>${phoneNumber || ''}</strong> is invalid or does not exist on the telecom network.`;
         }
         if (code === 21408) {
-            return `Calls to this country code are restricted in your Twilio Voice Geographic Permissions.`;
+            return `Calls to this country code are restricted in your Twilio Voice Geographic Permissions.<br><br><small class="text-muted">Go to Twilio Console &gt; Voice &gt; Settings &gt; Geo Permissions to enable calling to this destination.</small>`;
         }
         if (code === 31000 || code === 31002) {
-            return `Unable to connect to the Twilio voice gateway.<br><br><small class="text-muted">Please check your internet connection or try dialing again.</small>`;
+            return `Unable to complete call to <strong>${phoneNumber || 'destination'}</strong>.<br><br><small class="text-muted">Possible reasons:<br>1. Carrier rejected the dialed number format (ensure standard +91XXXXXXXXXX).<br>2. Twilio Voice Geo Permissions block this country.<br>3. Gateway signaling timeout or microphone access blocked.</small>`;
         }
         if (code === 31008) {
             return `Call was cancelled before it could be connected.`;
@@ -312,9 +312,11 @@
             }
 
             device = new Twilio.Device(res.token, {
+                edge: ['singapore', 'ashburn', 'dublin', 'roaming'],
                 codecPreferences: ['opus', 'pcmu'],
                 fakeLocalDTMF: true,
-                enableRingingState: true
+                enableRingingState: true,
+                maxCallSignalingTimeoutMs: 30000
             });
 
             device.on('registered', () => {

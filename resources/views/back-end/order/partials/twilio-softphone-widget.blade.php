@@ -298,16 +298,16 @@ function formatTwilioCallError(err, phoneNumber) {
     const msg = String(err.message || '');
 
     if (code === 31005 || msg.includes('31005') || msg.includes('HANGUP')) {
-        return `The destination phone number <strong>${phoneNumber || 'dialed'}</strong> is invalid, disconnected, or rejected by the telecom carrier network.<br><br><span class="badge badge-light-danger fs-8">Twilio Error 31005 / 13224 (Invalid Phone Number)</span><br><br><small class="text-muted">Please verify that the customer's phone number is active and reachable.</small>`;
+        return `The destination phone number <strong>${phoneNumber || 'dialed'}</strong> was disconnected or rejected by the telecom carrier network.<br><br><span class="badge badge-light-danger fs-8">Twilio Error 31005 / Carrier Rejection</span><br><br><small class="text-muted">Please verify that the customer's phone number is active and reachable.</small>`;
     }
     if (code === 21211 || code === 13224) {
-        return `The phone number format is invalid or does not exist on the telecom network.`;
+        return `The phone number format <strong>${phoneNumber || ''}</strong> is invalid or does not exist on the telecom network.`;
     }
     if (code === 21408) {
-        return `Calls to this country code are restricted in your Twilio Voice Geographic Permissions.`;
+        return `Calls to this country code are restricted in your Twilio Voice Geographic Permissions.<br><br><small class="text-muted">Go to Twilio Console &gt; Voice &gt; Settings &gt; Geo Permissions to enable calling to this destination.</small>`;
     }
     if (code === 31000 || code === 31002) {
-        return `Unable to connect to the Twilio voice gateway.<br><br><small class="text-muted">Please check your internet connection or try dialing again.</small>`;
+        return `Unable to complete call to <strong>${phoneNumber || 'destination'}</strong>.<br><br><small class="text-muted">Possible reasons:<br>1. Carrier rejected the dialed number format (ensure standard +91XXXXXXXXXX).<br>2. Twilio Voice Geo Permissions block this country.<br>3. Gateway signaling timeout or microphone access blocked.</small>`;
     }
     if (code === 31008) {
         return `Call was cancelled before it could be connected.`;
@@ -365,11 +365,13 @@ class TwilioSoftphoneController {
                 try { this.device.destroy(); } catch(e){}
             }
 
-            // 3. Initialize Twilio Device
+            // 3. Initialize Twilio Device with resilient multi-edge fallback (Singapore closest to India)
             this.device = new Twilio.Device(res.token, {
+                edge: ['singapore', 'ashburn', 'dublin', 'roaming'],
                 codecPreferences: ['opus', 'pcmu'],
                 fakeLocalDTMF: true,
-                enableRingingState: true
+                enableRingingState: true,
+                maxCallSignalingTimeoutMs: 30000
             });
 
             this.device.on('registered', () => {
@@ -436,6 +438,12 @@ class TwilioSoftphoneController {
         }
         const box = $('#twilioSoftphoneBox');
         box.toggle();
+
+        // Parallel placement: if Next2Call widget is open, offset it so they sit side-by-side
+        const n2cBox = document.getElementById('ringfySoftphoneWidget');
+        if (box.is(':visible') && n2cBox && $(n2cBox).hasClass('is-open') && !n2cBox.style.left) {
+            n2cBox.style.right = '325px';
+        }
     }
 
     pressKey(num) {
@@ -452,20 +460,39 @@ class TwilioSoftphoneController {
     }
 
     async makeCall(numberToDial, displayName = '') {
-        const phone = (numberToDial || $('#twilioDialerInput').val()).trim();
-        if (!phone) {
+        let rawPhone = (numberToDial || $('#twilioDialerInput').val()).trim();
+        if (!rawPhone) {
             Swal.fire('Error', 'Please enter a valid phone number with country code.', 'warning');
             return;
         }
 
-        if (!this.device) {
-            await this.init();
+        // Clean & normalize phone number to E.164 (strip spaces, dashes, leading zero)
+        let phone = rawPhone.replace(/[\s\-\(\)]/g, '');
+        if (phone.startsWith('0') && phone.length === 11) {
+            phone = '+91' + phone.slice(1);
+        } else if (/^[6-9]\d{9}$/.test(phone)) {
+            phone = '+91' + phone;
+        } else if (phone.startsWith('91') && phone.length === 12) {
+            phone = '+' + phone;
+        } else if (!phone.startsWith('+')) {
+            phone = '+' + phone;
         }
 
-        if (!this.device) {
-            const errorDetails = this.lastErrorMessage || 'Please verify API Key SID, API Secret, and TwiML App SID in Settings > Plugins.';
-            Swal.fire('Twilio Not Ready', errorDetails, 'warning');
-            return;
+        // Ensure device is initialized & registered
+        if (!this.device || this.device.state !== 'registered') {
+            console.log('Twilio Device not registered. Initializing before call...');
+            const ready = await this.init();
+            if (!ready || !this.device || this.device.state !== 'registered') {
+                const errorDetails = this.lastErrorMessage || 'Please verify Twilio credentials in Settings > Plugins.';
+                Swal.fire('Twilio Not Ready', errorDetails, 'warning');
+                return;
+            }
+        }
+
+        // Parallel placement: if Next2Call is open, move it left so Twilio can display cleanly
+        const n2cBox = document.getElementById('ringfySoftphoneWidget');
+        if (n2cBox && $(n2cBox).hasClass('is-open') && !n2cBox.style.left) {
+            n2cBox.style.right = '325px';
         }
 
         $('#twilioSoftphoneBox').show();

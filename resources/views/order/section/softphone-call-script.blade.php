@@ -413,6 +413,12 @@
 
             // Open Widget when call arrives/starts
             if (widget) {
+                const twilioBox = document.getElementById('twilioSoftphoneBox');
+                if (twilioBox && $(twilioBox).is(':visible') && !widget.style.left) {
+                    widget.style.right = '325px';
+                } else if (!widget.style.left) {
+                    widget.style.right = '25px';
+                }
                 widget.style.display = 'flex';
                 widget.classList.add('is-open');
             }
@@ -449,6 +455,12 @@
                 window.dialNext2CallNumber(mobile);
             } else {
                 if (widget) {
+                    const twilioBox = document.getElementById('twilioSoftphoneBox');
+                    if (twilioBox && $(twilioBox).is(':visible') && !widget.style.left) {
+                        widget.style.right = '325px';
+                    } else if (!widget.style.left) {
+                        widget.style.right = '25px';
+                    }
                     widget.style.display = 'flex';
                     widget.classList.add('is-open');
                 }

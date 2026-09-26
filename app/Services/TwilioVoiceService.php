@@ -91,8 +91,10 @@ class TwilioVoiceService
             return '';
         }
 
-        if (str_starts_with($number, '+')) {
-            return $number;
+        // Strip leading zeros (e.g. 09610092299 -> 9610092299)
+        $number = ltrim($number, '0');
+        if (empty($number)) {
+            return '';
         }
 
         if (!empty($countryCode)) {
@@ -103,7 +105,17 @@ class TwilioVoiceService
             return '+' . $cc . $number;
         }
 
-        return '+' . ltrim($number, '+');
+        // If number already has 91 country code and 12 digits total
+        if (str_starts_with($number, '91') && strlen($number) === 12) {
+            return '+' . $number;
+        }
+
+        // If number is a 10-digit Indian mobile number (starts with 6, 7, 8, 9)
+        if (strlen($number) === 10 && in_array($number[0], ['6', '7', '8', '9'])) {
+            return '+91' . $number;
+        }
+
+        return '+' . $number;
     }
 
     /**

@@ -31,15 +31,21 @@
         }
 
         let cleanPhone = String(raw || '').replace(/[^\d+]/g, '');
+        // Strip leading zeros if 11 digits (e.g. 09610092299 -> 9610092299)
+        let digitsOnly = cleanPhone.replace(/\D/g, '');
+        if (digitsOnly.startsWith('0') && digitsOnly.length === 11) {
+            digitsOnly = digitsOnly.slice(1);
+            cleanPhone = cleanPhone.startsWith('+') ? ('+' + digitsOnly) : digitsOnly;
+        }
         return { cleanPhone, name, rawPhone: raw };
     }
 
     // 1. Direct Twilio Voice Call Trigger
     window.initiateTwilioCall = function(phoneRaw, nameRaw) {
         const target = crmResolveCallTarget(phoneRaw, nameRaw);
-        const cleanPhone = target.cleanPhone;
+        let cleanPhone = target.cleanPhone;
         const name = target.name;
-        const digits = cleanPhone.replace(/\D/g, '');
+        let digits = cleanPhone.replace(/\D/g, '');
 
         if (!cleanPhone || digits.length < 7) {
             const warningMsg = (!cleanPhone && (!phoneRaw || String(phoneRaw).trim() === ''))
@@ -50,7 +56,22 @@
             return;
         }
 
-        let phoneToDial = cleanPhone.startsWith('+') ? cleanPhone : '+' + cleanPhone;
+        // Clean leading zero
+        if (digits.startsWith('0') && digits.length === 11) {
+            digits = digits.slice(1);
+        }
+
+        // Normalize to E.164
+        let phoneToDial = '';
+        if (digits.length === 10 && /^[6-9]/.test(digits)) {
+            phoneToDial = '+91' + digits;
+        } else if (digits.length === 12 && digits.startsWith('91')) {
+            phoneToDial = '+' + digits;
+        } else if (cleanPhone.startsWith('+')) {
+            phoneToDial = '+' + digits;
+        } else {
+            phoneToDial = '+' + digits;
+        }
 
         if (window.twilioSoftphone && typeof window.twilioSoftphone.makeCall === 'function') {
             console.log('[Twilio Softphone] Calling:', phoneToDial, name);

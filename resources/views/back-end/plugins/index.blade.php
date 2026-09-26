@@ -442,7 +442,7 @@ function toggleWebRtcFields(isEnabled) {
 }
 
 async function testViaSoftphone() {
-    const testNum = $('#test_phone_number').val().trim();
+    let testNum = $('#test_phone_number').val().trim();
     if (!testNum) {
         Swal.fire('Error', 'Please enter a test phone number with country code.', 'warning');
         return;
@@ -451,7 +451,7 @@ async function testViaSoftphone() {
 
     // Wait if softphone is still initializing
     let attempts = 0;
-    while (!window.twilioSoftphone && attempts < 20) {
+    while ((!window.twilioSoftphone || !window.twilioSoftphone.isReady) && attempts < 30) {
         await new Promise(r => setTimeout(r, 150));
         attempts++;
     }

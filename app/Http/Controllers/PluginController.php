@@ -567,73 +567,82 @@ class PluginController extends Controller
      */
     public function statusCallback(Request $request): Response
     {
-        $callSid   = $request->input('CallSid') ?: $request->input('DialCallSid');
-        $rawStatus = strtolower((string) ($request->input('CallStatus') ?: $request->input('DialCallStatus') ?: 'completed'));
-        $duration  = (int) ($request->input('CallDuration') ?: $request->input('DialCallDuration') ?: 0);
-        $from      = $request->input('From', '');
-        $to        = $request->input('To', '');
-        $dirInput  = strtolower((string) $request->input('Direction', ''));
-        $direction = str_contains($dirInput, 'inbound') ? 'inbound' : 'outbound';
+        try {
+            $callSid   = $request->input('CallSid') ?: $request->input('DialCallSid');
+            $rawStatus = strtolower((string) ($request->input('CallStatus') ?: $request->input('DialCallStatus') ?: 'completed'));
+            $duration  = (int) ($request->input('CallDuration') ?: $request->input('DialCallDuration') ?: 0);
+            $from      = $request->input('From', '');
+            $to        = $request->input('To', '');
+            $dirInput  = strtolower((string) $request->input('Direction', ''));
+            $direction = str_contains($dirInput, 'inbound') ? 'inbound' : 'outbound';
 
-        // Map status
-        $status = match($rawStatus) {
-            'in-progress', 'in_progress' => 'in-progress',
-            'completed'                  => 'completed',
-            'busy'                       => ($direction === 'inbound') ? 'missed' : 'no-answer',
-            'no-answer', 'no_answer'     => ($direction === 'inbound') ? 'missed' : 'no-answer',
-            'canceled', 'cancelled'      => ($direction === 'inbound') ? 'missed' : 'cancelled',
-            'failed'                     => 'failed',
-            'ringing'                    => 'ringing',
-            default                      => $rawStatus,
-        };
+            // Map status
+            $status = match($rawStatus) {
+                'in-progress', 'in_progress' => 'in-progress',
+                'completed'                  => 'completed',
+                'busy'                       => ($direction === 'inbound') ? 'missed' : 'no-answer',
+                'no-answer', 'no_answer'     => ($direction === 'inbound') ? 'missed' : 'no-answer',
+                'canceled', 'cancelled'      => ($direction === 'inbound') ? 'missed' : 'cancelled',
+                'failed'                     => 'failed',
+                'ringing'                    => 'ringing',
+                default                      => $rawStatus,
+            };
 
-        // If inbound call completed with 0 duration or dial was not answered, it is a missed call
-        if ($direction === 'inbound') {
-            if ($rawStatus === 'completed' && $duration > 0) {
-                $status = 'completed';
-            } elseif ($duration === 0 || in_array($rawStatus, ['busy', 'no-answer', 'no_answer', 'canceled', 'cancelled', 'failed'])) {
-                $status = 'missed';
+            // If inbound call completed with 0 duration or dial was not answered, it is a missed call
+            if ($direction === 'inbound') {
+                if ($rawStatus === 'completed' && $duration > 0) {
+                    $status = 'completed';
+                } elseif ($duration === 0 || in_array($rawStatus, ['busy', 'no-answer', 'no_answer', 'canceled', 'cancelled', 'failed'])) {
+                    $status = 'missed';
+                }
             }
-        }
 
-        if ($callSid) {
-            $log = TwilioCallLog::firstOrNew(['call_sid' => $callSid]);
-            $log->status    = $status;
-            $log->duration  = max((int) ($log->duration ?? 0), $duration);
-            if (empty($log->from_number) && !empty($from)) $log->from_number = $from;
-            if (empty($log->to_number) && !empty($to))     $log->to_number   = $to;
-            if (empty($log->direction))                     $log->direction   = $direction;
+            if ($callSid) {
+                $log = TwilioCallLog::firstOrNew(['call_sid' => $callSid]);
+                $log->status    = $status;
+                $log->duration  = max((int) ($log->duration ?? 0), $duration);
+                if (empty($log->from_number) && !empty($from)) $log->from_number = $from;
+                if (empty($log->to_number) && !empty($to))     $log->to_number   = $to;
+                if (empty($log->direction))                     $log->direction   = $direction;
 
-            // Auto-resolve customer name if not already set
-            if (empty($log->customer_name)) {
-                $callerPhone = $log->from_number ?: $from;
-                $digits = preg_replace('/\D/', '', $callerPhone);
-                if (strlen($digits) >= 7) {
-                    $customer = \App\Models\User::whereRaw("REPLACE(REPLACE(mobile_no, ' ', ''), '-', '') LIKE ?", ['%' . substr($digits, -10)])->first();
-                    if ($customer) {
-                        $log->customer_name = $customer->name;
+                // Auto-resolve customer name if not already set
+                if (empty($log->customer_name)) {
+                    $callerPhone = $log->from_number ?: $from;
+                    $digits = preg_replace('/\D/', '', $callerPhone);
+                    if (strlen($digits) >= 7) {
+                        try {
+                            $customer = \App\Models\User::whereRaw("REPLACE(REPLACE(mobile_no, ' ', ''), '-', '') LIKE ?", ['%' . substr($digits, -10)])->first();
+                            if ($customer) {
+                                $log->customer_name = $customer->name;
+                            }
+                        } catch (\Throwable $ex) {
+                            Log::warning('Twilio status-callback customer lookup skipped: ' . $ex->getMessage());
+                        }
                     }
                 }
-            }
 
-            if ($request->filled('RecordingUrl')) {
-                $recordingUrl = $request->input('RecordingUrl');
-                if (!str_ends_with($recordingUrl, '.mp3')) {
-                    $recordingUrl .= '.mp3';
+                if ($request->filled('RecordingUrl')) {
+                    $recordingUrl = $request->input('RecordingUrl');
+                    if (!str_ends_with($recordingUrl, '.mp3')) {
+                        $recordingUrl .= '.mp3';
+                    }
+                    $log->recording_url = $recordingUrl;
                 }
-                $log->recording_url = $recordingUrl;
-            }
-            if ($request->filled('RecordingSid')) {
-                $log->recording_sid = $request->input('RecordingSid');
+                if ($request->filled('RecordingSid')) {
+                    $log->recording_sid = $request->input('RecordingSid');
+                }
+
+                if (in_array($status, ['completed', 'failed', 'no-answer', 'missed', 'cancelled'])) {
+                    $log->ended_at = now();
+                }
+                $log->save();
             }
 
-            if (in_array($status, ['completed', 'failed', 'no-answer', 'missed', 'cancelled'])) {
-                $log->ended_at = now();
-            }
-            $log->save();
+            return response('', 204);
+        } catch (\Throwable $e) {
+            Log::error('Twilio status-callback error: ' . $e->getMessage());
+            return response('', 200);
         }
-
-        return response('', 204);
     }
 
     /**
