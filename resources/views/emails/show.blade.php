@@ -977,7 +977,7 @@
                                                         <button type="button" class="gmail-att-action-btn" title="Preview" onclick="event.stopPropagation(); openAttachmentPreview({{ $att->id }}, '{{ $safeName }}', '{{ $sizeStr }}', '{{ $att->mime_type }}', '{{ $viewUrl }}', '{{ $dlUrl }}', '{{ $previewHtmlUrl }}')">
                                                             <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
                                                         </button>
-                                                        <a href="{{ $dlUrl }}" target="_blank" download class="gmail-att-action-btn" title="Download" onclick="event.stopPropagation();">
+                                                        <a href="{{ $dlUrl }}" download class="gmail-att-action-btn" title="Download" onclick="event.stopPropagation();">
                                                             <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"/></svg>
                                                         </a>
                                                     </div>
@@ -987,7 +987,7 @@
                                                         <span class="gmail-att-name" title="{{ $cleanName }}">{{ $cleanName }}</span>
                                                         <span class="gmail-att-size">{{ $sizeStr }}</span>
                                                     </div>
-                                                    <a href="{{ $dlUrl }}" target="_blank" download class="gmail-att-dl-btn" title="Download" onclick="event.stopPropagation();">
+                                                    <a href="{{ $dlUrl }}" download class="gmail-att-dl-btn" title="Download" onclick="event.stopPropagation();">
                                                         <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"/></svg>
                                                     </a>
                                                 </div>
