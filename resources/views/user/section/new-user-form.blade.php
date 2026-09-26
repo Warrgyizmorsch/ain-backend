@@ -46,13 +46,34 @@
                             <div class="row mb-6">
 								<label class="col-lg-4 col-form-label required fw-bold fs-6">Role</label>
 								<div class="col-lg-8 fv-row fv-plugins-icon-container">
-                                <select required name="role" aria-label="Select a Language" data-control="select2" data-placeholder="Role" class="form-select form-select-solid form-select-lg select2-hidden-accessible" data-select2-id="select2-data-13-mh4q" tabindex="-1" aria-hidden="true">
-                                    <option value="" data-select2-id="select2-data-15-jtqd"></option>
+                                <select required name="role" id="user_role_select" aria-label="Select Role" data-control="select2" data-placeholder="Select Role" class="form-select form-select-solid form-select-lg">
+                                    <option value="">Select Role</option>
                                     @foreach($data['role'] as $role)
-									<option value="{{ $role->id}}" >{{ $role->role}}</option>
+									<option value="{{ $role->id}}" {{ old('role') == $role->id ? 'selected' : '' }}>{{ $role->role}}</option>
                                     @endforeach
                                 </select>
 								<div class="fv-plugins-message-container invalid-feedback"></div></div>
+							</div>
+
+							<!-- Team Dropdown (Mandatory when Role is Marketing Team) -->
+							<div class="row mb-6" id="team_select_row" style="display: none;">
+								<label class="col-lg-4 col-form-label fw-bold fs-6">
+									<span id="team_required_indicator" class="required">Team</span>
+								</label>
+								<div class="col-lg-8 fv-row fv-plugins-icon-container">
+									<select name="team_id" id="user_team_select" data-control="select2" data-placeholder="Select Team" class="form-select form-select-solid form-select-lg">
+										<option value="">Select Team</option>
+										@if(!empty($data['teams']))
+											@foreach($data['teams'] as $team)
+												<option value="{{ $team->id }}" {{ old('team_id') == $team->id ? 'selected' : '' }}>{{ $team->team_name }}</option>
+											@endforeach
+										@endif
+									</select>
+									<div class="form-text text-danger fw-semibold" id="team_help_text" style="display:none;">
+										<i class="bi bi-exclamation-circle text-danger me-1"></i> Team selection is mandatory for Marketing Team users.
+									</div>
+									<div class="fv-plugins-message-container invalid-feedback" id="team_error_msg"></div>
+								</div>
 							</div>
 							<!-- Country Code input -->
 							<div class="row mb-6">
@@ -228,3 +249,48 @@
 
 					</div>
 				</form>
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const roleSelect = document.getElementById("user_role_select") || document.querySelector('select[name="role"]');
+    const teamRow = document.getElementById("team_select_row");
+    const teamSelect = document.getElementById("user_team_select");
+    const teamIndicator = document.getElementById("team_required_indicator");
+    const teamHelpText = document.getElementById("team_help_text");
+
+    function checkRoleForTeam() {
+        const val = roleSelect ? roleSelect.value : "";
+        // Role ID 4 is Marketing Team
+        if (val == "4") {
+            if (teamRow) teamRow.style.display = "flex";
+            if (teamSelect) teamSelect.setAttribute("required", "required");
+            if (teamIndicator) teamIndicator.style.display = "inline-block";
+            if (teamHelpText) teamHelpText.style.display = "block";
+        } else if (val == "9") {
+            // Subadmin: optional team
+            if (teamRow) teamRow.style.display = "flex";
+            if (teamSelect) teamSelect.removeAttribute("required");
+            if (teamIndicator) teamIndicator.style.display = "none";
+            if (teamHelpText) teamHelpText.style.display = "none";
+        } else {
+            if (teamRow) teamRow.style.display = "none";
+            if (teamSelect) {
+                teamSelect.removeAttribute("required");
+                if (typeof $ !== "undefined" && $(teamSelect).val()) {
+                    $(teamSelect).val("").trigger("change");
+                }
+            }
+            if (teamIndicator) teamIndicator.style.display = "none";
+            if (teamHelpText) teamHelpText.style.display = "none";
+        }
+    }
+
+    if (roleSelect) {
+        if (typeof $ !== "undefined") {
+            $(roleSelect).on("change", checkRoleForTeam);
+        } else {
+            roleSelect.addEventListener("change", checkRoleForTeam);
+        }
+        checkRoleForTeam();
+    }
+});
+</script>

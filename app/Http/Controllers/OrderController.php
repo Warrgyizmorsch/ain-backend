@@ -369,6 +369,21 @@ class OrderController extends Controller
                 ->orWhereHas('lead', fn ($lq) => $lq->where('is_converted', 1))
                 ->orWhereHas('frontendLead', fn ($flq) => $flq->where('is_converted', 1));
             });
+
+        if (auth()->check()) {
+            $authUser = auth()->user();
+            if ($authUser->role_id == 4) {
+                if (!empty($authUser->team_id)) {
+                    $ordersQuery->where('orders.team_id', $authUser->team_id);
+                } else {
+                    $ordersQuery->whereRaw('0 = 1');
+                }
+            } elseif ($authUser->role_id == 9) {
+                if (!empty($authUser->team_id)) {
+                    $ordersQuery->where('orders.team_id', $authUser->team_id);
+                }
+            }
+        }
         $data = [
             'Team' => Writer::all(),
             'Status' => Status::all(),
@@ -3991,8 +4006,25 @@ class OrderController extends Controller
                 ->whereColumn('updated_at', '>', 'delivery_date');
         }
 
-        if ($request->filled('team_id') && $request->team_id != '') {
-            $query->where('team_id', $request->team_id);
+        if (auth()->check()) {
+            $authUser = auth()->user();
+            if ($authUser->role_id == 4) {
+                if (!empty($authUser->team_id)) {
+                    $query->where('orders.team_id', $authUser->team_id);
+                } else {
+                    $query->whereRaw('0 = 1');
+                }
+            } elseif ($authUser->role_id == 9) {
+                if (!empty($authUser->team_id)) {
+                    $query->where('orders.team_id', $authUser->team_id);
+                } elseif ($request->filled('team_id') && $request->team_id != '') {
+                    $query->where('orders.team_id', $request->team_id);
+                }
+            } elseif ($request->filled('team_id') && $request->team_id != '') {
+                $query->where('orders.team_id', $request->team_id);
+            }
+        } elseif ($request->filled('team_id') && $request->team_id != '') {
+            $query->where('orders.team_id', $request->team_id);
         }
 
         if ($request->filled('today_deadline_filter')) {
@@ -4118,26 +4150,37 @@ class OrderController extends Controller
         ];
 
         $now = now();
-        $overdueCount = Cache::remember('order_overdue_count', 60, function () use ($now) {
-            return DB::table('orders')
-                ->whereNotNull('uid')
-                ->whereNotIn('projectstatus', ['Delivered', 'Completed', 'Cancelled', 'Feedback', 'Feedback Delivered'])
-                ->whereNotNull('delivery_date')
-                ->where(function ($q) use ($now) {
-                    $q->where('delivery_date', '<', $now->toDateString())
-                        ->orWhere(function ($q2) use ($now) {
-                            $q2->where('delivery_date', '=', $now->toDateString())
-                                ->whereNotNull('delivery_time')
-                                ->where('delivery_time', '<', $now->toTimeString());
-                        });
-                })
-                ->count();
-        });
+        $overdueQuery = DB::table('orders')
+            ->whereNotNull('uid')
+            ->whereNotIn('projectstatus', ['Delivered', 'Completed', 'Cancelled', 'Feedback', 'Feedback Delivered'])
+            ->whereNotNull('delivery_date')
+            ->where(function ($q) use ($now) {
+                $q->where('delivery_date', '<', $now->toDateString())
+                    ->orWhere(function ($q2) use ($now) {
+                        $q2->where('delivery_date', '=', $now->toDateString())
+                            ->whereNotNull('delivery_time')
+                            ->where('delivery_time', '<', $now->toTimeString());
+                    });
+            });
+
+        if (auth()->check()) {
+            $currUser = auth()->user();
+            if ($currUser->role_id == 4) {
+                if (!empty($currUser->team_id)) {
+                    $overdueQuery->where('team_id', $currUser->team_id);
+                } else {
+                    $overdueQuery->whereRaw('0 = 1');
+                }
+            } elseif ($currUser->role_id == 9 && !empty($currUser->team_id)) {
+                $overdueQuery->where('team_id', $currUser->team_id);
+            }
+        }
+        $overdueCount = $overdueQuery->count();
 
         $teamCounts = Cache::remember('order_team_counts', 60, function () {
             return DB::table('orders')
                 ->whereNotNull('uid')
-                ->whereIn('team_id', [1, 2])
+                ->whereNotNull('team_id')
                 ->groupBy('team_id')
                 ->select('team_id', DB::raw('COUNT(*) as total'))
                 ->pluck('total', 'team_id');
@@ -4145,25 +4188,43 @@ class OrderController extends Controller
         $alphaCount = $teamCounts[1] ?? 0;
         $gigaCount  = $teamCounts[2] ?? 0;
 
-        $teams = Team::select('id', 'team_name')->get();
-        return view('back-end.order.index', compact('orders', 'totals', 'overdueCount', 'data', 'alphaCount', 'gigaCount', 'teams'));
+        $teams = Team::where('is_delete', 0)->orderBy('priority', 'asc')->get();
+        return view('back-end.order.index', compact('orders', 'totals', 'overdueCount', 'data', 'alphaCount', 'gigaCount', 'teams', 'teamCounts'));
     }
 
     public function changeTeam(Request $request)
     {
-        // Only Admin
-        if (auth()->user()->role_id != 1) {
+        // Admin (role 1) or Subadmin (role 9)
+        if (!auth()->check() || !in_array((int) auth()->user()->role_id, [1, 9])) {
             abort(403);
         }
 
         $order = Order::findOrFail($request->order_id);
 
         $order->team_id = $request->team_id;
-
+        $order->team_assigned_at = now();
         $order->save();
 
+        if (!empty($order->uid)) {
+            Order::where('uid', $order->uid)->update([
+                'team_id' => $request->team_id,
+                'team_assigned_at' => now(),
+            ]);
+            User::where('id', $order->uid)->update([
+                'team_id' => $request->team_id,
+            ]);
+        }
+
+        Cache::forget('order_team_counts');
+
+        $order->load('team');
+
         return response()->json([
-            'success' => true
+            'status' => 'success',
+            'success' => true,
+            'message' => 'Team updated successfully and applied to all orders of this customer!',
+            'team_id' => $order->team_id,
+            'team_name' => $order->team ? $order->team->team_name : 'No Team',
         ]);
     }
 
@@ -4208,11 +4269,21 @@ class OrderController extends Controller
                 $startOfMonth = Carbon::parse($request->month . '-01')->startOfMonth();
                 $endOfMonth = Carbon::parse($request->month . '-01')->endOfMonth();
 
-                // Get all UIDs with orders in the selected month (excluding leads without UID)
-                $uidsInMonth = Order::whereNotNull('uid')->where('uid', '!=', 0)->where('uid', '!=', '0')
-                    ->whereBetween('order_date', [$startOfMonth, $endOfMonth])
-                    ->pluck('uid')
-                    ->unique();
+                $uidsQuery = Order::whereNotNull('uid')->where('uid', '!=', 0)->where('uid', '!=', '0')
+                    ->whereBetween('order_date', [$startOfMonth, $endOfMonth]);
+                if (auth()->check()) {
+                    $u = auth()->user();
+                    if ($u->role_id == 4) {
+                        if (!empty($u->team_id)) {
+                            $uidsQuery->where('team_id', $u->team_id);
+                        } else {
+                            $uidsQuery->whereRaw('0 = 1');
+                        }
+                    } elseif ($u->role_id == 9 && !empty($u->team_id)) {
+                        $uidsQuery->where('team_id', $u->team_id);
+                    }
+                }
+                $uidsInMonth = $uidsQuery->pluck('uid')->unique();
 
                 if ($uidsInMonth->isEmpty()) {
                     return response()->json([
@@ -4361,14 +4432,24 @@ class OrderController extends Controller
             $totalCount = (int) $request->get('total', $offset + $orders->count());
         }
 
-        $alphaCount = (clone $baseQuery)->where('orders.team_id', 1)->count();
-        $gigaCount  = (clone $baseQuery)->where('orders.team_id', 2)->count();
+        $teamCounts = Cache::remember('order_team_counts', 30, function () {
+            return DB::table('orders')
+                ->whereNotNull('uid')
+                ->whereNotNull('team_id')
+                ->groupBy('team_id')
+                ->select('team_id', DB::raw('COUNT(*) as total'))
+                ->pluck('total', 'team_id');
+        });
+
+        $alphaCount = $teamCounts[1] ?? 0;
+        $gigaCount  = $teamCounts[2] ?? 0;
 
         return response()->json([
             'html' => $html,
             'totals' => $totals,
             'count' => $orders->count(),
             'total' => $totalCount,
+            'team_counts' => $teamCounts,
             'alpha_count' => $alphaCount,
             'giga_count' => $gigaCount,
             'has_more' => $hasMore,

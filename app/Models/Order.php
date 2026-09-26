@@ -156,15 +156,51 @@ class Order extends Model
                 return;
             }
 
-            $existingTeamOrder = self::where('uid', $order->uid)
-                ->whereDate('updated_at', Carbon::today())
-                ->whereNotNull('team_id')
-                ->first();
+            $targetTeamId = null;
 
-            if ($existingTeamOrder) {
-                $order->team_id = $existingTeamOrder->team_id;
+            // 1. Check Sticky Assignment (Lifetime): If customer already has ANY order assigned to a team
+            if (!empty($order->uid)) {
+                $existingTeamOrder = self::where('uid', $order->uid)
+                    ->whereNotNull('team_id')
+                    ->where('id', '!=', $order->id)
+                    ->orderByDesc('id')
+                    ->first();
+
+                if ($existingTeamOrder) {
+                    $targetTeamId = $existingTeamOrder->team_id;
+                }
+            }
+
+            // 2. Check Referral Inheritance: If user was referred by someone (refer_id) who has a team assigned
+            if (!$targetTeamId && !empty($order->uid)) {
+                $customer = User::find($order->uid);
+                if ($customer && !empty($customer->refer_id)) {
+                    $referrerTeamOrder = self::where('uid', $customer->refer_id)
+                        ->whereNotNull('team_id')
+                        ->orderByDesc('id')
+                        ->first();
+
+                    if ($referrerTeamOrder) {
+                        $targetTeamId = $referrerTeamOrder->team_id;
+                    }
+                }
+            }
+
+            // If Sticky or Referral team found, assign immediately and sync all unassigned orders of this customer
+            if ($targetTeamId) {
+                $order->team_id = $targetTeamId;
                 $order->team_assigned_at = now();
                 $order->save();
+
+                if (!empty($order->uid)) {
+                    self::where('uid', $order->uid)
+                        ->whereNull('team_id')
+                        ->where('id', '!=', $order->id)
+                        ->update([
+                            'team_id' => $targetTeamId,
+                            'team_assigned_at' => now(),
+                        ]);
+                }
 
                 $this->forceFill([
                     'team_id' => $order->team_id,
@@ -173,6 +209,7 @@ class Order extends Model
                 return;
             }
 
+            // 3. Dynamic Multi-Team Balancing (for any number of teams: 2, 3, 5, etc.)
             $teams = Team::where('is_delete', 0)
                 ->orderBy('priority', 'asc')
                 ->get();
@@ -205,26 +242,33 @@ class Order extends Model
                 $assignedCount[$team->id] = $assignedCountQuery->count();
             }
 
+            $chosenTeamId = null;
             foreach ($teams as $team) {
                 if ($assignedCount[$team->id] < $allocations[$team->id]) {
-                    $order->team_id = $team->id;
-                    $order->team_assigned_at = now();
-                    $order->save();
-
-                    $this->forceFill([
-                        'team_id' => $order->team_id,
-                        'team_assigned_at' => $order->team_assigned_at,
-                    ]);
-                    return;
+                    $chosenTeamId = $team->id;
+                    break;
                 }
             }
 
-            $fallbackTeamId = collect($assignedCount)->sort()->keys()->first();
+            if (!$chosenTeamId) {
+                $chosenTeamId = collect($assignedCount)->sort()->keys()->first();
+            }
 
-            if ($fallbackTeamId) {
-                $order->team_id = $fallbackTeamId;
+            if ($chosenTeamId) {
+                $order->team_id = $chosenTeamId;
                 $order->team_assigned_at = now();
                 $order->save();
+
+                // Sync all unassigned orders of this customer to this team
+                if (!empty($order->uid)) {
+                    self::where('uid', $order->uid)
+                        ->whereNull('team_id')
+                        ->where('id', '!=', $order->id)
+                        ->update([
+                            'team_id' => $chosenTeamId,
+                            'team_assigned_at' => now(),
+                        ]);
+                }
 
                 $this->forceFill([
                     'team_id' => $order->team_id,

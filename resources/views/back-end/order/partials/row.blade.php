@@ -137,24 +137,35 @@
                     @endif
                 </div><br>
             @endif
-            @if($order->team?->team_name)
-                <div class="d-inline-flex align-items-center justify-content-center gap-1 mb-1">
-                    @if($roleId == 1)
+            <div class="d-inline-flex align-items-center justify-content-center gap-1 mb-1 order-team-badge-container-{{ $order->id }}">
+                @if($order->team?->team_name)
+                    @if(in_array($roleId, [1, 9]))
                         <span 
                             class="badge badge-light-primary fs-7 fw-bold cursor-pointer"
                             data-bs-toggle="modal"
                             data-bs-target="#changeTeamModal"
                             onclick="openTeamModal('{{ $order->id }}', '{{ $order->team_id }}')"
+                            title="Click to change team"
                         >
-                            {{ $order->team->team_name }}
+                            <i class="fas fa-users fs-9 me-1"></i>{{ $order->team->team_name }}
                         </span>
                     @else
                         <span class="badge badge-light-primary fs-7 fw-bold">
-                            {{ $order->team->team_name }}
+                            <i class="fas fa-users fs-9 me-1"></i>{{ $order->team->team_name }}
                         </span>
                     @endif
-                </div><br>
-            @endif
+                @elseif(in_array($roleId, [1, 9]))
+                    <span 
+                        class="badge badge-light-secondary text-muted fs-8 fw-bold cursor-pointer"
+                        data-bs-toggle="modal"
+                        data-bs-target="#changeTeamModal"
+                        onclick="openTeamModal('{{ $order->id }}', '')"
+                        title="Click to assign team"
+                    >
+                        <i class="fas fa-plus fs-9 me-1"></i> Assign Team
+                    </span>
+                @endif
+            </div><br>
 
             @if($order->marks)
             <span class="fs-7 fw-bold">Marks:</span>{{ $order->marks }}<br>
@@ -799,48 +810,7 @@
         </td>
     </tr>
 
-    <!-- Change Team Modal -->
-<div class="modal fade" id="changeTeamModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
 
-            <div class="modal-header">
-                <h5 class="modal-title">Change Team</h5>
-
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-
-            <div class="modal-body">
-
-                <input type="hidden" id="modal_order_id">
-
-                <div class="mb-3">
-                    <label>Select Team</label>
-
-                    <select class="form-select" id="modal_team_id">
-                        <option value="">Select Team</option>
-
-                        @foreach($teams as $team)
-                            <option value="{{ $team->id }}">
-                                {{ $team->team_name }}
-                            </option>
-                        @endforeach
-                    </select>
-                </div>
-
-            </div>
-
-            <div class="modal-footer">
-                <button type="button"
-                        class="btn btn-primary"
-                        onclick="updateTeam()">
-                    Update
-                </button>
-            </div>
-
-        </div>
-    </div>
-</div>
 
     <style>
         .duplicate-info-wrapper {
@@ -876,45 +846,7 @@
             color: #f1416c !important;
         }
     </style>
-    <script>
 
-    function openTeamModal(orderId, teamId)
-    {
-        $('#modal_order_id').val(orderId);
-        $('#modal_team_id').val(teamId);
-    }
-
-    function updateTeam()
-    {
-        let orderId = $('#modal_order_id').val();
-        let teamId  = $('#modal_team_id').val();
-
-        $.ajax({
-            url: "{{ route('orders.change.team') }}",
-            type: "POST",
-            data: {
-                _token: "{{ csrf_token() }}",
-                order_id: orderId,
-                team_id: teamId
-            },
-
-            success: function(response)
-            {
-                $('#changeTeamModal').modal('hide');
-
-                Swal.fire({
-                    icon: 'success',
-                    title: 'Team Updated Successfully',
-                    timer: 1500,
-                    showConfirmButton: false
-                });
-
-                location.reload();
-            }
-        });
-    }
-
-</script>
 
     {{-- <script>
 	function status(orderId) {

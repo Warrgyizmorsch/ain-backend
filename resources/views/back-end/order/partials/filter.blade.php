@@ -38,15 +38,51 @@
             </div>
         </div>
         @if(empty($hideOrderQuickFilters))
-        <div class="d-flex align-items-center gap-2 flex-shrink-0 ms-3">
-            <a href="javascript:void(0)" id="teamAlphaBtn" class="team-quick-btn team-alpha-btn">
-                <span>Alpha</span>
-                <span class="team-badge">{{ $alphaCount ?? 0 }}</span>
-            </a>
-            <a href="javascript:void(0)" id="teamGigaBtn" class="team-quick-btn team-giga-btn">
-                <span>Giga</span>
-                <span class="team-badge">{{ $gigaCount ?? 0 }}</span>
-            </a>
+        @php
+            $currentAuth = auth()->user();
+            $userRoleId = !empty($currentAuth) ? (int)$currentAuth->role_id : null;
+            $userTeamId = !empty($currentAuth) ? $currentAuth->team_id : null;
+            $allActiveTeams = isset($teams) ? $teams : \App\Models\Team::where('is_delete', 0)->orderBy('priority', 'asc')->get();
+
+            if ($userRoleId === 4) {
+                // Marketing: if team assigned, show only that team; if not assigned, show empty
+                if (!empty($userTeamId)) {
+                    $allActiveTeams = $allActiveTeams->where('id', $userTeamId);
+                } else {
+                    $allActiveTeams = collect();
+                }
+            } elseif ($userRoleId === 9) {
+                // Subadmin: if team assigned, show only that team; if not assigned, show all teams
+                if (!empty($userTeamId)) {
+                    $allActiveTeams = $allActiveTeams->where('id', $userTeamId);
+                }
+            }
+            $palette = [
+                ['bg' => '#eff6ff', 'border' => '#bfdbfe', 'color' => '#1d4ed8', 'badge' => '#3b82f6'],
+                ['bg' => '#f8fafc', 'border' => '#cbd5e1', 'color' => '#1e293b', 'badge' => '#1e293b'],
+                ['bg' => '#f0fdf4', 'border' => '#bbf7d0', 'color' => '#15803d', 'badge' => '#16a34a'],
+                ['bg' => '#faf5ff', 'border' => '#e9d5ff', 'color' => '#7e22ce', 'badge' => '#9333ea'],
+                ['bg' => '#fff7ed', 'border' => '#fed7aa', 'color' => '#c2410c', 'badge' => '#ea580c'],
+                ['bg' => '#fdf2f8', 'border' => '#fbcfe8', 'color' => '#be185d', 'badge' => '#db2777'],
+            ];
+        @endphp
+        <div class="d-flex align-items-center gap-2 flex-shrink-0 ms-3" id="dynamicTeamBtnsContainer">
+            @foreach($allActiveTeams as $idx => $t)
+                @php
+                    $colors = $palette[$idx % count($palette)];
+                    $tCount = isset($teamCounts[$t->id]) ? $teamCounts[$t->id] : (isset(${"alphaCount"}) && $t->id == 1 ? $alphaCount : (isset(${"gigaCount"}) && $t->id == 2 ? $gigaCount : 0));
+                    $btnId = $t->id == 1 ? 'teamAlphaBtn' : ($t->id == 2 ? 'teamGigaBtn' : 'teamBtn_' . $t->id);
+                    $btnClass = $t->id == 1 ? 'team-alpha-btn' : ($t->id == 2 ? 'team-giga-btn' : '');
+                @endphp
+                <a href="javascript:void(0)" 
+                   id="{{ $btnId }}" 
+                   data-team-id="{{ $t->id }}" 
+                   class="team-quick-btn dynamic-team-btn {{ $btnClass }}"
+                   style="background-color: {{ $colors['bg'] }}; border: 1px solid {{ $colors['border'] }}; color: {{ $colors['color'] }};">
+                    <span>{{ $t->team_name }}</span>
+                    <span class="team-badge" style="background: {{ $colors['badge'] }};">{{ $tCount }}</span>
+                </a>
+            @endforeach
         </div>
         @endif
     </div>
@@ -611,6 +647,20 @@
         font-weight: 700;
     }
 
+    .dynamic-team-btn:hover, .dynamic-team-btn.quick-filter-active {
+        filter: brightness(0.92);
+        transform: translateY(-1px);
+        box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15) !important;
+        outline: 2px solid currentColor;
+    }
+    .dynamic-team-btn .team-badge {
+        color: #ffffff;
+        border-radius: 4px;
+        padding: 2px 6px;
+        font-size: 10px;
+        font-weight: 700;
+    }
+
     #toggleDeadlineGapBtn {
         border-radius: 6px !important;
         font-weight: 700;
@@ -928,7 +978,7 @@ resetFilters();
     };
 
     function highlightActiveQuickFilters() {
-        $('#overdueBtn, #todayDeadlineBtn, #yesterdayDeadlineBtn, #todayWriterDeadlineBtn, #writerQueryBtn, #holdWorkBtn, #teamAlphaBtn, #teamGigaBtn').removeClass('quick-filter-active');
+        $('#overdueBtn, #todayDeadlineBtn, #yesterdayDeadlineBtn, #todayWriterDeadlineBtn, #writerQueryBtn, #holdWorkBtn, .dynamic-team-btn, #teamAlphaBtn, #teamGigaBtn').removeClass('quick-filter-active');
 
         if ($('#deadline_status').val() === 'overdue') {
             $('#overdueBtn').addClass('quick-filter-active');
@@ -948,11 +998,12 @@ resetFilters();
         if ($('#status').val() === 'Hold Work') {
             $('#holdWorkBtn').addClass('quick-filter-active');
         }
-        if ($('#filter_team_id').val() === '1') {
-            $('#teamAlphaBtn').addClass('quick-filter-active');
-        }
-        if ($('#filter_team_id').val() === '2') {
-            $('#teamGigaBtn').addClass('quick-filter-active');
+        
+        var currentTeam = $('#filter_team_id').val();
+        if (currentTeam) {
+            $('.dynamic-team-btn[data-team-id="' + currentTeam + '"]').addClass('quick-filter-active');
+            if (currentTeam === '1') $('#teamAlphaBtn').addClass('quick-filter-active');
+            if (currentTeam === '2') $('#teamGigaBtn').addClass('quick-filter-active');
         }
 
         const activeGap = $('#duration_gap_filter').val();
@@ -1065,26 +1116,12 @@ resetFilters();
         applyFilters();
     });
 
-    $(document).on('click', '#teamAlphaBtn', function(e) {
+    $(document).on('click', '.dynamic-team-btn, #teamAlphaBtn, #teamGigaBtn', function(e) {
         e.preventDefault();
-        if ($('#filter_team_id').val() === '1') {
-            $('#filter_team_id').val('');
-        } else {
-            $('#deadline_status').val('').trigger('change');
-            $('#today_deadline_filter').val('');
-            $('#yesterday_deadline_filter').val('');
-            $('#today_writer_deadline_filter').val('');
-            $('#status').val('').trigger('change');
-            $('#from_date').val('');
-            $('#to_date').val('');
-            $('#filter_team_id').val('1');
-        }
-        applyFilters();
-    });
+        const selectedTeamId = String($(this).data('team-id') || ($(this).attr('id') === 'teamAlphaBtn' ? '1' : ($(this).attr('id') === 'teamGigaBtn' ? '2' : '')));
+        if (!selectedTeamId) return;
 
-    $(document).on('click', '#teamGigaBtn', function(e) {
-        e.preventDefault();
-        if ($('#filter_team_id').val() === '2') {
+        if ($('#filter_team_id').val() === selectedTeamId) {
             $('#filter_team_id').val('');
         } else {
             $('#deadline_status').val('').trigger('change');
@@ -1094,7 +1131,7 @@ resetFilters();
             $('#status').val('').trigger('change');
             $('#from_date').val('');
             $('#to_date').val('');
-            $('#filter_team_id').val('2');
+            $('#filter_team_id').val(selectedTeamId);
         }
         applyFilters();
     });
@@ -1163,8 +1200,26 @@ resetFilters();
                     currentTotalCount = response.total;
                 }
 
-                // $('#filter-total').text(`Filtered Orders (${response.total ?? 0} total)`);
-                $('#filter-total').text(`{{ $filterTitle ?? 'Filtered Orders' }} (${response.total ?? currentTotalCount} total)`);
+                if (response.team_counts) {
+                    $.each(response.team_counts, function(tid, cnt) {
+                        $('.dynamic-team-btn[data-team-id="' + tid + '"] .team-badge').text(cnt);
+                    });
+                }
+                if (response.alpha_count !== undefined) {
+                    $('#teamAlphaBtn .team-badge').text(response.alpha_count);
+                }
+                if (response.giga_count !== undefined) {
+                    $('#teamGigaBtn .team-badge').text(response.giga_count);
+                }
+
+                const activeTeamId = $('#filter_team_id').val();
+                if (activeTeamId) {
+                    const activeTeamBtn = $('.dynamic-team-btn[data-team-id="' + activeTeamId + '"]');
+                    const teamTitle = activeTeamBtn.find('span:first').text().trim() || 'Team';
+                    $('#filter-total').text(`Team: ${teamTitle} (${response.total ?? currentTotalCount} orders)`);
+                } else {
+                    $('#filter-total').text(`{{ $filterTitle ?? 'Filtered Orders' }} (${response.total ?? currentTotalCount} total)`);
+                }
 
                 $('#spinner-row').hide();
                 $('#preloader2').hide();

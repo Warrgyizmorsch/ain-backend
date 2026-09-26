@@ -3,6 +3,7 @@
 @section('content')
 @include('back-end.group-master.user-modal')
 @include('back-end.order.partials.user-label-modal')
+@include('back-end.order.partials.team-modals')
 
 <style>
     /* Red Blinking Animation */

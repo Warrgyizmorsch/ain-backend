@@ -12,6 +12,7 @@ use App\Models\LoginHistory;
 use App\Models\UserLog;
 use App\Models\Order;
 use App\Models\GroupMaster;
+use App\Models\Team;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
 
@@ -397,6 +398,7 @@ class UserController extends Controller
             ? User::select('id', 'name', 'email', 'mobile_no', 'mobile_no2')->find($searchUserId)
             : null;
         $data['role'] = Role::all();
+        $data['teams'] = Team::where('is_delete', false)->orderBy('priority', 'asc')->get();
         $data['bank'] = Bank::all();
         $data['countryList'] = array_keys($globalCountries);
         $data['collegeList'] = Order::whereNotNull('college_name')->where('college_name', '!=', '')->distinct()->orderBy('college_name')->pluck('college_name');
@@ -417,7 +419,13 @@ class UserController extends Controller
             $user->mobile_no = $request->input('phone');
             $user->countrycode2 = $request->input('countrycode2');
             $user->mobile_no2 = $request->input('phone2');
-            $user->role_id = $request->input('role');
+            $roleId = (int) $request->input('role');
+            $teamId = $request->input('team_id');
+            if ($roleId === 4 && empty($teamId)) {
+                return redirect()->back()->withInput()->with('error', 'Team selection is mandatory for Marketing Team users.');
+            }
+            $user->role_id = $roleId;
+            $user->team_id = !empty($teamId) ? $teamId : null;
             $user->bank_id = $request->input('bank');
             $user->address = $request->input('address');
             $user->call_id = $request->input('call_id');
@@ -456,6 +464,7 @@ class UserController extends Controller
     public function new_user()
     {
         $data['role'] = Role::all();
+        $data['teams'] = Team::where('is_delete', false)->orderBy('priority', 'asc')->get();
 
         return view('user.add_user', compact('data'));
     }
@@ -463,10 +472,16 @@ class UserController extends Controller
 
     public function insert_new_user(Request $request)
     {
+        $roleId = (int) $request->input('role');
+        $teamId = $request->input('team_id');
+
+        // Validation: Marketing Team (role 4) ke liye team mandatory hai
+        if ($roleId === 4 && empty($teamId)) {
+            return redirect()->back()->withInput()->with('error', 'Team selection is mandatory for Marketing Team users.');
+        }
+
         // Validate input data, including a unique rule for email
-
         $existingUser = User::where('email', $request->input('email'))
-
             ->first();
 
         if ($existingUser) {
@@ -482,7 +497,8 @@ class UserController extends Controller
         $user->mobile_no = $request->input('primary_mobile');
         $user->countrycode2 = $request->input('country_code2');
         $user->mobile_no2 = $request->input('secondary_mobile');
-        $user->role_id = $request->input('role');
+        $user->role_id = $roleId;
+        $user->team_id = !empty($teamId) ? $teamId : null;
         $user->address = $request->input('address');
         $user->password = Hash::make('user@123');
 

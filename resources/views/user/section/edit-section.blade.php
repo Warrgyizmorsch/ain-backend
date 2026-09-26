@@ -86,6 +86,24 @@
 								</div>
 							</div>
 
+							                            <div class="row mb-6">
+								<label class="col-lg-4 col-form-label fw-bold fs-6">
+									<span class="{{ $user['role_id'] == 4 ? 'required' : '' }}">Team</span>
+								</label>
+								<div class="col-lg-3 fv-row fv-plugins-icon-container">
+                                    <select name="team_id" class="form-select form-select-solid form-select-lg" {{ $user['role_id'] == 4 ? 'required' : '' }}>
+                                        <option value="">Select Team</option>
+                                        @php
+                                            $allTeams = isset($data['teams']) ? $data['teams'] : \App\Models\Team::where('is_delete', false)->orderBy('priority', 'asc')->get();
+                                        @endphp
+                                        @foreach($allTeams as $team)
+                                            <option value="{{ $team->id }}" @if($team->id == ($user->team_id ?? null)) selected @endif>{{ $team->team_name }}</option>
+                                        @endforeach
+                                    </select>
+                                    <div class="fv-plugins-message-container invalid-feedback"></div>
+								</div>
+							</div>
+
 							<!-- New password fields -->
 							<div class="row mb-6">
 								<label class="col-lg-4 col-form-label fw-bold fs-6">

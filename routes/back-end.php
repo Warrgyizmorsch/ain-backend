@@ -318,6 +318,10 @@ Route::middleware(['auth'])->group(function () {
     // Team Allowtment For Order
     Route::get('/teams', [TeamController::class, 'index'])->name('teams.index');
     Route::post('/teams', [TeamController::class, 'store'])->name('teams.store');
+    Route::get('/teams/active-list', [TeamController::class, 'getActiveTeams'])->name('teams.active.list');
+    Route::get('/teams/unassigned-members', [TeamController::class, 'getUnassignedMembers'])->name('teams.unassigned.members');
+    Route::get('/teams/members-table', [TeamController::class, 'getMembersTable'])->name('teams.members.table');
+    Route::post('/teams/unassign-member', [TeamController::class, 'unassignMember'])->name('teams.unassign.member');
     Route::get('/teams/{id}/edit', [TeamController::class, 'edit'])->name('teams.edit');
     Route::post('/teams/update', [TeamController::class, 'update'])->name('teams.update');
     Route::delete('/teams/{id}', [TeamController::class, 'destroy'])->name('teams.destroy');

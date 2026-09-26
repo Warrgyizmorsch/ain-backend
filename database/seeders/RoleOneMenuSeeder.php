@@ -256,6 +256,37 @@ class RoleOneMenuSeeder extends Seeder
         DB::table('submenus')->where('menus_id', $nextFollowupMenuId)->delete();
 
         // =============================================================
+        // 3.4. TEAMS MAIN MENU
+        // =============================================================
+        $teamsMenu = DB::table('menu')->where('routes', 'teams')->whereNull('parent_id')->first();
+        if (!$teamsMenu) {
+            $teamsMenuId = DB::table('menu')->insertGetId([
+                'menu_name' => 'Teams',
+                'icon_class' => 'fa fa-users',
+                'show_menu' => 'Y',
+                'routes' => 'teams',
+                'sort_order' => 9,
+                'parent_id' => null,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        } else {
+            $teamsMenuId = $teamsMenu->id;
+            DB::table('menu')->where('id', $teamsMenuId)->update([
+                'menu_name' => 'Teams',
+                'icon_class' => 'fa fa-users',
+                'show_menu' => 'Y',
+                'parent_id' => null,
+                'routes' => 'teams',
+                'sort_order' => 9,
+                'updated_at' => now(),
+            ]);
+        }
+
+        DB::table('menu')->where('parent_id', $teamsMenuId)->delete();
+        DB::table('submenus')->where('menus_id', $teamsMenuId)->delete();
+
+        // =============================================================
         // 4. SEED INITIAL EMAIL CONFIGS (Assignment Help & Write Email)
         // =============================================================
         // Remove old / legacy accounts (including 'App' / anshulsuthar)
@@ -483,7 +514,7 @@ class RoleOneMenuSeeder extends Seeder
         // Dashboard, WhatsApp, Emails, and Call History. Keep every other menu after them.
         DB::table('menu')
             ->whereNull('parent_id')
-            ->whereNotIn('id', [1, 24, $emailMenuId, $callHistoryMenuId, $nextFollowupMenuId])
+            ->whereNotIn('id', [1, 24, $emailMenuId, $callHistoryMenuId, $nextFollowupMenuId, $teamsMenuId])
             ->where('sort_order', '<', 5)
             ->update([
                 'sort_order' => 5,
