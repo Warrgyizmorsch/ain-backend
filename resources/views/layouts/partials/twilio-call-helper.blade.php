@@ -8,14 +8,40 @@
     // Global call trigger — used by call buttons across Orders, Follow-ups, Next Follow-ups, Leads, Search, WhatsApp, etc.
     // Seamlessly dispatches calls to Next2Call Softphone or Twilio Voice based on active plugin configuration.
     window.initiateCustomerCall = function(phoneRaw, nameRaw) {
-        const name = nameRaw || 'Customer';
-        let cleanPhone = String(phoneRaw || '').replace(/[^\d+]/g, '');
+        let raw = phoneRaw;
+        let name = nameRaw;
 
-        if (!cleanPhone) {
+        // If phone is missing or contains mask asterisks ('*'), try getting the unmasked phone from known global CRM / Chat variables
+        if (!raw || String(raw).includes('*')) {
+            raw = (typeof window.selectedCustomerPhone !== 'undefined' && window.selectedCustomerPhone && !String(window.selectedCustomerPhone).includes('*')) ? window.selectedCustomerPhone :
+                  (typeof window.selectedPhone !== 'undefined' && window.selectedPhone && !String(window.selectedPhone).includes('*')) ? window.selectedPhone :
+                  (typeof selectedPhone !== 'undefined' && selectedPhone && !String(selectedPhone).includes('*')) ? selectedPhone :
+                  document.querySelector('#wabMessagesBody')?.getAttribute('data-selected-phone') ||
+                  document.querySelector('.wab-contact-item.is-active')?.getAttribute('data-phone') ||
+                  document.querySelector('.wab-conv-footer input[name="phone"]')?.value ||
+                  document.getElementById('waAssignPhoneInput')?.value ||
+                  '';
+        }
+
+        if (!name || name === 'Customer') {
+            name = (typeof window.selectedCustomerName !== 'undefined' && window.selectedCustomerName) ? window.selectedCustomerName :
+                   (typeof window.currentCustomerName !== 'undefined' && window.currentCustomerName) ? window.currentCustomerName :
+                   document.querySelector('.wab-conv-name')?.textContent?.trim() ||
+                   document.querySelector('.wab-contact-item.is-active')?.getAttribute('data-name') ||
+                   'Customer';
+        }
+
+        let cleanPhone = String(raw || '').replace(/[^\d+]/g, '');
+        let digits = cleanPhone.replace(/\D/g, '');
+
+        if (!cleanPhone || digits.length < 7) {
+            const warningMsg = (!cleanPhone && (!phoneRaw || String(phoneRaw).trim() === ''))
+                ? 'Please select a customer or chat conversation first.'
+                : 'This contact does not have a valid phone number.';
             if (typeof toastr !== 'undefined') {
-                toastr.warning('This contact does not have a valid phone number.');
+                toastr.warning(warningMsg);
             } else {
-                alert('This contact does not have a valid phone number.');
+                alert(warningMsg);
             }
             return;
         }

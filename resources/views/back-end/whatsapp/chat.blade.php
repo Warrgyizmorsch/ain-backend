@@ -339,8 +339,8 @@
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>
                     </button>
 
-                    {{-- Twilio Call Button (Call Icon Only) --}}
-                    <button type="button" class="wab-header-icon-btn wab-header-btn-call" id="waHeaderCallBtn" title="Call customer via Twilio" onclick="initiateCustomerCall()">
+                    {{-- Call Button (Call Icon Only) --}}
+                    <button type="button" class="wab-header-icon-btn wab-header-btn-call" id="waHeaderCallBtn" title="Call customer" onclick="initiateCustomerCall(window.selectedPhone || window.selectedCustomerPhone, window.selectedCustomerName || 'Customer')">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
                     </button>
 
@@ -2482,7 +2482,7 @@ document.addEventListener('DOMContentLoaded', function() {
         {{-- Actions row --}}
         <div class="wab-pp-actions d-flex align-items-center justify-content-center gap-2.5">
             @if($selectedPhone)
-            <button class="wab-pp-action-btn" type="button" onclick="initiateCustomerCall()" title="Call customer via Twilio">
+            <button class="wab-pp-action-btn" type="button" onclick="initiateCustomerCall(window.selectedPhone || window.selectedCustomerPhone, window.selectedCustomerName || 'Customer')" title="Call customer">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
                 Call
             </button>
@@ -6043,28 +6043,41 @@ document.addEventListener('DOMContentLoaded', function() {
     };
 
     window.initiateCustomerCall = function(phoneToCall = null, nameToCall = null) {
-        const phone = phoneToCall || window.selectedCustomerPhone || selectedPhone || document.querySelector('.wab-conv-footer input[name="phone"]')?.value || '';
-        const name = nameToCall || window.currentCustomerName || document.querySelector('.wab-conv-name')?.textContent || phone;
+        let phone = phoneToCall || window.selectedCustomerPhone || selectedPhone || document.querySelector('.wab-conv-footer input[name="phone"]')?.value || document.querySelector('#wabMessagesBody')?.dataset?.selectedPhone || '';
+        let name = nameToCall || window.selectedCustomerName || window.currentCustomerName || document.querySelector('.wab-conv-name')?.textContent || 'Customer';
 
-        if (!phone) {
+        let clean = String(phone || '').replace(/[^\d+]/g, '');
+        let digits = clean.replace(/\D/g, '');
+
+        if (!clean || digits.length < 7) {
+            const msg = !clean ? 'Please select a customer or chat conversation first.' : 'This contact does not have a valid phone number.';
             if (typeof toastr !== 'undefined') {
-                toastr.warning('Please select a customer or chat conversation first.');
+                toastr.warning(msg);
             } else if (typeof Swal !== 'undefined') {
-                Swal.fire('No Contact Selected', 'Please select a customer or chat conversation first.', 'info');
+                Swal.fire('Notice', msg, 'info');
             } else {
-                alert('Please select a customer or chat conversation first.');
+                alert(msg);
             }
             return;
         }
 
+        // 1. Next2Call Softphone (Direct in-browser WebRTC click-to-dial via Ringfy PBX)
+        if (typeof window.dialNext2CallNumber === 'function') {
+            window.dialNext2CallNumber(clean, '', name);
+            return;
+        }
+
+        // 2. Twilio Voice softphone
         if (window.twilioSoftphone && typeof window.twilioSoftphone.makeCall === 'function') {
-            window.twilioSoftphone.makeCall(phone, name);
+            if (!clean.startsWith('+')) clean = '+' + clean;
+            window.twilioSoftphone.makeCall(clean, name);
+            return;
+        }
+
+        if (typeof toastr !== 'undefined') {
+            toastr.error('No calling plugin (Next2Call or Twilio) is active or ready.');
         } else {
-            if (typeof toastr !== 'undefined') {
-                toastr.error('Twilio Voice softphone is not ready or active.');
-            } else {
-                alert('Twilio Voice softphone is not ready or active.');
-            }
+            alert('No calling plugin (Next2Call or Twilio) is active or ready.');
         }
     };
 
