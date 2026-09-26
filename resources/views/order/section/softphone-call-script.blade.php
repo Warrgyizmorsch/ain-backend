@@ -30,34 +30,6 @@
         'SipPassword' => $password,
     ]);
 
-    $n2cExternalCtcUrl = "https://{$sipDomain}{$clickToDialPath}?" . http_build_query([
-        'profileName' => $userId,
-        'SipDomain'   => $sipDomain,
-        'SipUsername' => $userId,
-        'SipPassword' => $password,
-    ]);
-
-    $n2cClientUrl = route('softphone.client', [
-        'profileName' => $userId,
-        'SipDomain'   => $sipDomain,
-        'SipUsername' => $userId,
-        'SipPassword' => $password,
-    ]);
-
-    $n2cDialerUrl = "https://{$sipDomain}/softphone/Phone/index.html?" . http_build_query([
-        'profileName' => $userId,
-        'SipDomain'   => $sipDomain,
-        'SipUsername' => $userId,
-        'SipPassword' => $password,
-    ]);
-
-    $n2cExternalCtcUrl = "https://{$sipDomain}{$clickToDialPath}?" . http_build_query([
-        'profileName' => $userId,
-        'SipDomain'   => $sipDomain,
-        'SipUsername' => $userId,
-        'SipPassword' => $password,
-    ]);
-
     $n2cCtcBaseUrl = "https://{$sipDomain}{$clickToDialPath}?" . http_build_query([
         'profileName' => $userId,
         'SipDomain'   => $sipDomain,
@@ -167,10 +139,8 @@
 
 <!-- Next2Call Softphone Floating Widget Box (Default Next2Call Interface) -->
 <div id="ringfySoftphoneWidget" class="n2c-softphone-box" aria-live="polite"
-     data-client-url="{{ $n2cClientUrl }}"
      data-dialer-url="{{ $n2cDialerUrl }}"
-     data-ctc-base="{{ $n2cCtcBaseUrl }}"
-     data-external-ctc="{{ $n2cExternalCtcUrl }}">
+     data-ctc-base="{{ $n2cCtcBaseUrl }}">
     
     <!-- Drag Header -->
     <div id="ringfySoftphoneHandle" class="n2c-softphone-header">
@@ -194,7 +164,7 @@
             id="ringfySoftphoneFrame"
             class="n2c-softphone-iframe"
             src=""
-            allow="microphone; camera; display-capture; autoplay; fullscreen"
+            allow="microphone; camera; speaker-selection; display-capture; autoplay; fullscreen"
             allowfullscreen>
         </iframe>
     </div>
@@ -204,14 +174,13 @@
     function initRingfySoftphoneWidget() {
         const widget = document.getElementById('ringfySoftphoneWidget');
         const handle = document.getElementById('ringfySoftphoneHandle');
-        const frame = document.getElementById('ringfySoftphoneFrame');
         const iframeWrap = document.getElementById('n2cIframeContainer');
 
         const closeBtn = document.getElementById('n2cCloseBtn');
         const externalBtn = document.getElementById('n2cExternalBtn');
 
         const DIALER_URL = widget?.dataset?.dialerUrl || '';
-        const CLIENT_URL = widget?.dataset?.clientUrl || widget?.dataset?.ctcBase || '';
+        const CTC_BASE_URL = widget?.dataset?.ctcBase || '';
 
         let currentFullNumber = '';
         let callInitiatedAt = 0;
@@ -261,7 +230,7 @@
                     id="ringfySoftphoneFrame"
                     class="n2c-softphone-iframe"
                     src="${url}"
-                    allow="microphone; camera; display-capture; autoplay; fullscreen"
+                    allow="microphone; camera; speaker-selection; display-capture; autoplay; fullscreen"
                     allowfullscreen>
                 </iframe>
             `;
@@ -269,31 +238,20 @@
 
         function destroyAndResetIframe() {
             if (!iframeWrap) return;
-            try {
-                const currentFrame = document.getElementById('ringfySoftphoneFrame');
-                if (currentFrame && currentFrame.contentWindow) {
-                    try {
-                        if (typeof currentFrame.contentWindow.cancelSession === 'function') {
-                            currentFrame.contentWindow.cancelSession(1);
-                        }
-                        if (typeof currentFrame.contentWindow.endSession === 'function') {
-                            currentFrame.contentWindow.endSession(1);
-                        }
-                        if (typeof currentFrame.contentWindow.teardownSession === 'function' && typeof currentFrame.contentWindow.FindLineByNumber === 'function') {
-                            var line = currentFrame.contentWindow.FindLineByNumber(1);
-                            if (line) currentFrame.contentWindow.teardownSession(line);
-                        }
-                    } catch (e) {}
-
-                    currentFrame.contentWindow.postMessage({ type: 'HANGUP', action: 'hangup' }, '*');
-                    currentFrame.contentWindow.postMessage('HANGUP', '*');
-                    currentFrame.contentWindow.postMessage({ type: 'CLOSE_PHONE_POPUP' }, '*');
-                }
-            } catch (e) {}
-
-            if (iframeWrap) {
-                iframeWrap.innerHTML = '';
+            const currentFrame = document.getElementById('ringfySoftphoneFrame');
+            if (currentFrame) {
+                currentFrame.removeAttribute('src');
+                currentFrame.src = '';
             }
+            iframeWrap.innerHTML = `
+                <iframe
+                    id="ringfySoftphoneFrame"
+                    class="n2c-softphone-iframe"
+                    src=""
+                    allow="microphone; camera; speaker-selection; display-capture; autoplay; fullscreen"
+                    allowfullscreen>
+                </iframe>
+            `;
         }
 
         // Close Widget (when call is cut or user closes)
@@ -328,61 +286,37 @@
         // Popout External Button
         externalBtn?.addEventListener('click', function () {
             const currentFrame = document.getElementById('ringfySoftphoneFrame');
-            const currentSrc = (currentFrame && currentFrame.src && currentFrame.src !== 'about:blank') ? currentFrame.src : (CLIENT_URL || DIALER_URL);
+            const currentSrc = (currentFrame && currentFrame.src && currentFrame.src !== 'about:blank' && currentFrame.src !== '') ? currentFrame.src : DIALER_URL;
             if (currentSrc) {
                 window.open(currentSrc, 'Next2CallSoftphone', 'width=380,height=600,menubar=no,toolbar=no,location=no');
             }
         });
 
-        // Listen for postMessage from Softphone PBX
+        // Listen for hangup events from Next2Call dialer (exact matching webphone_api (1) (3).html)
         window.addEventListener('message', function (event) {
-            const originOk = event.origin.includes('next2call.com') ||
-                             event.origin === window.location.origin ||
-                             window.location.origin.includes('localhost') ||
-                             window.location.origin.includes('127.0.0.1');
-            if (!originOk) return;
+            if (event.origin !== 'https://ringfy.next2call.com') return;
 
             let data = event.data;
             if (typeof data === 'string') {
-                try {
-                    data = JSON.parse(data);
-                } catch (e) {}
+                try { data = JSON.parse(data); } catch(e){}
             }
 
-            const isHangup = data === 'CALL_TERMINATED' ||
+            const isHangup = data === 'CALL_HANGUP' ||
+                             data?.type === 'CALL_HANGUP' ||
+                             data === 'CALL_TERMINATED' ||
                              data?.type === 'CALL_TERMINATED' ||
                              data === 'CLOSE_PHONE_POPUP' ||
                              data?.type === 'CLOSE_PHONE_POPUP' ||
-                             data === 'CALL_HANGUP' ||
-                             data?.type === 'CALL_HANGUP' ||
                              data?.type === 'CALL_DISCONNECTED' ||
                              data === 'CALL_DISCONNECTED';
 
-            const isConnected = data === 'CALL_ACCEPTED' ||
-                                data?.type === 'CALL_ACCEPTED' ||
-                                data?.type === 'CALL_CONNECTED' ||
-                                data?.type === 'CONNECTED';
-
-            const isIncoming = data === 'INCOMING_CALL' ||
-                               data?.type === 'INCOMING_CALL' ||
-                               data?.event === 'incoming_call';
-
             if (isHangup) {
-                console.log('[Next2Call] Call cut / terminated, closing softphone widget...');
+                console.log('[Next2Call] Call disconnected / hangup received');
                 closeSoftphoneWidget();
-                return;
-            } else if (isConnected) {
-                isCallActive = true;
-            } else if (isIncoming) {
-                // Incoming call: Open widget!
-                if (widget) {
-                    widget.style.display = 'flex';
-                    widget.classList.add('is-open');
-                }
             }
         });
 
-        // Global Direct Dial Function with Country Code
+        // Global Direct Dial Function with Country Code (matches webphone_api (1) (3).html)
         window.dialNext2CallNumber = function (rawNumber, countryCode = '', contactName = 'Customer') {
             let num = String(rawNumber || '').trim().replace(/[^0-9]/g, '');
             let cc = String(countryCode || '').trim().replace(/[^0-9]/g, '');
@@ -408,8 +342,7 @@
             callInitiatedAt = Date.now();
             isCallActive = false;
 
-            const clientBase = widget?.dataset?.clientUrl || widget?.dataset?.ctcBase || '';
-            const targetUrl = clientBase + (clientBase.includes('?') ? '&' : '?') + 'd=' + encodeURIComponent(num);
+            const targetUrl = `${CTC_BASE_URL}&d=${encodeURIComponent(num)}`;
 
             // Open Widget when call arrives/starts
             if (widget) {
@@ -464,8 +397,7 @@
                     widget.style.display = 'flex';
                     widget.classList.add('is-open');
                 }
-                const clientBase = widget?.dataset?.clientUrl || widget?.dataset?.dialerUrl || '';
-                mountIframe(clientBase);
+                mountIframe(DIALER_URL);
             }
         };
 
