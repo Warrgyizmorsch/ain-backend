@@ -37,21 +37,16 @@
                 </div>
             </div>
         </div>
-        @if(empty($hideOrderQuickFilters))
         @php
             $currentAuth = auth()->user();
             $userRoleId = !empty($currentAuth) ? (int)$currentAuth->role_id : null;
             $userTeamId = !empty($currentAuth) ? $currentAuth->team_id : null;
+        @endphp
+        @if(empty($hideOrderQuickFilters) && $userRoleId !== 4)
+        @php
             $allActiveTeams = isset($teams) ? $teams : \App\Models\Team::where('is_delete', 0)->orderBy('priority', 'asc')->get();
 
-            if ($userRoleId === 4) {
-                // Marketing: if team assigned, show only that team; if not assigned, show empty
-                if (!empty($userTeamId)) {
-                    $allActiveTeams = $allActiveTeams->where('id', $userTeamId);
-                } else {
-                    $allActiveTeams = collect();
-                }
-            } elseif ($userRoleId === 9) {
+            if ($userRoleId === 9) {
                 // Subadmin: if team assigned, show only that team; if not assigned, show all teams
                 if (!empty($userTeamId)) {
                     $allActiveTeams = $allActiveTeams->where('id', $userTeamId);

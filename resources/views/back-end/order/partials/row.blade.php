@@ -137,6 +137,7 @@
                     @endif
                 </div><br>
             @endif
+            @if($roleId != 4)
             <div class="d-inline-flex align-items-center justify-content-center gap-1 mb-1 order-team-badge-container-{{ $order->id }}">
                 @if($order->team?->team_name)
                     @if(in_array($roleId, [1, 9]))
@@ -166,6 +167,7 @@
                     </span>
                 @endif
             </div><br>
+            @endif
 
             @if($order->marks)
             <span class="fs-7 fw-bold">Marks:</span>{{ $order->marks }}<br>
