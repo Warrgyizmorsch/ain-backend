@@ -315,6 +315,20 @@
                 <i class="fa fa-circle text-success me-1" style="font-size: 6px;"></i> Ready
             </span>
         </div>
+        <div class="n2c-header-actions">
+            <button type="button" class="n2c-header-btn" id="n2cQuickEndBtn" style="background:#f1416c; color:#fff; width:auto; padding:0 8px; font-weight:600; font-size:11px; gap:4px; display:inline-flex;" title="End Call & Close">
+                <i class="fa fa-phone-slash"></i> End
+            </button>
+            <button type="button" class="n2c-header-btn" id="n2cToggleKeypadBtn" title="Toggle Next2Call Keypad">
+                <i class="fa fa-th"></i>
+            </button>
+            <button type="button" class="n2c-header-btn" id="n2cExternalBtn" title="Open in Standalone Popup">
+                <i class="fa fa-external-link-alt"></i>
+            </button>
+            <button type="button" class="n2c-header-btn" id="n2cCloseBtn" title="Close">
+                <i class="fa fa-times"></i>
+            </button>
+        </div>
     </div>
 
     <!-- Active Calling Card (Twilio Sleek Style) -->
@@ -633,10 +647,14 @@
                 iframeWrap.classList.remove('is-visible');
                 iframeWrap.classList.add('is-hidden');
                 if (callingCard) callingCard.style.display = 'flex';
+                if (keypadActionBtn) keypadActionBtn.innerHTML = '<i class="fa fa-th"></i>';
+                if (toggleKeypadBtn) toggleKeypadBtn.innerHTML = '<i class="fa fa-th"></i>';
             } else {
                 iframeWrap.classList.remove('is-hidden');
                 iframeWrap.classList.add('is-visible');
                 if (callingCard) callingCard.style.display = 'none';
+                if (keypadActionBtn) keypadActionBtn.innerHTML = '<i class="fa fa-user"></i>';
+                if (toggleKeypadBtn) toggleKeypadBtn.innerHTML = '<i class="fa fa-user"></i>';
                 const currentFrame = document.getElementById('ringfySoftphoneFrame');
                 if (!currentFrame || !currentFrame.src || currentFrame.src === 'about:blank') {
                     mountIframe(DIALER_URL);
@@ -829,11 +847,12 @@
                 widget.classList.add('is-open');
             }
 
-            // Display Next2Call dialer directly so user has full control and real hangup button
-            if (callingCard) callingCard.style.display = 'none';
+            // Always keep Calling Card visible with avatar, customer name, masked number, live timer & hangup button!
+            // The softphone iframe runs WebRTC audio silently in background (.is-hidden)
+            if (callingCard) callingCard.style.display = 'flex';
             if (iframeWrap) {
-                iframeWrap.classList.remove('is-hidden');
-                iframeWrap.classList.add('is-visible');
+                iframeWrap.classList.remove('is-visible');
+                iframeWrap.classList.add('is-hidden');
             }
 
             // Update UI with Contact Name & Masked Number in header & card
@@ -858,8 +877,39 @@
             // Start timer immediately
             startCallTimer();
 
+            // Safety timeout: transition from "Calling..." to "Ringing..."
+            if (activeCallTimerSafety) {
+                clearTimeout(activeCallTimerSafety);
+            }
+            activeCallTimerSafety = setTimeout(function () {
+                if (widget && widget.classList.contains('is-open')) {
+                    isCallActive = true;
+                    if (statusBadge && statusBadge.innerHTML.includes('Calling')) {
+                        statusBadge.innerHTML = '<i class="fa fa-phone text-success me-1"></i> Ringing...';
+                    }
+                }
+            }, 3500);
+
             // Mount and load iframe with direct click-to-dial URL
             mountIframe(targetUrl);
+
+            // Auto-whitelist IP & log call on server in background
+            try {
+                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '{{ csrf_token() }}';
+                fetch('{{ route('softphone.call-url') }}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken,
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: JSON.stringify({
+                        country_code: cc,
+                        mobile: num,
+                    }),
+                }).catch(() => {});
+            } catch (e) {}
         };
 
         window.dialNumber = function (mobile, countryCode = '', contactName = 'Customer') {
