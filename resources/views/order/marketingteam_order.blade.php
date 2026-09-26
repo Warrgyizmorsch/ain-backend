@@ -370,11 +370,11 @@
 											@include('order.section.comment-order')
 												<a   target="_blank" href="/call.{{$order->id}}" class="btn btn-icon btn-bg-warning btn-active-color-light btn-sm me-1">Call</a>
 
-											<a href="#" onclick="showConfirmationclick('{{ $order->id }}')" id="clickToCallBtn{{$order->id}}" class="btn btn-icon btn-bg-success btn-active-color-light btn-sm me-1">
-												<span class="svg-icon svg-icon-3">
-													<i class="fa fa-phone fa-lg"></i>
-												</span>
-											</a>
+											<x-call-button
+												:phone="optional($order->user)->mobile_no ?? ''"
+												:countrycode="optional($order->user)->countrycode ?? ''"
+												:name="optional($order->user)->name ?? 'Customer'"
+												:id="'mktorder' . $order->id" />
 
 											<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
 											<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>

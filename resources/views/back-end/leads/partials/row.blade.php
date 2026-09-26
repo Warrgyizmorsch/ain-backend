@@ -63,22 +63,36 @@
                     <i class="fa fa-phone fs-8 text-white"></i>
                 </button>
 
-                <!-- Row 2, Col 2b: Twilio Call Button -->
+                <!-- Row 2, Col 2b: Call Buttons: Twilio & Next2Call -->
                 @php
                     $leadPhone = $lead->user->mobile_no ?? $lead->mobile ?? '';
                     $leadCC = preg_replace('/\D+/', '', (string)($lead->user->countrycode ?? $lead->countrycode ?? ''));
                     $leadName = addslashes($lead->user->name ?? $lead->user_name ?? 'Customer');
                 @endphp
                 @if($leadPhone)
+                {{-- Twilio Call Button --}}
                 <a href="#"
                    id="twilioCallBtnlead{{ $lead->id }}"
-                   onclick="event.preventDefault(); event.stopPropagation(); initiateCustomerCall('{{ $leadCC . $leadPhone }}', '{{ $leadName }}');"
+                   onclick="event.preventDefault(); event.stopPropagation(); initiateTwilioCall('{{ $leadCC . $leadPhone }}', '{{ $leadName }}');"
                    class="btn btn-sm btn-icon p-0 d-inline-flex align-items-center justify-content-center shadow-xs"
                    style="width:28px;height:28px;border-radius:6px;background-color:#25D366;color:#ffffff;transition:transform 0.2s ease,background-color 0.2s ease;"
                    onmouseover="this.style.backgroundColor='#1ebd58';this.style.transform='scale(1.1)';"
                    onmouseout="this.style.backgroundColor='#25D366';this.style.transform='scale(1)';"
                    title="Call via Twilio">
                     <i class="fa fa-phone text-white" style="font-size:12px;"></i>
+                </a>
+
+                {{-- Next2Call Button (with red 2 badge) --}}
+                <a href="#"
+                   id="n2cCallBtnlead{{ $lead->id }}"
+                   onclick="event.preventDefault(); event.stopPropagation(); initiateNext2Call('{{ $leadCC . $leadPhone }}', '{{ $leadName }}');"
+                   class="btn btn-sm btn-icon p-0 d-inline-flex align-items-center justify-content-center shadow-xs position-relative"
+                   style="width:28px;height:28px;border-radius:6px;background-color:#25D366;color:#ffffff;transition:transform 0.2s ease,background-color 0.2s ease;"
+                   onmouseover="this.style.backgroundColor='#1ebd58';this.style.transform='scale(1.1)';"
+                   onmouseout="this.style.backgroundColor='#25D366';this.style.transform='scale(1)';"
+                   title="Call via Next2Call">
+                    <i class="fa fa-phone text-white" style="font-size:12px;"></i>
+                    <span style="position:absolute;bottom:-2px;right:-1px;background:#e53e3e;color:#ffffff;font-size:8px;font-weight:900;line-height:1;padding:1px 2.5px;border-radius:2px;box-shadow:0 1px 2px rgba(0,0,0,0.3);font-family:Arial,sans-serif;pointer-events:none;">2</span>
                 </a>
                 @endif
 

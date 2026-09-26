@@ -5,9 +5,8 @@
     $isTwActive = (bool) ($twPlugin?->is_active ?? true);
 @endphp
 <script>
-    // Global call trigger — used by call buttons across Orders, Follow-ups, Next Follow-ups, Leads, Search, WhatsApp, etc.
-    // Seamlessly dispatches calls to Next2Call Softphone or Twilio Voice based on active plugin configuration.
-    window.initiateCustomerCall = function(phoneRaw, nameRaw) {
+    // Helper to resolve contact phone & name across CRM pages & WhatsApp chat
+    function crmResolveCallTarget(phoneRaw, nameRaw) {
         let raw = phoneRaw;
         let name = nameRaw;
 
@@ -32,61 +31,82 @@
         }
 
         let cleanPhone = String(raw || '').replace(/[^\d+]/g, '');
-        let digits = cleanPhone.replace(/\D/g, '');
+        return { cleanPhone, name, rawPhone: raw };
+    }
+
+    // 1. Direct Twilio Voice Call Trigger
+    window.initiateTwilioCall = function(phoneRaw, nameRaw) {
+        const target = crmResolveCallTarget(phoneRaw, nameRaw);
+        const cleanPhone = target.cleanPhone;
+        const name = target.name;
+        const digits = cleanPhone.replace(/\D/g, '');
 
         if (!cleanPhone || digits.length < 7) {
             const warningMsg = (!cleanPhone && (!phoneRaw || String(phoneRaw).trim() === ''))
                 ? 'Please select a customer or chat conversation first.'
                 : 'This contact does not have a valid phone number.';
-            if (typeof toastr !== 'undefined') {
-                toastr.warning(warningMsg);
-            } else {
-                alert(warningMsg);
-            }
+            if (typeof toastr !== 'undefined') toastr.warning(warningMsg);
+            else alert(warningMsg);
             return;
         }
 
+        let phoneToDial = cleanPhone.startsWith('+') ? cleanPhone : '+' + cleanPhone;
+
+        if (window.twilioSoftphone && typeof window.twilioSoftphone.makeCall === 'function') {
+            console.log('[Twilio Softphone] Calling:', phoneToDial, name);
+            window.twilioSoftphone.makeCall(phoneToDial, name);
+            return;
+        }
+
+        if (typeof toastr !== 'undefined') toastr.error('Twilio Voice softphone is not ready or active.');
+        else alert('Twilio Voice softphone is not ready or active.');
+    };
+
+    // 2. Direct Next2Call PBX Softphone Trigger (with red '2' icon)
+    window.initiateNext2Call = function(phoneRaw, nameRaw) {
+        const target = crmResolveCallTarget(phoneRaw, nameRaw);
+        const cleanPhone = target.cleanPhone;
+        const name = target.name;
+        const digits = cleanPhone.replace(/\D/g, '');
+
+        if (!cleanPhone || digits.length < 7) {
+            const warningMsg = (!cleanPhone && (!phoneRaw || String(phoneRaw).trim() === ''))
+                ? 'Please select a customer or chat conversation first.'
+                : 'This contact does not have a valid phone number.';
+            if (typeof toastr !== 'undefined') toastr.warning(warningMsg);
+            else alert(warningMsg);
+            return;
+        }
+
+        if (typeof window.dialNext2CallNumber === 'function') {
+            console.log('[Next2Call Softphone] Calling:', cleanPhone, name);
+            window.dialNext2CallNumber(cleanPhone, '', name);
+            return;
+        }
+
+        if (typeof toastr !== 'undefined') toastr.error('Next2Call softphone is not ready or active.');
+        else alert('Next2Call softphone is not ready or active.');
+    };
+
+    // 3. Global call trigger — backwards compatible fallback
+    window.initiateCustomerCall = function(phoneRaw, nameRaw) {
         const isN2cConfigured = {{ $isN2cActive ? 'true' : 'false' }};
         const isTwilioConfigured = {{ $isTwActive ? 'true' : 'false' }};
 
-        // 1. Next2Call Softphone (Direct in-browser WebRTC click-to-dial via Ringfy PBX)
         if (isN2cConfigured && typeof window.dialNext2CallNumber === 'function') {
-            console.log('[Softphone Dispatcher] Calling via Next2Call Softphone:', cleanPhone, name);
-            window.dialNext2CallNumber(cleanPhone, '', name);
-            return;
+            return window.initiateNext2Call(phoneRaw, nameRaw);
         }
-
-        // 2. Twilio Voice Softphone
         if (isTwilioConfigured && window.twilioSoftphone && typeof window.twilioSoftphone.makeCall === 'function') {
-            if (!cleanPhone.startsWith('+')) {
-                cleanPhone = '+' + cleanPhone;
-            }
-            console.log('[Softphone Dispatcher] Calling via Twilio Softphone:', cleanPhone);
-            window.twilioSoftphone.makeCall(cleanPhone, name);
-            return;
+            return window.initiateTwilioCall(phoneRaw, nameRaw);
         }
-
-        // 3. Fallback: If Next2Call dial function is ready on the page
         if (typeof window.dialNext2CallNumber === 'function') {
-            console.log('[Softphone Dispatcher] Calling via Next2Call (fallback):', cleanPhone, name);
-            window.dialNext2CallNumber(cleanPhone, '', name);
-            return;
+            return window.initiateNext2Call(phoneRaw, nameRaw);
         }
-
-        // 4. Fallback: If Twilio softphone is loaded on the page
         if (window.twilioSoftphone && typeof window.twilioSoftphone.makeCall === 'function') {
-            if (!cleanPhone.startsWith('+')) {
-                cleanPhone = '+' + cleanPhone;
-            }
-            console.log('[Softphone Dispatcher] Calling via Twilio (fallback):', cleanPhone);
-            window.twilioSoftphone.makeCall(cleanPhone, name);
-            return;
+            return window.initiateTwilioCall(phoneRaw, nameRaw);
         }
 
-        if (typeof toastr !== 'undefined') {
-            toastr.error('No calling plugin (Next2Call or Twilio) is active or ready.');
-        } else {
-            alert('No calling plugin (Next2Call or Twilio) is active or ready.');
-        }
+        if (typeof toastr !== 'undefined') toastr.error('No calling plugin (Next2Call or Twilio) is active or ready.');
+        else alert('No calling plugin (Next2Call or Twilio) is active or ready.');
     };
 </script>

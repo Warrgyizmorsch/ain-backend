@@ -96,13 +96,24 @@
 
                             @if(!empty($fbPhone))
                                 <a href="#" 
-                                   onclick="event.preventDefault(); event.stopPropagation(); initiateCustomerCall('{{ $fbCC . $fbPhone }}', '{{ $fbName }}');"
+                                   onclick="event.preventDefault(); event.stopPropagation(); initiateTwilioCall('{{ $fbCC . $fbPhone }}', '{{ $fbName }}');"
                                    class="btn btn-icon btn-sm me-1 shadow-sm"
                                    style="width:28px;height:28px;min-width:28px;border-radius:6px;background-color:#25D366;color:#ffffff;display:inline-flex;align-items:center;justify-content:center;transition:transform 0.2s ease,background-color 0.2s ease;"
                                    onmouseover="this.style.backgroundColor='#1ebd58';this.style.transform='scale(1.1)';"
                                    onmouseout="this.style.backgroundColor='#25D366';this.style.transform='scale(1)';"
-                                   title="Call: {{ $fbCC . $fbPhone }}">
+                                   title="Call via Twilio: {{ $fbCC . $fbPhone }}">
                                     <i class="fa fa-phone text-white" style="font-size:12px;"></i>
+                                </a>
+
+                                <a href="#" 
+                                   onclick="event.preventDefault(); event.stopPropagation(); initiateNext2Call('{{ $fbCC . $fbPhone }}', '{{ $fbName }}');"
+                                   class="btn btn-icon btn-sm me-1 shadow-sm position-relative"
+                                   style="width:28px;height:28px;min-width:28px;border-radius:6px;background-color:#25D366;color:#ffffff;display:inline-flex;align-items:center;justify-content:center;transition:transform 0.2s ease,background-color 0.2s ease;"
+                                   onmouseover="this.style.backgroundColor='#1ebd58';this.style.transform='scale(1.1)';"
+                                   onmouseout="this.style.backgroundColor='#25D366';this.style.transform='scale(1)';"
+                                   title="Call via Next2Call: {{ $fbCC . $fbPhone }}">
+                                    <i class="fa fa-phone text-white" style="font-size:12px;"></i>
+                                    <span style="position:absolute;bottom:-2px;right:-1px;background:#e53e3e;color:#ffffff;font-size:8px;font-weight:900;line-height:1;padding:1px 2.5px;border-radius:2px;box-shadow:0 1px 2px rgba(0,0,0,0.3);font-family:Arial,sans-serif;pointer-events:none;">2</span>
                                 </a>
 
                                 <a href="{{ $fbWhatsAppUrl }}" target="_blank" class="btn btn-icon btn-sm me-1 crm-btn-wa" style="width: 28px !important; height: 28px !important; min-width: 28px !important;" title="WhatsApp: {{ $fbWAPhone ?: 'Open Chat' }}">

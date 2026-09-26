@@ -270,12 +270,23 @@
                                     <div class="d-inline-flex align-items-center gap-1">
                                         {{-- One-Click Direct Call Button --}}
                                         @if(!empty($customerPhone))
+                                            {{-- Twilio Call Button --}}
                                             <button type="button" 
                                                     class="btn btn-icon btn-sm btn-light-success hover-elevate-up" 
                                                     style="width: 30px; height: 30px;"
-                                                    onclick="initiateCustomerCall('{{ $customerPhone }}', '{{ addslashes($displayName) }}')" 
-                                                    title="Call {{ $displayCustomerPhone }} Now">
+                                                    onclick="initiateTwilioCall('{{ $customerPhone }}', '{{ addslashes($displayName) }}')" 
+                                                    title="Call via Twilio: {{ $displayCustomerPhone }}">
                                                 <i class="fa fa-phone text-success fs-7"></i>
+                                            </button>
+
+                                            {{-- Next2Call Button (with red 2 badge) --}}
+                                            <button type="button" 
+                                                    class="btn btn-icon btn-sm btn-light-success hover-elevate-up position-relative" 
+                                                    style="width: 30px; height: 30px;"
+                                                    onclick="initiateNext2Call('{{ $customerPhone }}', '{{ addslashes($displayName) }}')" 
+                                                    title="Call via Next2Call: {{ $displayCustomerPhone }}">
+                                                <i class="fa fa-phone text-success fs-7"></i>
+                                                <span style="position:absolute;bottom:-2px;right:-1px;background:#e53e3e;color:#ffffff;font-size:8px;font-weight:900;line-height:1;padding:1px 2.5px;border-radius:2px;box-shadow:0 1px 2px rgba(0,0,0,0.3);font-family:Arial,sans-serif;pointer-events:none;">2</span>
                                             </button>
 
                                             {{-- WhatsApp Action --}}

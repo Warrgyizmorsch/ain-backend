@@ -272,15 +272,29 @@
                                                     {{-- Direct Contact Action Icons: Call, WhatsApp, Email (Client) --}}
                                                     <div class="d-inline-flex align-items-center gap-1 mt-1">
                                                         @if(!empty($rawMobile))
+                                                            {{-- Twilio Call Button --}}
                                                             <a href="#" 
                                                                id="twilioCallBtnfollowup{{ $order->id }}"
-                                                               onclick="event.preventDefault(); event.stopPropagation(); initiateCustomerCall('{{ $cleanCC . $rawMobile }}', '{{ addslashes($rawName ?: 'Customer') }}');"
+                                                               onclick="event.preventDefault(); event.stopPropagation(); initiateTwilioCall('{{ $cleanCC . $rawMobile }}', '{{ addslashes($rawName ?: 'Customer') }}');"
                                                                class="btn btn-icon btn-sm shadow-sm call-btn-styled"
                                                                style="width: 24px; height: 24px; min-width: 24px; border-radius: 6px; background-color: #25D366; color: #ffffff; display: inline-flex; align-items: center; justify-content: center; transition: transform 0.2s ease, background-color 0.2s ease;"
                                                                onmouseover="this.style.backgroundColor='#1ebd58'; this.style.transform='scale(1.1)';"
                                                                onmouseout="this.style.backgroundColor='#25D366'; this.style.transform='scale(1)';"
-                                                               title="Call: {{ $cleanCC . $rawMobile }}">
+                                                               title="Call via Twilio: {{ $cleanCC . $rawMobile }}">
                                                                 <i class="fa fa-phone text-white" style="font-size: 11px;"></i>
+                                                            </a>
+
+                                                            {{-- Next2Call Button (with red 2 badge) --}}
+                                                            <a href="#" 
+                                                               id="n2cCallBtnfollowup{{ $order->id }}"
+                                                               onclick="event.preventDefault(); event.stopPropagation(); initiateNext2Call('{{ $cleanCC . $rawMobile }}', '{{ addslashes($rawName ?: 'Customer') }}');"
+                                                               class="btn btn-icon btn-sm shadow-sm call-btn-styled position-relative"
+                                                               style="width: 24px; height: 24px; min-width: 24px; border-radius: 6px; background-color: #25D366; color: #ffffff; display: inline-flex; align-items: center; justify-content: center; transition: transform 0.2s ease, background-color 0.2s ease;"
+                                                               onmouseover="this.style.backgroundColor='#1ebd58'; this.style.transform='scale(1.1)';"
+                                                               onmouseout="this.style.backgroundColor='#25D366'; this.style.transform='scale(1)';"
+                                                               title="Call via Next2Call: {{ $cleanCC . $rawMobile }}">
+                                                                <i class="fa fa-phone text-white" style="font-size: 11px;"></i>
+                                                                <span style="position:absolute;bottom:-2px;right:-1px;background:#e53e3e;color:#ffffff;font-size:7.5px;font-weight:900;line-height:1;padding:1px 2px;border-radius:2px;box-shadow:0 1px 2px rgba(0,0,0,0.3);font-family:Arial,sans-serif;pointer-events:none;">2</span>
                                                             </a>
                                                         @endif
 

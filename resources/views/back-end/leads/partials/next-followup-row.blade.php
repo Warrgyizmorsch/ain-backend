@@ -124,12 +124,23 @@
             {{-- Contact Action Icons: Twilio Call, WhatsApp, Email --}}
             <div class="d-inline-flex align-items-center gap-1 mt-1">
                 @if(!empty($rawMobile))
+                    {{-- Twilio Call Button --}}
                     <a href="#" 
-                       onclick="event.preventDefault(); event.stopPropagation(); initiateCustomerCall('{{ $cleanCC . $rawMobile }}', '{{ addslashes($rawName ?: 'Customer') }}');"
+                       onclick="event.preventDefault(); event.stopPropagation(); initiateTwilioCall('{{ $cleanCC . $rawMobile }}', '{{ addslashes($rawName ?: 'Customer') }}');"
                        class="btn btn-icon btn-sm shadow-sm"
                        style="width: 22px; height: 22px; min-width: 22px; border-radius: 5px; background-color: #25D366; color: #ffffff; display: inline-flex; align-items: center; justify-content: center;"
-                       title="Call: {{ $cleanCC . $rawMobile }}">
+                       title="Call via Twilio: {{ $cleanCC . $rawMobile }}">
                         <i class="fa fa-phone text-white" style="font-size: 10px;"></i>
+                    </a>
+
+                    {{-- Next2Call Button (with red 2 badge) --}}
+                    <a href="#" 
+                       onclick="event.preventDefault(); event.stopPropagation(); initiateNext2Call('{{ $cleanCC . $rawMobile }}', '{{ addslashes($rawName ?: 'Customer') }}');"
+                       class="btn btn-icon btn-sm shadow-sm position-relative"
+                       style="width: 22px; height: 22px; min-width: 22px; border-radius: 5px; background-color: #25D366; color: #ffffff; display: inline-flex; align-items: center; justify-content: center;"
+                       title="Call via Next2Call: {{ $cleanCC . $rawMobile }}">
+                        <i class="fa fa-phone text-white" style="font-size: 10px;"></i>
+                        <span style="position:absolute;bottom:-2px;right:-1px;background:#e53e3e;color:#ffffff;font-size:7px;font-weight:900;line-height:1;padding:0.5px 1.5px;border-radius:2px;box-shadow:0 1px 2px rgba(0,0,0,0.3);font-family:Arial,sans-serif;pointer-events:none;">2</span>
                     </a>
                 @endif
 

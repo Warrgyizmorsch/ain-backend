@@ -18,10 +18,19 @@
                     <span class="badge badge-light-primary fs-8 fw-bold">+{{ $cleanCC }}</span>
                 @endif
                 <span class="badge badge-light-danger fs-7 fw-bold">{{ $displayMobile }}</span>
+                {{-- Twilio Call Button --}}
                 <button type="button" class="btn btn-icon btn-xs btn-light-success p-1 ms-1"
-                    title="Call customer via Webphone"
-                    onclick="openRingfySoftphone(null, @js($item->countrycode), @js($item->mobile))">
+                    title="Call via Twilio"
+                    onclick="initiateTwilioCall(@js(($cleanCC ? '+' . $cleanCC : '') . $item->mobile), @js($item->user_name ?? 'Customer'))">
                     <i class="fa fa-phone fs-9 text-success"></i>
+                </button>
+
+                {{-- Next2Call Button (with red 2 badge) --}}
+                <button type="button" class="btn btn-icon btn-xs btn-light-success p-1 ms-1 position-relative"
+                    title="Call via Next2Call"
+                    onclick="initiateNext2Call(@js(($cleanCC ? '+' . $cleanCC : '') . $item->mobile), @js($item->user_name ?? 'Customer'))">
+                    <i class="fa fa-phone fs-9 text-success"></i>
+                    <span style="position:absolute;bottom:-2px;right:-1px;background:#e53e3e;color:#ffffff;font-size:7px;font-weight:900;line-height:1;padding:0.5px 1.5px;border-radius:2px;box-shadow:0 1px 2px rgba(0,0,0,0.3);font-family:Arial,sans-serif;pointer-events:none;">2</span>
                 </button>
             </div>
         </td>
