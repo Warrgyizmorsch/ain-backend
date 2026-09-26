@@ -37,6 +37,27 @@
         'SipPassword' => $password,
     ]);
 
+    $n2cClientUrl = route('softphone.client', [
+        'profileName' => $userId,
+        'SipDomain'   => $sipDomain,
+        'SipUsername' => $userId,
+        'SipPassword' => $password,
+    ]);
+
+    $n2cDialerUrl = "https://{$sipDomain}/softphone/Phone/index.html?" . http_build_query([
+        'profileName' => $userId,
+        'SipDomain'   => $sipDomain,
+        'SipUsername' => $userId,
+        'SipPassword' => $password,
+    ]);
+
+    $n2cExternalCtcUrl = "https://{$sipDomain}{$clickToDialPath}?" . http_build_query([
+        'profileName' => $userId,
+        'SipDomain'   => $sipDomain,
+        'SipUsername' => $userId,
+        'SipPassword' => $password,
+    ]);
+
     $n2cCtcBaseUrl = "https://{$sipDomain}{$clickToDialPath}?" . http_build_query([
         'profileName' => $userId,
         'SipDomain'   => $sipDomain,
@@ -46,16 +67,16 @@
 @endphp
 
 <style>
-    /* Next2Call Twilio-Style Softphone Box */
+    /* Next2Call Softphone Floating Box (Default Next2Call Interface) */
     .n2c-softphone-box {
         position: fixed;
         right: 25px;
         bottom: 30px;
-        width: 350px;
+        width: 340px;
         max-width: calc(100vw - 30px);
         background: #1e1e2d;
         color: #ffffff;
-        border-radius: 16px;
+        border-radius: 12px;
         box-shadow: 0 20px 50px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.12);
         z-index: 99999;
         overflow: hidden;
@@ -74,7 +95,7 @@
 
     /* Header */
     .n2c-softphone-header {
-        padding: 12px 16px;
+        padding: 10px 14px;
         background: #151521;
         border-bottom: 1px solid rgba(255, 255, 255, 0.08);
         display: flex;
@@ -96,19 +117,10 @@
         font-size: 13px;
         color: #ffffff;
     }
-    .n2c-status-badge {
-        font-size: 10px;
-        padding: 2px 8px;
-        border-radius: 6px;
-        font-weight: 600;
-        background: rgba(16, 185, 129, 0.18);
-        color: #10b981;
-        border: 1px solid rgba(16, 185, 129, 0.3);
-    }
     .n2c-header-actions {
         display: flex;
         align-items: center;
-        gap: 4px;
+        gap: 6px;
     }
     .n2c-header-btn {
         background: rgba(255, 255, 255, 0.08);
@@ -121,7 +133,7 @@
         align-items: center;
         justify-content: center;
         cursor: pointer;
-        font-size: 11px;
+        font-size: 13px;
         transition: background 0.15s, color 0.15s;
     }
     .n2c-header-btn:hover {
@@ -129,159 +141,12 @@
         color: #ffffff;
     }
 
-    /* Active Calling Screen (Twilio Style) */
-    .n2c-active-card {
-        padding: 24px 18px 20px 18px;
-        text-align: center;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        background: #1e1e2d;
-    }
-    .n2c-avatar-ring {
-        width: 68px;
-        height: 68px;
-        border-radius: 50%;
-        background: rgba(16, 185, 129, 0.15);
-        color: #10b981;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 26px;
-        margin-bottom: 14px;
-        animation: n2cPulseRing 1.4s infinite;
-    }
-    @keyframes n2cPulseRing {
-        0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
-        70% { box-shadow: 0 0 0 16px rgba(16, 185, 129, 0); }
-        100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
-    }
-    .n2c-customer-name {
-        color: #ffffff;
-        font-size: 17px;
-        font-weight: 700;
-        margin: 0 0 4px 0;
-        max-width: 260px;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
-    .n2c-masked-number {
-        color: #10b981;
-        font-size: 14px;
-        font-weight: 600;
-        letter-spacing: 1px;
-        font-family: monospace, sans-serif;
-        margin-bottom: 12px;
-    }
-    .n2c-timer-badge {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        background: rgba(255, 255, 255, 0.08);
-        color: #e2e8f0;
-        font-size: 12px;
-        font-weight: 600;
-        padding: 4px 12px;
-        border-radius: 20px;
-        margin-bottom: 20px;
-    }
-    .n2c-timer-dot {
-        width: 6px;
-        height: 6px;
-        background: #10b981;
-        border-radius: 50%;
-        animation: n2cPulseRing 1.2s infinite;
-    }
-    .n2c-notice-box {
-        font-size: 11px;
-        line-height: 1.45;
-        padding: 8px 12px;
-        margin: 0 14px 14px 14px;
-        border-radius: 8px;
-        text-align: center;
-        width: calc(100% - 28px);
-        box-sizing: border-box;
-    }
-    .n2c-notice-danger {
-        background: rgba(241, 65, 108, 0.15);
-        color: #ff859d;
-        border: 1px solid rgba(241, 65, 108, 0.35);
-    }
-
-    /* Actions (Mute, Hangup, Keypad) */
-    .n2c-action-bar {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 16px;
-        width: 100%;
-    }
-    .n2c-call-btn {
-        width: 46px;
-        height: 46px;
-        border-radius: 50%;
-        border: none;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        cursor: pointer;
-        font-size: 16px;
-        transition: transform 0.15s ease, background 0.15s ease;
-    }
-    .n2c-call-btn:hover {
-        transform: scale(1.08);
-    }
-    .n2c-btn-hangup {
-        width: 54px;
-        height: 54px;
-        background: #f1416c;
-        color: #ffffff;
-        font-size: 20px;
-        box-shadow: 0 8px 20px rgba(241, 65, 108, 0.45);
-    }
-    .n2c-btn-hangup:hover {
-        background: #d9214e;
-    }
-    .n2c-btn-mute {
-        background: #2b2b40;
-        color: #ffffff;
-        border: 1px solid rgba(255, 255, 255, 0.1);
-    }
-    .n2c-btn-mute.is-muted {
-        background: #f59e0b;
-        color: #ffffff;
-    }
-    .n2c-btn-keypad {
-        background: #2b2b40;
-        color: #ffffff;
-        border: 1px solid rgba(255, 255, 255, 0.1);
-    }
-    .n2c-btn-keypad:hover, .n2c-btn-mute:hover {
-        background: #363654;
-    }
-
-    /* Background WebRTC Iframe Container */
+    /* Default Next2Call Phone Iframe Container */
     .n2c-iframe-container {
-        position: relative;
         width: 100%;
-        background: #151521;
+        height: 560px;
+        background: #ffffff;
         overflow: hidden;
-    }
-    /* Invisible mode: audio/WebRTC runs 100% active without throttling */
-    .n2c-iframe-container.is-hidden {
-        position: absolute !important;
-        width: 1px !important;
-        height: 1px !important;
-        opacity: 0.001 !important;
-        pointer-events: none !important;
-        bottom: 0 !important;
-        left: 0 !important;
-    }
-    /* Visible mode: shows full Next2Call interface when Keypad is toggled */
-    .n2c-iframe-container.is-visible {
-        height: 540px;
-        display: block;
     }
     .n2c-softphone-iframe {
         width: 100%;
@@ -300,8 +165,9 @@
     }
 </style>
 
-<!-- Twilio-Style Next2Call Softphone Floating Widget Box -->
+<!-- Next2Call Softphone Floating Widget Box (Default Next2Call Interface) -->
 <div id="ringfySoftphoneWidget" class="n2c-softphone-box" aria-live="polite"
+     data-client-url="{{ $n2cClientUrl }}"
      data-dialer-url="{{ $n2cDialerUrl }}"
      data-ctc-base="{{ $n2cCtcBaseUrl }}"
      data-external-ctc="{{ $n2cExternalCtcUrl }}">
@@ -310,18 +176,9 @@
     <div id="ringfySoftphoneHandle" class="n2c-softphone-header">
         <div class="n2c-title-wrap">
             <i class="fa fa-phone text-success fs-7"></i>
-            <span class="n2c-title-text" id="n2cHeaderTitle">Next2Call Voice</span>
-            <span class="n2c-status-badge" id="n2cStatusBadge">
-                <i class="fa fa-circle text-success me-1" style="font-size: 6px;"></i> Ready
-            </span>
+            <span class="n2c-title-text" id="n2cHeaderTitle">Next2Call Softphone</span>
         </div>
         <div class="n2c-header-actions">
-            <button type="button" class="n2c-header-btn" id="n2cQuickEndBtn" style="background:#f1416c; color:#fff; width:auto; padding:0 8px; font-weight:600; font-size:11px; gap:4px; display:inline-flex;" title="End Call & Close">
-                <i class="fa fa-phone-slash"></i> End
-            </button>
-            <button type="button" class="n2c-header-btn" id="n2cToggleKeypadBtn" title="Toggle Next2Call Keypad">
-                <i class="fa fa-th"></i>
-            </button>
             <button type="button" class="n2c-header-btn" id="n2cExternalBtn" title="Open in Standalone Popup">
                 <i class="fa fa-external-link-alt"></i>
             </button>
@@ -331,37 +188,8 @@
         </div>
     </div>
 
-    <!-- Active Calling Card (Twilio Sleek Style) -->
-    <div id="n2cCallingCard" class="n2c-active-card">
-        <div class="n2c-avatar-ring" id="n2cAvatarRing">
-            <i class="fa fa-phone" id="n2cAvatarIcon"></i>
-        </div>
-        <h4 class="n2c-customer-name" id="n2cCustomerName">Customer</h4>
-        <div class="n2c-masked-number" id="n2cMaskedNumber">+91 **********</div>
-
-        <div class="n2c-timer-badge">
-            <span class="n2c-timer-dot"></span>
-            <span id="n2cCallTimerText">00:00</span>
-        </div>
-
-        <div id="n2cCallNotice" class="n2c-notice-box" style="display: none;"></div>
-
-        <!-- In-Call Actions (Mute, Hangup, Keypad) -->
-        <div class="n2c-action-bar">
-            <button type="button" class="n2c-call-btn n2c-btn-mute" id="n2cMuteBtn" title="Mute Microphone">
-                <i class="fa fa-microphone"></i>
-            </button>
-            <button type="button" class="n2c-call-btn n2c-btn-hangup" id="n2cHangupBtn" title="Hangup / End Call">
-                <i class="fa fa-phone-slash"></i>
-            </button>
-            <button type="button" class="n2c-call-btn n2c-btn-keypad" id="n2cKeypadActionBtn" title="Show Keypad">
-                <i class="fa fa-th"></i>
-            </button>
-        </div>
-    </div>
-
-    <!-- Background WebRTC Iframe Container (Hidden during calling card, expandable on keypad toggle) -->
-    <div id="n2cIframeContainer" class="n2c-iframe-container is-hidden">
+    <!-- Default Next2Call Phone Iframe Container -->
+    <div id="n2cIframeContainer" class="n2c-iframe-container">
         <iframe
             id="ringfySoftphoneFrame"
             class="n2c-softphone-iframe"
@@ -378,33 +206,16 @@
         const handle = document.getElementById('ringfySoftphoneHandle');
         const frame = document.getElementById('ringfySoftphoneFrame');
         const iframeWrap = document.getElementById('n2cIframeContainer');
-        const callingCard = document.getElementById('n2cCallingCard');
-
-        const statusBadge = document.getElementById('n2cStatusBadge');
-        const customerNameEl = document.getElementById('n2cCustomerName');
-        const maskedNumberEl = document.getElementById('n2cMaskedNumber');
-        const timerTextEl = document.getElementById('n2cCallTimerText');
-        const avatarRing = document.getElementById('n2cAvatarRing');
 
         const closeBtn = document.getElementById('n2cCloseBtn');
-        const hangupBtn = document.getElementById('n2cHangupBtn');
-        const toggleKeypadBtn = document.getElementById('n2cToggleKeypadBtn');
-        const keypadActionBtn = document.getElementById('n2cKeypadActionBtn');
         const externalBtn = document.getElementById('n2cExternalBtn');
-        const muteBtn = document.getElementById('n2cMuteBtn');
 
         const DIALER_URL = widget?.dataset?.dialerUrl || '';
-        const CTC_BASE = widget?.dataset?.ctcBase || '';
+        const CLIENT_URL = widget?.dataset?.clientUrl || widget?.dataset?.ctcBase || '';
 
-        let timerInterval = null;
-        let callSeconds = 0;
-        let isMuted = false;
         let currentFullNumber = '';
         let callInitiatedAt = 0;
         let isCallActive = false;
-        let activeCallTimerSafety = null;
-
-        const noticeBox = document.getElementById('n2cCallNotice');
 
         // Draggable Widget Logic
         let isDragging = false;
@@ -443,75 +254,8 @@
             document.body.style.userSelect = '';
         });
 
-        // Number Masking Helper: Shows +CC + ****** + Last 4 Digits (e.g. +91 ******2299)
-        // Matches CRM pattern mask_mobile_only() & crmMaskPhone()
-        function maskNumber(raw) {
-            if (!raw) return '******';
-            const str = String(raw).trim();
-            if (!str) return '******';
-
-            // Super Admin (role_id 1) sees full unmasked phone number
-            const isSuperAdmin = {{ Auth::check() && (int) Auth::user()->role_id === 1 ? 'true' : 'false' }};
-            if (isSuperAdmin) {
-                return str;
-            }
-
-            let prefix = '';
-            let digits = str.replace(/\D/g, '');
-
-            if (str.startsWith('+')) {
-                const ccMatch = str.match(/^(\+\d{1,3})/);
-                if (ccMatch) {
-                    prefix = ccMatch[1] + ' ';
-                    digits = str.replace(/\D/g, '').slice(ccMatch[1].replace(/\D/g, '').length);
-                }
-            } else if (digits.startsWith('91') && digits.length >= 12) {
-                prefix = '+91 ';
-                digits = digits.slice(2);
-            } else if (digits.startsWith('44') && digits.length >= 11) {
-                prefix = '+44 ';
-                digits = digits.slice(2);
-            } else if (digits.length === 10) {
-                prefix = '+91 ';
-            }
-
-            // Strip leading zero if 11 digits (e.g. 09610092299 -> 9610092299)
-            if (digits.length === 11 && digits.startsWith('0')) {
-                digits = digits.slice(1);
-            }
-
-            // Mask all except last 4 digits (e.g. +91 ******2299)
-            if (digits.length <= 4) {
-                return prefix + '*'.repeat(Math.max(4, digits.length));
-            }
-            const visible_end = digits.slice(-4);
-            const masked_mid = '*'.repeat(Math.max(4, digits.length - 4));
-            return prefix + masked_mid + visible_end;
-        }
-
-        // Call Duration Timer
-        function startCallTimer() {
-            stopCallTimer();
-            callSeconds = 0;
-            if (timerTextEl) timerTextEl.textContent = '00:00';
-            timerInterval = setInterval(function () {
-                callSeconds++;
-                const mins = String(Math.floor(callSeconds / 60)).padStart(2, '0');
-                const secs = String(callSeconds % 60).padStart(2, '0');
-                if (timerTextEl) timerTextEl.textContent = `${mins}:${secs}`;
-            }, 1000);
-        }
-
-        function stopCallTimer() {
-            if (timerInterval) {
-                clearInterval(timerInterval);
-                timerInterval = null;
-            }
-        }
-
         function mountIframe(url) {
             if (!iframeWrap) return;
-            iframeWrap.style.display = 'block';
             iframeWrap.innerHTML = `
                 <iframe
                     id="ringfySoftphoneFrame"
@@ -528,7 +272,6 @@
             try {
                 const currentFrame = document.getElementById('ringfySoftphoneFrame');
                 if (currentFrame && currentFrame.contentWindow) {
-                    // 1. Directly invoke Asterisk SIP cancel/bye inside iframe (works for local embed)
                     try {
                         if (typeof currentFrame.contentWindow.cancelSession === 'function') {
                             currentFrame.contentWindow.cancelSession(1);
@@ -542,26 +285,19 @@
                         }
                     } catch (e) {}
 
-                    // 2. Post hangup signals to iframe
                     currentFrame.contentWindow.postMessage({ type: 'HANGUP', action: 'hangup' }, '*');
                     currentFrame.contentWindow.postMessage('HANGUP', '*');
                     currentFrame.contentWindow.postMessage({ type: 'CLOSE_PHONE_POPUP' }, '*');
                 }
             } catch (e) {}
 
-            // 3. Clean up DOM
-            if (iframeWrap && (!widget || !widget.classList.contains('is-open'))) {
+            if (iframeWrap) {
                 iframeWrap.innerHTML = '';
             }
         }
 
-        // Close & Reset Widget (Instant Disconnect)
+        // Close Widget (when call is cut or user closes)
         function closeSoftphoneWidget() {
-            stopCallTimer();
-            if (activeCallTimerSafety) {
-                clearTimeout(activeCallTimerSafety);
-                activeCallTimerSafety = null;
-            }
             isCallActive = false;
             callInitiatedAt = 0;
 
@@ -570,65 +306,15 @@
                 widget.style.display = 'none';
             }
 
-            // Immediately vanish and empty iframe wrap so no list or history is visible
-            if (iframeWrap) {
-                iframeWrap.style.display = 'none';
-                iframeWrap.classList.remove('is-visible');
-                iframeWrap.classList.add('is-hidden');
-                iframeWrap.innerHTML = '';
-            }
-
-            // Reset view state
-            if (callingCard) callingCard.style.display = 'flex';
-
-            // Signal Asterisk/PBX
             destroyAndResetIframe();
 
-            if (statusBadge) statusBadge.innerHTML = '<i class="fa fa-circle text-muted me-1" style="font-size: 6px;"></i> Ready';
-            if (avatarRing) {
-                avatarRing.style.animation = 'none';
-                avatarRing.style.background = '';
-                avatarRing.style.borderColor = '';
-                avatarRing.style.color = '';
-            }
             const headerTitleEl = document.getElementById('n2cHeaderTitle');
-            if (headerTitleEl) headerTitleEl.textContent = 'Next2Call Voice';
-            if (noticeBox) {
-                noticeBox.style.display = 'none';
-                noticeBox.innerHTML = '';
-            }
+            if (headerTitleEl) headerTitleEl.textContent = 'Next2Call Softphone';
         }
-
-        // Quick End button in header (Instant 0ms End & Close)
-        const quickEndBtn = document.getElementById('n2cQuickEndBtn');
-        quickEndBtn?.addEventListener('click', function (e) {
-            e.preventDefault();
-            e.stopPropagation();
-            if (iframeWrap) {
-                iframeWrap.style.display = 'none';
-                iframeWrap.innerHTML = '';
-            }
-            closeSoftphoneWidget();
-        });
-
-        // Hangup Button Click (Instant Call Disconnect by Agent)
-        hangupBtn?.addEventListener('click', function (e) {
-            e.preventDefault();
-            e.stopPropagation();
-            if (iframeWrap) {
-                iframeWrap.style.display = 'none';
-                iframeWrap.innerHTML = '';
-            }
-            closeSoftphoneWidget();
-        });
 
         closeBtn?.addEventListener('click', function (e) {
             e.preventDefault();
             e.stopPropagation();
-            if (iframeWrap) {
-                iframeWrap.style.display = 'none';
-                iframeWrap.innerHTML = '';
-            }
             closeSoftphoneWidget();
         });
 
@@ -639,50 +325,16 @@
             }
         });
 
-        // Toggle Keypad View
-        function toggleKeypad() {
-            if (!iframeWrap) return;
-            const isVisible = iframeWrap.classList.contains('is-visible');
-            if (isVisible) {
-                iframeWrap.classList.remove('is-visible');
-                iframeWrap.classList.add('is-hidden');
-                if (callingCard) callingCard.style.display = 'flex';
-                if (keypadActionBtn) keypadActionBtn.innerHTML = '<i class="fa fa-th"></i>';
-                if (toggleKeypadBtn) toggleKeypadBtn.innerHTML = '<i class="fa fa-th"></i>';
-            } else {
-                iframeWrap.classList.remove('is-hidden');
-                iframeWrap.classList.add('is-visible');
-                if (callingCard) callingCard.style.display = 'none';
-                if (keypadActionBtn) keypadActionBtn.innerHTML = '<i class="fa fa-user"></i>';
-                if (toggleKeypadBtn) toggleKeypadBtn.innerHTML = '<i class="fa fa-user"></i>';
-                const currentFrame = document.getElementById('ringfySoftphoneFrame');
-                if (!currentFrame || !currentFrame.src || currentFrame.src === 'about:blank') {
-                    mountIframe(DIALER_URL);
-                }
-            }
-        }
-
-        toggleKeypadBtn?.addEventListener('click', toggleKeypad);
-        keypadActionBtn?.addEventListener('click', toggleKeypad);
-
         // Popout External Button
         externalBtn?.addEventListener('click', function () {
             const currentFrame = document.getElementById('ringfySoftphoneFrame');
-            const currentSrc = (currentFrame && currentFrame.src && currentFrame.src !== 'about:blank') ? currentFrame.src : DIALER_URL;
+            const currentSrc = (currentFrame && currentFrame.src && currentFrame.src !== 'about:blank') ? currentFrame.src : (CLIENT_URL || DIALER_URL);
             if (currentSrc) {
                 window.open(currentSrc, 'Next2CallSoftphone', 'width=380,height=600,menubar=no,toolbar=no,location=no');
             }
         });
 
-        // Mute Toggle Button
-        muteBtn?.addEventListener('click', function () {
-            isMuted = !isMuted;
-            muteBtn.classList.toggle('is-muted', isMuted);
-            muteBtn.innerHTML = isMuted ? '<i class="fa fa-microphone-slash"></i>' : '<i class="fa fa-microphone"></i>';
-            if (statusBadge) statusBadge.textContent = isMuted ? 'Muted' : 'Connected';
-        });
-
-        // Listen for postMessage from Softphone PBX (both local embed & next2call domains)
+        // Listen for postMessage from Softphone PBX
         window.addEventListener('message', function (event) {
             const originOk = event.origin.includes('next2call.com') ||
                              event.origin === window.location.origin ||
@@ -690,21 +342,12 @@
                              window.location.origin.includes('127.0.0.1');
             if (!originOk) return;
 
-            console.log('[Softphone postMessage]:', event.data);
-
             let data = event.data;
             if (typeof data === 'string') {
                 try {
                     data = JSON.parse(data);
                 } catch (e) {}
             }
-
-            const isRegistrationFailed = data === 'SIP_REGISTRATION_FAILED' ||
-                                         data?.type === 'SIP_REGISTRATION_FAILED' ||
-                                         data?.type === 'REGISTRATION_FAILED';
-
-            const isRegistered = data === 'SIP_REGISTERED' ||
-                                 data?.type === 'SIP_REGISTERED';
 
             const isHangup = data === 'CALL_TERMINATED' ||
                              data?.type === 'CALL_TERMINATED' ||
@@ -721,89 +364,25 @@
                                 data?.type === 'CONNECTED';
 
             const isIncoming = data === 'INCOMING_CALL' ||
-                                data?.type === 'INCOMING_CALL' ||
-                                data?.event === 'incoming_call';
-
-            if (isRegistrationFailed) {
-                console.warn('[Softphone] SIP Registration failed (403 Forbidden).');
-                stopCallTimer();
-                if (statusBadge) {
-                    statusBadge.innerHTML = '<span class="text-danger fw-bold"><i class="fa fa-exclamation-triangle me-1"></i> Registration Failed (403)</span>';
-                }
-                if (timerTextEl) {
-                    timerTextEl.innerHTML = '<span class="text-danger">Forbidden (403)</span>';
-                }
-                if (avatarRing) {
-                    avatarRing.style.animation = 'none';
-                    avatarRing.style.background = 'rgba(241, 65, 108, 0.15)';
-                    avatarRing.style.borderColor = '#f1416c';
-                    avatarRing.style.color = '#f1416c';
-                }
-                if (noticeBox) {
-                    noticeBox.className = 'n2c-notice-box n2c-notice-danger';
-                    noticeBox.innerHTML = `
-                        <strong>Next2Call PBX: 403 Forbidden</strong><br>
-                        <span style="font-size: 11px; color: #ffccd5; display: block; margin: 4px 0 8px 0; text-align: left; line-height: 1.4;">
-                            • IP <b>103.216.80.217</b> allow karein: <a href="http://ipallow.next2call.com/" target="_blank" style="color: #60a5fa; text-decoration: underline;">ipallow.next2call.com</a> (Key: <code>CLT-5009FAA4F58D</code>)<br>
-                            • Dusre tab me open Next2Call / 10101 dialer ko band karein.<br>
-                            • UAT Domain <b>uat-ain.londonstreetstore.com</b> Next2Call PBX pe whitelist karwayein.
-                        </span>
-                        <button type="button" class="btn btn-sm btn-light py-1 px-3 fs-8 text-dark fw-bold mt-1" id="n2cDirectPopupBtn" style="border-radius: 20px;">
-                            <i class="fa fa-external-link-alt text-primary me-1"></i> Open Directly in Popup
-                        </button>
-                    `;
-                    noticeBox.style.display = 'block';
-
-                    document.getElementById('n2cDirectPopupBtn')?.addEventListener('click', function () {
-                        const directUrl = (widget?.dataset?.externalCtc || widget?.dataset?.ctcBase || '') + '&d=' + encodeURIComponent(currentFullNumber);
-                        window.open(directUrl, 'Next2CallSoftphone', 'width=380,height=620,menubar=no,toolbar=no,location=no');
-                    });
-                }
-                return;
-            }
-
-            if (isRegistered) {
-                if (statusBadge) statusBadge.innerHTML = '<i class="fa fa-phone text-success me-1"></i> Ringing...';
-                return;
-            }
+                               data?.type === 'INCOMING_CALL' ||
+                               data?.event === 'incoming_call';
 
             if (isHangup) {
-                // If call was initiated less than 4.5s ago and hasn't connected yet,
-                // ignore initial unregistered noise from Next2Call startup
-                const isEarlyInit = !isCallActive && callInitiatedAt > 0 && (Date.now() - callInitiatedAt < 4500);
-                if (isEarlyInit && (data === 'CLOSE_PHONE_POPUP' || data?.type === 'CLOSE_PHONE_POPUP')) {
-                    console.log('[Softphone] Ignoring early CLOSE_PHONE_POPUP during initialization phase...');
-                    return;
-                }
-
-                console.log('[Softphone] Remote hangup / PBX terminate received, closing widget immediately (0ms)...');
-                stopCallTimer();
-                // Immediately vanish the iframe DOM so no buddy list/number list is ever rendered!
-                if (iframeWrap) {
-                    iframeWrap.style.display = 'none';
-                    iframeWrap.innerHTML = '';
-                }
+                console.log('[Next2Call] Call cut / terminated, closing softphone widget...');
                 closeSoftphoneWidget();
                 return;
             } else if (isConnected) {
                 isCallActive = true;
-                if (statusBadge) statusBadge.textContent = 'Connected';
-                startCallTimer();
             } else if (isIncoming) {
-                const caller = data?.caller || data?.from || 'Incoming';
+                // Incoming call: Open widget!
                 if (widget) {
                     widget.style.display = 'flex';
                     widget.classList.add('is-open');
                 }
-                if (customerNameEl) customerNameEl.textContent = 'Incoming Call';
-                if (maskedNumberEl) maskedNumberEl.textContent = maskNumber(caller);
-                if (statusBadge) statusBadge.textContent = 'Ringing...';
-                if (avatarRing) avatarRing.style.animation = 'n2cPulseRing 1.4s infinite';
-                startCallTimer();
             }
         });
 
-        // Global Direct Dial Function with Country Code & Number Masking
+        // Global Direct Dial Function with Country Code
         window.dialNext2CallNumber = function (rawNumber, countryCode = '', contactName = 'Customer') {
             let num = String(rawNumber || '').trim().replace(/[^0-9]/g, '');
             let cc = String(countryCode || '').trim().replace(/[^0-9]/g, '');
@@ -829,68 +408,21 @@
             callInitiatedAt = Date.now();
             isCallActive = false;
 
-            if (activeCallTimerSafety) {
-                clearTimeout(activeCallTimerSafety);
-            }
-            activeCallTimerSafety = setTimeout(function () {
-                if (widget && widget.classList.contains('is-open')) {
-                    isCallActive = true;
-                }
-            }, 4500);
+            const clientBase = widget?.dataset?.clientUrl || widget?.dataset?.ctcBase || '';
+            const targetUrl = clientBase + (clientBase.includes('?') ? '&' : '?') + 'd=' + encodeURIComponent(num);
 
-            const targetUrl = CTC_BASE + '&d=' + encodeURIComponent(num);
-            const maskedNum = maskNumber(num);
-
-            // Open Widget (Only during call!)
+            // Open Widget when call arrives/starts
             if (widget) {
                 widget.style.display = 'flex';
                 widget.classList.add('is-open');
             }
 
-            // Always keep Calling Card visible with avatar, customer name, masked number, live timer & hangup button!
-            // The softphone iframe runs WebRTC audio silently in background (.is-hidden)
-            if (callingCard) callingCard.style.display = 'flex';
-            if (iframeWrap) {
-                iframeWrap.classList.remove('is-visible');
-                iframeWrap.classList.add('is-hidden');
-            }
-
-            // Update UI with Contact Name & Masked Number in header & card
             const headerTitleEl = document.getElementById('n2cHeaderTitle');
             if (headerTitleEl) {
-                headerTitleEl.innerHTML = `<span style="color:#fff; font-weight:700;">${contactName || 'Customer'}</span> <span style="color:#10b981; font-family:monospace; font-size:11px; margin-left:4px;">${maskedNum}</span>`;
-            }
-            if (customerNameEl) customerNameEl.textContent = contactName || 'Customer';
-            if (maskedNumberEl) maskedNumberEl.textContent = maskedNum;
-            if (statusBadge) statusBadge.innerHTML = '<i class="fa fa-spinner fa-spin me-1"></i> Calling...';
-            if (avatarRing) {
-                avatarRing.style.background = '';
-                avatarRing.style.borderColor = '';
-                avatarRing.style.color = '';
-                avatarRing.style.animation = 'n2cPulseRing 1.4s infinite';
-            }
-            if (noticeBox) {
-                noticeBox.style.display = 'none';
-                noticeBox.innerHTML = '';
+                headerTitleEl.textContent = (contactName && contactName !== 'Customer') ? ('Next2Call: ' + contactName) : 'Next2Call Softphone';
             }
 
-            // Start timer immediately
-            startCallTimer();
-
-            // Safety timeout: transition from "Calling..." to "Ringing..."
-            if (activeCallTimerSafety) {
-                clearTimeout(activeCallTimerSafety);
-            }
-            activeCallTimerSafety = setTimeout(function () {
-                if (widget && widget.classList.contains('is-open')) {
-                    isCallActive = true;
-                    if (statusBadge && statusBadge.innerHTML.includes('Calling')) {
-                        statusBadge.innerHTML = '<i class="fa fa-phone text-success me-1"></i> Ringing...';
-                    }
-                }
-            }, 3500);
-
-            // Mount and load iframe with direct click-to-dial URL
+            // Mount default Next2Call iframe
             mountIframe(targetUrl);
 
             // Auto-whitelist IP & log call on server in background
@@ -912,12 +444,24 @@
             } catch (e) {}
         };
 
+        window.openRingfyDialer = function (mobile = '') {
+            if (mobile) {
+                window.dialNext2CallNumber(mobile);
+            } else {
+                if (widget) {
+                    widget.style.display = 'flex';
+                    widget.classList.add('is-open');
+                }
+                const clientBase = widget?.dataset?.clientUrl || widget?.dataset?.dialerUrl || '';
+                mountIframe(clientBase);
+            }
+        };
+
         window.dialNumber = function (mobile, countryCode = '', contactName = 'Customer') {
             window.dialNext2CallNumber(mobile, countryCode, contactName);
         };
 
         window.openRingfySoftphone = async function (orderId, countryCode = '', mobile = '', contactName = 'Customer') {
-            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '{{ csrf_token() }}';
             const cleanCode = String(countryCode || '').trim();
             const cleanMobile = String(mobile || '').trim();
 
@@ -930,43 +474,7 @@
                 return;
             }
 
-            // Fallback directly to client-side built click-to-dial with masking
             dialNext2CallNumber(cleanMobile, cleanCode, contactName);
-
-            try {
-                const response = await fetch('{{ route('softphone.call-url') }}', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json',
-                        'X-CSRF-TOKEN': csrfToken,
-                        'X-Requested-With': 'XMLHttpRequest',
-                    },
-                    body: JSON.stringify({
-                        order_id: orderId || null,
-                        country_code: cleanCode,
-                        mobile: cleanMobile,
-                    }),
-                });
-
-                const data = await response.json();
-                if (response.ok && data.success) {
-                    if (data.customer_name && customerNameEl && (!contactName || contactName === 'Customer')) {
-                        customerNameEl.textContent = data.customer_name;
-                    }
-                    if (data.target_number && maskedNumberEl) {
-                        maskedNumberEl.textContent = maskNumber(data.target_number);
-                    }
-                    if (data.url) {
-                        const currentFrame = document.getElementById('ringfySoftphoneFrame');
-                        if (!currentFrame || !currentFrame.src || currentFrame.src === 'about:blank') {
-                            mountIframe(data.url);
-                        }
-                    }
-                }
-            } catch (err) {
-                console.warn('[Next2Call Softphone] Server endpoint fallback:', err);
-            }
         };
 
         // =========================================================================
