@@ -24,7 +24,7 @@ if (!function_exists('getUserRoleName')) {
 if (!function_exists('mask_phone_for_display')) {
     /**
      * Show full number only to admins (role_id 1). Everyone else sees
-     * the mobile number in masked format (only last 4 digits visible).
+     * the mobile number in masked format (country code + last 4 digits only).
      */
     function mask_phone_for_display(?string $countryCode, ?string $mobile): string
     {
@@ -40,18 +40,15 @@ if (!function_exists('mask_phone_for_display')) {
             return $mobileStr;
         }
         $cleanCC = preg_replace('/\D+/', '', (string) $countryCode);
-        if (empty($cleanCC)) {
-            return mask_raw_phone($mobile);
-        }
-        return mask_mobile_only($countryCode, $mobile);
+        $ccPrefix = !empty($cleanCC) ? ('+' . $cleanCC) : '';
+        return $ccPrefix . mask_mobile_only($countryCode, $mobile);
     }
 }
 
 if (!function_exists('mask_mobile_only')) {
     /**
      * Masks only the mobile number part (without country code) for form fields & display.
-     * Keeps country code separate.
-     * Shows only asterisks + last 4 digits (e.g. ******9811).
+     * Shows only asterisks + last 4 digits (e.g. ******3210).
      */
     function mask_mobile_only(?string $countryCode, ?string $mobile): string
     {
@@ -73,7 +70,7 @@ if (!function_exists('mask_mobile_only')) {
             $digits = substr($digits, strlen($cleanCC));
         }
 
-        // If 11 digits starting with 0 (e.g. 07700... or 09610...), strip leading 0 for standard 10-digit mask
+        // If 11 digits starting with 0, strip leading 0
         if (strlen($digits) === 11 && str_starts_with($digits, '0')) {
             $digits = substr($digits, 1);
         }
@@ -83,15 +80,15 @@ if (!function_exists('mask_mobile_only')) {
             return str_repeat('*', max(4, $len));
         }
 
-        // Only asterisks + last 4 digits (e.g. ******9811), no leading digits
-        return str_repeat('*', max(4, $len - 4)) . substr($digits, -4);
+        // Only asterisks + last 4 digits (no leading digits)
+        return '******' . substr($digits, -4);
     }
 }
 
 if (!function_exists('mask_raw_phone')) {
     /**
      * Masks complete phone numbers with country code:
-     * e.g. +44 ******3818 or ******9811
+     * e.g. +44******3818 or ******3210 (country code + last 4 digits only)
      */
     function mask_raw_phone(?string $phone): string
     {
@@ -107,19 +104,20 @@ if (!function_exists('mask_raw_phone')) {
 
         $prefix = '';
         $digits = preg_replace('/\D+/', '', $phoneStr);
-        if (str_starts_with($phoneStr, '+')) {
-            if (preg_match('/^(\+(?:1|44|91|61|971|86|33|49|81|65|60|64|\d{1,2}))/', $phoneStr, $m)) {
-                $prefix = $m[1] . ' ';
+        $trimmed = trim($phoneStr);
+        if (str_starts_with($trimmed, '+')) {
+            if (preg_match('/^(\+(?:1|44|91|61|971|86|33|49|81|65|60|64|\d{1,3}))/', $trimmed, $m)) {
+                $prefix = $m[1];
                 $cleanCC = preg_replace('/\D+/', '', $m[1]);
                 if (str_starts_with($digits, $cleanCC)) {
                     $digits = substr($digits, strlen($cleanCC));
                 }
             }
         } elseif ((str_starts_with($digits, '91') || str_starts_with($digits, '44')) && strlen($digits) > 10) {
-            $prefix = '+' . substr($digits, 0, 2) . ' ';
+            $prefix = '+' . substr($digits, 0, 2);
             $digits = substr($digits, 2);
         } elseif (strlen($digits) > 10) {
-            $prefix = '+' . substr($digits, 0, strlen($digits) - 10) . ' ';
+            $prefix = '+' . substr($digits, 0, strlen($digits) - 10);
             $digits = substr($digits, -10);
         }
 
@@ -129,14 +127,14 @@ if (!function_exists('mask_raw_phone')) {
         }
 
         // Country code + asterisks + last 4 digits (no leading digits)
-        return $prefix . str_repeat('*', max(4, $len - 4)) . substr($digits, -4);
+        return $prefix . '******' . substr($digits, -4);
     }
 }
 
 if (!function_exists('mask_email_for_display')) {
     /**
      * Show full email only to Super Admins (role_id 1). Everyone else sees
-     * masked email e.g. cr*****3@gmail.com
+     * masked email e.g. a******h@gmail.com
      */
     function mask_email_for_display(?string $email): string
     {
@@ -156,19 +154,17 @@ if (!function_exists('mask_email_for_display')) {
             if ($len <= 4) {
                 return str_repeat('*', $len);
             }
-            return substr($email, 0, 2) . '****' . substr($email, -2);
+            return substr($email, 0, 1) . '******' . substr($email, -1);
         }
 
         $name = $parts[0];
         $domain = $parts[1];
 
         $len = strlen($name);
-        if ($len <= 2) {
-            $maskedName = substr($name, 0, 1) . '***';
-        } elseif ($len <= 4) {
-            $maskedName = substr($name, 0, 1) . '***' . substr($name, -1);
+        if ($len <= 1) {
+            $maskedName = $name . '******';
         } else {
-            $maskedName = substr($name, 0, 2) . '*****' . substr($name, -1);
+            $maskedName = substr($name, 0, 1) . '******' . substr($name, -1);
         }
 
         return $maskedName . '@' . $domain;
@@ -181,6 +177,131 @@ if (!function_exists('mask_email_contact')) {
         return mask_email_for_display($email);
     }
 }
+
+if (!function_exists('mask_chat_text')) {
+    /**
+     * Masks any 10-13 digit phone numbers and email addresses inside chat text.
+     * Super Admin (role_id 1) sees full unmasked content.
+     * All other users see masked phone (country code + last 4 digits) & email (a******h@gmail.com).
+     */
+    function mask_chat_text(?string $text): string
+    {
+        if ($text === null || $text === '') {
+            return '';
+        }
+
+        if (Auth::check() && (int) Auth::user()->role_id === 1) {
+            return $text;
+        }
+
+        // 1. Mask Email Addresses (e.g. a******h@gmail.com)
+        $text = preg_replace_callback('/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/', function ($matches) {
+            $email = $matches[0];
+            return mask_email_for_display($email);
+        }, $text);
+
+        // 2. Mask 10-13 Digit Phone Numbers (country code + last 4 digits only, e.g. +91******3210 or ******3210)
+        $text = preg_replace_callback('/(?:\+?\d[\d\s\-\(\)\.]{8,18}\d)/', function ($matches) {
+            $raw = $matches[0];
+            if (str_contains($raw, '*')) {
+                return $raw;
+            }
+            $digits = preg_replace('/\D+/', '', $raw);
+            $digitCount = strlen($digits);
+            if ($digitCount >= 10 && $digitCount <= 13) {
+                $prefix = '';
+                $mobileDigits = $digits;
+                $trimmed = trim($raw);
+                if (str_starts_with($trimmed, '+')) {
+                    if (preg_match('/^(\+(?:1|44|91|61|971|86|33|49|81|65|60|64|\d{1,3}))/', $trimmed, $m)) {
+                        $prefix = $m[1];
+                        $cleanCC = preg_replace('/\D+/', '', $m[1]);
+                        if (str_starts_with($mobileDigits, $cleanCC)) {
+                            $mobileDigits = substr($mobileDigits, strlen($cleanCC));
+                        }
+                    }
+                } elseif ((str_starts_with($digits, '91') || str_starts_with($digits, '44')) && $digitCount > 10) {
+                    $prefix = '+' . substr($digits, 0, 2);
+                    $mobileDigits = substr($digits, 2);
+                } elseif ($digitCount > 10) {
+                    $prefix = '+' . substr($digits, 0, $digitCount - 10);
+                    $mobileDigits = substr($digits, -10);
+                }
+
+                return $prefix . '******' . substr($mobileDigits, -4);
+            }
+            return $raw;
+        }, $text);
+
+        return $text;
+    }
+}
+
+if (!function_exists('mask_chat_html')) {
+    /**
+     * Returns HTML for chat messages with masked spans for 1-click copy
+     */
+    function mask_chat_html(?string $text): string
+    {
+        if ($text === null || $text === '') {
+            return '';
+        }
+
+        if (Auth::check() && (int) Auth::user()->role_id === 1) {
+            return e($text);
+        }
+
+        $escaped = e($text);
+
+        // 1. Mask Email with interactive copy span (e.g. a******h@gmail.com)
+        $escaped = preg_replace_callback('/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/', function ($matches) {
+            $email = $matches[0];
+            $masked = mask_email_for_display($email);
+            $safeMasked = e($masked);
+            $safeReal = e($email);
+            return '<span class="wab-masked-entity wab-masked-email" data-type="email" data-masked="' . $safeMasked . '" data-real="' . $safeReal . '" onclick="window.copyMaskedEntity && window.copyMaskedEntity(\'' . $safeMasked . '\', this, event)" title="Click to copy masked email">' . $safeMasked . '</span>';
+        }, $escaped);
+
+        // 2. Mask 10-13 Digit Phone Numbers with interactive copy span (country code + last 4 digits only)
+        $escaped = preg_replace_callback('/(?:\+?\d[\d\s\-\(\)\.]{8,18}\d)/', function ($matches) {
+            $raw = $matches[0];
+            if (str_contains($raw, '*')) {
+                return $raw;
+            }
+            $digits = preg_replace('/\D+/', '', $raw);
+            $digitCount = strlen($digits);
+            if ($digitCount >= 10 && $digitCount <= 13) {
+                $prefix = '';
+                $mobileDigits = $digits;
+                $trimmed = trim($raw);
+                if (str_starts_with($trimmed, '+')) {
+                    if (preg_match('/^(\+(?:1|44|91|61|971|86|33|49|81|65|60|64|\d{1,3}))/', $trimmed, $m)) {
+                        $prefix = $m[1];
+                        $cleanCC = preg_replace('/\D+/', '', $m[1]);
+                        if (str_starts_with($mobileDigits, $cleanCC)) {
+                            $mobileDigits = substr($mobileDigits, strlen($cleanCC));
+                        }
+                    }
+                } elseif ((str_starts_with($digits, '91') || str_starts_with($digits, '44')) && $digitCount > 10) {
+                    $prefix = '+' . substr($digits, 0, 2);
+                    $mobileDigits = substr($digits, 2);
+                } elseif ($digitCount > 10) {
+                    $prefix = '+' . substr($digits, 0, $digitCount - 10);
+                    $mobileDigits = substr($digits, -10);
+                }
+
+                $masked = $prefix . '******' . substr($mobileDigits, -4);
+                $safeMasked = e($masked);
+                $safeReal = e($digits);
+                return '<span class="wab-masked-entity wab-masked-phone" data-type="phone" data-masked="' . $safeMasked . '" data-real="' . $safeReal . '" onclick="window.copyMaskedEntity && window.copyMaskedEntity(\'' . $safeMasked . '\', this, event)" title="Click to copy masked phone">' . $safeMasked . '</span>';
+            }
+            return $raw;
+        }, $escaped);
+
+        return $escaped;
+    }
+}
+
 
 if (!function_exists('find_user_ids_by_search_term')) {
     /**

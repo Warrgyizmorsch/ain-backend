@@ -238,7 +238,8 @@ class WhatsappController extends Controller
             return back()->with('error', 'Delivery date cannot be before today.')->withInput();
         }
 
-        $mobile = preg_replace('/\D+/', '', (string) $request->input('mobile'));
+        $rawMobile = (string) ($request->input('mobile_real') ?: $request->input('mobile'));
+        $mobile = preg_replace('/\D+/', '', $rawMobile);
         $countrycode = $request->input('countrycode');
         $fullPhone = $countrycode . $mobile;
 
@@ -256,8 +257,23 @@ class WhatsappController extends Controller
                 ->first();
         }
 
-        $rawEmail = (string) $request->input('email');
-        $hasRealEmail = $request->filled('email') && strpos($rawEmail, '*') === false && filter_var($rawEmail, FILTER_VALIDATE_EMAIL);
+        $rawEmail = (string) ($request->input('email_real') ?: $request->input('email'));
+
+        // Auto-heal email if masked string with '*' was received
+        if (str_contains($rawEmail, '*') || empty($rawEmail)) {
+            $returnPhone = (string) $request->input('return_phone');
+            if (!empty($returnPhone)) {
+                $recentMsg = WhatsappMessage::whereIn('phone', $this->getPhoneVariants($returnPhone))
+                    ->whereRaw("message REGEXP '[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}'")
+                    ->latest('id')
+                    ->value('message');
+                if ($recentMsg && preg_match('/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/', $recentMsg, $m)) {
+                    $rawEmail = $m[0];
+                }
+            }
+        }
+
+        $hasRealEmail = !empty($rawEmail) && strpos($rawEmail, '*') === false && filter_var($rawEmail, FILTER_VALIDATE_EMAIL);
 
         if (!$user) {
             if ($hasRealEmail) {

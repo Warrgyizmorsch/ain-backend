@@ -190,7 +190,7 @@
                         </div>
                     </div>
                     <div class="wab-contact-row-bottom">
-                        <span class="wab-contact-preview">{{ $c['msg'] }}</span>
+                        <span class="wab-contact-preview">{{ mask_chat_text($c['msg']) }}</span>
                         <div class="wab-contact-row-right d-flex align-items-center gap-1">
                             @if($c['badge'])
                                 <span class="wab-badge">{{ $c['badge'] }}</span>
@@ -455,8 +455,8 @@
                     @php $lastRenderedDate = $messageDate; @endphp
                 @endif
                 <div class="wab-msg-row {{ $message->direction === 'inbound' ? 'wab-incoming' : 'wab-outgoing' }}" data-message-id="{{ $message->id }}">
-                    <div class="wab-msg-bubble {{ $messageMediaType ? 'wab-bubble--media wab-bubble--' . $messageMediaType : '' }}" data-copy-text="{{ $message->message ?: ($message->media_name ?: $message->media_url) }}">
-                        <button type="button" class="wab-copy-msg-btn" title="Copy message" aria-label="Copy message" data-copy-text="{{ $message->message ?: ($message->media_name ?: $message->media_url) }}">
+                    <div class="wab-msg-bubble {{ $messageMediaType ? 'wab-bubble--media wab-bubble--' . $messageMediaType : '' }}" data-copy-text="{{ mask_chat_text($message->message) ?: ($message->media_name ?: $message->media_url) }}">
+                        <button type="button" class="wab-copy-msg-btn" title="Copy message" aria-label="Copy message" data-copy-text="{{ mask_chat_text($message->message) ?: ($message->media_name ?: $message->media_url) }}">
                             <svg class="wab-copy-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
                                 <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
@@ -513,10 +513,10 @@
                                 </a>
                             @endif
                             @if(trim($message->message ?? '') !== '')
-                                <div class="wab-media-caption">{{ $message->message }}</div>
+                                <div class="wab-media-caption">{!! mask_chat_html($message->message) !!}</div>
                             @endif
                         @else
-                            <span class="wab-msg-text">{{ $message->message }}</span>
+                            <span class="wab-msg-text">{!! mask_chat_html($message->message) !!}</span>
                         @endif
                         <div class="wab-msg-meta">
                             <span class="wab-msg-time">{{ optional($message->created_at)->format('H:i') }}</span>
@@ -1033,7 +1033,12 @@
                         </div>
                         <div class="col-md-6">
                             <label class="wab-form-label fw-bold">Email Address</label>
-                            <input type="email" name="email" id="waCreateLeadEmail" class="wab-form-input" value="{{ $existingUser->email ?? '' }}" placeholder="customer@example.com">
+                            @if(auth()->user()->role_id == 1)
+                                <input type="email" name="email" id="waCreateLeadEmail" class="wab-form-input" value="{{ $existingUser->email ?? '' }}" placeholder="customer@example.com">
+                            @else
+                                <input type="hidden" name="email" id="waCreateLeadEmailReal" value="{{ $existingUser->email ?? '' }}">
+                                <input type="text" id="waCreateLeadEmail" class="wab-form-input" value="{{ mask_email_for_display($existingUser->email ?? '') }}" placeholder="customer@example.com" autocomplete="off">
+                            @endif
                         </div>
 
                         {{-- Phone Numbers --}}
@@ -3512,6 +3517,34 @@ document.addEventListener('DOMContentLoaded', function() {
     border: 7px solid transparent;
     border-top-color: #d9fdd3;
     border-left: 0;
+}
+
+/* ── Masked Entity (Phone / Email in chat) ── */
+.wab-masked-entity {
+    display: inline-block;
+    padding: 1px 4px;
+    border-radius: 4px;
+    font-weight: 600;
+    cursor: pointer;
+    background: rgba(0, 168, 132, 0.08);
+    color: #008069;
+    border: 1px dashed rgba(0, 168, 132, 0.35);
+    transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+    user-select: all;
+}
+.wab-masked-entity:hover {
+    background: rgba(0, 168, 132, 0.18);
+    border-color: #00a884;
+    color: #005c4b;
+    transform: translateY(-1px);
+}
+.wab-masked-entity:active {
+    transform: translateY(0);
+}
+.wab-masked-entity.wab-entity-copied {
+    background: #e8f5e9 !important;
+    border-color: #16a34a !important;
+    color: #16a34a !important;
 }
 
 /* ── Copy Message Button ── */
@@ -6274,17 +6307,61 @@ document.addEventListener('DOMContentLoaded', function() {
             const userIdInput = document.getElementById('waCreateLeadUserId');
             const nameInput = document.getElementById('waCreateLeadUserName');
             const emailInput = document.getElementById('waCreateLeadEmail');
+            const emailRealInput = document.getElementById('waCreateLeadEmailReal');
             const countryCodeSelect = document.getElementById('waCreateLeadCountryCode');
             const mobileInput = document.getElementById('waCreateLeadMobile');
             const mobileDisplayInput = document.getElementById('waCreateLeadMobileDisplay');
             const setLeadMobile = function (value) {
                 if (mobileInput) mobileInput.value = value || '';
-                if (mobileDisplayInput) mobileDisplayInput.value = window.maskPhoneForDisplay(value || '');
+                const masked = window.maskPhoneForDisplay ? window.maskPhoneForDisplay(value || '') : (value || '');
+                if (mobileDisplayInput) mobileDisplayInput.value = masked;
+                if (window.registerMaskedToken && value) window.registerMaskedToken(masked, value);
             };
             const subtitleEl = document.getElementById('waCreateLeadSubtitle');
             const bannerEl = document.getElementById('waCreateLeadUserBanner');
             const bannerTitleEl = document.getElementById('waCreateLeadBannerTitle');
             const bannerDescEl = document.getElementById('waCreateLeadBannerDesc');
+
+            if (emailInput && !emailInput.dataset.maskedBound) {
+                emailInput.dataset.maskedBound = '1';
+                emailInput.addEventListener('paste', function(e) {
+                    const text = (e.clipboardData || window.clipboardData).getData('text')?.trim() || '';
+                    if (text.includes('*')) {
+                        const resolved = (typeof window.resolveMaskedToken === 'function') ? window.resolveMaskedToken(text) : '';
+                        if (resolved) {
+                            e.preventDefault();
+                            if (emailRealInput) emailRealInput.value = resolved;
+                            emailInput.value = text;
+                        }
+                    } else {
+                        if (emailRealInput) emailRealInput.value = text;
+                    }
+                });
+                emailInput.addEventListener('input', function() {
+                    const val = emailInput.value.trim();
+                    if (!val.includes('*')) {
+                        if (emailRealInput) emailRealInput.value = val;
+                    } else {
+                        const resolved = (typeof window.resolveMaskedToken === 'function') ? window.resolveMaskedToken(val) : '';
+                        if (resolved && emailRealInput) emailRealInput.value = resolved;
+                    }
+                });
+            }
+
+            if (mobileDisplayInput && !mobileDisplayInput.dataset.maskedBound) {
+                mobileDisplayInput.dataset.maskedBound = '1';
+                mobileDisplayInput.addEventListener('paste', function(e) {
+                    const text = (e.clipboardData || window.clipboardData).getData('text')?.trim() || '';
+                    if (text.includes('*')) {
+                        const resolved = (typeof window.resolveMaskedToken === 'function') ? window.resolveMaskedToken(text) : '';
+                        if (resolved) {
+                            e.preventDefault();
+                            if (mobileInput) mobileInput.value = resolved.replace(/\D/g, '');
+                            mobileDisplayInput.value = text;
+                        }
+                    }
+                });
+            }
 
             if (subtitleEl) subtitleEl.textContent = `Create CRM Lead & Order for ${window.maskPhoneForDisplay(phone)}`;
 
@@ -6323,13 +6400,16 @@ document.addEventListener('DOMContentLoaded', function() {
                     nameInput.readOnly = !isSuperAdmin;
                 }
                 const userEmail = customer.user.email || '';
+                if (emailRealInput) emailRealInput.value = userEmail;
                 if (emailInput) {
                     if (isSuperAdmin) {
                         emailInput.value = userEmail;
                         emailInput.readOnly = true;
                     } else {
-                        emailInput.value = customer.user.masked_email || (window.maskEmailForDisplay ? window.maskEmailForDisplay(userEmail) : userEmail);
+                        const maskedEm = customer.user.masked_email || (window.maskEmailForDisplay ? window.maskEmailForDisplay(userEmail) : userEmail);
+                        emailInput.value = maskedEm;
                         emailInput.readOnly = true;
+                        if (window.registerMaskedToken) window.registerMaskedToken(maskedEm, userEmail);
                     }
                     emailInput.removeAttribute('required');
                 }
@@ -6359,6 +6439,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     nameInput.value = (cleanCandidate.length < 8 && customer && customer.name && customer.name !== phone) ? customer.name : (cleanCandidate.length < 8 && fallbackName && fallbackName !== phone ? fallbackName : '');
                     nameInput.readOnly = false;
                 }
+                if (emailRealInput) emailRealInput.value = '';
                 if (emailInput) {
                     emailInput.value = '';
                     emailInput.readOnly = false;
@@ -6590,7 +6671,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     </div>
                 </div>
                 <div class="wab-contact-row-bottom">
-                    <span class="wab-contact-preview">${escapeHtml(c.msg || '')}</span>
+                    <span class="wab-contact-preview">${escapeHtml((typeof window.maskChatText === 'function') ? window.maskChatText(c.msg || '') : (c.msg || ''))}</span>
                     <div class="wab-contact-row-right d-flex align-items-center gap-1">
                         ${c.badge ? `<span class="wab-badge">${c.badge}</span>` : ''}
                         <button type="button" class="wab-quick-copy-btn" onclick="event.stopPropagation(); copyPhoneNumberToClipboard('${escapeHtml(c.phone_display || c.phone)}', this)" title="Copy phone number">
@@ -7067,7 +7148,8 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function copyButtonMarkup(text) {
-        const safe = escapeHtml(text || '');
+        const masked = (typeof window.maskChatText === 'function') ? window.maskChatText(text || '') : (text || '');
+        const safe = escapeHtml(masked);
         return `<button type="button" class="wab-copy-msg-btn" title="Copy message" aria-label="Copy message" data-copy-text="${safe}">
             <svg class="wab-copy-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
@@ -7235,10 +7317,13 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function messageContentMarkup(message) {
-        const caption = String(message.message || '').trim();
+        const rawCaption = String(message.message || '').trim();
+        const maskedHtml = (typeof window.maskChatHtml === 'function')
+            ? window.maskChatHtml(message.message || '')
+            : escapeHtml(message.message || '');
 
         if (!message.media_url) {
-            return `<span class="wab-msg-text">${escapeHtml(message.message || '')}</span>`;
+            return `<span class="wab-msg-text">${maskedHtml}</span>`;
         }
 
         const url = escapeHtml(message.media_url);
@@ -7281,7 +7366,7 @@ document.addEventListener('DOMContentLoaded', function() {
             `;
         }
 
-        return mediaMarkup + (caption ? `<div class="wab-media-caption">${escapeHtml(message.message)}</div>` : '');
+        return mediaMarkup + (rawCaption ? `<div class="wab-media-caption">${maskedHtml}</div>` : '');
     }
 
     async function fetchOlderMessages() {
@@ -7349,7 +7434,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
             const hasMedia = Boolean(message.media_url);
             const mediaClass = mediaTypeClass(message.media_type);
-            const copyContent = message.message || message.media_name || message.media_url || '';
+            const copyContent = (typeof window.maskChatText === 'function')
+                ? window.maskChatText(message.message || message.media_name || message.media_url || '')
+                : (message.message || message.media_name || message.media_url || '');
             const row = document.createElement('div');
             row.className = `wab-msg-row ${message.direction === 'inbound' ? 'wab-incoming' : 'wab-outgoing'}`;
             row.dataset.messageId = message.id;
@@ -7424,7 +7511,9 @@ document.addEventListener('DOMContentLoaded', function() {
         ensureDateBadge(message);
 
         const mediaClass = mediaTypeClass(message.media_type);
-        const copyContent = message.message || message.media_name || message.media_url || '';
+        const copyContent = (typeof window.maskChatText === 'function')
+            ? window.maskChatText(message.message || message.media_name || message.media_url || '')
+            : (message.message || message.media_name || message.media_url || '');
         const row = document.createElement('div');
         row.className = `wab-msg-row ${message.direction === 'inbound' ? 'wab-incoming' : 'wab-outgoing'}`;
         row.dataset.messageId = message.id;
@@ -7707,7 +7796,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (timeEl && contact.time) timeEl.textContent = contact.time;
 
         const previewEl = item.querySelector('.wab-contact-preview');
-        if (previewEl && contact.msg !== undefined) previewEl.textContent = contact.msg;
+        if (previewEl && contact.msg !== undefined) previewEl.textContent = (typeof window.maskChatText === 'function') ? window.maskChatText(contact.msg) : contact.msg;
 
         updateBadge(item, Number(contact.badge || 0));
 

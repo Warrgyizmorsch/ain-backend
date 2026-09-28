@@ -614,10 +614,8 @@ $(document).ready(function () {
         let d = String(digits).replace(/\D/g, '');
         if (d.length === 11 && d.startsWith('0')) d = d.slice(1);
         const len = d.length;
-        if (len <= 2) return d;
-        if (len <= 6) return d.slice(0, 2) + '*'.repeat(len - 2);
-        if (len <= 9) return d.slice(0, 2) + '*'.repeat(4) + d.slice(6);
-        return d.slice(0, 2) + '*'.repeat(Math.max(6, len - 6)) + d.slice(-4);
+        if (len <= 4) return '*'.repeat(Math.max(4, len));
+        return '******' + d.slice(-4);
     }
 
     function parsePhoneInput(raw) {
@@ -832,8 +830,20 @@ $(document).ready(function () {
                 let startPart = parts[0] || '';
                 let endPart = parts[parts.length - 1] || '';
                 let displayVal = cleanMasked;
-                if (startPart.length >= 2 && endPart.length >= 4) {
-                    displayVal = startPart.slice(0, 2) + '******' + endPart.slice(-4);
+                if (endPart.length >= 4) {
+                    displayVal = '******' + endPart.slice(-4);
+                }
+
+                let resolved = (typeof window.resolveMaskedToken === 'function') 
+                    ? (window.resolveMaskedToken(text) || window.resolveMaskedToken(cleanMasked) || window.resolveMaskedToken(displayVal)) 
+                    : '';
+                if (resolved) {
+                    let cleanResolved = resolved.replace(/\D/g, '');
+                    rawDigitsBuffer = cleanResolved;
+                    $('#mobile_real').val(cleanResolved);
+                    $(this).val(displayVal);
+                    doLookup(cleanResolved);
+                    return;
                 }
 
                 rawDigitsBuffer = displayVal;
@@ -943,10 +953,27 @@ $(document).ready(function () {
             }
         });
 
+        $('#email_display').on('paste', function (e) {
+            let text = (e.originalEvent.clipboardData || window.clipboardData).getData('text') || '';
+            text = text.trim();
+            if (text.includes('*')) {
+                let resolved = (typeof window.resolveMaskedToken === 'function') ? window.resolveMaskedToken(text) : '';
+                if (resolved) {
+                    e.preventDefault();
+                    $('#email_real').val(resolved);
+                    $(this).val(text);
+                    return;
+                }
+            }
+        });
+
         $('#email_display').on('input', function () {
             let val = $(this).val();
             if (!val.includes('*')) {
                 $('#email_real').val(val);
+            } else {
+                let resolved = (typeof window.resolveMaskedToken === 'function') ? window.resolveMaskedToken(val) : '';
+                if (resolved) $('#email_real').val(resolved);
             }
         });
     }
@@ -957,9 +984,17 @@ $(document).ready(function () {
             let realMobile = $('#mobile_real').val().replace(/\D/g, '');
             let displayVal = $('#mobile').val().trim();
 
-            if (!realMobile && displayVal && !displayVal.includes('*')) {
-                realMobile = displayVal.replace(/\D/g, '');
-                $('#mobile_real').val(realMobile);
+            if (!realMobile && displayVal) {
+                if (!displayVal.includes('*')) {
+                    realMobile = displayVal.replace(/\D/g, '');
+                    $('#mobile_real').val(realMobile);
+                } else {
+                    let resolvedMob = (typeof window.resolveMaskedToken === 'function') ? window.resolveMaskedToken(displayVal) : '';
+                    if (resolvedMob) {
+                        realMobile = resolvedMob.replace(/\D/g, '');
+                        $('#mobile_real').val(realMobile);
+                    }
+                }
             }
 
             if (!realMobile || realMobile.length < 5) {
@@ -969,8 +1004,13 @@ $(document).ready(function () {
             }
 
             let displayEmail = $('#email_display').val().trim();
-            if (!$('#email_real').val() && displayEmail && !displayEmail.includes('*')) {
-                $('#email_real').val(displayEmail);
+            if (!$('#email_real').val() && displayEmail) {
+                if (!displayEmail.includes('*')) {
+                    $('#email_real').val(displayEmail);
+                } else {
+                    let resolvedEm = (typeof window.resolveMaskedToken === 'function') ? window.resolveMaskedToken(displayEmail) : '';
+                    if (resolvedEm) $('#email_real').val(resolvedEm);
+                }
             }
         }
     });

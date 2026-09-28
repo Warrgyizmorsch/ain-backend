@@ -680,7 +680,7 @@ class LeadsController extends Controller
         // =========================
         // USER CREATE / UPDATE
         // =========================
-        $rawMobile = (string) $request->input('mobile');
+        $rawMobile = (string) ($request->input('mobile_real') ?: $request->input('mobile'));
         $rawCC = (string) $request->input('countrycode');
         $cleanMobile = preg_replace('/\D+/', '', $rawMobile);
         $countryCode = preg_replace('/\D+/', '', $rawCC);
@@ -711,10 +711,35 @@ class LeadsController extends Controller
                 ->first();
         }
 
-        if (!$user) {
-            $rawEmail = (string) $request->input('email');
-            $hasRealEmail = $request->filled('email') && strpos($rawEmail, '*') === false && filter_var($rawEmail, FILTER_VALIDATE_EMAIL);
+        $rawEmail = (string) ($request->input('email_real') ?: $request->input('email'));
+        $hasRealEmail = !empty($rawEmail) && strpos($rawEmail, '*') === false && filter_var($rawEmail, FILTER_VALIDATE_EMAIL);
 
+        // Auto-heal real email from recent whatsapp messages if masked or missing
+        if (!$hasRealEmail && !empty($cleanMobile)) {
+            $recentMessages = DB::table('whatsapp_messages')
+                ->where(function ($q) use ($cleanMobile, $fullPhone) {
+                    $q->where('phone', 'like', "%{$cleanMobile}%");
+                    if (!empty($fullPhone)) {
+                        $q->orWhere('phone', 'like', "%{$fullPhone}%");
+                    }
+                })
+                ->orderBy('id', 'desc')
+                ->limit(30)
+                ->pluck('message');
+
+            foreach ($recentMessages as $msg) {
+                if (!empty($msg) && preg_match('/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/', $msg, $m)) {
+                    $candidateEmail = strtolower($m[0]);
+                    if (filter_var($candidateEmail, FILTER_VALIDATE_EMAIL)) {
+                        $rawEmail = $candidateEmail;
+                        $hasRealEmail = true;
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (!$user) {
             if ($hasRealEmail) {
                 $existingUser = User::where('email', $rawEmail)->first();
 
@@ -745,8 +770,7 @@ class LeadsController extends Controller
         }
 
         if ($user) {
-            $rawEmail = (string) $request->input('email');
-            if ($request->filled('email') && strpos($rawEmail, '*') === false && filter_var($rawEmail, FILTER_VALIDATE_EMAIL)) {
+            if ($hasRealEmail) {
                 $user->email = $rawEmail;
             }
             if ($request->filled('user_name')) {
