@@ -395,9 +395,6 @@
                 maskedDisplayNum = ccPart + '******' + num.slice(-4);
             }
 
-            const isSuperAdmin = {{ $isSuperAdmin ? 'true' : 'false' }};
-            const shownNum = isSuperAdmin ? num : maskedDisplayNum;
-
             const headerTitleEl = document.getElementById('n2cHeaderTitle');
             if (headerTitleEl) {
                 headerTitleEl.textContent = (contactName && contactName !== 'Customer') ? ('Call: ' + contactName) : 'Next2Call Softphone';
@@ -406,14 +403,12 @@
             const shieldEl = document.getElementById('n2cPrivacyShield');
             const shieldText = document.getElementById('n2cShieldMaskedText');
             if (shieldEl && shieldText) {
-                shieldText.textContent = shownNum;
+                shieldText.textContent = maskedDisplayNum;
                 shieldEl.style.display = 'flex';
             }
 
-            // Mount initial iframe with click-to-call URL immediately
-            mountIframe(targetUrl);
-
-            // Fetch fresh pre-authenticated Click-to-Call URL from Ringfy Agent API & update iframe src
+            // Fetch fresh pre-authenticated Click-to-Call URL from Ringfy Agent API & mount iframe
+            let finalUrl = targetUrl;
             try {
                 const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '{{ csrf_token() }}';
                 const response = await fetch('{{ route('softphone.call-url') }}', {
@@ -431,12 +426,11 @@
                 });
                 const resData = await response.json();
                 if (resData.success && resData.url) {
-                    const currentFrame = document.getElementById('ringfySoftphoneFrame');
-                    if (currentFrame && currentFrame.src !== resData.url) {
-                        currentFrame.src = resData.url;
-                    }
+                    finalUrl = resData.url;
                 }
             } catch (e) {}
+
+            mountIframe(finalUrl);
         };
 
         window.openRingfyDialer = async function (mobile = '') {
