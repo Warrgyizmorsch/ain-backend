@@ -165,7 +165,7 @@
                         <a href="{{ route('plugins.next2call.page') }}" class="btn btn-sm btn-light-success flex-fill">
                             <i class="fa fa-cog me-1"></i> Settings
                         </a>
-                        <button type="button" class="btn btn-sm btn-light-primary flex-fill" onclick="window.openRingfyDialer && window.openRingfyDialer()">
+                        <button type="button" class="btn btn-sm btn-light-primary flex-fill" onclick="triggerOpenSoftphone()">
                             <i class="fa fa-phone me-1"></i> Open Softphone
                         </button>
                         <button type="button" class="btn btn-sm btn-light-info flex-fill" data-bs-toggle="modal" data-bs-target="#next2callTestCallModal">
@@ -643,6 +643,27 @@ $('#twilioTestCallForm').on('submit', function(e) {
 // Next2Call Test Helpers
 function setN2cTestNumber(val) {
     $('#n2c_test_phone_number').val(val);
+}
+
+function triggerOpenSoftphone() {
+    if (typeof window.openRingfyDialer === 'function') {
+        window.openRingfyDialer();
+    } else if (typeof window.initRingfySoftphoneWidget === 'function') {
+        window.initRingfySoftphoneWidget();
+        if (typeof window.openRingfyDialer === 'function') {
+            window.openRingfyDialer();
+        }
+    } else {
+        const widget = document.getElementById('ringfySoftphoneWidget');
+        if (widget) {
+            widget.style.display = 'flex';
+            widget.classList.add('is-open');
+            const frame = document.getElementById('ringfySoftphoneFrame');
+            if (frame && (!frame.src || frame.src === 'about:blank')) {
+                frame.src = widget.dataset.dialerUrl || '';
+            }
+        }
+    }
 }
 
 // 1. Incoming Call Test (Inbound Ringing simulation)

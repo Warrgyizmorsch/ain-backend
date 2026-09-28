@@ -224,12 +224,20 @@
         });
 
         function mountIframe(url) {
-            if (!iframeWrap) return;
-            iframeWrap.innerHTML = `
+            const container = document.getElementById('n2cIframeContainer') || iframeWrap;
+            if (!container) return;
+            const currentFrame = document.getElementById('ringfySoftphoneFrame');
+            if (currentFrame) {
+                if (url && currentFrame.src !== url) {
+                    currentFrame.src = url;
+                }
+                return;
+            }
+            container.innerHTML = `
                 <iframe
                     id="ringfySoftphoneFrame"
                     class="n2c-softphone-iframe"
-                    src="${url}"
+                    src="${url || ''}"
                     allow="microphone; camera; speaker-selection; display-capture; autoplay; fullscreen"
                     allowfullscreen>
                 </iframe>
@@ -317,7 +325,7 @@
         });
 
         // Global Direct Dial Function with Country Code (matches webphone_api (1) (3).html)
-        window.dialNext2CallNumber = function (rawNumber, countryCode = '', contactName = 'Customer') {
+        window.dialNext2CallNumber = async function (rawNumber, countryCode = '', contactName = 'Customer') {
             let inputStr = String(rawNumber || '').trim();
             // Resolve masked number if contains asterisks
             if (inputStr.includes('*') && typeof window.resolveMaskedToken === 'function') {
@@ -406,25 +414,27 @@
 
         window.openRingfyDialer = async function (mobile = '') {
             if (mobile) {
-                window.dialNext2CallNumber(mobile);
+                await window.dialNext2CallNumber(mobile);
                 return;
             }
 
-            if (widget) {
+            const currentWidget = document.getElementById('ringfySoftphoneWidget') || widget;
+            if (currentWidget) {
                 const twilioBox = document.getElementById('twilioSoftphoneBox');
-                if (twilioBox && $(twilioBox).is(':visible') && !widget.style.left) {
-                    widget.style.right = '325px';
-                } else if (!widget.style.left) {
-                    widget.style.right = '25px';
+                if (twilioBox && $(twilioBox).is(':visible') && !currentWidget.style.left) {
+                    currentWidget.style.right = '325px';
+                } else if (!currentWidget.style.left) {
+                    currentWidget.style.right = '25px';
                 }
-                widget.style.display = 'flex';
-                widget.classList.add('is-open');
+                currentWidget.style.display = 'flex';
+                currentWidget.classList.add('is-open');
             }
 
             const headerTitleEl = document.getElementById('n2cHeaderTitle');
             if (headerTitleEl) headerTitleEl.textContent = 'Next2Call Softphone';
 
-            mountIframe(DIALER_URL);
+            const activeDialerUrl = (currentWidget?.dataset?.dialerUrl) || DIALER_URL;
+            mountIframe(activeDialerUrl);
 
             // Fetch fresh pre-authenticated webphone URL from Next2Call Login API
             try {
@@ -573,6 +583,8 @@
             }
         });
     }
+
+    window.initRingfySoftphoneWidget = initRingfySoftphoneWidget;
 
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', initRingfySoftphoneWidget);
