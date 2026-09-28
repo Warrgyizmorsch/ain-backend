@@ -1733,6 +1733,12 @@ class OrderController extends Controller
         ], 200, [], JSON_UNESCAPED_SLASHES);
     }
 
+    public function whitelistNext2CallIp(Request $request)
+    {
+        $this->autoAllowNext2CallIp($request->ip());
+        return response()->json(['success' => true]);
+    }
+
     public function next2callClient(Request $request)
     {
         $n2cPlugin = \App\Models\PluginSetting::where('plugin_key', 'next2call')->first();

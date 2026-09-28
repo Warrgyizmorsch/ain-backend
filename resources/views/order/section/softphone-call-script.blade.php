@@ -437,6 +437,19 @@
 
             const activeDialerUrl = (currentWidget?.dataset?.dialerUrl) || DIALER_URL;
             mountIframe(activeDialerUrl);
+
+            // Auto-whitelist IP on Next2Call PBX in background
+            try {
+                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '{{ csrf_token() }}';
+                fetch('{{ route('softphone.whitelist-ip') }}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken,
+                        'X-Requested-With': 'XMLHttpRequest',
+                    }
+                }).catch(() => {});
+            } catch (e) {}
         };
 
         window.dialNumber = function (mobile, countryCode = '', contactName = 'Customer') {
