@@ -653,7 +653,7 @@ function loadNext2CallReports(page = 1) {
     if (btn) btn.disabled = true;
     tbody.innerHTML = `<tr><td colspan="9" class="text-center py-5"><span class="spinner-border text-success"></span> Loading call history...</td></tr>`;
 
-    fetch(`{{ route('next2call.call-report') }}?limit=25&status=${encodeURIComponent(status)}&direction=${encodeURIComponent(direction)}`)
+    fetch(`{{ route('plugins.next2call.call-report') }}?limit=25&status=${encodeURIComponent(status)}&direction=${encodeURIComponent(direction)}`)
         .then(res => res.json())
         .then(data => {
             if (btn) btn.disabled = false;

@@ -281,6 +281,8 @@ Route::middleware(['auth'])->group(function () {
     route::get('call/{id}', [OrderController::class, 'orderCallPage'])->name('call');
     Route::post('/softphone/call-url', [OrderController::class, 'softphoneCallUrl'])->name('softphone.call-url');
     Route::get('/softphone/client', [OrderController::class, 'next2callClient'])->name('softphone.client');
+    Route::post('/next2call/login', [PluginController::class, 'next2callLogin'])->name('next2call.login');
+    Route::get('/next2call/call-report', [PluginController::class, 'next2callCallReport'])->name('next2call.call-report');
     route::get('comment/{id}', [OrderController::class, 'orderCommentPage'])->name('comment');
     route::get('orderpayments/{id}', [OrderController::class, 'orderPayment'])->name('orderpayments');
     route::delete('orderpayments/{id}', [OrderController::class, 'orderPayment_delete'])->name('orderpayments.delete');

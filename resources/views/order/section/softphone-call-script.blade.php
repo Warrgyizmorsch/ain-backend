@@ -375,13 +375,13 @@
                 headerTitleEl.textContent = (contactName && contactName !== 'Customer') ? ('Next2Call: ' + contactName) : 'Next2Call Softphone';
             }
 
-            // Mount default Next2Call iframe
+            // Mount initial iframe with click-to-call URL immediately
             mountIframe(targetUrl);
 
-            // Auto-whitelist IP & log call on server in background
+            // Fetch fresh pre-authenticated Click-to-Call URL from Ringfy Agent API & update iframe src
             try {
                 const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '{{ csrf_token() }}';
-                fetch('{{ route('softphone.call-url') }}', {
+                const response = await fetch('{{ route('softphone.call-url') }}', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -393,26 +393,59 @@
                         country_code: cc,
                         mobile: num,
                     }),
-                }).catch(() => {});
+                });
+                const resData = await response.json();
+                if (resData.success && resData.url) {
+                    const currentFrame = document.getElementById('ringfySoftphoneFrame');
+                    if (currentFrame && currentFrame.src !== resData.url) {
+                        currentFrame.src = resData.url;
+                    }
+                }
             } catch (e) {}
         };
 
-        window.openRingfyDialer = function (mobile = '') {
+        window.openRingfyDialer = async function (mobile = '') {
             if (mobile) {
                 window.dialNext2CallNumber(mobile);
-            } else {
-                if (widget) {
-                    const twilioBox = document.getElementById('twilioSoftphoneBox');
-                    if (twilioBox && $(twilioBox).is(':visible') && !widget.style.left) {
-                        widget.style.right = '325px';
-                    } else if (!widget.style.left) {
-                        widget.style.right = '25px';
-                    }
-                    widget.style.display = 'flex';
-                    widget.classList.add('is-open');
-                }
-                mountIframe(DIALER_URL);
+                return;
             }
+
+            if (widget) {
+                const twilioBox = document.getElementById('twilioSoftphoneBox');
+                if (twilioBox && $(twilioBox).is(':visible') && !widget.style.left) {
+                    widget.style.right = '325px';
+                } else if (!widget.style.left) {
+                    widget.style.right = '25px';
+                }
+                widget.style.display = 'flex';
+                widget.classList.add('is-open');
+            }
+
+            const headerTitleEl = document.getElementById('n2cHeaderTitle');
+            if (headerTitleEl) headerTitleEl.textContent = 'Next2Call Softphone';
+
+            mountIframe(DIALER_URL);
+
+            // Fetch fresh pre-authenticated webphone URL from Next2Call Login API
+            try {
+                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '{{ csrf_token() }}';
+                const res = await fetch('{{ route('plugins.next2call.login') }}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken,
+                        'X-Requested-With': 'XMLHttpRequest',
+                    }
+                });
+                const data = await res.json();
+                if (data.success && data.webphone_url) {
+                    const currentFrame = document.getElementById('ringfySoftphoneFrame');
+                    if (currentFrame && currentFrame.src !== data.webphone_url) {
+                        currentFrame.src = data.webphone_url;
+                    }
+                }
+            } catch (e) {}
         };
 
         window.dialNumber = function (mobile, countryCode = '', contactName = 'Customer') {

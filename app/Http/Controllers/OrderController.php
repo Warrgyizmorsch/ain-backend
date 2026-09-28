@@ -1700,29 +1700,65 @@ class OrderController extends Controller
             }
         }
 
-        // Construct clean click-to-dial URL according to official Next2Call DOCX
-        $query = http_build_query([
-            'profileName' => $userId,
-            'SipDomain'   => $sipDomain,
-            'SipUsername' => $userId,
-            'SipPassword' => $password,
-            'd'           => $targetNumber,
-        ]);
+        $cachedCtc = \Illuminate\Support\Facades\Cache::get("next2call_ctc_{$userId}");
+        $cachedWebphone = \Illuminate\Support\Facades\Cache::get("next2call_webphone_{$userId}");
 
-        $callUrl = "https://{$sipDomain}{$clickToDialPath}?" . $query;
+        $apiBaseUrl = !empty($n2cSettings['api_base_url']) ? rtrim($n2cSettings['api_base_url'], '/') : 'https://ringfy.next2call.com';
+
+        if (empty($cachedCtc) && !empty($userId) && !empty($password)) {
+            try {
+                $loginRes = \Illuminate\Support\Facades\Http::timeout(5)->post("{$apiBaseUrl}/mobileapi/api/webphone_login", [
+                    'user_id' => (string) $userId,
+                    'password' => (string) $password,
+                ]);
+                $loginData = $loginRes->json();
+                if ($loginRes->successful() && !empty($loginData['click_to_call_url'])) {
+                    $cachedCtc = $loginData['click_to_call_url'];
+                    $cachedWebphone = $loginData['webphone_url'] ?? '';
+                    \Illuminate\Support\Facades\Cache::put("next2call_ctc_{$userId}", $cachedCtc, now()->addHours(11));
+                    \Illuminate\Support\Facades\Cache::put("next2call_webphone_{$userId}", $cachedWebphone, now()->addHours(11));
+                    \Illuminate\Support\Facades\Cache::put("next2call_token_{$userId}", $loginData['token'] ?? '', now()->addHours(11));
+                }
+            } catch (\Throwable $e) {}
+        }
+
+        if (!empty($cachedCtc)) {
+            if (str_ends_with($cachedCtc, 'd=')) {
+                $callUrl = $cachedCtc . $targetNumber;
+            } elseif (str_contains($cachedCtc, '?')) {
+                $callUrl = $cachedCtc . '&d=' . $targetNumber;
+            } else {
+                $callUrl = $cachedCtc . '?d=' . $targetNumber;
+            }
+            $dialerUrl = $cachedWebphone ?: ("https://{$sipDomain}/api-section/softphone/Phone/index.html?" . http_build_query([
+                'profileName' => $userId,
+                'SipDomain'   => $sipDomain,
+                'SipUsername' => $userId,
+                'SipPassword' => $password,
+            ]));
+        } else {
+            $query = http_build_query([
+                'profileName' => $userId,
+                'SipDomain'   => $sipDomain,
+                'SipUsername' => $userId,
+                'SipPassword' => $password,
+                'd'           => $targetNumber,
+            ]);
+            $callUrl = "https://{$sipDomain}{$clickToDialPath}?" . $query;
+
+            $dialerUrl = "https://{$sipDomain}/api-section/softphone/Phone/index.html?" . http_build_query([
+                'profileName' => $userId,
+                'SipDomain'   => $sipDomain,
+                'SipUsername' => $userId,
+                'SipPassword' => $password,
+            ]);
+        }
 
         \Illuminate\Support\Facades\Log::info('[Softphone] Generated Click-to-Dial URL', [
             'country_code' => $countryCode,
             'mobile' => $validated['mobile'] ?? '',
             'target_number' => $targetNumber,
             'url' => $callUrl,
-        ]);
-
-        $dialerUrl = "https://{$sipDomain}/api-section/softphone/Phone/index.html?" . http_build_query([
-            'profileName' => $userId,
-            'SipDomain'   => $sipDomain,
-            'SipUsername' => $userId,
-            'SipPassword' => $password,
         ]);
 
         return response()->json([
