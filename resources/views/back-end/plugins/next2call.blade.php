@@ -565,14 +565,6 @@ function testNext2CallOutbound() {
     } else if (typeof window.openRingfyDialer === 'function') {
         window.openRingfyDialer(testNum);
     }
-
-    Swal && Swal.fire({
-        icon: 'info',
-        title: 'Dialing via Softphone...',
-        text: `Opening Next2Call softphone dialer for ${testNum}.`,
-        timer: 2500,
-        showConfirmButton: false
-    });
 }
 
 $('#next2callTestCallForm').on('submit', function(e) {

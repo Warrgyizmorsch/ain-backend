@@ -320,18 +320,13 @@
                 try { data = JSON.parse(data); } catch(e){}
             }
 
-            const isHangup = data === 'CALL_HANGUP' ||
-                             data?.type === 'CALL_HANGUP' ||
-                             data === 'CALL_TERMINATED' ||
-                             data?.type === 'CALL_TERMINATED' ||
-                             data === 'CLOSE_PHONE_POPUP' ||
-                             data?.type === 'CLOSE_PHONE_POPUP' ||
-                             data?.type === 'CALL_DISCONNECTED' ||
-                             data === 'CALL_DISCONNECTED';
+            // Only consider hangup if a call was actually active and running for at least 3 seconds
+            const hasActiveCall = isCallActive && callInitiatedAt && (Date.now() - callInitiatedAt > 3000);
 
-            if (isHangup) {
+            if (hasActiveCall && (data === 'CALL_HANGUP' || data?.type === 'CALL_HANGUP')) {
                 console.log('[Next2Call] Call disconnected / hangup received');
-                closeSoftphoneWidget();
+                isCallActive = false;
+                // Keep widget open so agent can review or redial, or let agent close it manually
             }
         });
 

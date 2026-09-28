@@ -704,14 +704,6 @@ function testNext2CallOutbound() {
     } else if (typeof window.openRingfyDialer === 'function') {
         window.openRingfyDialer(testNum);
     }
-
-    Swal.fire({
-        icon: 'info',
-        title: 'Dialing via Softphone...',
-        text: `Opening Next2Call softphone dialer for ${testNum}.`,
-        timer: 2500,
-        showConfirmButton: false
-    });
 }
 
 // 3. API / Click-to-Dial PBX Test Submit
