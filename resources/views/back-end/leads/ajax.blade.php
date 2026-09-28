@@ -47,7 +47,8 @@
     }
 
     $('#load-more').on('click', function() {
-        $('#preloader').show();
+        $('#spinner-row').show();
+        $('#load-more').prop('disabled', true);
         const loadMoreFilters = activeLeadFilters ? {
             ...activeLeadFilters,
             offset: offset,
@@ -78,14 +79,16 @@
                 alert('Failed to load more leads.');
             },
             complete: function() {
-                $('#preloader').hide();
+                $('#spinner-row').hide();
+                $('#load-more').prop('disabled', false);
                 document.documentElement.classList.remove('lead-filter-restoring');
             }
         });
     });
 
     function applyFilters(filters) {
-        $('#preloader').show();
+        $('#lead-rows').html('');
+        $('#spinner-row').show();
         activeLeadFilters = filters;
         $.ajax({
             url: leadFilterPath,
@@ -111,7 +114,7 @@
                 Swal.fire('Error', 'Failed to load leads.', 'error');
             },
             complete: function() {
-                $('#preloader').hide();
+                $('#spinner-row').hide();
                 document.documentElement.classList.remove('lead-filter-restoring');
                 $('#export-btn').show();
             }
@@ -549,13 +552,9 @@
 
 <script>
     function loadTemplates(userId) {
-        $('#preloader').show();
-
         fetch(`{{ route('lead.fetchTemplates', ['userId' => '__USER_ID__']) }}`.replace('__USER_ID__', userId))
             .then(response => response.json())
             .then(data => {
-                $('#preloader').hide();
-
                 const dropdown = document.getElementById('templateDropdown');
                 dropdown.innerHTML = '<option value="">Select Template</option>';
 
@@ -574,7 +573,6 @@
             })
             .catch(error => {
                 console.error(error);
-                $('#preloader').show();
                 alert('Failed to load templates.');
             });
     }

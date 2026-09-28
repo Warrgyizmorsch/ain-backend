@@ -191,6 +191,18 @@
                                 </tr>
                             @endif
                         </tbody>
+                        <tbody id="spinner-row" style="display: none;">
+                            <tr>
+                                <td colspan="100%" style="text-align: left; padding: 12px 16px;">
+                                    <div style="display: inline-flex; align-items: center; gap: 10px;">
+                                        <div class="loading-spinner" style="margin-left: 10px;"></div>
+                                        <div style="font-size: 14px; color: #555; font-weight: 500;">
+                                            Please wait while loading data...
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
                     </table>
                     <div id="load-more-wrapper" class="text-center mt-4" @if(($status_counts['All'] ?? 0) <= count($leads)) style="display:none;" @endif>
                         <button id="load-more" class="btn btn-light-primary">Load More</button>
