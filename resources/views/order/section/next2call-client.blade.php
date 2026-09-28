@@ -2,7 +2,7 @@
     $queryParams = request()->query();
     $d = request()->get('d');
     $domain = !empty($sipDomain) ? $sipDomain : 'ringfy.next2call.com';
-    $path = !empty($d) ? '/softphone/Phone/click-to-dial.html' : '/softphone/Phone/index.html';
+    $path = '/api-section/softphone/Phone/index.html';
     
     // Ensure credentials are present in query params
     if (!isset($queryParams['profileName']) && !empty($userId)) $queryParams['profileName'] = $userId;

@@ -378,6 +378,19 @@ class PluginController extends Controller
                     'limit' => $limit,
                 ]);
 
+            if ($response->status() === 401) {
+                // Token expired - re-authenticate and retry once (per Agent API Guide Section 6)
+                $session = self::getNext2CallSession($userId, null, true);
+                if ($session && !empty($session['token'])) {
+                    $token = $session['token'];
+                    $response = Http::withToken($token)
+                        ->timeout(15)
+                        ->get("{$apiBaseUrl}/mobileapi/api/agent-call-report", [
+                            'limit' => $limit,
+                        ]);
+                }
+            }
+
             if (!$response->successful()) {
                 Log::warning('Next2Call sync failed HTTP: ' . $response->status());
                 return 0;
@@ -654,6 +667,16 @@ class PluginController extends Controller
             $response = Http::withToken($token)
                 ->timeout(12)
                 ->get("{$apiBaseUrl}/mobileapi/api/agent-call-report", $params);
+
+            if ($response->status() === 401) {
+                $session = self::getNext2CallSession(null, null, true);
+                if ($session && !empty($session['token'])) {
+                    $token = $session['token'];
+                    $response = Http::withToken($token)
+                        ->timeout(12)
+                        ->get("{$apiBaseUrl}/mobileapi/api/agent-call-report", $params);
+                }
+            }
 
             $data = $response->json();
 

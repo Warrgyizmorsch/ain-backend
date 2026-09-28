@@ -142,8 +142,8 @@
 
 <!-- Next2Call Softphone Floating Widget Box (Default Next2Call Interface) -->
 <div id="ringfySoftphoneWidget" class="n2c-softphone-box" aria-live="polite"
-     data-dialer-url="{{ $n2cDialerUrl }}"
-     data-ctc-base="{{ $n2cCtcBaseUrl }}">
+     data-dialer-url="{!! $n2cDialerUrl !!}"
+     data-ctc-base="{!! $n2cCtcBaseUrl !!}">
     
     <!-- Drag Header -->
     <div id="ringfySoftphoneHandle" class="n2c-softphone-header">
@@ -240,8 +240,8 @@
         // Automatically ensure agent IP is whitelisted on Next2Call when page loads
         ensureNext2CallIpAllowed();
 
-        const DIALER_URL = widget?.dataset?.dialerUrl || '';
-        const CTC_BASE_URL = widget?.dataset?.ctcBase || '';
+        let DIALER_URL = (widget?.dataset?.dialerUrl || '').replace(/&amp;/g, '&');
+        let CTC_BASE_URL = (widget?.dataset?.ctcBase || '').replace(/&amp;/g, '&');
 
         let currentFullNumber = '';
         let callInitiatedAt = 0;
@@ -287,10 +287,11 @@
         function mountIframe(url) {
             const container = document.getElementById('n2cIframeContainer') || iframeWrap;
             if (!container) return;
+            const cleanUrl = url ? url.replace(/&amp;/g, '&') : '';
             const currentFrame = document.getElementById('ringfySoftphoneFrame');
             if (currentFrame) {
-                if (url && currentFrame.src !== url) {
-                    currentFrame.src = url;
+                if (cleanUrl && currentFrame.src !== cleanUrl) {
+                    currentFrame.src = cleanUrl;
                 }
                 return;
             }
@@ -298,7 +299,7 @@
                 <iframe
                     id="ringfySoftphoneFrame"
                     class="n2c-softphone-iframe"
-                    src="${url || ''}"
+                    src="${cleanUrl || ''}"
                     allow="microphone; camera; speaker-selection; display-capture; autoplay; fullscreen"
                     allowfullscreen>
                 </iframe>
@@ -417,13 +418,6 @@
             callInitiatedAt = Date.now();
             isCallActive = false;
 
-            let targetUrl = CTC_BASE_URL;
-            if (targetUrl.includes('&d=')) {
-                targetUrl = targetUrl.replace(/&d=[^&]*/, `&d=${encodeURIComponent(num)}`);
-            } else {
-                targetUrl = `${targetUrl}&d=${encodeURIComponent(num)}`;
-            }
-
             // Open Widget when call arrives/starts
             if (widget) {
                 const twilioBox = document.getElementById('twilioSoftphoneBox');
@@ -447,12 +441,18 @@
                 headerTitleEl.textContent = (contactName && contactName !== 'Customer') ? ('Call: ' + contactName) : 'Next2Call Softphone';
             }
 
+            // Immediately mount baseline URL if available
+            let targetUrl = (CTC_BASE_URL || '').replace(/&amp;/g, '&');
+            if (targetUrl) {
+                if (targetUrl.includes('&d=')) {
+                    targetUrl = targetUrl.replace(/&d=[^&]*/, `&d=${encodeURIComponent(num)}`);
+                } else {
+                    targetUrl = `${targetUrl}&d=${encodeURIComponent(num)}`;
+                }
+                mountIframe(targetUrl);
+            }
 
-
-            // Mount original Next2Call iframe immediately
-            mountIframe(targetUrl);
-
-            // Log call / auto-whitelist IP in background asynchronously without affecting iframe
+            // Fetch dynamic authenticated URL from server to ensure fresh credentials & token
             try {
                 const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '{{ csrf_token() }}';
                 fetch('{{ route('softphone.call-url') }}', {
@@ -467,7 +467,15 @@
                         country_code: cc,
                         mobile: num,
                     }),
-                }).catch(() => {});
+                })
+                .then(r => r.json())
+                .then(res => {
+                    if (res && res.success && res.url) {
+                        const freshUrl = res.url.replace(/&amp;/g, '&');
+                        mountIframe(freshUrl);
+                    }
+                })
+                .catch(() => {});
             } catch (e) {}
         };
 
@@ -492,7 +500,7 @@
             const headerTitleEl = document.getElementById('n2cHeaderTitle');
             if (headerTitleEl) headerTitleEl.textContent = 'Next2Call Softphone';
 
-            const activeDialerUrl = (currentWidget?.dataset?.dialerUrl) || DIALER_URL;
+            const activeDialerUrl = ((currentWidget?.dataset?.dialerUrl) || DIALER_URL).replace(/&amp;/g, '&');
             mountIframe(activeDialerUrl);
 
             // Ensure agent IP is fresh on Next2Call PBX
