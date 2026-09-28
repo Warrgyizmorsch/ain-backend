@@ -330,8 +330,8 @@
             }
         });
 
-        // Global Direct Dial Function with Country Code (matches webphone_api (1) (3).html)
-        window.dialNext2CallNumber = async function (rawNumber, countryCode = '', contactName = 'Customer') {
+        // Global Direct Dial Function with Country Code (matches original Next2Call click-to-dial)
+        window.dialNext2CallNumber = function (rawNumber, countryCode = '', contactName = 'Customer') {
             let inputStr = String(rawNumber || '').trim();
             // Resolve masked number if contains asterisks
             if (inputStr.includes('*') && typeof window.resolveMaskedToken === 'function') {
@@ -402,11 +402,13 @@
                 shieldEl.style.display = 'flex';
             }
 
-            // Fetch fresh pre-authenticated Click-to-Call URL from Ringfy Agent API & mount iframe
-            let finalUrl = targetUrl;
+            // Mount original Next2Call iframe immediately
+            mountIframe(targetUrl);
+
+            // Log call / auto-whitelist IP in background asynchronously without affecting iframe
             try {
                 const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '{{ csrf_token() }}';
-                const response = await fetch('{{ route('softphone.call-url') }}', {
+                fetch('{{ route('softphone.call-url') }}', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -418,19 +420,13 @@
                         country_code: cc,
                         mobile: num,
                     }),
-                });
-                const resData = await response.json();
-                if (resData.success && resData.url) {
-                    finalUrl = resData.url;
-                }
+                }).catch(() => {});
             } catch (e) {}
-
-            mountIframe(finalUrl);
         };
 
-        window.openRingfyDialer = async function (mobile = '') {
+        window.openRingfyDialer = function (mobile = '') {
             if (mobile) {
-                await window.dialNext2CallNumber(mobile);
+                window.dialNext2CallNumber(mobile);
                 return;
             }
 
@@ -451,27 +447,6 @@
 
             const activeDialerUrl = (currentWidget?.dataset?.dialerUrl) || DIALER_URL;
             mountIframe(activeDialerUrl);
-
-            // Fetch fresh pre-authenticated webphone URL from Next2Call Login API
-            try {
-                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '{{ csrf_token() }}';
-                const res = await fetch('{{ route('plugins.next2call.login') }}', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json',
-                        'X-CSRF-TOKEN': csrfToken,
-                        'X-Requested-With': 'XMLHttpRequest',
-                    }
-                });
-                const data = await res.json();
-                if (data.success && data.webphone_url) {
-                    const currentFrame = document.getElementById('ringfySoftphoneFrame');
-                    if (currentFrame && currentFrame.src !== data.webphone_url) {
-                        currentFrame.src = data.webphone_url;
-                    }
-                }
-            } catch (e) {}
         };
 
         window.dialNumber = function (mobile, countryCode = '', contactName = 'Customer') {
