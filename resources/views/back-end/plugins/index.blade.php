@@ -15,7 +15,7 @@
 
     $n2cSettings = optional($next2callPlugin)->settings ?? [];
     $isN2cActive = (bool) (optional($next2callPlugin)->is_active ?? true);
-    $n2cUserId = $n2cSettings['user_id'] ?? '10101';
+    $n2cUserId = $n2cSettings['user_id'] ?? '30102';
     $n2cSipDomain = $n2cSettings['sip_domain'] ?? 'ringfy.next2call.com';
 @endphp
 
@@ -147,7 +147,7 @@
                         <div class="bg-light rounded p-4 mb-4 border fs-7">
                             <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
                                 <span class="text-muted fw-semibold"><i class="fa fa-user-circle me-2 text-success"></i>SIP Extension:</span>
-                                <strong class="text-dark font-monospace fs-7">{{ $n2cUserId ?: '10101' }}</strong>
+                                <strong class="text-dark font-monospace fs-7">{{ $n2cUserId ?: '30102' }}</strong>
                             </div>
                             <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
                                 <span class="text-muted fw-semibold"><i class="fa fa-server me-2 text-success"></i>SIP Server:</span>
@@ -382,8 +382,8 @@
                             <button type="button" class="btn btn-xs btn-light-warning py-1 px-2 fs-8" onclick="setN2cTestNumber('447403511446')">
                                 <i class="fa fa-globe me-1"></i> USA/UK (447403511446)
                             </button>
-                            <button type="button" class="btn btn-xs btn-light-dark py-1 px-2 fs-8" onclick="setN2cTestNumber('{{ $n2cUserId ?: '10101' }}')">
-                                <i class="fa fa-user-circle me-1"></i> Ext ({{ $n2cUserId ?: '10101' }})
+                            <button type="button" class="btn btn-xs btn-light-dark py-1 px-2 fs-8" onclick="setN2cTestNumber('{{ $n2cUserId ?: '30102' }}')">
+                                <i class="fa fa-user-circle me-1"></i> Ext ({{ $n2cUserId ?: '30102' }})
                             </button>
                         </div>
                     </div>
@@ -392,7 +392,7 @@
                     <div class="bg-light rounded p-3 fs-8 text-muted mb-3">
                         <div class="d-flex justify-content-between mb-1">
                             <span>SIP Extension:</span>
-                            <strong class="text-dark">{{ $n2cUserId ?: '10101' }}</strong>
+                            <strong class="text-dark">{{ $n2cUserId ?: '30102' }}</strong>
                         </div>
                         <div class="d-flex justify-content-between mb-1">
                             <span>SIP Domain:</span>
@@ -745,7 +745,7 @@ $('#next2callTestCallForm').on('submit', function(e) {
                             <i class="fa fa-check-circle fs-3 text-success me-3"></i>
                             <div>
                                 <strong>PBX Click-to-Dial Generated Successfully!</strong><br>
-                                <span class="badge badge-success">Target: ${res.target_number || testNumber}</span> | Extension: <code>${res.user_id || '10101'}</code>
+                                <span class="badge badge-success">Target: ${res.target_number || testNumber}</span> | Extension: <code>${res.user_id || '30102'}</code>
                             </div>
                         </div>
                         <div class="text-break fs-9 bg-white p-2 rounded border font-monospace text-muted mt-1">

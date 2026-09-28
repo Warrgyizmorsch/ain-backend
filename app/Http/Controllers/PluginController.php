@@ -147,25 +147,26 @@ class PluginController extends Controller
         $currentUser = Auth::user();
         $currentUserPhone = $currentUser ? ($currentUser->mobile ?? $currentUser->mobile_no ?? '') : '';
 
+        $session = self::getNext2CallSession();
         $settings = $next2callPlugin->settings ?? [];
-        $userId   = $settings['user_id'] ?? config('services.softphone.user_id', '10101');
-        $password = $settings['password'] ?? config('services.softphone.password', 'T2d8d1r5P6x0T8O8iUq');
-        $sipDomain = $settings['sip_domain'] ?? config('services.softphone.sip_domain', 'ringfy.next2call.com');
+        $userId   = $session['user_id'] ?? ($settings['user_id'] ?? '30102');
+        $password = $settings['password'] ?? 'Eb3Df4gy4dt9k0y3';
+        $sipDomain = $settings['sip_domain'] ?? 'ringfy.next2call.com';
         $clickPath = $settings['click_to_dial_path'] ?? '/api-section/softphone/Phone/index.html';
 
-        $dialerUrl = "https://{$sipDomain}/api-section/softphone/Phone/index.html?" . http_build_query([
+        $dialerUrl = $session['webphone_url'] ?? ("https://{$sipDomain}/api-section/softphone/Phone/index.html?" . http_build_query([
             'profileName' => $userId,
             'SipDomain'   => $sipDomain,
             'SipUsername' => $userId,
             'SipPassword' => $password,
-        ]);
+        ]));
 
-        $ctcBaseUrl = "https://{$sipDomain}{$clickPath}?" . http_build_query([
+        $ctcBaseUrl = $session['click_to_call_url'] ?? ("https://{$sipDomain}{$clickPath}?" . http_build_query([
             'profileName' => $userId,
             'SipDomain'   => $sipDomain,
             'SipUsername' => $userId,
             'SipPassword' => $password,
-        ]);
+        ]));
 
         return view('back-end.plugins.next2call', [
             'next2callPlugin' => $next2callPlugin,
