@@ -747,4 +747,247 @@ function filterByStatusTab(status, element) {
 
     applyFilters(filters);
 }
+
+// -------------------------------------------------------------
+// Row Action Handlers (Moved from row.blade.php to eliminate DOM bloat)
+// -------------------------------------------------------------
+if (typeof handleTypeToggle === 'undefined') {
+    window.handleTypeToggle = function(el, leadId) {
+        let assign_type = el.checked ? 1 : 0;
+        Swal.fire({
+            title: 'Are you sure?',
+            text: 'Do you want to change assign type?',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Yes',
+            cancelButtonText: 'No'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                fetch("{{ url('/lead/assign-type') }}", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-CSRF-TOKEN": "{{ csrf_token() }}"
+                    },
+                    body: JSON.stringify({
+                        lead_id: leadId,
+                        assign_type: assign_type
+                    })
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (!data.status) {
+                        alert("Failed to update");
+                    }
+                })
+                .catch(() => alert("Server error"));
+            } else {
+                el.checked = !el.checked;
+            }
+        });
+    };
+}
+
+if (typeof handleLeadReason === 'undefined') {
+    window.handleLeadReason = function(leadId) {
+        let value = document.getElementById('leadReason' + leadId).value;
+        fetch("{{ url('/lead-reason-update') }}", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRF-TOKEN": "{{ csrf_token() }}"
+            },
+            body: JSON.stringify({
+                lead_id: leadId,
+                l_status: value 
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (!data.status) {
+                alert("Update failed");
+            }
+        })
+        .catch(() => alert("Server error"));
+    };
+}
+
+window.initLeadStars = function(container = document) {
+    const ratings = container.matches && container.matches('.star-rating')
+        ? [container]
+        : container.querySelectorAll('.star-rating');
+
+    ratings.forEach(rating => {
+        const stars = rating.querySelectorAll('.star');
+        const current = rating.getAttribute('data-current');
+
+        let fillCount = 0;
+        if (current === 'Cold') fillCount = 1;
+        if (current === 'Warm') fillCount = 2;
+        if (current === 'Hot') fillCount = 3;
+
+        stars.forEach(star => star.classList.remove('active'));
+        for (let i = 0; i < fillCount; i++) {
+            stars[i].classList.add('active');
+        }
+    });
+};
+
+window.updateLeadStatusTabCount = function(status, change) {
+    if (!['Cold', 'Warm', 'Hot'].includes(status) || change === 0) return;
+
+    const badge = document.querySelector(`.lead-status-tabs .nav-link[data-status="${status}"] .lead-tab-count`);
+    if (!badge) return;
+
+    const current = parseInt((badge.textContent || '0').trim(), 10) || 0;
+    badge.textContent = Math.max(0, current + change);
+};
+
+document.addEventListener('DOMContentLoaded', function() {
+    window.initLeadStars();
+});
+
+if (!window.leadStarClickHandlerBound) {
+    window.leadStarClickHandlerBound = true;
+    document.addEventListener('click', function(e) {
+        if (!e.target.classList.contains('star')) return;
+
+        let star = e.target;
+        let rating = star.closest('.star-rating');
+        if (!rating) return;
+
+        let stars = rating.querySelectorAll('.star');
+        let value = star.getAttribute('data-value');
+        let leadId = rating.getAttribute('data-id');
+        let oldStatus = rating.getAttribute('data-current') || '';
+
+        if (rating.dataset.loading === "1") return;
+        rating.dataset.loading = "1";
+
+        stars.forEach(s => s.classList.remove('active'));
+        for (let i = 0; i < value; i++) {
+            stars[i].classList.add('active');
+        }
+
+        let status = '';
+        if (value == 1) status = 'Cold';
+        if (value == 2) status = 'Warm';
+        if (value == 3) status = 'Hot';
+
+        fetch("{{ route('update-leads-status') }}", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': "{{ csrf_token() }}"
+            },
+            body: JSON.stringify({
+                lead_id: leadId,
+                status: status
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.status) {
+                if (oldStatus !== status) {
+                    window.updateLeadStatusTabCount(oldStatus, -1);
+                    window.updateLeadStatusTabCount(status, 1);
+                }
+                rating.setAttribute('data-current', status);
+            } else {
+                window.initLeadStars(rating);
+                alert("Failed to update status");
+            }
+        })
+        .catch(err => {
+            window.initLeadStars(rating);
+            console.error(err);
+        })
+        .finally(() => {
+            rating.dataset.loading = "0";
+        });
+    });
+}
+
+function openReviewModal(userId, existingReview) {
+    $('#review_user_id').val(userId);
+    $('#review_text').val(existingReview);
+    $('#clientReviewModal').modal('show');
+}
+
+function saveClientReview() {
+    let userId = $('#review_user_id').val();
+    let reviewText = $('#review_text').val();
+
+    $.ajax({
+        url: "{{ route('user.save.review') }}",
+        type: "POST",
+        data: {
+            _token: "{{ csrf_token() }}",
+            user_id: userId,
+            client_review: reviewText
+        },
+        success: function(response) {
+            if (response.success) {
+                $('#clientReviewModal').modal('hide');
+                Swal.fire({
+                    text: "Review saved successfully!",
+                    icon: "success",
+                    buttonsStyling: false,
+                    confirmButtonText: "Ok, got it!",
+                    customClass: {
+                        confirmButton: "btn btn-primary"
+                    }
+                });
+            }
+        },
+        error: function() {
+            alert("Something went wrong!");
+        }
+    });
+}
+
+function openDuplicateLeadModal(leadId) {
+    $('#duplicate_lead_id').val(leadId);
+    $('#hide_order_id').val('');
+}
+
+function hideLeadByOrderId() {
+    let leadId = $('#duplicate_lead_id').val();
+    let orderId = $('#hide_order_id').val();
+
+    if (!leadId) {
+        Swal.fire('Error', 'Lead ID missing', 'error');
+        return;
+    }
+    if (!orderId) {
+        Swal.fire('Error', 'Please enter Order ID', 'error');
+        return;
+    }
+    $.ajax({
+        url: "{{ route('lead.duplicate') }}",
+        type: "POST",
+        data: {
+            _token: "{{ csrf_token() }}",
+            lead_id: leadId,
+            order_id: orderId
+        },
+        success: function(response) {
+            if (response.status) {
+                Swal.fire('Success', response.message, 'success')
+                    .then(() => {
+                        $('#hideLeadModal').modal('hide');
+                        $('#hide_order_id').val('');
+                        $('#duplicate_lead_id').val('');
+                        location.reload();
+                    });
+            } else {
+                Swal.fire('Error', response.message, 'error');
+            }
+        },
+        error: function(xhr) {
+            Swal.fire('Error', 'Something went wrong!', 'error');
+            console.log(xhr.responseText);
+        }
+    });
+}
 </script>

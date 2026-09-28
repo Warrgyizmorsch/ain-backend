@@ -78,38 +78,94 @@ class LeadsController extends Controller
             'creator:id,name',
             'source:id,source_name,source_icon',
             'latestCall.user:id,name',
+            'latestCall.lead:id,order_id',
         ];
     }
 
     private function attachLeadUserCounts($leads): void
     {
-        $userIds = $leads->pluck('emp_id')->filter()->unique()->values();
-        if ($userIds->isEmpty()) {
+        if ($leads->isEmpty()) {
             return;
         }
 
-        $activeLeadCounts = Leads::whereIn('emp_id', $userIds)
-            ->where('is_converted', 0)
-            ->where('status', 0)
-            ->where('duplicate_lead', 0)
-            ->selectRaw('emp_id, COUNT(*) as total')
-            ->groupBy('emp_id')
-            ->pluck('total', 'emp_id');
+        $userIds = $leads->pluck('emp_id')->filter()->unique()->values();
+        if ($userIds->isNotEmpty()) {
+            $activeLeadCounts = Leads::whereIn('emp_id', $userIds)
+                ->where('is_converted', 0)
+                ->where('status', 0)
+                ->where('duplicate_lead', 0)
+                ->selectRaw('emp_id, COUNT(*) as total')
+                ->groupBy('emp_id')
+                ->pluck('total', 'emp_id');
 
-        foreach ($leads as $lead) {
-            if ($lead->user) {
-                $lead->user->setAttribute('active_leads_count', $activeLeadCounts[$lead->emp_id] ?? 0);
+            foreach ($leads as $lead) {
+                if ($lead->user) {
+                    $lead->user->setAttribute('active_leads_count', $activeLeadCounts[$lead->emp_id] ?? 0);
+                }
+            }
+
+            $firstFailedOrderDates = Order::whereIn('uid', $userIds)
+                ->where('is_fail', 1)
+                ->selectRaw('uid, MIN(COALESCE(order_date, created_at, failed_at)) as first_failed_at')
+                ->groupBy('uid')
+                ->pluck('first_failed_at', 'uid');
+
+            foreach ($leads as $lead) {
+                $lead->setAttribute('first_failed_order_at', $firstFailedOrderDates[$lead->emp_id] ?? null);
             }
         }
 
-        $firstFailedOrderDates = Order::whereIn('uid', $userIds)
-            ->where('is_fail', 1)
-            ->selectRaw('uid, MIN(COALESCE(order_date, created_at, failed_at)) as first_failed_at')
-            ->groupBy('uid')
-            ->pluck('first_failed_at', 'uid');
+        // 1. Batch-fetch matched orders for all leads to avoid 30 slow unindexed queries in row.blade.php
+        $allOrderIds = $leads->pluck('order_id')->filter()->unique()->values()->all();
+        $allLeadIds = $leads->pluck('id')->filter()->unique()->values()->all();
+
+        $matchedOrders = collect();
+        if (!empty($allOrderIds)) {
+            $matchedOrders = Order::whereIn('order_id', $allOrderIds)
+                ->select('id', 'lead_id', 'order_id', 'amount', 'received_amount')
+                ->get();
+        }
+
+        $missingLeadIds = array_diff($allLeadIds, $matchedOrders->pluck('lead_id')->filter()->all());
+        if (!empty($missingLeadIds)) {
+            $moreOrders = Order::whereIn('lead_id', $missingLeadIds)
+                ->select('id', 'lead_id', 'order_id', 'amount', 'received_amount')
+                ->get();
+            $matchedOrders = $matchedOrders->merge($moreOrders);
+        }
+
+        $ordersByLeadId = $matchedOrders->whereNotNull('lead_id')->keyBy('lead_id');
+        $ordersByOrderId = $matchedOrders->whereNotNull('order_id')->keyBy('order_id');
 
         foreach ($leads as $lead) {
-            $lead->setAttribute('first_failed_order_at', $firstFailedOrderDates[$lead->emp_id] ?? null);
+            $lead->attached_order_record = $ordersByLeadId[$lead->id]
+                ?? (!empty($lead->order_id) ? ($ordersByOrderId[$lead->order_id] ?? null) : null);
+        }
+
+        // 2. Batch-fetch files for all leads to avoid 30 separate queries + Schema::hasColumn in row.blade.php
+        $fileKeys = [];
+        foreach ($leads as $lead) {
+            if (!empty($lead->order_id)) {
+                $fileKeys[] = (string) $lead->order_id;
+            }
+            $fileKeys[] = (string) $lead->id;
+        }
+        $fileKeys = array_values(array_unique(array_filter($fileKeys)));
+
+        $allFiles = !empty($fileKeys)
+            ? Files::whereIn('order_Id', $fileKeys)->get()
+            : collect();
+
+        $filesByOrderKey = [];
+        foreach ($allFiles as $file) {
+            $filesByOrderKey[(string)$file->order_Id][] = $file;
+        }
+
+        foreach ($leads as $lead) {
+            $f1 = $filesByOrderKey[(string)$lead->order_id] ?? [];
+            $f2 = $filesByOrderKey[(string)$lead->id] ?? [];
+            $leadFiles = collect($f1)->merge($f2)->unique('id')->values();
+            $lead->setAttribute('attached_files', $leadFiles);
         }
     }
 
