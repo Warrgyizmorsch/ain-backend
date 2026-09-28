@@ -253,7 +253,7 @@ class PluginController extends Controller
             'password' => trim($validated['password']),
             'sip_domain' => trim($validated['sip_domain']),
             'api_base_url' => trim($validated['api_base_url'] ?: 'https://' . trim($validated['sip_domain'])),
-            'click_to_dial_path' => trim($validated['click_to_dial_path'] ?: '/api-section/softphone/Phone/index.html'),
+            'click_to_dial_path' => trim($validated['click_to_dial_path'] ?: '/softphone/Phone/click-to-dial.html'),
         ];
         $plugin->updated_by = Auth::id();
         if (!$plugin->exists) {

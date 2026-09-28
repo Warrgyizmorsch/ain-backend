@@ -10,7 +10,7 @@
     $userId = !empty($n2cSettings['user_id']) ? $n2cSettings['user_id'] : '';
     $password = !empty($n2cSettings['password']) ? $n2cSettings['password'] : '';
     $sipDomain = !empty($n2cSettings['sip_domain']) ? $n2cSettings['sip_domain'] : 'ringfy.next2call.com';
-    $clickToDialPath = !empty($n2cSettings['click_to_dial_path']) ? $n2cSettings['click_to_dial_path'] : '/api-section/softphone/Phone/index.html';
+    $clickToDialPath = !empty($n2cSettings['click_to_dial_path']) ? $n2cSettings['click_to_dial_path'] : '/softphone/Phone/click-to-dial.html';
 
     if (auth()->check()) {
         $authUser = auth()->user();
@@ -25,7 +25,7 @@
 
     $isSuperAdmin = auth()->check() && ((int) auth()->user()->role_id === 1);
 
-    $n2cDialerUrl = "https://{$sipDomain}/api-section/softphone/Phone/index.html?" . http_build_query([
+    $n2cDialerUrl = "https://{$sipDomain}/softphone/Phone/index.html?" . http_build_query([
         'profileName' => $userId,
         'SipDomain'   => $sipDomain,
         'SipUsername' => $userId,
@@ -160,11 +160,7 @@
         </div>
     </div>
 
-    <!-- Privacy Shield Banner (Shows masked number to non-admins) -->
-    <div id="n2cPrivacyShield" style="display:none;background:#11111b;padding:8px 14px;border-bottom:1px solid rgba(255,255,255,0.1);font-size:12px;color:#a1a5b7;justify-content:space-between;align-items:center;">
-        <span><i class="fa fa-user-shield text-success me-1"></i> Protected:</span>
-        <span id="n2cShieldMaskedText" class="badge badge-light-success font-monospace fs-7 fw-bold">+91******0000</span>
-    </div>
+
 
     <!-- Default Next2Call Phone Iframe Container -->
     <div id="n2cIframeContainer" class="n2c-iframe-container">
@@ -282,8 +278,7 @@
 
             destroyAndResetIframe();
 
-            const shieldEl = document.getElementById('n2cPrivacyShield');
-            if (shieldEl) shieldEl.style.display = 'none';
+
 
             const headerTitleEl = document.getElementById('n2cHeaderTitle');
             if (headerTitleEl) headerTitleEl.textContent = 'Next2Call Softphone';
@@ -395,12 +390,7 @@
                 headerTitleEl.textContent = (contactName && contactName !== 'Customer') ? ('Call: ' + contactName) : 'Next2Call Softphone';
             }
 
-            const shieldEl = document.getElementById('n2cPrivacyShield');
-            const shieldText = document.getElementById('n2cShieldMaskedText');
-            if (shieldEl && shieldText) {
-                shieldText.textContent = maskedDisplayNum;
-                shieldEl.style.display = 'flex';
-            }
+
 
             // Mount original Next2Call iframe immediately
             mountIframe(targetUrl);
