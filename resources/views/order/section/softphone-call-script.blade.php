@@ -23,6 +23,8 @@
         }
     }
 
+    $isSuperAdmin = auth()->check() && ((int) auth()->user()->role_id === 1);
+
     $n2cDialerUrl = "https://{$sipDomain}/api-section/softphone/Phone/index.html?" . http_build_query([
         'profileName' => $userId,
         'SipDomain'   => $sipDomain,
@@ -158,6 +160,12 @@
         </div>
     </div>
 
+    <!-- Privacy Shield Banner (Shows masked number to non-admins) -->
+    <div id="n2cPrivacyShield" style="display:none;background:#11111b;padding:8px 14px;border-bottom:1px solid rgba(255,255,255,0.1);font-size:12px;color:#a1a5b7;justify-content:space-between;align-items:center;">
+        <span><i class="fa fa-user-shield text-success me-1"></i> Protected:</span>
+        <span id="n2cShieldMaskedText" class="badge badge-light-success font-monospace fs-7 fw-bold">+91******0000</span>
+    </div>
+
     <!-- Default Next2Call Phone Iframe Container -->
     <div id="n2cIframeContainer" class="n2c-iframe-container">
         <iframe
@@ -274,6 +282,9 @@
 
             destroyAndResetIframe();
 
+            const shieldEl = document.getElementById('n2cPrivacyShield');
+            if (shieldEl) shieldEl.style.display = 'none';
+
             const headerTitleEl = document.getElementById('n2cHeaderTitle');
             if (headerTitleEl) headerTitleEl.textContent = 'Next2Call Softphone';
         }
@@ -378,9 +389,25 @@
                 widget.classList.add('is-open');
             }
 
+            let maskedDisplayNum = num;
+            if (num.length >= 6) {
+                const ccPart = num.length > 10 ? ('+' + num.slice(0, num.length - 10)) : '+91';
+                maskedDisplayNum = ccPart + '******' + num.slice(-4);
+            }
+
+            const isSuperAdmin = {{ $isSuperAdmin ? 'true' : 'false' }};
+            const shownNum = isSuperAdmin ? num : maskedDisplayNum;
+
             const headerTitleEl = document.getElementById('n2cHeaderTitle');
             if (headerTitleEl) {
-                headerTitleEl.textContent = (contactName && contactName !== 'Customer') ? ('Next2Call: ' + contactName) : 'Next2Call Softphone';
+                headerTitleEl.textContent = (contactName && contactName !== 'Customer') ? ('Call: ' + contactName) : 'Next2Call Softphone';
+            }
+
+            const shieldEl = document.getElementById('n2cPrivacyShield');
+            const shieldText = document.getElementById('n2cShieldMaskedText');
+            if (shieldEl && shieldText) {
+                shieldText.textContent = shownNum;
+                shieldEl.style.display = 'flex';
             }
 
             // Mount initial iframe with click-to-call URL immediately
