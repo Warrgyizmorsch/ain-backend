@@ -108,7 +108,7 @@ class PluginController extends Controller
                     'password' => '',
                     'sip_domain' => 'ringfy.next2call.com',
                     'api_base_url' => 'https://ringfy.next2call.com',
-                    'click_to_dial_path' => '/softphone/Phone/click-to-dial.html',
+                    'click_to_dial_path' => '/api-section/softphone/Phone/index.html',
                 ],
             ]
         );
@@ -139,7 +139,7 @@ class PluginController extends Controller
                     'password' => '',
                     'sip_domain' => 'ringfy.next2call.com',
                     'api_base_url' => 'https://ringfy.next2call.com',
-                    'click_to_dial_path' => '/softphone/Phone/click-to-dial.html',
+                    'click_to_dial_path' => '/api-section/softphone/Phone/index.html',
                 ],
             ]
         );
@@ -255,7 +255,7 @@ class PluginController extends Controller
             'password' => trim($validated['password']),
             'sip_domain' => trim($validated['sip_domain']),
             'api_base_url' => trim($validated['api_base_url'] ?: 'https://' . trim($validated['sip_domain'])),
-            'click_to_dial_path' => trim($validated['click_to_dial_path'] ?: '/softphone/Phone/click-to-dial.html'),
+            'click_to_dial_path' => trim($validated['click_to_dial_path'] ?: '/api-section/softphone/Phone/index.html'),
         ];
         $plugin->updated_by = Auth::id();
         if (!$plugin->exists) {
