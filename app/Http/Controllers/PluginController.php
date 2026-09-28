@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Order;
 use App\Models\PluginSetting;
 use App\Models\TwilioCallLog;
+use App\Models\Next2CallLog;
 use App\Services\TwilioVoiceService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -273,69 +274,350 @@ class PluginController extends Controller
     }
 
     /**
-     * Webphone Login API - Authenticate agent with Next2Call (Ringfy) Agent API
+     * Get or refresh active Next2Call session with 12-hour caching.
+     * Checks if session for the user/SIP ID is valid or older than 12 hours.
+     * Credentials are dynamic (Auth user's SIP / SIP password, with fallback to Next2Call PluginSetting).
      */
-    public function next2callLogin(Request $request): JsonResponse
+    public static function getNext2CallSession(?string $userId = null, ?string $password = null, bool $forceRefresh = false): ?array
     {
         $plugin = PluginSetting::where('plugin_key', 'next2call')->first();
         $settings = $plugin?->settings ?? [];
 
-        $userId = $request->input('user_id') ?: ($settings['user_id'] ?? '');
-        $password = $request->input('password') ?: ($settings['password'] ?? '');
-        $apiBaseUrl = $settings['api_base_url'] ?? 'https://ringfy.next2call.com';
-
-        if (Auth::check()) {
-            $authUser = Auth::user();
-            if (!empty($authUser->sip) && !empty($authUser->sip_password)) {
-                $userId = $authUser->sip;
-                $password = $authUser->sip_password;
-            } elseif (!empty($authUser->call_id) && !empty($authUser->sip_password)) {
-                $userId = $authUser->call_id;
-                $password = $authUser->sip_password;
+        if (empty($userId) || empty($password)) {
+            if (Auth::check()) {
+                $authUser = Auth::user();
+                if (!empty($authUser->sip) && !empty($authUser->sip_password)) {
+                    $userId = (string) $authUser->sip;
+                    $password = (string) $authUser->sip_password;
+                } elseif (!empty($authUser->call_id) && !empty($authUser->sip_password)) {
+                    $userId = (string) $authUser->call_id;
+                    $password = (string) $authUser->sip_password;
+                }
             }
         }
 
+        if (empty($userId)) {
+            $userId = (string) ($settings['user_id'] ?? '');
+        }
+        if (empty($password)) {
+            $password = (string) ($settings['password'] ?? '');
+        }
+
         if (empty($userId) || empty($password)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Agent user ID and password are required for Next2Call login.',
-            ], 422);
+            return null;
+        }
+
+        $apiBaseUrl = rtrim($settings['api_base_url'] ?? 'https://ringfy.next2call.com', '/');
+        $cacheKey = "next2call_session_{$userId}";
+
+        if (!$forceRefresh) {
+            $cached = Cache::get($cacheKey);
+            if ($cached && is_array($cached) && !empty($cached['token'])) {
+                return $cached;
+            }
         }
 
         try {
             $response = Http::timeout(10)->post("{$apiBaseUrl}/mobileapi/api/webphone_login", [
-                'user_id' => (string) $userId,
-                'password' => (string) $password,
+                'user_id' => $userId,
+                'password' => $password,
             ]);
 
             $data = $response->json();
 
             if ($response->successful() && !empty($data['token'])) {
-                Cache::put("next2call_token_{$userId}", $data['token'], now()->addHours(11));
-                Cache::put("next2call_webphone_{$userId}", $data['webphone_url'] ?? '', now()->addHours(11));
-                Cache::put("next2call_ctc_{$userId}", $data['click_to_call_url'] ?? '', now()->addHours(11));
-
-                return response()->json([
-                    'success' => true,
-                    'message' => $data['message'] ?? 'Login successful.',
+                $session = [
+                    'token' => $data['token'],
+                    'token_type' => $data['token_type'] ?? 'Bearer',
+                    'expires_in' => $data['expires_in'] ?? '12h',
                     'agent_status' => $data['agent_status'] ?? 1,
                     'webphone_url' => $data['webphone_url'] ?? '',
                     'click_to_call_url' => $data['click_to_call_url'] ?? '',
                     'user' => $data['user'] ?? null,
+                    'user_id' => $userId,
+                    'api_base_url' => $apiBaseUrl,
+                    'cached_at' => now()->toIso8601String(),
+                ];
+
+                // Cache for 11.5 hours (Next2Call token is valid for 12 hours)
+                Cache::put($cacheKey, $session, now()->addHours(11)->addMinutes(30));
+                Cache::put("next2call_token_{$userId}", $data['token'], now()->addHours(11)->addMinutes(30));
+                Cache::put("next2call_webphone_{$userId}", $data['webphone_url'] ?? '', now()->addHours(11)->addMinutes(30));
+                Cache::put("next2call_ctc_{$userId}", $data['click_to_call_url'] ?? '', now()->addHours(11)->addMinutes(30));
+
+                return $session;
+            }
+
+            Log::warning('Next2Call login failed', ['response' => $data, 'user_id' => $userId]);
+        } catch (\Throwable $e) {
+            Log::error('Next2Call login exception: ' . $e->getMessage(), ['user_id' => $userId]);
+        }
+
+        return null;
+    }
+
+    /**
+     * Sync call logs from Next2Call Agent Call Report API into local database table next2call_call_logs
+     */
+    public static function syncNext2CallLogs(?string $userId = null, int $limit = 100): int
+    {
+        $session = self::getNext2CallSession($userId);
+        if (!$session || empty($session['token'])) {
+            return 0;
+        }
+
+        $token = $session['token'];
+        $apiBaseUrl = $session['api_base_url'] ?? 'https://ringfy.next2call.com';
+        $agentUserId = $session['user_id'] ?? $userId;
+
+        try {
+            $response = Http::withToken($token)
+                ->timeout(15)
+                ->get("{$apiBaseUrl}/mobileapi/api/agent-call-report", [
+                    'limit' => $limit,
                 ]);
+
+            if (!$response->successful()) {
+                Log::warning('Next2Call sync failed HTTP: ' . $response->status());
+                return 0;
+            }
+
+            $data = $response->json();
+            $records = $data['data'] ?? [];
+            if (!is_array($records) || empty($records)) {
+                return 0;
+            }
+
+            $syncedCount = 0;
+            foreach ($records as $item) {
+                if (empty($item['id'])) continue;
+
+                $next2callId = (string) $item['id'];
+                $log = Next2CallLog::firstOrNew(['next2call_id' => $next2callId]);
+
+                $log->uniqueid = (string) ($item['uniqueid'] ?? $log->uniqueid);
+                $log->did = (string) ($item['did'] ?? $log->did);
+                $log->direction = strtolower($item['direction'] ?? ($log->direction ?: 'outbound'));
+                $log->status = strtoupper($item['status'] ?? ($log->status ?: 'ANSWER'));
+                $log->call_from = (string) ($item['call_from'] ?? $log->call_from);
+                $log->call_to = (string) ($item['call_to'] ?? $log->call_to);
+                $log->hangup = (string) ($item['hangup'] ?? $log->hangup);
+                $log->campaign_id = (string) ($item['campaign_id'] ?? $log->campaign_id);
+                $log->agent_id = (string) ($agentUserId ?: $log->agent_id);
+
+                if (!empty($item['record_url'])) {
+                    $log->record_url = $item['record_url'];
+                }
+
+                // Duration handling
+                if (isset($item['dur'])) {
+                    $log->duration = (int) $item['dur'];
+                } elseif (!empty($item['duration'])) {
+                    $parts = explode(':', (string) $item['duration']);
+                    if (count($parts) === 3) {
+                        $log->duration = ((int)$parts[0] * 3600) + ((int)$parts[1] * 60) + (int)$parts[2];
+                    }
+                }
+                $log->duration_formatted = $item['duration_formatted'] ?? ($item['duration'] ?? gmdate('H:i:s', $log->duration));
+
+                // Date parsing (format '2026-09-28-16:57:49' or '2026-09-28 16:57:49')
+                if (!empty($item['start_time'])) {
+                    $cleanStart = preg_replace('/^(\d{4}-\d{2}-\d{2})-(\d{2}:\d{2}:\d{2})$/', '$1 $2', $item['start_time']);
+                    try {
+                        $log->started_at = \Carbon\Carbon::parse($cleanStart);
+                        if (!$log->created_at) {
+                            $log->created_at = $log->started_at;
+                        }
+                    } catch (\Throwable $e) {}
+                }
+                if (!empty($item['end_time'])) {
+                    $cleanEnd = preg_replace('/^(\d{4}-\d{2}-\d{2})-(\d{2}:\d{2}:\d{2})$/', '$1 $2', $item['end_time']);
+                    try {
+                        $log->ended_at = \Carbon\Carbon::parse($cleanEnd);
+                    } catch (\Throwable $e) {}
+                }
+
+                // Resolve customer name if not set
+                if (empty($log->customer_name)) {
+                    $candidatePhone = ($log->call_to == $agentUserId) ? $log->call_from : $log->call_to;
+                    $digits = preg_replace('/\D/', '', (string) $candidatePhone);
+                    if (strlen($digits) >= 7) {
+                        $last10 = substr($digits, -10);
+                        try {
+                            $customer = \App\Models\User::whereRaw("REPLACE(REPLACE(mobile_no, ' ', ''), '-', '') LIKE ?", ['%' . $last10])
+                                ->orWhereRaw("REPLACE(REPLACE(mobile_no2, ' ', ''), '-', '') LIKE ?", ['%' . $last10])
+                                ->first();
+                            if ($customer) {
+                                $log->customer_name = $customer->name;
+                            }
+                        } catch (\Throwable $ex) {}
+                    }
+                }
+
+                if (Auth::check() && empty($log->agent_user_id)) {
+                    $log->agent_user_id = Auth::id();
+                }
+
+                $log->save();
+                $syncedCount++;
+            }
+
+            return $syncedCount;
+        } catch (\Throwable $e) {
+            Log::error('Next2Call syncNext2CallLogs error: ' . $e->getMessage());
+            return 0;
+        }
+    }
+
+    /**
+     * AJAX endpoint to trigger manual Next2Call call history sync
+     */
+    public function next2callSyncNow(Request $request): JsonResponse
+    {
+        $count = self::syncNext2CallLogs(null, (int) $request->input('limit', 100));
+        return response()->json([
+            'success' => true,
+            'message' => "Synced {$count} calls from Next2Call PBX successfully.",
+            'count' => $count,
+        ]);
+    }
+
+    /**
+     * Download and save Next2Call audio recording locally to CRM server
+     */
+    public function next2callSaveRecording(Request $request): mixed
+    {
+        $id = $request->input('id');
+        $recordUrl = $request->input('record_url');
+
+        $log = null;
+        if (!empty($id)) {
+            $log = Next2CallLog::where('id', $id)->orWhere('next2call_id', $id)->first();
+        }
+
+        if (!$log && !empty($recordUrl)) {
+            $log = Next2CallLog::where('record_url', $recordUrl)->first();
+        }
+
+        $urlToDownload = $log ? $log->record_url : $recordUrl;
+        if (empty($urlToDownload)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Recording URL not found.',
+            ], 404);
+        }
+
+        $storageDir = public_path('storage/next2call_recordings');
+        if (!is_dir($storageDir)) {
+            @mkdir($storageDir, 0755, true);
+        }
+
+        // Determine filename
+        $parsedPath = parse_url($urlToDownload, PHP_URL_PATH);
+        $originalFilename = $parsedPath ? basename($parsedPath) : ('rec_' . time() . '.wav');
+        if (!str_ends_with(strtolower($originalFilename), '.wav')) {
+            $originalFilename .= '.wav';
+        }
+
+        $cleanBase = preg_replace('/[^a-zA-Z0-9_\-\.]/', '', $originalFilename);
+        $safeName = $log ? ("next2call_" . ($log->id ?: $log->next2call_id) . "_" . $cleanBase) : $cleanBase;
+        $localRelativePath = 'storage/next2call_recordings/' . $safeName;
+        $fullPath = public_path($localRelativePath);
+
+        // If file already downloaded and exists
+        if (file_exists($fullPath) && filesize($fullPath) > 0) {
+            if ($log && empty($log->local_record_path)) {
+                $log->local_record_path = $localRelativePath;
+                $log->save();
+            }
+
+            if ($request->boolean('download')) {
+                return response()->download($fullPath, $safeName, ['Content-Type' => 'audio/wav']);
             }
 
             return response()->json([
-                'success' => false,
-                'message' => $data['message'] ?? 'Next2Call authentication failed.',
-            ], $response->status() >= 400 ? $response->status() : 400);
+                'success' => true,
+                'message' => 'Recording already saved locally on server.',
+                'already_exists' => true,
+                'local_url' => asset($localRelativePath),
+                'file_name' => $safeName,
+                'size' => filesize($fullPath),
+            ]);
+        }
+
+        try {
+            $downloadRes = Http::timeout(45)->get($urlToDownload);
+            if (!$downloadRes->successful()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Failed to download recording from Next2Call server (HTTP ' . $downloadRes->status() . ').',
+                ], 502);
+            }
+
+            $body = $downloadRes->body();
+            if (empty($body)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Received empty recording file from Next2Call.',
+                ], 502);
+            }
+
+            file_put_contents($fullPath, $body);
+
+            if ($log) {
+                $log->local_record_path = $localRelativePath;
+                $log->save();
+            }
+
+            if ($request->boolean('download')) {
+                return response()->download($fullPath, $safeName, ['Content-Type' => 'audio/wav']);
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Recording downloaded and saved locally in CRM server successfully.',
+                'local_url' => asset($localRelativePath),
+                'file_name' => $safeName,
+                'size' => strlen($body),
+            ]);
 
         } catch (\Throwable $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Could not connect to Next2Call API: ' . $e->getMessage(),
+                'message' => 'Error saving recording: ' . $e->getMessage(),
             ], 500);
         }
+    }
+
+    /**
+     * Webphone Login API - Authenticate agent with Next2Call (Ringfy) Agent API
+     * Uses 12-hour session caching.
+     */
+    public function next2callLogin(Request $request): JsonResponse
+    {
+        $userId = $request->input('user_id');
+        $password = $request->input('password');
+
+        $session = self::getNext2CallSession($userId, $password, true);
+
+        if ($session && !empty($session['token'])) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Login successful.',
+                'token' => $session['token'],
+                'token_type' => $session['token_type'],
+                'expires_in' => $session['expires_in'],
+                'agent_status' => $session['agent_status'],
+                'webphone_url' => $session['webphone_url'],
+                'click_to_call_url' => $session['click_to_call_url'],
+                'user' => $session['user'],
+            ]);
+        }
+
+        return response()->json([
+            'success' => false,
+            'message' => 'Next2Call authentication failed. Please verify credentials.',
+        ], 401);
     }
 
     /**
@@ -343,49 +625,20 @@ class PluginController extends Controller
      */
     public function next2callCallReport(Request $request): JsonResponse
     {
-        $plugin = PluginSetting::where('plugin_key', 'next2call')->first();
-        $settings = $plugin?->settings ?? [];
-
-        $userId = $settings['user_id'] ?? '';
-        $password = $settings['password'] ?? '';
-        $apiBaseUrl = $settings['api_base_url'] ?? 'https://ringfy.next2call.com';
-
-        if (Auth::check()) {
-            $authUser = Auth::user();
-            if (!empty($authUser->sip) && !empty($authUser->sip_password)) {
-                $userId = $authUser->sip;
-                $password = $authUser->sip_password;
-            } elseif (!empty($authUser->call_id) && !empty($authUser->sip_password)) {
-                $userId = $authUser->call_id;
-                $password = $authUser->sip_password;
-            }
-        }
-
-        $token = Cache::get("next2call_token_{$userId}");
-        if (empty($token) && !empty($userId) && !empty($password)) {
-            try {
-                $loginRes = Http::timeout(8)->post("{$apiBaseUrl}/mobileapi/api/webphone_login", [
-                    'user_id' => (string) $userId,
-                    'password' => (string) $password,
-                ]);
-                $loginData = $loginRes->json();
-                if ($loginRes->successful() && !empty($loginData['token'])) {
-                    $token = $loginData['token'];
-                    Cache::put("next2call_token_{$userId}", $token, now()->addHours(11));
-                }
-            } catch (\Throwable $e) {}
-        }
-
-        if (empty($token)) {
+        $session = self::getNext2CallSession();
+        if (!$session || empty($session['token'])) {
             return response()->json([
                 'success' => false,
                 'message' => 'Unable to obtain Next2Call API access token. Please verify credentials.',
             ], 401);
         }
 
+        $token = $session['token'];
+        $apiBaseUrl = $session['api_base_url'] ?? 'https://ringfy.next2call.com';
+
         try {
             $params = [
-                'limit' => (int) $request->input('limit', 20),
+                'limit' => (int) $request->input('limit', 50),
             ];
             if ($request->filled('status') && $request->input('status') !== 'all') {
                 $params['status'] = $request->input('status');
@@ -435,22 +688,8 @@ class PluginController extends Controller
         $plugin = PluginSetting::where('plugin_key', 'next2call')->first();
         $settings = $plugin?->settings ?? [];
 
-        $userId = $settings['user_id'] ?? '';
-        $password = $settings['password'] ?? '';
         $sipDomain = $settings['sip_domain'] ?? 'ringfy.next2call.com';
-        $apiBaseUrl = $settings['api_base_url'] ?? 'https://ringfy.next2call.com';
         $path = $settings['click_to_dial_path'] ?? '/api-section/softphone/Phone/index.html';
-
-        if (Auth::check()) {
-            $authUser = Auth::user();
-            if (!empty($authUser->sip) && !empty($authUser->sip_password)) {
-                $userId = $authUser->sip;
-                $password = $authUser->sip_password;
-            } elseif (!empty($authUser->call_id) && !empty($authUser->sip_password)) {
-                $userId = $authUser->call_id;
-                $password = $authUser->sip_password;
-            }
-        }
 
         $number = preg_replace('/[^0-9]/', '', $validated['test_phone_number']);
         if (str_starts_with($number, '0') && strlen($number) === 11) {
@@ -459,32 +698,19 @@ class PluginController extends Controller
             $number = '91' . $number;
         }
 
-        // Try real login against Ringfy Agent API
-        $loginSuccess = false;
-        $agentStatus = 1;
-        $clickToCallUrl = '';
-        $webphoneUrl = '';
-        $token = '';
+        $session = self::getNext2CallSession();
+        $loginSuccess = ($session && !empty($session['token']));
 
-        if (!empty($userId) && !empty($password)) {
-            try {
-                $loginRes = Http::timeout(6)->post("{$apiBaseUrl}/mobileapi/api/webphone_login", [
-                    'user_id' => (string) $userId,
-                    'password' => (string) $password,
-                ]);
-                $loginData = $loginRes->json();
-                if ($loginRes->successful() && !empty($loginData['token'])) {
-                    $loginSuccess = true;
-                    $token = $loginData['token'];
-                    $agentStatus = $loginData['agent_status'] ?? 1;
-                    $webphoneUrl = $loginData['webphone_url'] ?? '';
-                    $clickToCallUrl = ($loginData['click_to_call_url'] ?? '') . $number;
-                    Cache::put("next2call_token_{$userId}", $token, now()->addHours(11));
-                }
-            } catch (\Throwable $e) {}
-        }
-
-        if (!$loginSuccess) {
+        if ($loginSuccess) {
+            $webphoneUrl = $session['webphone_url'];
+            $baseCtc = $session['click_to_call_url'];
+            $clickToCallUrl = str_ends_with($baseCtc, '=') ? ($baseCtc . $number) : ($baseCtc . '&d=' . $number);
+            $userId = $session['user_id'];
+            $agentStatus = $session['agent_status'] ?? 1;
+        } else {
+            $userId = $settings['user_id'] ?? '';
+            $password = $settings['password'] ?? '';
+            $agentStatus = 1;
             $query = http_build_query([
                 'profileName' => $userId,
                 'SipDomain'   => $sipDomain,
@@ -833,13 +1059,161 @@ class PluginController extends Controller
     }
 
     /**
-     * Call History page — list all call logs.
+     * Call History page — list all call logs (Next2Call Softphone & Twilio Voice Call).
      */
     public function callHistory(Request $request): View
     {
         $isSuperAdmin = Auth::check() && (int) Auth::user()->role_id === 1;
         $currentUserId = Auth::id();
 
+        // 2 Primary Provider Tabs: 'next2call' or 'twilio' (defaults to next2call)
+        $provider = $request->input('provider', 'next2call');
+
+        // ==========================================
+        // Next2Call Softphone Provider Tab
+        // ==========================================
+        if ($provider === 'next2call') {
+            // Auto-sync if not recently synced or explicit sync param
+            $cacheSyncKey = 'n2c_synced_' . ($currentUserId ?? 'guest');
+            if ($request->boolean('sync') || !Cache::has($cacheSyncKey)) {
+                self::syncNext2CallLogs();
+                Cache::put($cacheSyncKey, true, now()->addMinutes(2));
+            }
+
+            $baseQuery = Next2CallLog::query();
+
+            // Summary counts for tabs and statistics
+            $totalCalls     = (clone $baseQuery)->count();
+            $completedCalls = (clone $baseQuery)->where('status', 'ANSWER')->count();
+            $missedCalls    = (clone $baseQuery)->whereIn('status', ['NOANSWER', 'CANCEL', 'CONGESTION'])->count();
+            $inboundCalls   = (clone $baseQuery)->where('direction', 'inbound')->count();
+            $outboundCalls  = (clone $baseQuery)->where('direction', 'outbound')->count();
+
+            $query = (clone $baseQuery)->with('agent')->orderByDesc('started_at')->orderByDesc('id');
+
+            // Quick Tab Filter
+            $tab = $request->input('tab', 'all');
+            if ($tab === 'missed') {
+                $query->whereIn('status', ['NOANSWER', 'CANCEL', 'CONGESTION']);
+            } elseif ($tab === 'inbound') {
+                $query->where('direction', 'inbound');
+            } elseif ($tab === 'outbound') {
+                $query->where('direction', 'outbound');
+            } elseif ($tab === 'completed' || $tab === 'answered') {
+                $query->where('status', 'ANSWER');
+            }
+
+            // Granular filters
+            if ($request->filled('status') && $tab === 'all') {
+                $query->where('status', strtoupper($request->input('status')));
+            }
+            if ($request->filled('direction') && $tab === 'all') {
+                $query->where('direction', strtolower($request->input('direction')));
+            }
+            if ($request->filled('date_from')) {
+                $query->whereDate('started_at', '>=', $request->input('date_from'));
+            }
+            if ($request->filled('date_to')) {
+                $query->whereDate('started_at', '<=', $request->input('date_to'));
+            }
+
+            // Search by contact name, number, DID, or ID
+            $searchVal = trim((string) $request->input('search'));
+            $uid = $request->input('uid');
+
+            if (!empty($uid) || !empty($searchVal)) {
+                $matchedUserPhones = [];
+
+                if (!empty($uid)) {
+                    $selectedUser = \App\Models\User::find($uid);
+                    if ($selectedUser) {
+                        if (!empty($selectedUser->mobile_no)) {
+                            $matchedUserPhones[] = preg_replace('/\D+/', '', $selectedUser->mobile_no);
+                        }
+                        if (!empty($selectedUser->mobile_no2)) {
+                            $matchedUserPhones[] = preg_replace('/\D+/', '', $selectedUser->mobile_no2);
+                        }
+                    }
+                }
+
+                if (!empty($searchVal)) {
+                    $userIds = function_exists('find_user_ids_by_search_term') ? find_user_ids_by_search_term($searchVal) : [];
+                    if (!empty($userIds)) {
+                        $uPhones = \App\Models\User::whereIn('id', $userIds)->get(['mobile_no', 'mobile_no2']);
+                        foreach ($uPhones as $up) {
+                            if (!empty($up->mobile_no)) {
+                                $matchedUserPhones[] = preg_replace('/\D+/', '', $up->mobile_no);
+                            }
+                            if (!empty($up->mobile_no2)) {
+                                $matchedUserPhones[] = preg_replace('/\D+/', '', $up->mobile_no2);
+                            }
+                        }
+                    }
+                }
+
+                $matchedUserPhones = array_unique(array_filter($matchedUserPhones));
+
+                $query->where(function ($q) use ($searchVal, $matchedUserPhones) {
+                    if (!empty($searchVal)) {
+                        $hasAsterisk = strpos($searchVal, '*') !== false;
+                        if ($hasAsterisk) {
+                            $pattern = preg_replace('/\*+/', '%', preg_replace('/[^0-9*]/', '', $searchVal));
+                            $cleanPattern = ltrim($pattern, '0');
+                            if (!empty($cleanPattern)) {
+                                $q->where('call_from', 'like', "%{$cleanPattern}%")
+                                  ->orWhere('call_to', 'like', "%{$cleanPattern}%")
+                                  ->orWhere('did', 'like', "%{$cleanPattern}%");
+                            }
+                        } else {
+                            $cleanDigits = preg_replace('/\D+/', '', $searchVal);
+                            if (strlen($cleanDigits) >= 4) {
+                                $last10 = substr($cleanDigits, -10);
+                                $q->where('call_from', 'like', "%{$cleanDigits}%")
+                                  ->orWhere('call_to', 'like', "%{$cleanDigits}%")
+                                  ->orWhere('did', 'like', "%{$cleanDigits}%")
+                                  ->orWhere('call_from', 'like', "%{$last10}%")
+                                  ->orWhere('call_to', 'like', "%{$last10}%");
+                            }
+                        }
+
+                        $s = '%' . $searchVal . '%';
+                        $q->orWhere('customer_name', 'like', $s)
+                          ->orWhere('did', 'like', $s)
+                          ->orWhere('next2call_id', 'like', $s);
+                    }
+
+                    if (!empty($matchedUserPhones)) {
+                        foreach ($matchedUserPhones as $phoneDigits) {
+                            if (strlen($phoneDigits) >= 4) {
+                                $last10 = substr($phoneDigits, -10);
+                                $q->orWhere('call_from', 'like', "%{$phoneDigits}%")
+                                  ->orWhere('call_to', 'like', "%{$phoneDigits}%")
+                                  ->orWhere('call_from', 'like', "%{$last10}%")
+                                  ->orWhere('call_to', 'like', "%{$last10}%");
+                            }
+                        }
+                    }
+                });
+            }
+
+            $logs = $query->paginate(30)->withQueryString();
+
+            return view('back-end.plugins.call-history', compact(
+                'provider',
+                'logs',
+                'totalCalls',
+                'completedCalls',
+                'missedCalls',
+                'inboundCalls',
+                'outboundCalls',
+                'tab',
+                'isSuperAdmin'
+            ));
+        }
+
+        // ==========================================
+        // Twilio Voice Call Provider Tab
+        // ==========================================
         $baseQuery = TwilioCallLog::query();
         if (!$isSuperAdmin) {
             $baseQuery->where(function ($q) use ($currentUserId) {
@@ -963,6 +1337,7 @@ class PluginController extends Controller
         $logs = $query->paginate(30)->withQueryString();
 
         return view('back-end.plugins.call-history', compact(
+            'provider',
             'logs',
             'totalCalls',
             'completedCalls',

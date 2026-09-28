@@ -1700,21 +1700,28 @@ class OrderController extends Controller
             }
         }
 
-        $query = http_build_query([
-            'profileName' => $userId,
-            'SipDomain'   => $sipDomain,
-            'SipUsername' => $userId,
-            'SipPassword' => $password,
-            'd'           => $targetNumber,
-        ]);
-        $callUrl = "https://{$sipDomain}{$clickToDialPath}?" . $query;
+        $session = \App\Http\Controllers\PluginController::getNext2CallSession($userId, $password);
+        if ($session && !empty($session['click_to_call_url'])) {
+            $baseCtc = $session['click_to_call_url'];
+            $callUrl = str_ends_with($baseCtc, '=') ? ($baseCtc . $targetNumber) : ($baseCtc . '&d=' . $targetNumber);
+            $dialerUrl = $session['webphone_url'] ?: $callUrl;
+        } else {
+            $query = http_build_query([
+                'profileName' => $userId,
+                'SipDomain'   => $sipDomain,
+                'SipUsername' => $userId,
+                'SipPassword' => $password,
+                'd'           => $targetNumber,
+            ]);
+            $callUrl = "https://{$sipDomain}{$clickToDialPath}?" . $query;
 
-        $dialerUrl = "https://{$sipDomain}/softphone/Phone/index.html?" . http_build_query([
-            'profileName' => $userId,
-            'SipDomain'   => $sipDomain,
-            'SipUsername' => $userId,
-            'SipPassword' => $password,
-        ]);
+            $dialerUrl = "https://{$sipDomain}/api-section/softphone/Phone/index.html?" . http_build_query([
+                'profileName' => $userId,
+                'SipDomain'   => $sipDomain,
+                'SipUsername' => $userId,
+                'SipPassword' => $password,
+            ]);
+        }
 
         \Illuminate\Support\Facades\Log::info('[Softphone] Generated Click-to-Dial URL', [
             'country_code' => $countryCode,

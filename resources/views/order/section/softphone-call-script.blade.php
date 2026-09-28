@@ -25,19 +25,20 @@
 
     $isSuperAdmin = auth()->check() && ((int) auth()->user()->role_id === 1);
 
-    $n2cDialerUrl = "https://{$sipDomain}/softphone/Phone/index.html?" . http_build_query([
+    $n2cSession = \App\Http\Controllers\PluginController::getNext2CallSession($userId, $password);
+    $n2cDialerUrl = $n2cSession['webphone_url'] ?? ("https://{$sipDomain}/api-section/softphone/Phone/index.html?" . http_build_query([
         'profileName' => $userId,
         'SipDomain'   => $sipDomain,
         'SipUsername' => $userId,
         'SipPassword' => $password,
-    ]);
+    ]));
 
-    $n2cCtcBaseUrl = "https://{$sipDomain}{$clickToDialPath}?" . http_build_query([
+    $n2cCtcBaseUrl = $n2cSession['click_to_call_url'] ?? ("https://{$sipDomain}{$clickToDialPath}?" . http_build_query([
         'profileName' => $userId,
         'SipDomain'   => $sipDomain,
         'SipUsername' => $userId,
         'SipPassword' => $password,
-    ]);
+    ]));
 @endphp
 
 <style>

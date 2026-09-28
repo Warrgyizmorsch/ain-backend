@@ -146,7 +146,12 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/next2call/login', [PluginController::class, 'next2callLogin'])->name('next2call.login');
         Route::get('/next2call/call-report', [PluginController::class, 'next2callCallReport'])->name('next2call.call-report');
         Route::get('/next2call', [PluginController::class, 'next2callPage'])->name('next2call.page');
+        Route::match(['get', 'post'], '/next2call/save-recording', [PluginController::class, 'next2callSaveRecording'])->name('next2call.save-recording');
+        Route::post('/next2call/sync', [PluginController::class, 'next2callSyncNow'])->name('next2call.sync');
     });
+
+    Route::match(['get', 'post'], '/next2call/save-recording', [PluginController::class, 'next2callSaveRecording'])->name('next2call.direct.save-recording');
+    Route::post('/next2call/sync', [PluginController::class, 'next2callSyncNow'])->name('next2call.direct.sync');
 
 
     // User Managment
