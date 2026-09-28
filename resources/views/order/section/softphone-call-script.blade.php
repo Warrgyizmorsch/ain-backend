@@ -151,6 +151,9 @@
             <span class="n2c-title-text" id="n2cHeaderTitle">Next2Call Softphone</span>
         </div>
         <div class="n2c-header-actions">
+            <button type="button" class="n2c-header-btn" id="n2cRefreshBtn" title="Reconnect / Whitelist IP">
+                <i class="fa fa-sync-alt"></i>
+            </button>
             <button type="button" class="n2c-header-btn" id="n2cExternalBtn" title="Open in Standalone Popup">
                 <i class="fa fa-external-link-alt"></i>
             </button>
@@ -182,6 +185,59 @@
 
         const closeBtn = document.getElementById('n2cCloseBtn');
         const externalBtn = document.getElementById('n2cExternalBtn');
+        const refreshBtn = document.getElementById('n2cRefreshBtn');
+
+        function ensureNext2CallIpAllowed(callback) {
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '{{ csrf_token() }}';
+            fetch('https://api.ipify.org?format=json')
+                .then(r => r.json())
+                .then(data => {
+                    return fetch('{{ route('softphone.whitelist-ip') }}', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': csrfToken,
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                        body: JSON.stringify({ client_ip: data.ip })
+                    });
+                })
+                .catch(() => {
+                    return fetch('{{ route('softphone.whitelist-ip') }}', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': csrfToken,
+                            'X-Requested-With': 'XMLHttpRequest',
+                        }
+                    });
+                })
+                .finally(() => {
+                    if (typeof callback === 'function') callback();
+                });
+        }
+
+        refreshBtn?.addEventListener('click', function (e) {
+            e.preventDefault();
+            const icon = this.querySelector('i');
+            if (icon) icon.classList.add('fa-spin');
+            ensureNext2CallIpAllowed(function () {
+                const currentFrame = document.getElementById('ringfySoftphoneFrame');
+                if (currentFrame && currentFrame.src) {
+                    const originalSrc = currentFrame.src;
+                    currentFrame.src = 'about:blank';
+                    setTimeout(() => {
+                        currentFrame.src = originalSrc;
+                        if (icon) icon.classList.remove('fa-spin');
+                    }, 400);
+                } else {
+                    if (icon) icon.classList.remove('fa-spin');
+                }
+            });
+        });
+
+        // Automatically ensure agent IP is whitelisted on Next2Call when page loads
+        ensureNext2CallIpAllowed();
 
         const DIALER_URL = widget?.dataset?.dialerUrl || '';
         const CTC_BASE_URL = widget?.dataset?.ctcBase || '';
@@ -438,18 +494,8 @@
             const activeDialerUrl = (currentWidget?.dataset?.dialerUrl) || DIALER_URL;
             mountIframe(activeDialerUrl);
 
-            // Auto-whitelist IP on Next2Call PBX in background
-            try {
-                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '{{ csrf_token() }}';
-                fetch('{{ route('softphone.whitelist-ip') }}', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': csrfToken,
-                        'X-Requested-With': 'XMLHttpRequest',
-                    }
-                }).catch(() => {});
-            } catch (e) {}
+            // Ensure agent IP is fresh on Next2Call PBX
+            ensureNext2CallIpAllowed();
         };
 
         window.dialNumber = function (mobile, countryCode = '', contactName = 'Customer') {

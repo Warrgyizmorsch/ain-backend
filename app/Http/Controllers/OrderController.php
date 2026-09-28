@@ -1735,8 +1735,23 @@ class OrderController extends Controller
 
     public function whitelistNext2CallIp(Request $request)
     {
-        $this->autoAllowNext2CallIp($request->ip());
-        return response()->json(['success' => true]);
+        $clientIp = $request->input('client_ip');
+        if (!$clientIp || !filter_var($clientIp, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+            $clientIp = $request->header('cf-connecting-ip')
+                ?: $request->header('x-real-ip')
+                ?: $request->header('x-forwarded-for')
+                ?: $request->ip();
+            if (is_string($clientIp) && str_contains($clientIp, ',')) {
+                $clientIp = trim(explode(',', $clientIp)[0]);
+            }
+        }
+
+        $result = $this->autoAllowNext2CallIp($clientIp, true);
+        return response()->json([
+            'success' => $result['allowed'] ?? false,
+            'ip'      => $result['ip'] ?? $clientIp,
+            'details' => $result,
+        ]);
     }
 
     public function next2callClient(Request $request)
@@ -1751,7 +1766,7 @@ class OrderController extends Controller
         return view('order.section.next2call-client', compact('userId', 'password', 'sipDomain'));
     }
 
-    private function autoAllowNext2CallIp(?string $clientIp = null): void
+    private function autoAllowNext2CallIp(?string $clientIp = null, bool $force = false): array
     {
         try {
             $ip = $clientIp;
@@ -1764,20 +1779,26 @@ class OrderController extends Controller
 
             if ($ip && filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
                 $lastAllowedIp = Cache::get('next2call_allowed_ip');
-                if ($lastAllowedIp !== $ip) {
-                    $res = Http::timeout(3)->asForm()->post('http://ipallow.next2call.com/ipallow/process_ip.php', [
+                if ($force || $lastAllowedIp !== $ip) {
+                    $res = Http::timeout(5)->asForm()->post('http://ipallow.next2call.com/ipallow/process_ip.php', [
                         'client_id'  => 'CLT-5009FAA4F58D',
                         'ip_address' => $ip,
                     ]);
+                    $body = $res->json();
                     if ($res->successful()) {
-                        Cache::put('next2call_allowed_ip', $ip, 1800);
-                        Log::info('[Softphone] Auto-allowed IP on Next2Call PBX: ' . $ip);
+                        Cache::put('next2call_allowed_ip', $ip, 600);
+                        Log::info('[Softphone] Auto-allowed IP on Next2Call PBX: ' . $ip, ['res' => $body]);
+                        return ['allowed' => true, 'ip' => $ip, 'res' => $body];
                     }
+                    return ['allowed' => false, 'ip' => $ip, 'res' => $body];
                 }
+                return ['allowed' => true, 'ip' => $ip, 'cached' => true];
             }
         } catch (\Throwable $e) {
             Log::warning('[Softphone] Auto IP allow error: ' . $e->getMessage());
+            return ['allowed' => false, 'error' => $e->getMessage()];
         }
+        return ['allowed' => false];
     }
 
     private function fetchSoftphoneToken(string $baseUrl, string $userId, string $password): string
