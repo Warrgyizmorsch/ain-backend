@@ -143,6 +143,8 @@ Route::middleware(['auth'])->group(function () {
         // Next2Call Softphone Plugin
         Route::post('/next2call/save', [PluginController::class, 'saveNext2call'])->name('next2call.save');
         Route::post('/next2call/test', [PluginController::class, 'testNext2call'])->name('next2call.test');
+        Route::post('/next2call/login', [PluginController::class, 'next2callLogin'])->name('next2call.login');
+        Route::get('/next2call/call-report', [PluginController::class, 'next2callCallReport'])->name('next2call.call-report');
         Route::get('/next2call', [PluginController::class, 'next2callPage'])->name('next2call.page');
     });
 

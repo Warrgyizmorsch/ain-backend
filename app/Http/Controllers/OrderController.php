@@ -1687,7 +1687,7 @@ class OrderController extends Controller
         $userId = !empty($n2cSettings['user_id']) ? $n2cSettings['user_id'] : '';
         $password = !empty($n2cSettings['password']) ? $n2cSettings['password'] : '';
         $sipDomain = !empty($n2cSettings['sip_domain']) ? $n2cSettings['sip_domain'] : 'ringfy.next2call.com';
-        $clickToDialPath = !empty($n2cSettings['click_to_dial_path']) ? $n2cSettings['click_to_dial_path'] : '/softphone/Phone/click-to-dial.html';
+        $clickToDialPath = !empty($n2cSettings['click_to_dial_path']) ? $n2cSettings['click_to_dial_path'] : '/api-section/softphone/Phone/index.html';
 
         if (auth()->check()) {
             $user = auth()->user();
@@ -1700,7 +1700,7 @@ class OrderController extends Controller
             }
         }
 
-        // Construct clean click-to-dial URL according to official Next2Call DOCX & HTML sample
+        // Construct clean click-to-dial URL according to official Next2Call DOCX
         $query = http_build_query([
             'profileName' => $userId,
             'SipDomain'   => $sipDomain,
@@ -1718,7 +1718,7 @@ class OrderController extends Controller
             'url' => $callUrl,
         ]);
 
-        $dialerUrl = "https://{$sipDomain}/softphone/Phone/index.html?" . http_build_query([
+        $dialerUrl = "https://{$sipDomain}/api-section/softphone/Phone/index.html?" . http_build_query([
             'profileName' => $userId,
             'SipDomain'   => $sipDomain,
             'SipUsername' => $userId,

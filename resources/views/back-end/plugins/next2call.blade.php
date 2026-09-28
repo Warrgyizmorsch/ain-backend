@@ -8,9 +8,9 @@
     $password = $settings['password']           ?? '';
     $sipDomain= $settings['sip_domain']         ?? 'ringfy.next2call.com';
     $apiBase  = $settings['api_base_url']       ?? 'https://ringfy.next2call.com';
-    $clickPath= $settings['click_to_dial_path'] ?? '/softphone/Phone/click-to-dial.html';
+    $clickPath= $settings['click_to_dial_path'] ?? '/api-section/softphone/Phone/index.html';
 
-    $dialerUrl = $dialerUrl ?? ("https://{$sipDomain}/softphone/Phone/index.html?" . http_build_query([
+    $dialerUrl = $dialerUrl ?? ("https://{$sipDomain}/api-section/softphone/Phone/index.html?" . http_build_query([
         'profileName' => $userId,
         'SipDomain'   => $sipDomain,
         'SipUsername' => $userId,
@@ -120,8 +120,8 @@
                             <div class="col-12">
                                 <label class="form-label fw-semibold">Click-to-Dial Path</label>
                                 <input type="text" name="click_to_dial_path" class="form-control form-control-solid"
-                                       value="{{ old('click_to_dial_path', $clickPath) }}" placeholder="/softphone/Phone/click-to-dial.html">
-                                <div class="text-muted fs-8 mt-1">Softphone page path on the PBX server</div>
+                                       value="{{ old('click_to_dial_path', $clickPath) }}" placeholder="/api-section/softphone/Phone/index.html">
+                                <div class="text-muted fs-8 mt-1">Softphone page path on the PBX server (Ringfy: /api-section/softphone/Phone/index.html)</div>
                             </div>
                             <div class="col-12 d-flex align-items-center gap-3">
                                 <div class="form-check form-switch form-check-custom form-check-solid">
@@ -297,6 +297,62 @@
         </div>
 
     </div>{{-- /row --}}
+
+    {{-- Agent Call History & Audio Recordings Card --}}
+    <div class="card border shadow-sm mt-6">
+        <div class="card-header border-bottom d-flex align-items-center justify-content-between flex-wrap gap-2 py-3">
+            <div class="d-flex align-items-center gap-2">
+                <i class="fa fa-history text-success fs-3"></i>
+                <div>
+                    <h5 class="fw-bolder mb-0">Agent Call Report &amp; Audio Recordings</h5>
+                    <div class="text-muted fs-8">Direct call logs &amp; call audio (.wav) fetched via Ringfy Agent API</div>
+                </div>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <select id="n2cReportStatus" class="form-select form-select-sm form-select-solid w-130px" onchange="loadNext2CallReports(1)">
+                    <option value="all">All Status</option>
+                    <option value="ANSWER">Answered</option>
+                    <option value="NOANSWER">No Answer</option>
+                    <option value="CANCEL">Cancelled</option>
+                </select>
+                <select id="n2cReportDir" class="form-select form-select-sm form-select-solid w-120px" onchange="loadNext2CallReports(1)">
+                    <option value="all">All Direction</option>
+                    <option value="outbound">Outbound</option>
+                    <option value="inbound">Inbound</option>
+                </select>
+                <button type="button" class="btn btn-sm btn-success" onclick="loadNext2CallReports(1)" id="btnRefreshN2cReport">
+                    <i class="fa fa-sync me-1"></i>Fetch Calls
+                </button>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover table-striped align-middle gs-4 gy-3 mb-0" id="n2cReportTable">
+                    <thead class="bg-light fw-bold text-muted fs-8 text-uppercase">
+                        <tr>
+                            <th>Call ID</th>
+                            <th>Customer Phone</th>
+                            <th>Agent Ext</th>
+                            <th>Direction</th>
+                            <th>Status</th>
+                            <th>Duration</th>
+                            <th>Call Time</th>
+                            <th>Audio Recording</th>
+                            <th class="text-end">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="n2cReportTbody">
+                        <tr>
+                            <td colspan="9" class="text-center py-5 text-muted">
+                                <i class="fa fa-phone-alt fs-2 text-muted mb-2 d-block"></i>
+                                Click <strong>Fetch Calls</strong> to retrieve call records and recordings from Ringfy PBX.
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
 </div>
 
 <!-- Modal: Next2Call Test Call (Incoming & Outgoing Testing) -->
@@ -587,6 +643,77 @@ $('#next2callTestCallForm').on('submit', function(e) {
         }
     });
 });
+
+function loadNext2CallReports(page = 1) {
+    const btn = document.getElementById('btnRefreshN2cReport');
+    const tbody = document.getElementById('n2cReportTbody');
+    const status = document.getElementById('n2cReportStatus')?.value || 'all';
+    const direction = document.getElementById('n2cReportDir')?.value || 'all';
+
+    if (btn) btn.disabled = true;
+    tbody.innerHTML = `<tr><td colspan="9" class="text-center py-5"><span class="spinner-border text-success"></span> Loading call history...</td></tr>`;
+
+    fetch(`{{ route('next2call.call-report') }}?limit=25&status=${encodeURIComponent(status)}&direction=${encodeURIComponent(direction)}`)
+        .then(res => res.json())
+        .then(data => {
+            if (btn) btn.disabled = false;
+            if (data.success && Array.isArray(data.data) && data.data.length > 0) {
+                let html = '';
+                data.data.forEach(call => {
+                    const statusBadge = call.status === 'ANSWER' 
+                        ? '<span class="badge badge-light-success fw-bold">Answered</span>'
+                        : (call.status === 'NOANSWER' ? '<span class="badge badge-light-warning fw-bold">No Answer</span>' : `<span class="badge badge-light-danger fw-bold">${call.status}</span>`);
+
+                    const dirBadge = call.direction === 'inbound'
+                        ? '<span class="badge badge-light-primary"><i class="fa fa-arrow-down text-primary me-1"></i>Inbound</span>'
+                        : '<span class="badge badge-light-info"><i class="fa fa-arrow-up text-info me-1"></i>Outbound</span>';
+
+                    let audioPlayer = '<span class="text-muted fs-8">No recording</span>';
+                    if (call.record_url) {
+                        audioPlayer = `
+                            <div class="d-flex align-items-center gap-2">
+                                <audio controls preload="none" style="height:30px;max-width:210px;">
+                                    <source src="${call.record_url}" type="audio/wav">
+                                    Your browser does not support audio.
+                                </audio>
+                                <a href="${call.record_url}" target="_blank" download class="btn btn-sm btn-icon btn-light-success" title="Download WAV">
+                                    <i class="fa fa-download fs-8"></i>
+                                </a>
+                            </div>
+                        `;
+                    }
+
+                    const phoneDisplay = call.call_from || 'N/A';
+                    const rawPhone = call.call_from_raw || call.call_from || '';
+
+                    html += `
+                        <tr>
+                            <td><span class="badge badge-light fw-bold">#${call.id}</span></td>
+                            <td><strong class="text-dark">${phoneDisplay}</strong></td>
+                            <td><code>${call.call_to || ''}</code></td>
+                            <td>${dirBadge}</td>
+                            <td>${statusBadge}</td>
+                            <td><span class="badge badge-light-dark">${call.duration_formatted || call.dur + 's'}</span></td>
+                            <td><small class="text-muted">${call.start_time || ''}</small></td>
+                            <td>${audioPlayer}</td>
+                            <td class="text-end">
+                                <button type="button" class="btn btn-sm btn-icon btn-light-success" onclick="window.dialNext2CallNumber('${rawPhone}')" title="Call Back">
+                                    <i class="fa fa-phone"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    `;
+                });
+                tbody.innerHTML = html;
+            } else {
+                tbody.innerHTML = `<tr><td colspan="9" class="text-center py-5 text-muted">${data.message || 'No call records found.'}</td></tr>`;
+            }
+        })
+        .catch(err => {
+            if (btn) btn.disabled = false;
+            tbody.innerHTML = `<tr><td colspan="9" class="text-center py-5 text-danger"><i class="fa fa-exclamation-triangle me-1"></i>Failed to load call reports. Please verify agent credentials.</td></tr>`;
+        });
+}
 </script>
 @endpush
 

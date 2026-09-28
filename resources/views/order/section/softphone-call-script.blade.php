@@ -10,7 +10,7 @@
     $userId = !empty($n2cSettings['user_id']) ? $n2cSettings['user_id'] : '';
     $password = !empty($n2cSettings['password']) ? $n2cSettings['password'] : '';
     $sipDomain = !empty($n2cSettings['sip_domain']) ? $n2cSettings['sip_domain'] : 'ringfy.next2call.com';
-    $clickToDialPath = !empty($n2cSettings['click_to_dial_path']) ? $n2cSettings['click_to_dial_path'] : '/softphone/Phone/click-to-dial.html';
+    $clickToDialPath = !empty($n2cSettings['click_to_dial_path']) ? $n2cSettings['click_to_dial_path'] : '/api-section/softphone/Phone/index.html';
 
     if (auth()->check()) {
         $authUser = auth()->user();
@@ -23,7 +23,7 @@
         }
     }
 
-    $n2cDialerUrl = "https://{$sipDomain}/softphone/Phone/index.html?" . http_build_query([
+    $n2cDialerUrl = "https://{$sipDomain}/api-section/softphone/Phone/index.html?" . http_build_query([
         'profileName' => $userId,
         'SipDomain'   => $sipDomain,
         'SipUsername' => $userId,
@@ -318,7 +318,16 @@
 
         // Global Direct Dial Function with Country Code (matches webphone_api (1) (3).html)
         window.dialNext2CallNumber = function (rawNumber, countryCode = '', contactName = 'Customer') {
-            let num = String(rawNumber || '').trim().replace(/[^0-9]/g, '');
+            let inputStr = String(rawNumber || '').trim();
+            // Resolve masked number if contains asterisks
+            if (inputStr.includes('*') && typeof window.resolveMaskedToken === 'function') {
+                const resolved = window.resolveMaskedToken(inputStr);
+                if (resolved) {
+                    inputStr = resolved;
+                }
+            }
+
+            let num = inputStr.replace(/[^0-9]/g, '');
             let cc = String(countryCode || '').trim().replace(/[^0-9]/g, '');
             if (!num) return;
 
@@ -342,7 +351,12 @@
             callInitiatedAt = Date.now();
             isCallActive = false;
 
-            const targetUrl = `${CTC_BASE_URL}&d=${encodeURIComponent(num)}`;
+            let targetUrl = CTC_BASE_URL;
+            if (targetUrl.includes('&d=')) {
+                targetUrl = targetUrl.replace(/&d=[^&]*/, `&d=${encodeURIComponent(num)}`);
+            } else {
+                targetUrl = `${targetUrl}&d=${encodeURIComponent(num)}`;
+            }
 
             // Open Widget when call arrives/starts
             if (widget) {

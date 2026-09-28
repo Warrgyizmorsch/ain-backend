@@ -11,6 +11,9 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\View\View;
 
 class PluginController extends Controller
@@ -147,9 +150,9 @@ class PluginController extends Controller
         $userId   = $settings['user_id'] ?? config('services.softphone.user_id', '10101');
         $password = $settings['password'] ?? config('services.softphone.password', 'T2d8d1r5P6x0T8O8iUq');
         $sipDomain = $settings['sip_domain'] ?? config('services.softphone.sip_domain', 'ringfy.next2call.com');
-        $clickPath = $settings['click_to_dial_path'] ?? '/softphone/Phone/click-to-dial.html';
+        $clickPath = $settings['click_to_dial_path'] ?? '/api-section/softphone/Phone/index.html';
 
-        $dialerUrl = "https://{$sipDomain}/softphone/Phone/index.html?" . http_build_query([
+        $dialerUrl = "https://{$sipDomain}/api-section/softphone/Phone/index.html?" . http_build_query([
             'profileName' => $userId,
             'SipDomain'   => $sipDomain,
             'SipUsername' => $userId,
@@ -250,7 +253,7 @@ class PluginController extends Controller
             'password' => trim($validated['password']),
             'sip_domain' => trim($validated['sip_domain']),
             'api_base_url' => trim($validated['api_base_url'] ?: 'https://' . trim($validated['sip_domain'])),
-            'click_to_dial_path' => trim($validated['click_to_dial_path'] ?: '/softphone/Phone/click-to-dial.html'),
+            'click_to_dial_path' => trim($validated['click_to_dial_path'] ?: '/api-section/softphone/Phone/index.html'),
         ];
         $plugin->updated_by = Auth::id();
         if (!$plugin->exists) {
@@ -270,6 +273,157 @@ class PluginController extends Controller
     }
 
     /**
+     * Webphone Login API - Authenticate agent with Next2Call (Ringfy) Agent API
+     */
+    public function next2callLogin(Request $request): JsonResponse
+    {
+        $plugin = PluginSetting::where('plugin_key', 'next2call')->first();
+        $settings = $plugin?->settings ?? [];
+
+        $userId = $request->input('user_id') ?: ($settings['user_id'] ?? '');
+        $password = $request->input('password') ?: ($settings['password'] ?? '');
+        $apiBaseUrl = $settings['api_base_url'] ?? 'https://ringfy.next2call.com';
+
+        if (Auth::check()) {
+            $authUser = Auth::user();
+            if (!empty($authUser->sip) && !empty($authUser->sip_password)) {
+                $userId = $authUser->sip;
+                $password = $authUser->sip_password;
+            } elseif (!empty($authUser->call_id) && !empty($authUser->sip_password)) {
+                $userId = $authUser->call_id;
+                $password = $authUser->sip_password;
+            }
+        }
+
+        if (empty($userId) || empty($password)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Agent user ID and password are required for Next2Call login.',
+            ], 422);
+        }
+
+        try {
+            $response = Http::timeout(10)->post("{$apiBaseUrl}/mobileapi/api/webphone_login", [
+                'user_id' => (string) $userId,
+                'password' => (string) $password,
+            ]);
+
+            $data = $response->json();
+
+            if ($response->successful() && !empty($data['token'])) {
+                Cache::put("next2call_token_{$userId}", $data['token'], now()->addHours(11));
+                Cache::put("next2call_webphone_{$userId}", $data['webphone_url'] ?? '', now()->addHours(11));
+                Cache::put("next2call_ctc_{$userId}", $data['click_to_call_url'] ?? '', now()->addHours(11));
+
+                return response()->json([
+                    'success' => true,
+                    'message' => $data['message'] ?? 'Login successful.',
+                    'agent_status' => $data['agent_status'] ?? 1,
+                    'webphone_url' => $data['webphone_url'] ?? '',
+                    'click_to_call_url' => $data['click_to_call_url'] ?? '',
+                    'user' => $data['user'] ?? null,
+                ]);
+            }
+
+            return response()->json([
+                'success' => false,
+                'message' => $data['message'] ?? 'Next2Call authentication failed.',
+            ], $response->status() >= 400 ? $response->status() : 400);
+
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Could not connect to Next2Call API: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Agent Call Report API - Fetch call history & recording URLs (.wav)
+     */
+    public function next2callCallReport(Request $request): JsonResponse
+    {
+        $plugin = PluginSetting::where('plugin_key', 'next2call')->first();
+        $settings = $plugin?->settings ?? [];
+
+        $userId = $settings['user_id'] ?? '';
+        $password = $settings['password'] ?? '';
+        $apiBaseUrl = $settings['api_base_url'] ?? 'https://ringfy.next2call.com';
+
+        if (Auth::check()) {
+            $authUser = Auth::user();
+            if (!empty($authUser->sip) && !empty($authUser->sip_password)) {
+                $userId = $authUser->sip;
+                $password = $authUser->sip_password;
+            } elseif (!empty($authUser->call_id) && !empty($authUser->sip_password)) {
+                $userId = $authUser->call_id;
+                $password = $authUser->sip_password;
+            }
+        }
+
+        $token = Cache::get("next2call_token_{$userId}");
+        if (empty($token) && !empty($userId) && !empty($password)) {
+            try {
+                $loginRes = Http::timeout(8)->post("{$apiBaseUrl}/mobileapi/api/webphone_login", [
+                    'user_id' => (string) $userId,
+                    'password' => (string) $password,
+                ]);
+                $loginData = $loginRes->json();
+                if ($loginRes->successful() && !empty($loginData['token'])) {
+                    $token = $loginData['token'];
+                    Cache::put("next2call_token_{$userId}", $token, now()->addHours(11));
+                }
+            } catch (\Throwable $e) {}
+        }
+
+        if (empty($token)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unable to obtain Next2Call API access token. Please verify credentials.',
+            ], 401);
+        }
+
+        try {
+            $params = [
+                'limit' => (int) $request->input('limit', 20),
+            ];
+            if ($request->filled('status') && $request->input('status') !== 'all') {
+                $params['status'] = $request->input('status');
+            }
+            if ($request->filled('direction') && $request->input('direction') !== 'all') {
+                $params['direction'] = $request->input('direction');
+            }
+            if ($request->filled('before_id')) {
+                $params['before_id'] = $request->input('before_id');
+            }
+
+            $response = Http::withToken($token)
+                ->timeout(12)
+                ->get("{$apiBaseUrl}/mobileapi/api/agent-call-report", $params);
+
+            $data = $response->json();
+
+            // Mask phone numbers for non-admins if role_id != 1
+            if (Auth::check() && (int) Auth::user()->role_id !== 1 && !empty($data['data']) && is_array($data['data'])) {
+                foreach ($data['data'] as &$record) {
+                    if (!empty($record['call_from'])) {
+                        $record['call_from_raw'] = $record['call_from'];
+                        $record['call_from'] = mask_raw_phone($record['call_from']);
+                    }
+                }
+            }
+
+            return response()->json($data, $response->status());
+
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error fetching Next2Call call report: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
      * Test Next2Call configuration & generate a test click-to-dial URL.
      */
     public function testNext2call(Request $request): JsonResponse
@@ -284,7 +438,8 @@ class PluginController extends Controller
         $userId = $settings['user_id'] ?? '';
         $password = $settings['password'] ?? '';
         $sipDomain = $settings['sip_domain'] ?? 'ringfy.next2call.com';
-        $path = $settings['click_to_dial_path'] ?? '/softphone/Phone/click-to-dial.html';
+        $apiBaseUrl = $settings['api_base_url'] ?? 'https://ringfy.next2call.com';
+        $path = $settings['click_to_dial_path'] ?? '/api-section/softphone/Phone/index.html';
 
         if (Auth::check()) {
             $authUser = Auth::user();
@@ -304,29 +459,61 @@ class PluginController extends Controller
             $number = '91' . $number;
         }
 
-        $query = http_build_query([
-            'profileName' => $userId,
-            'SipDomain'   => $sipDomain,
-            'SipUsername' => $userId,
-            'SipPassword' => $password,
-            'd'           => $number,
-        ]);
+        // Try real login against Ringfy Agent API
+        $loginSuccess = false;
+        $agentStatus = 1;
+        $clickToCallUrl = '';
+        $webphoneUrl = '';
+        $token = '';
 
-        $testUrl = "https://{$sipDomain}{$path}?" . $query;
+        if (!empty($userId) && !empty($password)) {
+            try {
+                $loginRes = Http::timeout(6)->post("{$apiBaseUrl}/mobileapi/api/webphone_login", [
+                    'user_id' => (string) $userId,
+                    'password' => (string) $password,
+                ]);
+                $loginData = $loginRes->json();
+                if ($loginRes->successful() && !empty($loginData['token'])) {
+                    $loginSuccess = true;
+                    $token = $loginData['token'];
+                    $agentStatus = $loginData['agent_status'] ?? 1;
+                    $webphoneUrl = $loginData['webphone_url'] ?? '';
+                    $clickToCallUrl = ($loginData['click_to_call_url'] ?? '') . $number;
+                    Cache::put("next2call_token_{$userId}", $token, now()->addHours(11));
+                }
+            } catch (\Throwable $e) {}
+        }
 
-        $dialerQuery = http_build_query([
-            'profileName' => $userId,
-            'SipDomain'   => $sipDomain,
-            'SipUsername' => $userId,
-            'SipPassword' => $password,
-        ]);
-        $dialerUrl = "https://{$sipDomain}/softphone/Phone/index.html?" . $dialerQuery;
+        if (!$loginSuccess) {
+            $query = http_build_query([
+                'profileName' => $userId,
+                'SipDomain'   => $sipDomain,
+                'SipUsername' => $userId,
+                'SipPassword' => $password,
+                'd'           => $number,
+            ]);
+            $clickToCallUrl = "https://{$sipDomain}{$path}?" . $query;
+
+            $dialerQuery = http_build_query([
+                'profileName' => $userId,
+                'SipDomain'   => $sipDomain,
+                'SipUsername' => $userId,
+                'SipPassword' => $password,
+            ]);
+            $webphoneUrl = "https://{$sipDomain}/api-section/softphone/Phone/index.html?" . $dialerQuery;
+        }
 
         return response()->json([
             'success' => true,
-            'message' => 'Next2Call click-to-dial test URL generated successfully.',
-            'dial_url' => $testUrl,
-            'dialer_url' => $dialerUrl,
+            'message' => $loginSuccess 
+                ? 'Ringfy Agent API login verified & click-to-dial URL generated.' 
+                : 'Next2Call click-to-dial test URL generated successfully.',
+            'api_verified' => $loginSuccess,
+            'agent_status' => $agentStatus,
+            'dial_url' => $clickToCallUrl,
+            'click_to_call_url' => $clickToCallUrl,
+            'dialer_url' => $webphoneUrl,
+            'webphone_url' => $webphoneUrl,
             'user_id' => $userId,
             'sip_domain' => $sipDomain,
             'target_number' => $number,
