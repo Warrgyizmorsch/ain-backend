@@ -1689,26 +1689,25 @@ class OrderController extends Controller
 
         // Get 12-hour session (will auto-refresh token if expired or invalid)
         $session = \App\Http\Controllers\PluginController::getNext2CallSession($userId, $password);
-        if ($session && !empty($session['click_to_call_url'])) {
-            $baseCtc = $session['click_to_call_url'];
-            $callUrl = str_ends_with($baseCtc, '=') ? ($baseCtc . $targetNumber) : ($baseCtc . '&d=' . $targetNumber);
-            $dialerUrl = $session['webphone_url'] ?: $callUrl;
-        } else {
-            $callUrl = "https://{$sipDomain}{$clickToDialPath}?" . http_build_query([
+        $baseCtc = !empty($session['click_to_call_url'])
+            ? str_replace('index.html', 'click-to-dial.html', $session['click_to_call_url'])
+            : ("https://{$sipDomain}/softphone/Phone/click-to-dial.html?" . http_build_query([
                 'profileName' => $userId,
                 'SipDomain'   => $sipDomain,
                 'SipUsername' => $userId,
                 'SipPassword' => $password,
-                'd'           => $targetNumber,
-            ]);
+            ]) . '&d=');
 
-            $dialerUrl = "https://{$sipDomain}/api-section/softphone/Phone/index.html?" . http_build_query([
+        $callUrl = str_ends_with($baseCtc, '=') ? ($baseCtc . $targetNumber) : ($baseCtc . '&d=' . $targetNumber);
+
+        $dialerUrl = !empty($session['webphone_url'])
+            ? $session['webphone_url']
+            : ("https://{$sipDomain}/softphone/Phone/index.html?" . http_build_query([
                 'profileName' => $userId,
                 'SipDomain'   => $sipDomain,
                 'SipUsername' => $userId,
                 'SipPassword' => $password,
-            ]);
-        }
+            ]));
 
         \Illuminate\Support\Facades\Log::info('[Softphone] Generated Click-to-Dial URL', [
             'country_code' => $countryCode,

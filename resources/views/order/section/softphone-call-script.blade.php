@@ -21,12 +21,15 @@
         'SipPassword' => $password,
     ]));
 
-    $n2cCtcBaseUrl = $n2cSession['click_to_call_url'] ?? ("https://{$sipDomain}{$clickToDialPath}?" . http_build_query([
-        'profileName' => $userId,
-        'SipDomain'   => $sipDomain,
-        'SipUsername' => $userId,
-        'SipPassword' => $password,
-    ]) . '&d=');
+    $n2cRawCtc = $n2cSession['click_to_call_url'] ?? '';
+    $n2cCtcBaseUrl = !empty($n2cRawCtc)
+        ? str_replace('index.html', 'click-to-dial.html', $n2cRawCtc)
+        : ("https://{$sipDomain}/softphone/Phone/click-to-dial.html?" . http_build_query([
+            'profileName' => $userId,
+            'SipDomain'   => $sipDomain,
+            'SipUsername' => $userId,
+            'SipPassword' => $password,
+        ]) . '&d=');
 @endphp
 
 <style>
@@ -278,7 +281,7 @@
             const cleanUrl = url ? url.replace(/&amp;/g, '&') : '';
             const currentFrame = document.getElementById('ringfySoftphoneFrame');
             if (currentFrame) {
-                if (cleanUrl && currentFrame.src !== cleanUrl) {
+                if (cleanUrl) {
                     currentFrame.src = cleanUrl;
                 }
                 return;
@@ -324,8 +327,6 @@
 
             destroyAndResetIframe();
 
-
-
             const headerTitleEl = document.getElementById('n2cHeaderTitle');
             if (headerTitleEl) headerTitleEl.textContent = 'Next2Call Softphone';
         }
@@ -364,10 +365,9 @@
             // Only consider hangup if a call was actually active and running for at least 3 seconds
             const hasActiveCall = isCallActive && callInitiatedAt && (Date.now() - callInitiatedAt > 3000);
 
-            if (hasActiveCall && (data === 'CALL_HANGUP' || data?.type === 'CALL_HANGUP')) {
+            if (data === 'CALL_HANGUP' || data?.type === 'CALL_HANGUP' || data?.type === 'CLOSE_PHONE_POPUP') {
                 console.log('[Next2Call] Call disconnected / hangup received');
                 isCallActive = false;
-                // Keep widget open so agent can review or redial, or let agent close it manually
             }
         });
 
