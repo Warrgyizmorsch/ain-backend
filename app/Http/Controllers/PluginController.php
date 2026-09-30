@@ -374,32 +374,56 @@ class PluginController extends Controller
             return null;
         }
 
-        $cacheKey = "next2call_session_{$userId}";
-
+        // 1. Check in DB: Check when last session was generated for this SIP user
         if (!$forceRefresh) {
-            $cached = Cache::get($cacheKey);
-            if ($cached && is_array($cached) && !empty($cached['token'])) {
-                // Check JWT token expiration (12-hour validity)
-                $expTimestamp = $cached['expires_at'] ?? null;
-                if (!$expTimestamp) {
-                    $parts = explode('.', $cached['token']);
-                    if (count($parts) === 3) {
-                        $payload = json_decode(base64_decode(strtr($parts[1], '-_', '+/')), true);
-                        if (!empty($payload['exp'])) {
-                            $expTimestamp = (int) $payload['exp'];
-                        }
-                    }
+            $dbSession = null;
+            if (\Illuminate\Support\Facades\Schema::hasTable('next2call_sessions')) {
+                $dbSession = \App\Models\Next2CallSession::where('user_id', $userId)->latest('id')->first();
+            }
+
+            // Fallback check in plugin_settings table in DB
+            if (!$dbSession) {
+                $plugin = PluginSetting::where('plugin_key', 'next2call')->first();
+                $saved = data_get($plugin?->settings, "sip_sessions.{$userId}");
+                if ($saved && !empty($saved['token'])) {
+                    $dbSession = (object) $saved;
+                }
+            }
+
+            if ($dbSession && !empty($dbSession->token)) {
+                $generatedAt = !empty($dbSession->generated_at)
+                    ? ($dbSession->generated_at instanceof \Carbon\Carbon ? $dbSession->generated_at : \Carbon\Carbon::parse($dbSession->generated_at))
+                    : null;
+                $expiresAt = !empty($dbSession->expires_at)
+                    ? ($dbSession->expires_at instanceof \Carbon\Carbon ? $dbSession->expires_at : \Carbon\Carbon::parse($dbSession->expires_at))
+                    : null;
+
+                // Check elapsed time since generated_at (12 hours limit)
+                $hoursElapsed = $generatedAt ? $generatedAt->diffInHours(now(), false) : 999;
+                $hasExpired = ($hoursElapsed >= 12) || ($expiresAt && now()->addSeconds(120)->greaterThanOrEqualTo($expiresAt));
+
+                if (!$hasExpired) {
+                    Log::info("[Next2Call DB] Reusing valid 12h session for SIP {$userId} from DB (generated {$hoursElapsed}h ago at " . ($generatedAt ? $generatedAt->toDateTimeString() : 'N/A') . ")");
+
+                    return [
+                        'token'             => $dbSession->token,
+                        'token_type'        => 'Bearer',
+                        'expires_in'        => '12h',
+                        'expires_at'        => $expiresAt ? $expiresAt->timestamp : (time() + (12 * 3600)),
+                        'agent_status'      => $dbSession->agent_status ?? 1,
+                        'webphone_url'      => $dbSession->webphone_url ?? '',
+                        'click_to_call_url' => $dbSession->click_to_call_url ?? '',
+                        'user_id'           => $userId,
+                        'generated_at'      => $generatedAt ? $generatedAt->toDateTimeString() : now()->toDateTimeString(),
+                        'from_db'           => true,
+                    ];
                 }
 
-                // If token has at least 120 seconds left, it is valid and reusable
-                if ($expTimestamp && $expTimestamp > (time() + 120)) {
-                    return $cached;
-                }
-
-                Log::info("[Next2Call] Cached token for {$userId} has expired or is expiring soon (exp: {$expTimestamp}, now: " . time() . "). Generating fresh 12h token...");
+                Log::info("[Next2Call DB] Session for SIP {$userId} in DB has expired (generated: " . ($generatedAt ? $generatedAt->toDateTimeString() : 'N/A') . ", elapsed: {$hoursElapsed}h). Generating new token...");
             }
         }
 
+        // 2. If >= 12h or not found in DB: Call Next2Call Webphone Login API to generate new token and iframe URLs
         try {
             $response = Http::timeout(10)->post("{$apiBaseUrl}/mobileapi/api/webphone_login", [
                 'user_id' => $userId,
@@ -410,18 +434,16 @@ class PluginController extends Controller
 
             if ($response->successful() && !empty($data['token'])) {
                 $token = $data['token'];
+                $now = now();
+                $expiresAt = now()->addHours(12);
 
-                // Decode JWT to extract exact exp timestamp
-                $expTimestamp = null;
+                // Decode JWT to extract exact exp timestamp if available
                 $parts = explode('.', $token);
                 if (count($parts) === 3) {
                     $payload = json_decode(base64_decode(strtr($parts[1], '-_', '+/')), true);
                     if (!empty($payload['exp'])) {
-                        $expTimestamp = (int) $payload['exp'];
+                        $expiresAt = \Carbon\Carbon::createFromTimestamp((int) $payload['exp']);
                     }
-                }
-                if (!$expTimestamp) {
-                    $expTimestamp = time() + (12 * 3600); // 12h fallback
                 }
 
                 $rawCtc = (string) ($data['click_to_call_url'] ?? '');
@@ -437,30 +459,62 @@ class PluginController extends Controller
                     $autoDialCtc .= '&d=';
                 }
 
+                $webphoneUrl = $data['webphone_url'] ?? ("https://{$creds['sip_domain']}/api-section/softphone/Phone/index.html?" . http_build_query([
+                    'profileName' => $userId,
+                    'SipDomain'   => $creds['sip_domain'],
+                    'SipUsername' => $userId,
+                    'SipPassword' => $password,
+                ]));
+
+                // 3. Save / Submit to DB: Record new session in next2call_sessions table
+                if (\Illuminate\Support\Facades\Schema::hasTable('next2call_sessions')) {
+                    \App\Models\Next2CallSession::updateOrCreate(
+                        ['user_id' => $userId],
+                        [
+                            'token'             => $token,
+                            'webphone_url'      => $webphoneUrl,
+                            'click_to_call_url' => $autoDialCtc,
+                            'generated_at'      => $now,
+                            'expires_at'        => $expiresAt,
+                            'agent_status'      => $data['agent_status'] ?? 1,
+                        ]
+                    );
+                }
+
+                // Also update plugin_settings table in DB for persistent backup
+                $plugin = PluginSetting::where('plugin_key', 'next2call')->first();
+                if ($plugin) {
+                    $settings = $plugin->settings ?? [];
+                    $settings['sip_sessions'][$userId] = [
+                        'token'             => $token,
+                        'webphone_url'      => $webphoneUrl,
+                        'click_to_call_url' => $autoDialCtc,
+                        'generated_at'      => $now->toDateTimeString(),
+                        'expires_at'        => $expiresAt->toDateTimeString(),
+                        'agent_status'      => $data['agent_status'] ?? 1,
+                    ];
+                    $plugin->settings = $settings;
+                    $plugin->save();
+                }
+
                 $session = [
                     'token'             => $token,
                     'token_type'        => $data['token_type'] ?? 'Bearer',
                     'expires_in'        => $data['expires_in'] ?? '12h',
-                    'expires_at'        => $expTimestamp,
+                    'expires_at'        => $expiresAt->timestamp,
                     'agent_status'      => $data['agent_status'] ?? 1,
-                    'webphone_url'      => $data['webphone_url'] ?? '',
+                    'webphone_url'      => $webphoneUrl,
                     'click_to_call_url' => $autoDialCtc,
                     'user'              => $data['user'] ?? null,
                     'user_id'           => $userId,
                     'api_base_url'      => $apiBaseUrl,
-                    'cached_at'         => now()->toIso8601String(),
+                    'generated_at'      => $now->toDateTimeString(),
+                    'from_db'           => false,
                 ];
 
-                // Cache for remaining token lifetime minus 2-minute safety window
-                $cacheTtlSeconds = max(60, $expTimestamp - time() - 120);
-                Cache::put($cacheKey, $session, $cacheTtlSeconds);
-                Cache::put("next2call_token_{$userId}", $token, $cacheTtlSeconds);
-                Cache::put("next2call_webphone_{$userId}", $data['webphone_url'] ?? '', $cacheTtlSeconds);
-                Cache::put("next2call_ctc_{$userId}", $data['click_to_call_url'] ?? '', $cacheTtlSeconds);
-
-                Log::info("[Next2Call] Successfully authenticated & cached 12h JWT token for user {$userId}", [
-                    'expires_at' => date('Y-m-d H:i:s', $expTimestamp),
-                    'ttl_seconds' => $cacheTtlSeconds,
+                Log::info("[Next2Call DB] Generated NEW 12h session and saved to DB for SIP {$userId}", [
+                    'generated_at' => $now->toDateTimeString(),
+                    'expires_at'   => $expiresAt->toDateTimeString(),
                 ]);
 
                 return $session;
