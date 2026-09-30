@@ -372,13 +372,7 @@ class OrderController extends Controller
 
         if (auth()->check()) {
             $authUser = auth()->user();
-            if ($authUser->role_id == 4) {
-                if (!empty($authUser->team_id)) {
-                    $ordersQuery->where('orders.team_id', $authUser->team_id);
-                } else {
-                    $ordersQuery->whereRaw('0 = 1');
-                }
-            } elseif ($authUser->role_id == 9) {
+            if ($authUser->role_id == 9) {
                 if (!empty($authUser->team_id)) {
                     $ordersQuery->where('orders.team_id', $authUser->team_id);
                 }
@@ -4154,13 +4148,9 @@ class OrderController extends Controller
 
         if (auth()->check()) {
             $authUser = auth()->user();
-            if ($authUser->role_id == 4) {
-                if (!empty($authUser->team_id)) {
-                    $query->where('orders.team_id', $authUser->team_id);
-                } else {
-                    $query->whereRaw('0 = 1');
-                }
-            } elseif ($authUser->role_id == 9) {
+            // Marketing (role 4) can view all orders. A team is applied only
+            // when the user explicitly selects the team filter.
+            if ($authUser->role_id == 9) {
                 if (!empty($authUser->team_id)) {
                     $query->where('orders.team_id', $authUser->team_id);
                 } elseif ($request->filled('team_id') && $request->team_id != '') {
@@ -4311,13 +4301,7 @@ class OrderController extends Controller
 
         if (auth()->check()) {
             $currUser = auth()->user();
-            if ($currUser->role_id == 4) {
-                if (!empty($currUser->team_id)) {
-                    $overdueQuery->where('team_id', $currUser->team_id);
-                } else {
-                    $overdueQuery->whereRaw('0 = 1');
-                }
-            } elseif ($currUser->role_id == 9 && !empty($currUser->team_id)) {
+            if ($currUser->role_id == 9 && !empty($currUser->team_id)) {
                 $overdueQuery->where('team_id', $currUser->team_id);
             }
         }
@@ -4419,13 +4403,7 @@ class OrderController extends Controller
                     ->whereBetween('order_date', [$startOfMonth, $endOfMonth]);
                 if (auth()->check()) {
                     $u = auth()->user();
-                    if ($u->role_id == 4) {
-                        if (!empty($u->team_id)) {
-                            $uidsQuery->where('team_id', $u->team_id);
-                        } else {
-                            $uidsQuery->whereRaw('0 = 1');
-                        }
-                    } elseif ($u->role_id == 9 && !empty($u->team_id)) {
+                    if ($u->role_id == 9 && !empty($u->team_id)) {
                         $uidsQuery->where('team_id', $u->team_id);
                     }
                 }
