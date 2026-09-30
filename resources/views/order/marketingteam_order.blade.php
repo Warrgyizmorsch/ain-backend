@@ -368,7 +368,7 @@
 												</span>
 											</a>
 											@include('order.section.comment-order')
-												<a   target="_blank" href="/call.{{$order->id}}" class="btn btn-icon btn-bg-warning btn-active-color-light btn-sm me-1">Call</a>
+												<a   target="_blank" href="{{ route('call', $order->id) }}" class="btn btn-icon btn-bg-warning btn-active-color-light btn-sm me-1">Call</a>
 
 											<x-call-button
 												:phone="optional($order->user)->mobile_no ?? ''"

@@ -1644,8 +1644,6 @@ class OrderController extends Controller
 
     public function softphoneCallUrl(Request $request)
     {
-        $this->autoAllowNext2CallIp($request->ip());
-
         $validated = $request->validate([
             'order_id' => ['nullable', 'integer'],
             'country_code' => ['nullable', 'string', 'max:10'],
@@ -1709,10 +1707,15 @@ class OrderController extends Controller
                 'SipPassword' => $password,
             ]));
 
+        $maskedNumber = function_exists('mask_phone_for_display')
+            ? mask_phone_for_display($countryCode, $mobile)
+            : ('+' . substr($targetNumber, 0, -4) . '****');
+
         \Illuminate\Support\Facades\Log::info('[Softphone] Generated Click-to-Dial URL', [
             'country_code' => $countryCode,
             'mobile' => $validated['mobile'] ?? '',
             'target_number' => $targetNumber,
+            'masked_number' => $maskedNumber,
             'user_id' => $userId,
             'url' => $callUrl,
         ]);
@@ -1723,6 +1726,7 @@ class OrderController extends Controller
             'softphone_url' => $callUrl,
             'dialer_url' => $dialerUrl,
             'target_number' => $targetNumber,
+            'masked_number' => $maskedNumber,
             'customer_name' => $customerName,
             'user_id' => $userId,
             'token' => $session['token'] ?? null,

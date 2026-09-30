@@ -77,16 +77,21 @@
         display: flex;
         align-items: center;
         gap: 8px;
+        overflow: hidden;
     }
     .n2c-title-text {
         font-weight: 700;
-        font-size: 13px;
+        font-size: 12px;
         color: #ffffff;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+        overflow: hidden;
     }
     .n2c-header-actions {
         display: flex;
         align-items: center;
         gap: 6px;
+        flex-shrink: 0;
     }
     .n2c-header-btn {
         background: rgba(255, 255, 255, 0.08);
@@ -109,10 +114,45 @@
 
     /* Default Next2Call Phone Iframe Container */
     .n2c-iframe-container {
+        position: relative;
         width: 100%;
         height: 560px;
-        background: #ffffff;
+        background: #151521;
         overflow: hidden;
+    }
+    .n2c-loading-overlay {
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(circle at center, #1e1e2d 0%, #151521 100%);
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        z-index: 10;
+        text-align: center;
+        padding: 20px;
+        transition: opacity 0.3s ease;
+    }
+    .n2c-loader-contact {
+        font-size: 15px;
+        font-weight: 700;
+        color: #ffffff;
+        margin-top: 14px;
+    }
+    .n2c-loader-number {
+        font-size: 14px;
+        font-weight: 600;
+        color: #10b981;
+        background: rgba(16, 185, 129, 0.12);
+        border: 1px solid rgba(16, 185, 129, 0.25);
+        padding: 5px 14px;
+        border-radius: 6px;
+        margin: 10px 0 12px;
+        letter-spacing: 0.5px;
+    }
+    .n2c-loader-status {
+        font-size: 11px;
+        color: #a1a5b7;
     }
     .n2c-softphone-iframe {
         width: 100%;
@@ -143,7 +183,7 @@
             <span class="n2c-title-text" id="n2cHeaderTitle">Next2Call Softphone</span>
         </div>
         <div class="n2c-header-actions">
-            <button type="button" class="n2c-header-btn" id="n2cRefreshBtn" title="Reconnect / Whitelist IP">
+            <button type="button" class="n2c-header-btn" id="n2cRefreshBtn" title="Reconnect / Reload 12h Session">
                 <i class="fa fa-sync-alt"></i>
             </button>
             <button type="button" class="n2c-header-btn" id="n2cExternalBtn" title="Open in Standalone Popup">
@@ -155,10 +195,16 @@
         </div>
     </div>
 
-
-
     <!-- Default Next2Call Phone Iframe Container -->
     <div id="n2cIframeContainer" class="n2c-iframe-container">
+        <!-- Connecting & Masking Loader Overlay -->
+        <div id="n2cLoadingOverlay" class="n2c-loading-overlay">
+            <div class="spinner-border text-success" role="status" style="width: 2.4rem; height: 2.4rem;"></div>
+            <div class="n2c-loader-contact" id="n2cLoaderContact">Calling Customer...</div>
+            <div class="n2c-loader-number" id="n2cLoaderNumber">+91 ******2299</div>
+            <div class="n2c-loader-status" id="n2cLoaderStatus">Connecting Next2Call 12h Webphone...</div>
+        </div>
+
         <iframe
             id="ringfySoftphoneFrame"
             class="n2c-softphone-iframe"
@@ -174,6 +220,10 @@
         const widget = document.getElementById('ringfySoftphoneWidget');
         const handle = document.getElementById('ringfySoftphoneHandle');
         const iframeWrap = document.getElementById('n2cIframeContainer');
+        const overlay = document.getElementById('n2cLoadingOverlay');
+        const loaderContact = document.getElementById('n2cLoaderContact');
+        const loaderNumber = document.getElementById('n2cLoaderNumber');
+        const loaderStatus = document.getElementById('n2cLoaderStatus');
 
         const closeBtn = document.getElementById('n2cCloseBtn');
         const externalBtn = document.getElementById('n2cExternalBtn');
@@ -213,18 +263,19 @@
             e.preventDefault();
             const icon = this.querySelector('i');
             if (icon) icon.classList.add('fa-spin');
+            if (overlay) overlay.style.display = 'flex';
+            if (loaderStatus) loaderStatus.textContent = 'Re-authenticating 12-hour session...';
+
             ensureNext2CallIpAllowed(function () {
                 const currentFrame = document.getElementById('ringfySoftphoneFrame');
-                if (currentFrame && currentFrame.src) {
-                    const originalSrc = currentFrame.src;
-                    currentFrame.src = 'about:blank';
-                    setTimeout(() => {
-                        currentFrame.src = originalSrc;
-                        if (icon) icon.classList.remove('fa-spin');
-                    }, 400);
-                } else {
-                    if (icon) icon.classList.remove('fa-spin');
+                const dialerUrl = (widget?.dataset?.dialerUrl || DIALER_URL).replace(/&amp;/g, '&');
+                if (currentFrame) {
+                    currentFrame.src = dialerUrl;
                 }
+                setTimeout(() => {
+                    if (icon) icon.classList.remove('fa-spin');
+                    if (overlay) overlay.style.display = 'none';
+                }, 1500);
             });
         });
 
@@ -280,13 +331,21 @@
             if (!container) return;
             const cleanUrl = url ? url.replace(/&amp;/g, '&') : '';
             const currentFrame = document.getElementById('ringfySoftphoneFrame');
+
             if (currentFrame) {
-                if (cleanUrl) {
+                if (cleanUrl && currentFrame.src !== cleanUrl) {
                     currentFrame.src = cleanUrl;
                 }
                 return;
             }
+
             container.innerHTML = `
+                <div id="n2cLoadingOverlay" class="n2c-loading-overlay">
+                    <div class="spinner-border text-success" role="status" style="width: 2.4rem; height: 2.4rem;"></div>
+                    <div class="n2c-loader-contact" id="n2cLoaderContact">Calling Customer...</div>
+                    <div class="n2c-loader-number" id="n2cLoaderNumber">+91 ******2299</div>
+                    <div class="n2c-loader-status" id="n2cLoaderStatus">Connecting Next2Call 12h Webphone...</div>
+                </div>
                 <iframe
                     id="ringfySoftphoneFrame"
                     class="n2c-softphone-iframe"
@@ -295,27 +354,25 @@
                     allowfullscreen>
                 </iframe>
             `;
+            attachFrameLoadListener();
         }
 
-        function destroyAndResetIframe() {
-            if (!iframeWrap) return;
-            const currentFrame = document.getElementById('ringfySoftphoneFrame');
-            if (currentFrame) {
-                currentFrame.removeAttribute('src');
-                currentFrame.src = '';
+        function attachFrameLoadListener() {
+            const frame = document.getElementById('ringfySoftphoneFrame');
+            if (frame) {
+                frame.onload = function () {
+                    const lOverlay = document.getElementById('n2cLoadingOverlay');
+                    if (lOverlay) {
+                        setTimeout(() => {
+                            lOverlay.style.display = 'none';
+                        }, 500);
+                    }
+                };
             }
-            iframeWrap.innerHTML = `
-                <iframe
-                    id="ringfySoftphoneFrame"
-                    class="n2c-softphone-iframe"
-                    src=""
-                    allow="microphone; camera; speaker-selection; display-capture; autoplay; fullscreen"
-                    allowfullscreen>
-                </iframe>
-            `;
         }
+        attachFrameLoadListener();
 
-        // Close Widget (when call is cut or user closes)
+        // Close Widget (Keep 12h session intact - do NOT destroy iframe!)
         function closeSoftphoneWidget() {
             isCallActive = false;
             callInitiatedAt = 0;
@@ -325,7 +382,8 @@
                 widget.style.display = 'none';
             }
 
-            destroyAndResetIframe();
+            const lOverlay = document.getElementById('n2cLoadingOverlay');
+            if (lOverlay) lOverlay.style.display = 'none';
 
             const headerTitleEl = document.getElementById('n2cHeaderTitle');
             if (headerTitleEl) headerTitleEl.textContent = 'Next2Call Softphone';
@@ -353,7 +411,7 @@
             }
         });
 
-        // Listen for hangup events from Next2Call dialer (exact matching webphone_api (1) (3).html)
+        // Listen for hangup events from Next2Call dialer
         window.addEventListener('message', function (event) {
             if (event.origin !== 'https://ringfy.next2call.com') return;
 
@@ -362,16 +420,13 @@
                 try { data = JSON.parse(data); } catch(e){}
             }
 
-            // Only consider hangup if a call was actually active and running for at least 3 seconds
-            const hasActiveCall = isCallActive && callInitiatedAt && (Date.now() - callInitiatedAt > 3000);
-
             if (data === 'CALL_HANGUP' || data?.type === 'CALL_HANGUP' || data?.type === 'CLOSE_PHONE_POPUP') {
                 console.log('[Next2Call] Call disconnected / hangup received');
                 isCallActive = false;
             }
         });
 
-        // Global Direct Dial Function with Country Code (matches original Next2Call click-to-dial)
+        // Global Direct Dial Function with Country Code & Masking
         window.dialNext2CallNumber = function (rawNumber, countryCode = '', contactName = 'Customer') {
             let inputStr = String(rawNumber || '').trim();
             // Resolve masked number if contains asterisks
@@ -404,7 +459,14 @@
 
             currentFullNumber = num;
             callInitiatedAt = Date.now();
-            isCallActive = false;
+            isCallActive = true;
+
+            // Masked display formatting for UI (e.g. +91 ******2299)
+            let maskedDisplayNum = num;
+            if (num.length >= 6) {
+                const ccPart = num.length > 10 ? ('+' + num.slice(0, num.length - 10)) : '+91';
+                maskedDisplayNum = ccPart + ' ******' + num.slice(-4);
+            }
 
             // Open Widget when call arrives/starts
             if (widget) {
@@ -418,29 +480,41 @@
                 widget.classList.add('is-open');
             }
 
-            let maskedDisplayNum = num;
-            if (num.length >= 6) {
-                const ccPart = num.length > 10 ? ('+' + num.slice(0, num.length - 10)) : '+91';
-                maskedDisplayNum = ccPart + '******' + num.slice(-4);
-            }
-
+            // Update header title with masked phone number
             const headerTitleEl = document.getElementById('n2cHeaderTitle');
             if (headerTitleEl) {
-                headerTitleEl.textContent = (contactName && contactName !== 'Customer') ? ('Call: ' + contactName) : 'Next2Call Softphone';
+                headerTitleEl.textContent = (contactName && contactName !== 'Customer')
+                    ? (`Call: ${contactName} (${maskedDisplayNum})`)
+                    : (`Next2Call (${maskedDisplayNum})`);
             }
 
-            // Calculate fallback target URL if needed
+            // Show instant loading overlay with customer info & masked number
+            const lOverlay = document.getElementById('n2cLoadingOverlay');
+            const lContact = document.getElementById('n2cLoaderContact');
+            const lNumber = document.getElementById('n2cLoaderNumber');
+            const lStatus = document.getElementById('n2cLoaderStatus');
+            if (lContact) lContact.textContent = (contactName && contactName !== 'Customer') ? contactName : 'Customer';
+            if (lNumber) lNumber.textContent = maskedDisplayNum;
+            if (lStatus) lStatus.textContent = 'Connecting Next2Call 12h Webphone...';
+            if (lOverlay) lOverlay.style.display = 'flex';
+
+            // Calculate target direct dial URL immediately from base CTC
             let baseCtc = ((widget?.dataset?.ctcBase) || CTC_BASE_URL || '').replace(/&amp;/g, '&');
-            let fallbackTargetUrl = '';
+            let targetCallUrl = '';
             if (baseCtc) {
                 if (baseCtc.includes('&d=')) {
-                    fallbackTargetUrl = baseCtc.replace(/&d=[^&]*/, `&d=${encodeURIComponent(num)}`);
+                    targetCallUrl = baseCtc.replace(/&d=[^&]*/, `&d=${encodeURIComponent(num)}`);
                 } else {
-                    fallbackTargetUrl = `${baseCtc}&d=${encodeURIComponent(num)}`;
+                    targetCallUrl = `${baseCtc}&d=${encodeURIComponent(num)}`;
                 }
             }
 
-            // Fetch dynamic authenticated URL from server to ensure fresh credentials & 12h token
+            // Mount and load iframe INSTANTLY without waiting for network AJAX
+            if (targetCallUrl) {
+                mountIframe(targetCallUrl);
+            }
+
+            // Background dynamic check to keep session synchronized (non-blocking)
             const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '{{ csrf_token() }}';
             fetch('{{ route('softphone.call-url') }}', {
                 method: 'POST',
@@ -459,21 +533,18 @@
             .then(res => {
                 if (res && res.success && res.url) {
                     const freshUrl = res.url.replace(/&amp;/g, '&');
-                    mountIframe(freshUrl);
                     if (widget && res.url.includes('&d=')) {
                         const newBase = res.url.split('&d=')[0] + '&d=';
                         widget.dataset.ctcBase = newBase;
                         CTC_BASE_URL = newBase;
                     }
-                } else if (fallbackTargetUrl) {
-                    mountIframe(fallbackTargetUrl);
+                    if (!targetCallUrl) {
+                        mountIframe(freshUrl);
+                    }
                 }
             })
             .catch(err => {
-                console.warn('[Next2Call] call-url fetch failed, using fallback URL:', err);
-                if (fallbackTargetUrl) {
-                    mountIframe(fallbackTargetUrl);
-                }
+                console.warn('[Next2Call] background call-url sync error:', err);
             });
         };
 
@@ -500,9 +571,6 @@
 
             const activeDialerUrl = ((currentWidget?.dataset?.dialerUrl) || DIALER_URL).replace(/&amp;/g, '&');
             mountIframe(activeDialerUrl);
-
-            // Ensure agent IP is fresh on Next2Call PBX
-            ensureNext2CallIpAllowed();
         };
 
         window.dialNumber = function (mobile, countryCode = '', contactName = 'Customer') {
@@ -511,7 +579,28 @@
 
         window.openRingfySoftphone = async function (orderId, countryCode = '', mobile = '', contactName = 'Customer') {
             const cleanCode = String(countryCode || '').trim();
-            const cleanMobile = String(mobile || '').trim();
+            let cleanMobile = String(mobile || '').trim();
+
+            if (!cleanMobile && orderId) {
+                try {
+                    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '{{ csrf_token() }}';
+                    const res = await fetch('{{ route('softphone.call-url') }}', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': csrfToken,
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                        body: JSON.stringify({ order_id: orderId }),
+                    });
+                    const data = await res.json();
+                    if (data && data.success && data.target_number) {
+                        dialNext2CallNumber(data.target_number, '', data.customer_name || contactName);
+                        return;
+                    }
+                } catch(e) {}
+            }
 
             if (!cleanMobile) {
                 Swal?.fire({
