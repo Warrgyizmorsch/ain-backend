@@ -95,6 +95,7 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/chat/customer-orders', [WhatsappController::class, 'customerOrders'])->name('chat.customer-orders');
         Route::get('/chat/customer-data', [WhatsappController::class, 'customerData'])->name('chat.customer-data');
         Route::post('/chat/open-order', [WhatsappController::class, 'openOrderChat'])->name('chat.open-order');
+        Route::post('/chat/open-lead', [WhatsappController::class, 'openLeadChat'])->name('chat.open-lead');
         Route::get('/chat/templates', [WhatsappController::class, 'getTemplates'])->name('chat.templates');
         Route::post('/chat/send-template', [WhatsappController::class, 'sendTemplate'])->name('chat.send-template');
         Route::post('/chat/close-session', [WhatsappController::class, 'closeChatSession'])->name('chat.close-session');

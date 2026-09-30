@@ -252,6 +252,31 @@ class WhatsappController extends Controller
         return redirect()->route('whatsapp.chat');
     }
 
+    public function openLeadChat(Request $request)
+    {
+        $validated = $request->validate([
+            'lead_ref' => ['required', 'integer', 'exists:leads,id'],
+        ]);
+
+        $lead = Leads::with('user')->findOrFail($validated['lead_ref']);
+        $user = $lead->user;
+        $candidates = [
+            [$user?->countrycode, $user?->mobile_no],
+            [$user?->countrycode2, $user?->mobile_no2],
+            [$lead->countrycode, $lead->mobile],
+            [$lead->countrycode2, $lead->mobile2],
+        ];
+
+        foreach ($candidates as [$countryCode, $mobile]) {
+            if (!empty($mobile) && strtoupper(trim((string)$mobile)) !== 'NA') {
+                session(['wab_active_phone' => $this->normalizeChatPhone($countryCode, $mobile)]);
+                break;
+            }
+        }
+
+        return redirect()->route('whatsapp.chat');
+    }
+
     private function resolveOrderChatPhone(Order $order): string
     {
         $user = $order->user ?: $order->lead?->user ?: $order->frontendLead?->user;
@@ -266,11 +291,28 @@ class WhatsappController extends Controller
 
         foreach ($candidates as [$countryCode, $mobile]) {
             if (!empty($mobile) && strtoupper(trim((string)$mobile)) !== 'NA') {
-                return preg_replace('/\D+/', '', (string)$countryCode . (string)$mobile);
+                return $this->normalizeChatPhone($countryCode, $mobile);
             }
         }
 
         return '';
+    }
+
+    private function normalizeChatPhone($countryCode, $mobile): string
+    {
+        $countryCode = preg_replace('/\D+/', '', (string)$countryCode);
+        $mobile = preg_replace('/\D+/', '', (string)$mobile);
+
+        if ($countryCode === '') {
+            return $mobile;
+        }
+        if (str_starts_with($mobile, $countryCode)) {
+            return $mobile;
+        }
+
+        // Remove a national trunk zero before adding the international code.
+        $mobile = preg_replace('/^0/', '', $mobile);
+        return $countryCode . $mobile;
     }
 
     public function closeChatSession(): JsonResponse
