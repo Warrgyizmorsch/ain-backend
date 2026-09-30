@@ -159,8 +159,8 @@ class PluginMenuSeeder extends Seeder
                     'description' => 'Direct in-browser WebRTC softphone calling & click-to-dial powered by Next2Call Ringfy PBX.',
                     'is_active'   => true,
                     'settings'    => json_encode([
-                        'user_id'            => '30102',
-                        'password'           => 'Eb3Df4gy4dt9k0y3',
+                        'user_id'            => '10101',
+                        'password'           => 'T2d8d1r5P6x0T8O8iUq',
                         'sip_domain'         => 'ringfy.next2call.com',
                         'api_base_url'       => 'https://ringfy.next2call.com',
                         'click_to_dial_path' => '/api-section/softphone/Phone/index.html',

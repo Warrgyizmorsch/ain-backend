@@ -104,14 +104,42 @@ class PluginController extends Controller
                 'description' => 'Direct in-browser WebRTC softphone calling & click-to-dial powered by Next2Call Ringfy PBX.',
                 'is_active' => true,
                 'settings' => [
-                    'user_id' => '',
-                    'password' => '',
+                    'user_id' => '10101',
+                    'password' => 'T2d8d1r5P6x0T8O8iUq',
                     'sip_domain' => 'ringfy.next2call.com',
                     'api_base_url' => 'https://ringfy.next2call.com',
                     'click_to_dial_path' => '/api-section/softphone/Phone/index.html',
                 ],
             ]
         );
+
+        // Ensure default settings exist for testing if empty
+        $n2cCurrent = $next2callPlugin->settings ?? [];
+        $n2cChanged = false;
+        if (empty($n2cCurrent['user_id'])) {
+            $n2cCurrent['user_id'] = '10101';
+            $n2cChanged = true;
+        }
+        if (empty($n2cCurrent['password'])) {
+            $n2cCurrent['password'] = 'T2d8d1r5P6x0T8O8iUq';
+            $n2cChanged = true;
+        }
+        if (empty($n2cCurrent['sip_domain'])) {
+            $n2cCurrent['sip_domain'] = 'ringfy.next2call.com';
+            $n2cChanged = true;
+        }
+        if (empty($n2cCurrent['api_base_url'])) {
+            $n2cCurrent['api_base_url'] = 'https://ringfy.next2call.com';
+            $n2cChanged = true;
+        }
+        if (empty($n2cCurrent['click_to_dial_path'])) {
+            $n2cCurrent['click_to_dial_path'] = '/api-section/softphone/Phone/index.html';
+            $n2cChanged = true;
+        }
+        if ($n2cChanged) {
+            $next2callPlugin->settings = $n2cCurrent;
+            $next2callPlugin->save();
+        }
 
         return view('back-end.plugins.index', [
             'twilioPlugin' => $twilioPlugin,
@@ -135,8 +163,8 @@ class PluginController extends Controller
                 'description' => 'Direct in-browser WebRTC softphone calling & click-to-dial powered by Next2Call Ringfy PBX.',
                 'is_active' => true,
                 'settings' => [
-                    'user_id' => '',
-                    'password' => '',
+                    'user_id' => '10101',
+                    'password' => 'T2d8d1r5P6x0T8O8iUq',
                     'sip_domain' => 'ringfy.next2call.com',
                     'api_base_url' => 'https://ringfy.next2call.com',
                     'click_to_dial_path' => '/api-section/softphone/Phone/index.html',
@@ -147,12 +175,13 @@ class PluginController extends Controller
         $currentUser = Auth::user();
         $currentUserPhone = $currentUser ? ($currentUser->mobile ?? $currentUser->mobile_no ?? '') : '';
 
-        $session = self::getNext2CallSession();
-        $settings = $next2callPlugin->settings ?? [];
-        $userId   = $session['user_id'] ?? ($settings['user_id'] ?? '30102');
-        $password = $settings['password'] ?? 'Eb3Df4gy4dt9k0y3';
-        $sipDomain = $settings['sip_domain'] ?? 'ringfy.next2call.com';
-        $clickPath = $settings['click_to_dial_path'] ?? '/api-section/softphone/Phone/index.html';
+        $creds = self::resolveNext2CallCredentials();
+        $session = self::getNext2CallSession($creds['user_id'], $creds['password']);
+
+        $userId   = $session['user_id'] ?? $creds['user_id'];
+        $password = $creds['password'];
+        $sipDomain = $creds['sip_domain'];
+        $clickPath = $creds['click_to_dial_path'];
 
         $dialerUrl = $session['webphone_url'] ?? ("https://{$sipDomain}/api-section/softphone/Phone/index.html?" . http_build_query([
             'profileName' => $userId,
@@ -166,7 +195,7 @@ class PluginController extends Controller
             'SipDomain'   => $sipDomain,
             'SipUsername' => $userId,
             'SipPassword' => $password,
-        ]));
+        ]) . '&d=');
 
         return view('back-end.plugins.next2call', [
             'next2callPlugin' => $next2callPlugin,
@@ -263,6 +292,10 @@ class PluginController extends Controller
         }
         $plugin->save();
 
+        // Clear session cache and generate fresh 12h token
+        Cache::forget("next2call_session_" . trim($validated['user_id']));
+        self::getNext2CallSession(trim($validated['user_id']), trim($validated['password']), true);
+
         if ($request->ajax() || $request->wantsJson()) {
             return response()->json([
                 'success' => true,
@@ -275,46 +308,93 @@ class PluginController extends Controller
     }
 
     /**
-     * Get or refresh active Next2Call session with 12-hour caching.
-     * Checks if session for the user/SIP ID is valid or older than 12 hours.
-     * Credentials are dynamic (Auth user's SIP / SIP password, with fallback to Next2Call PluginSetting).
+     * Resolve effective Next2Call credentials.
+     * Prioritizes per-user SIP ID (users.sip or users.call_id) and optional per-user SIP password.
+     * Falls back to admin default Next2Call settings for testing if user has no SIP configured.
      */
-    public static function getNext2CallSession(?string $userId = null, ?string $password = null, bool $forceRefresh = false): ?array
+    public static function resolveNext2CallCredentials(?string $userId = null, ?string $password = null, ?\App\Models\User $user = null): array
     {
         $plugin = PluginSetting::where('plugin_key', 'next2call')->first();
         $settings = $plugin?->settings ?? [];
 
-        if (empty($userId) || empty($password)) {
-            if (Auth::check()) {
-                $authUser = Auth::user();
-                if (!empty($authUser->sip) && !empty($authUser->sip_password)) {
-                    $userId = (string) $authUser->sip;
-                    $password = (string) $authUser->sip_password;
-                } elseif (!empty($authUser->call_id) && !empty($authUser->sip_password)) {
-                    $userId = (string) $authUser->call_id;
-                    $password = (string) $authUser->sip_password;
-                }
+        $defaultUserId = !empty($settings['user_id']) ? (string) $settings['user_id'] : '10101';
+        $defaultPassword = !empty($settings['password']) ? (string) $settings['password'] : 'T2d8d1r5P6x0T8O8iUq';
+        $sipDomain = !empty($settings['sip_domain']) ? (string) $settings['sip_domain'] : 'ringfy.next2call.com';
+        $apiBaseUrl = rtrim(!empty($settings['api_base_url']) ? (string) $settings['api_base_url'] : 'https://ringfy.next2call.com', '/');
+        $clickToDialPath = !empty($settings['click_to_dial_path']) ? (string) $settings['click_to_dial_path'] : '/api-section/softphone/Phone/index.html';
+
+        $targetUser = $user ?: (Auth::check() ? Auth::user() : null);
+
+        // Per-user SIP ID:
+        if (empty($userId) && $targetUser) {
+            if (!empty($targetUser->sip)) {
+                $userId = (string) $targetUser->sip;
+            } elseif (!empty($targetUser->call_id)) {
+                $userId = (string) $targetUser->call_id;
             }
         }
 
+        // Per-user SIP Password (if custom password set on user profile):
+        if (empty($password) && $targetUser && !empty($targetUser->sip_password)) {
+            $password = (string) $targetUser->sip_password;
+        }
+
+        // Fallbacks to admin defaults for testing / shared PBX:
         if (empty($userId)) {
-            $userId = (string) ($settings['user_id'] ?? '');
+            $userId = $defaultUserId;
         }
         if (empty($password)) {
-            $password = (string) ($settings['password'] ?? '');
+            $password = $defaultPassword;
         }
+
+        return [
+            'user_id'            => trim($userId),
+            'password'           => trim($password),
+            'sip_domain'         => $sipDomain,
+            'api_base_url'       => $apiBaseUrl,
+            'click_to_dial_path' => $clickToDialPath,
+            'is_active'          => (bool) ($plugin?->is_active ?? true),
+        ];
+    }
+
+    /**
+     * Get or refresh active Next2Call session with 12-hour caching & JWT expiration checking.
+     * When token is expired or older than 12 hours, automatically re-authenticates and generates a fresh token.
+     */
+    public static function getNext2CallSession(?string $userId = null, ?string $password = null, bool $forceRefresh = false): ?array
+    {
+        $creds = self::resolveNext2CallCredentials($userId, $password);
+        $userId = $creds['user_id'];
+        $password = $creds['password'];
+        $apiBaseUrl = $creds['api_base_url'];
 
         if (empty($userId) || empty($password)) {
             return null;
         }
 
-        $apiBaseUrl = rtrim($settings['api_base_url'] ?? 'https://ringfy.next2call.com', '/');
         $cacheKey = "next2call_session_{$userId}";
 
         if (!$forceRefresh) {
             $cached = Cache::get($cacheKey);
             if ($cached && is_array($cached) && !empty($cached['token'])) {
-                return $cached;
+                // Check JWT token expiration (12-hour validity)
+                $expTimestamp = $cached['expires_at'] ?? null;
+                if (!$expTimestamp) {
+                    $parts = explode('.', $cached['token']);
+                    if (count($parts) === 3) {
+                        $payload = json_decode(base64_decode(strtr($parts[1], '-_', '+/')), true);
+                        if (!empty($payload['exp'])) {
+                            $expTimestamp = (int) $payload['exp'];
+                        }
+                    }
+                }
+
+                // If token has at least 120 seconds left, it is valid and reusable
+                if ($expTimestamp && $expTimestamp > (time() + 120)) {
+                    return $cached;
+                }
+
+                Log::info("[Next2Call] Cached token for {$userId} has expired or is expiring soon (exp: {$expTimestamp}, now: " . time() . "). Generating fresh 12h token...");
             }
         }
 
@@ -327,31 +407,57 @@ class PluginController extends Controller
             $data = $response->json();
 
             if ($response->successful() && !empty($data['token'])) {
+                $token = $data['token'];
+
+                // Decode JWT to extract exact exp timestamp
+                $expTimestamp = null;
+                $parts = explode('.', $token);
+                if (count($parts) === 3) {
+                    $payload = json_decode(base64_decode(strtr($parts[1], '-_', '+/')), true);
+                    if (!empty($payload['exp'])) {
+                        $expTimestamp = (int) $payload['exp'];
+                    }
+                }
+                if (!$expTimestamp) {
+                    $expTimestamp = time() + (12 * 3600); // 12h fallback
+                }
+
                 $session = [
-                    'token' => $data['token'],
-                    'token_type' => $data['token_type'] ?? 'Bearer',
-                    'expires_in' => $data['expires_in'] ?? '12h',
-                    'agent_status' => $data['agent_status'] ?? 1,
-                    'webphone_url' => $data['webphone_url'] ?? '',
+                    'token'             => $token,
+                    'token_type'        => $data['token_type'] ?? 'Bearer',
+                    'expires_in'        => $data['expires_in'] ?? '12h',
+                    'expires_at'        => $expTimestamp,
+                    'agent_status'      => $data['agent_status'] ?? 1,
+                    'webphone_url'      => $data['webphone_url'] ?? '',
                     'click_to_call_url' => $data['click_to_call_url'] ?? '',
-                    'user' => $data['user'] ?? null,
-                    'user_id' => $userId,
-                    'api_base_url' => $apiBaseUrl,
-                    'cached_at' => now()->toIso8601String(),
+                    'user'              => $data['user'] ?? null,
+                    'user_id'           => $userId,
+                    'api_base_url'      => $apiBaseUrl,
+                    'cached_at'         => now()->toIso8601String(),
                 ];
 
-                // Cache for 11.5 hours (Next2Call token is valid for 12 hours)
-                Cache::put($cacheKey, $session, now()->addHours(11)->addMinutes(30));
-                Cache::put("next2call_token_{$userId}", $data['token'], now()->addHours(11)->addMinutes(30));
-                Cache::put("next2call_webphone_{$userId}", $data['webphone_url'] ?? '', now()->addHours(11)->addMinutes(30));
-                Cache::put("next2call_ctc_{$userId}", $data['click_to_call_url'] ?? '', now()->addHours(11)->addMinutes(30));
+                // Cache for remaining token lifetime minus 2-minute safety window
+                $cacheTtlSeconds = max(60, $expTimestamp - time() - 120);
+                Cache::put($cacheKey, $session, $cacheTtlSeconds);
+                Cache::put("next2call_token_{$userId}", $token, $cacheTtlSeconds);
+                Cache::put("next2call_webphone_{$userId}", $data['webphone_url'] ?? '', $cacheTtlSeconds);
+                Cache::put("next2call_ctc_{$userId}", $data['click_to_call_url'] ?? '', $cacheTtlSeconds);
+
+                Log::info("[Next2Call] Successfully authenticated & cached 12h JWT token for user {$userId}", [
+                    'expires_at' => date('Y-m-d H:i:s', $expTimestamp),
+                    'ttl_seconds' => $cacheTtlSeconds,
+                ]);
 
                 return $session;
             }
 
-            Log::warning('Next2Call login failed', ['response' => $data, 'user_id' => $userId]);
+            Log::warning('[Next2Call] Webphone login failed', [
+                'user_id'  => $userId,
+                'status'   => $response->status(),
+                'response' => $data,
+            ]);
         } catch (\Throwable $e) {
-            Log::error('Next2Call login exception: ' . $e->getMessage(), ['user_id' => $userId]);
+            Log::error('[Next2Call] Webphone login exception: ' . $e->getMessage(), ['user_id' => $userId]);
         }
 
         return null;
@@ -709,40 +815,37 @@ class PluginController extends Controller
             'test_phone_number' => ['required', 'string', 'min:6'],
         ]);
 
-        $plugin = PluginSetting::where('plugin_key', 'next2call')->first();
-        $settings = $plugin?->settings ?? [];
-
-        $sipDomain = $settings['sip_domain'] ?? 'ringfy.next2call.com';
-        $path = $settings['click_to_dial_path'] ?? '/api-section/softphone/Phone/index.html';
+        $creds = self::resolveNext2CallCredentials();
+        $sipDomain = $creds['sip_domain'];
+        $path = $creds['click_to_dial_path'];
 
         $number = preg_replace('/[^0-9]/', '', $validated['test_phone_number']);
         if (str_starts_with($number, '0') && strlen($number) === 11) {
-            $number = '91' . substr($number, 1);
+            $number = substr($number, 1);
         } elseif (strlen($number) === 10) {
             $number = '91' . $number;
         }
 
-        $session = self::getNext2CallSession();
+        $session = self::getNext2CallSession($creds['user_id'], $creds['password']);
         $loginSuccess = ($session && !empty($session['token']));
 
-        if ($loginSuccess) {
+        if ($loginSuccess && !empty($session['click_to_call_url'])) {
             $webphoneUrl = $session['webphone_url'];
             $baseCtc = $session['click_to_call_url'];
             $clickToCallUrl = str_ends_with($baseCtc, '=') ? ($baseCtc . $number) : ($baseCtc . '&d=' . $number);
             $userId = $session['user_id'];
             $agentStatus = $session['agent_status'] ?? 1;
         } else {
-            $userId = $settings['user_id'] ?? '';
-            $password = $settings['password'] ?? '';
+            $userId = $creds['user_id'];
+            $password = $creds['password'];
             $agentStatus = 1;
-            $query = http_build_query([
+            $clickToCallUrl = "https://{$sipDomain}{$path}?" . http_build_query([
                 'profileName' => $userId,
                 'SipDomain'   => $sipDomain,
                 'SipUsername' => $userId,
                 'SipPassword' => $password,
                 'd'           => $number,
             ]);
-            $clickToCallUrl = "https://{$sipDomain}{$path}?" . $query;
 
             $dialerQuery = http_build_query([
                 'profileName' => $userId,

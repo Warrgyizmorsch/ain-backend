@@ -5,23 +5,11 @@
     if (!auth()->check() || !$n2cIsActive) {
         return;
     }
-    $n2cSettings = $n2cPlugin?->settings ?? [];
-
-    $userId = !empty($n2cSettings['user_id']) ? $n2cSettings['user_id'] : '';
-    $password = !empty($n2cSettings['password']) ? $n2cSettings['password'] : '';
-    $sipDomain = !empty($n2cSettings['sip_domain']) ? $n2cSettings['sip_domain'] : 'ringfy.next2call.com';
-    $clickToDialPath = !empty($n2cSettings['click_to_dial_path']) ? $n2cSettings['click_to_dial_path'] : '/api-section/softphone/Phone/index.html';
-
-    if (auth()->check()) {
-        $authUser = auth()->user();
-        if (!empty($authUser->sip) && !empty($authUser->sip_password)) {
-            $userId = $authUser->sip;
-            $password = $authUser->sip_password;
-        } elseif (!empty($authUser->call_id) && !empty($authUser->sip_password)) {
-            $userId = $authUser->call_id;
-            $password = $authUser->sip_password;
-        }
-    }
+    $creds = \App\Http\Controllers\PluginController::resolveNext2CallCredentials();
+    $userId = $creds['user_id'];
+    $password = $creds['password'];
+    $sipDomain = $creds['sip_domain'];
+    $clickToDialPath = $creds['click_to_dial_path'];
 
     $isSuperAdmin = auth()->check() && ((int) auth()->user()->role_id === 1);
 
@@ -38,7 +26,7 @@
         'SipDomain'   => $sipDomain,
         'SipUsername' => $userId,
         'SipPassword' => $password,
-    ]));
+    ]) . '&d=');
 @endphp
 
 <style>
@@ -441,42 +429,52 @@
                 headerTitleEl.textContent = (contactName && contactName !== 'Customer') ? ('Call: ' + contactName) : 'Next2Call Softphone';
             }
 
-            // Immediately mount baseline URL if available
-            let targetUrl = (CTC_BASE_URL || '').replace(/&amp;/g, '&');
-            if (targetUrl) {
-                if (targetUrl.includes('&d=')) {
-                    targetUrl = targetUrl.replace(/&d=[^&]*/, `&d=${encodeURIComponent(num)}`);
+            // Calculate fallback target URL if needed
+            let baseCtc = ((widget?.dataset?.ctcBase) || CTC_BASE_URL || '').replace(/&amp;/g, '&');
+            let fallbackTargetUrl = '';
+            if (baseCtc) {
+                if (baseCtc.includes('&d=')) {
+                    fallbackTargetUrl = baseCtc.replace(/&d=[^&]*/, `&d=${encodeURIComponent(num)}`);
                 } else {
-                    targetUrl = `${targetUrl}&d=${encodeURIComponent(num)}`;
+                    fallbackTargetUrl = `${baseCtc}&d=${encodeURIComponent(num)}`;
                 }
-                mountIframe(targetUrl);
             }
 
-            // Fetch dynamic authenticated URL from server to ensure fresh credentials & token
-            try {
-                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '{{ csrf_token() }}';
-                fetch('{{ route('softphone.call-url') }}', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json',
-                        'X-CSRF-TOKEN': csrfToken,
-                        'X-Requested-With': 'XMLHttpRequest',
-                    },
-                    body: JSON.stringify({
-                        country_code: cc,
-                        mobile: num,
-                    }),
-                })
-                .then(r => r.json())
-                .then(res => {
-                    if (res && res.success && res.url) {
-                        const freshUrl = res.url.replace(/&amp;/g, '&');
-                        mountIframe(freshUrl);
+            // Fetch dynamic authenticated URL from server to ensure fresh credentials & 12h token
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '{{ csrf_token() }}';
+            fetch('{{ route('softphone.call-url') }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: JSON.stringify({
+                    country_code: cc,
+                    mobile: num,
+                }),
+            })
+            .then(r => r.json())
+            .then(res => {
+                if (res && res.success && res.url) {
+                    const freshUrl = res.url.replace(/&amp;/g, '&');
+                    mountIframe(freshUrl);
+                    if (widget && res.url.includes('&d=')) {
+                        const newBase = res.url.split('&d=')[0] + '&d=';
+                        widget.dataset.ctcBase = newBase;
+                        CTC_BASE_URL = newBase;
                     }
-                })
-                .catch(() => {});
-            } catch (e) {}
+                } else if (fallbackTargetUrl) {
+                    mountIframe(fallbackTargetUrl);
+                }
+            })
+            .catch(err => {
+                console.warn('[Next2Call] call-url fetch failed, using fallback URL:', err);
+                if (fallbackTargetUrl) {
+                    mountIframe(fallbackTargetUrl);
+                }
+            });
         };
 
         window.openRingfyDialer = function (mobile = '') {

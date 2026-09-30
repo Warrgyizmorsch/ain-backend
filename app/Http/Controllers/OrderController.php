@@ -1681,39 +1681,26 @@ class OrderController extends Controller
             ], 422);
         }
 
-        $n2cPlugin = \App\Models\PluginSetting::where('plugin_key', 'next2call')->first();
-        $n2cSettings = $n2cPlugin?->settings ?? [];
+        $creds = \App\Http\Controllers\PluginController::resolveNext2CallCredentials();
+        $userId = $creds['user_id'];
+        $password = $creds['password'];
+        $sipDomain = $creds['sip_domain'];
+        $clickToDialPath = $creds['click_to_dial_path'];
 
-        $userId = !empty($n2cSettings['user_id']) ? $n2cSettings['user_id'] : '';
-        $password = !empty($n2cSettings['password']) ? $n2cSettings['password'] : '';
-        $sipDomain = !empty($n2cSettings['sip_domain']) ? $n2cSettings['sip_domain'] : 'ringfy.next2call.com';
-        $clickToDialPath = !empty($n2cSettings['click_to_dial_path']) ? $n2cSettings['click_to_dial_path'] : '/api-section/softphone/Phone/index.html';
-
-        if (auth()->check()) {
-            $user = auth()->user();
-            if (!empty($user->sip) && !empty($user->sip_password)) {
-                $userId = $user->sip;
-                $password = $user->sip_password;
-            } elseif (!empty($user->call_id) && !empty($user->sip_password)) {
-                $userId = $user->call_id;
-                $password = $user->sip_password;
-            }
-        }
-
+        // Get 12-hour session (will auto-refresh token if expired or invalid)
         $session = \App\Http\Controllers\PluginController::getNext2CallSession($userId, $password);
         if ($session && !empty($session['click_to_call_url'])) {
             $baseCtc = $session['click_to_call_url'];
             $callUrl = str_ends_with($baseCtc, '=') ? ($baseCtc . $targetNumber) : ($baseCtc . '&d=' . $targetNumber);
             $dialerUrl = $session['webphone_url'] ?: $callUrl;
         } else {
-            $query = http_build_query([
+            $callUrl = "https://{$sipDomain}{$clickToDialPath}?" . http_build_query([
                 'profileName' => $userId,
                 'SipDomain'   => $sipDomain,
                 'SipUsername' => $userId,
                 'SipPassword' => $password,
                 'd'           => $targetNumber,
             ]);
-            $callUrl = "https://{$sipDomain}{$clickToDialPath}?" . $query;
 
             $dialerUrl = "https://{$sipDomain}/api-section/softphone/Phone/index.html?" . http_build_query([
                 'profileName' => $userId,
@@ -1727,6 +1714,7 @@ class OrderController extends Controller
             'country_code' => $countryCode,
             'mobile' => $validated['mobile'] ?? '',
             'target_number' => $targetNumber,
+            'user_id' => $userId,
             'url' => $callUrl,
         ]);
 
@@ -1737,6 +1725,9 @@ class OrderController extends Controller
             'dialer_url' => $dialerUrl,
             'target_number' => $targetNumber,
             'customer_name' => $customerName,
+            'user_id' => $userId,
+            'token' => $session['token'] ?? null,
+            'expires_at' => $session['expires_at'] ?? null,
         ], 200, [], JSON_UNESCAPED_SLASHES);
     }
 
@@ -1763,12 +1754,10 @@ class OrderController extends Controller
 
     public function next2callClient(Request $request)
     {
-        $n2cPlugin = \App\Models\PluginSetting::where('plugin_key', 'next2call')->first();
-        $n2cSettings = $n2cPlugin?->settings ?? [];
-
-        $userId = $request->get('SipUsername', $n2cSettings['user_id'] ?? '');
-        $password = $request->get('SipPassword', $n2cSettings['password'] ?? '');
-        $sipDomain = $request->get('SipDomain', $n2cSettings['sip_domain'] ?? 'ringfy.next2call.com');
+        $creds = \App\Http\Controllers\PluginController::resolveNext2CallCredentials();
+        $userId = $request->get('SipUsername', $creds['user_id']);
+        $password = $request->get('SipPassword', $creds['password']);
+        $sipDomain = $request->get('SipDomain', $creds['sip_domain']);
 
         return view('order.section.next2call-client', compact('userId', 'password', 'sipDomain'));
     }

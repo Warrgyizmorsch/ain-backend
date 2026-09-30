@@ -444,6 +444,9 @@ class UserController extends Controller
             // Check if the provided old password is correct
 
             $user->sip = $request->input('sip');
+            if ($request->has('sip_password')) {
+                $user->sip_password = $request->input('sip_password');
+            }
             $user->save();
 
             return redirect()->back()->with('success', 'Profile Updated Successfully');

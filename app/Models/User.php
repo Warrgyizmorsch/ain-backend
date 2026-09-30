@@ -36,7 +36,9 @@ class User extends Authenticatable
         'Wallet',
         'verifyed',
         'otp',
-        'photo'
+        'photo',
+        'sip',
+        'sip_password'
     ];
 
     /**
@@ -47,6 +49,7 @@ class User extends Authenticatable
     protected $hidden = [
         'password',
         'remember_token',
+        'sip_password',
     ];
 
     /**
