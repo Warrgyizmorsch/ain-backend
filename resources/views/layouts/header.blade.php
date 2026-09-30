@@ -65,20 +65,8 @@
 				<div class="d-flex align-items-center ms-1 ms-lg-3" id="kt_header_user_menu_toggle">
 					<div class="d-flex align-items-center ms-3 me-4">
 						@php
-							$clientEmailConfigId = \Illuminate\Support\Facades\Cache::remember('crm_hdr_client_cfg_id', 3600, function() {
-								$cfg = \App\Models\EmailConfiguration::where('email_address', 'order@assignnmentinneed.com')
-									->orWhere('name', 'like', '%client%')
-									->first();
-								return $cfg ? $cfg->id : 2;
-							});
-
-							$writerEmailConfigId = \Illuminate\Support\Facades\Cache::remember('crm_hdr_writer_cfg_id', 3600, function() {
-								$cfg = \App\Models\EmailConfiguration::where('email_address', 'assignmentinneedhelp@gmail.com')
-									->orWhere('name', 'like', '%writer%')
-									->orWhere('name', 'like', '%write%')
-									->first();
-								return $cfg ? $cfg->id : 1;
-							});
+							$clientEmailConfigId = crm_email_account_id('client');
+							$writerEmailConfigId = crm_email_account_id('writer');
 
 							$clientEmailUrl = route('emails.index', ['account_id' => $clientEmailConfigId]);
 							$writerEmailUrl = route('emails.index', ['account_id' => $writerEmailConfigId]);
@@ -192,13 +180,6 @@
 							}
 						</style>
 
-						@php
-							$headerClientAccount = \App\Models\EmailConfiguration::where('is_active', true)->where(function($q) { $q->where('name', 'Client')->orWhere('email_address', 'order@assignnmentinneed.com')->orWhere('is_default', true); })->first();
-							$headerWriterAccount = \App\Models\EmailConfiguration::where('is_active', true)->where(function($q) { $q->where('name', 'Writer')->orWhere('email_address', 'assignmentinneedhelp@gmail.com'); })->first();
-							$headerClientAccountId = $headerClientAccount?->id ?? 2;
-							$headerWriterAccountId = $headerWriterAccount?->id ?? 1;
-						@endphp
-
 						<!--begin::WhatsApp Header Button-->
 						<a href="{{ route('whatsapp.chat') }}" class="crm-header-nav-btn crm-nav-wa me-3" title="WhatsApp Chat">
 							<span class="crm-nav-icon">
@@ -211,7 +192,7 @@
 						<!--end::WhatsApp Header Button-->
 
 						<!--begin::Client Email Header Button-->
-						<a href="{{ route('emails.index', ['account_id' => $headerClientAccountId]) }}" class="crm-header-nav-btn crm-nav-client me-3" title="Client Email Channel">
+						<a href="{{ $clientEmailUrl }}" class="crm-header-nav-btn crm-nav-client me-3" title="Client Email Channel (order@assignnmentinneed.com)">
 							<span class="crm-nav-icon">
 								<i class="fa fa-envelope fs-7"></i>
 							</span>
@@ -220,7 +201,7 @@
 						<!--end::Client Email Header Button-->
 
 						<!--begin::Writer Email Header Button-->
-						<a href="{{ route('emails.index', ['account_id' => $headerWriterAccountId]) }}" class="crm-header-nav-btn crm-nav-writer me-3" title="Writer Email Channel">
+						<a href="{{ $writerEmailUrl }}" class="crm-header-nav-btn crm-nav-writer me-3" title="Writer Email Channel (assignmentinneedhelp@gmail.com)">
 							<span class="crm-nav-icon">
 								<i class="fa fa-envelope-open-text fs-7"></i>
 							</span>

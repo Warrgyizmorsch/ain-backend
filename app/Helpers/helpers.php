@@ -389,6 +389,40 @@ if (!function_exists('find_user_ids_by_search_term')) {
     }
 }
 
+if (!function_exists('crm_email_account_id')) {
+    /**
+     * Resolve CRM mailbox IDs without allowing the default mailbox to override
+     * the requested Client or Writer channel.
+     */
+    function crm_email_account_id(string $channel): int
+    {
+        $channel = strtolower(trim($channel));
+        $isClient = $channel === 'client';
+        $fallbackId = $isClient ? 2 : 1;
+        $emailAddress = $isClient
+            ? 'order@assignnmentinneed.com'
+            : 'assignmentinneedhelp@gmail.com';
+        $accountName = $isClient ? 'Client' : 'Writer';
+
+        return (int) \Illuminate\Support\Facades\Cache::remember(
+            'crm_email_account_id_' . $channel,
+            3600,
+            function () use ($emailAddress, $accountName, $fallbackId) {
+                $account = \App\Models\EmailConfiguration::query()
+                    ->where('is_active', true)
+                    ->where(function ($query) use ($emailAddress, $accountName) {
+                        $query->where('email_address', $emailAddress)
+                            ->orWhere('name', $accountName);
+                    })
+                    ->orderByRaw('CASE WHEN email_address = ? THEN 0 ELSE 1 END', [$emailAddress])
+                    ->first();
+
+                return $account?->id ?? $fallbackId;
+            }
+        );
+    }
+}
+
 if (!function_exists('logActivity')) {
     function logActivity($module, $action)
     {

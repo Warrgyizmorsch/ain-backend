@@ -317,8 +317,7 @@
             @endif
 
             @php
-                $clientConfig = \App\Models\EmailConfiguration::where('is_active', true)->where(function($q) { $q->where('name', 'Client')->orWhere('email_address', 'order@assignnmentinneed.com')->orWhere('is_default', true); })->first();
-                $clientAccountId = $clientConfig?->id ?? 2;
+                $clientAccountId = crm_email_account_id('client');
                 $orderCode = trim((string)($order->order_id ?: $order->id));
                 $orderRawWAPhone = preg_replace('/\D+/', '', (string)((optional($effectiveUser)->countrycode ?? '') . (optional($effectiveUser)->mobile_no ?? '')));
                 $orderRawEmail = optional($effectiveUser)->email ?? '';
@@ -687,7 +686,7 @@
 
             @php
                 $orderCode = $order->order_id ?: (string) $order->id;
-                $writeEmailUrl = route('emails.index', array_filter(['account_id' => 1, 'search' => $orderCode]));
+                $writeEmailUrl = route('emails.index', array_filter(['account_id' => crm_email_account_id('writer'), 'search' => $orderCode]));
             @endphp
             <div class="d-flex align-items-center justify-content-center gap-1 mt-1">
                 <button type="button" class="btn btn-sm btn-light-primary py-1 px-3 fs-8"
@@ -715,7 +714,7 @@
                 @endif
                 @php
                     $orderCode = $order->order_id ?: (string) $order->id;
-                    $writeEmailUrl = route('emails.index', array_filter(['account_id' => 1, 'search' => $orderCode]));
+                    $writeEmailUrl = route('emails.index', array_filter(['account_id' => crm_email_account_id('writer'), 'search' => $orderCode]));
                 @endphp
                 <div class="mt-1">
                     <a href="{{ $writeEmailUrl }}" target="_blank" class="btn btn-icon btn-sm crm-btn-email" style="width: 26px !important; height: 26px !important;" title="Writer Email: {{ $orderCode ? 'Order ' . $orderCode : 'Open Writer Email Channel' }}">

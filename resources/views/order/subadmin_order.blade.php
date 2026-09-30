@@ -175,8 +175,7 @@
 											@endif
 
 											@php
-												$clientConfig = \App\Models\EmailConfiguration::where('is_active', true)->where(function($q) { $q->where('name', 'Client')->orWhere('email_address', 'order@assignnmentinneed.com')->orWhere('is_default', true); })->first();
-												$clientAccountId = $clientConfig?->id ?? 2;
+										$clientAccountId = crm_email_account_id('client');
 												$orderCode = trim((string)($order->order_id ?: $order->id));
 												$orderRawWAPhone = preg_replace('/\D+/', '', (string)((optional($order->user)->countrycode ?? '') . (optional($order->user)->mobile_no ?? '')));
 												$orderRawEmail = optional($order->user)->email ?? '';
@@ -330,7 +329,7 @@
                                             @endif
 											@php
 												$orderCode = $order->order_id ?: (string) $order->id;
-												$writeEmailUrl = route('emails.index', array_filter(['account_id' => 1, 'search' => $orderCode]));
+										$writeEmailUrl = route('emails.index', array_filter(['account_id' => crm_email_account_id('writer'), 'search' => $orderCode]));
 											@endphp
 											<div class="mt-1">
 												<a href="{{ $writeEmailUrl }}" target="_blank" class="btn btn-icon btn-sm crm-btn-email" style="width: 22px !important; height: 22px !important;" title="Writer Email: {{ $orderCode ? 'Order ' . $orderCode : 'Open Writer Email Channel' }}">

@@ -215,8 +215,7 @@
                                                     $maskedEmail = $isSuperAdmin ? $rawEmail : ($rawEmail ? mask_email_for_display($rawEmail) : '');
                                                     $maskedMobile = $isSuperAdmin ? $rawMobile : ($rawMobile ? mask_mobile_only($cleanCC, $rawMobile) : '');
 
-                                                    $clientConfig = \App\Models\EmailConfiguration::where('is_active', true)->where(function($q) { $q->where('name', 'Client')->orWhere('email_address', 'order@assignnmentinneed.com')->orWhere('is_default', true); })->first();
-                                                    $clientAccountId = $clientConfig?->id ?? 2;
+                                                    $clientAccountId = crm_email_account_id('client');
                                                     $orderCode = trim((string)($order->order_id ?: $order->id));
                                                     $orderRawWAPhone = preg_replace('/\D+/', '', (string)($cleanCC . $rawMobile));
                                                     $orderRawEmail = $rawEmail;

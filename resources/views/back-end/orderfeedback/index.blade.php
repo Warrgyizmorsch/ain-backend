@@ -341,8 +341,7 @@
 
                                             $orderRawWAPhone = preg_replace('/\D+/', '', (string)($cleanCC . $rawMobile));
                                             $orderSearchTerm = !empty($orderCode) ? $orderCode : $rawEmail;
-                                            $clientConfig = \App\Models\EmailConfiguration::where('is_active', true)->where(function($q) { $q->where('name', 'Client')->orWhere('email_address', 'order@assignnmentinneed.com')->orWhere('is_default', true); })->first();
-                                            $clientAccountId = $clientConfig?->id ?? 2;
+                                            $clientAccountId = crm_email_account_id('client');
                                             $orderEmailUrl = route('emails.index', array_filter(['account_id' => $clientAccountId, 'search' => $orderSearchTerm]));
                                             $orderWhatsAppUrl = !empty($orderRawWAPhone) ? route('whatsapp.chat', ['phone' => $orderRawWAPhone]) : route('whatsapp.chat');
                                         @endphp
