@@ -1368,7 +1368,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const headerRow = table?.querySelector('thead tr');
     if (!table || !headerRow) return;
 
-    const storageKey = 'crm-order-columns-v1-user-{{ auth()->id() ?? 'guest' }}';
+    const storageKey = 'crm-order-columns-v2-user-{{ auth()->id() ?? 'guest' }}';
     const slug = value => value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
     const headers = Array.from(headerRow.cells);
     const duplicateCounts = {};
@@ -1381,23 +1381,17 @@ document.addEventListener('DOMContentLoaded', function () {
 
     const defaultKeys = headers.map(header => header.dataset.columnKey);
     const actionKey = headers.find(header => /^actions?$/.test(header.textContent.trim().toLowerCase()))?.dataset.columnKey;
-    const movableDefaults = defaultKeys.filter(key => key !== actionKey);
-    let movableKeys = [...movableDefaults];
+    let columnKeys = [...defaultKeys];
 
     try {
         const saved = JSON.parse(localStorage.getItem(storageKey) || '[]');
-        if (Array.isArray(saved) && saved.length === movableDefaults.length &&
-            saved.every(key => movableDefaults.includes(key))) {
-            movableKeys = saved;
+        if (Array.isArray(saved) && saved.length === defaultKeys.length &&
+            saved.every(key => defaultKeys.includes(key))) {
+            columnKeys = saved;
         }
     } catch (error) {
         localStorage.removeItem(storageKey);
     }
-
-    const fullOrder = () => {
-        const queue = [...movableKeys];
-        return defaultKeys.map(key => key === actionKey ? actionKey : queue.shift());
-    };
 
     const reorderRow = (row, sourceKeys, targetKeys) => {
         const cells = Array.from(row.cells || []);
@@ -1412,7 +1406,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const applyOrder = () => {
         const currentHeaders = Array.from(headerRow.cells);
         const currentKeys = currentHeaders.map(header => header.dataset.columnKey);
-        const targetKeys = fullOrder();
+        const targetKeys = columnKeys;
 
         table.querySelectorAll('tbody tr').forEach(row => reorderRow(row, currentKeys, targetKeys));
         const headerMap = new Map(currentHeaders.map(header => [header.dataset.columnKey, header]));
@@ -1424,22 +1418,20 @@ document.addEventListener('DOMContentLoaded', function () {
     let draggedKey = null;
     Array.from(headerRow.cells).forEach(header => {
         const key = header.dataset.columnKey;
-        if (key === actionKey) {
-            header.draggable = false;
-            header.title = 'Action column is fixed';
-            return;
+        const isAction = key === actionKey;
+        header.draggable = !isAction;
+        header.title = isAction
+            ? 'Action column cannot be dragged'
+            : 'Drag left or right to place this column anywhere';
+        if (!isAction) {
+            header.classList.add('crm-order-column-draggable');
+            header.addEventListener('dragstart', event => {
+                draggedKey = key;
+                header.classList.add('crm-order-column-dragging');
+                event.dataTransfer.effectAllowed = 'move';
+                event.dataTransfer.setData('text/plain', key);
+            });
         }
-
-        header.draggable = true;
-        header.classList.add('crm-order-column-draggable');
-        header.title = 'Drag left or right to reorder this column';
-
-        header.addEventListener('dragstart', event => {
-            draggedKey = key;
-            header.classList.add('crm-order-column-dragging');
-            event.dataTransfer.effectAllowed = 'move';
-            event.dataTransfer.setData('text/plain', key);
-        });
 
         header.addEventListener('dragover', event => {
             if (!draggedKey || draggedKey === key) return;
@@ -1453,12 +1445,18 @@ document.addEventListener('DOMContentLoaded', function () {
             header.classList.remove('crm-order-column-drop-target');
             if (!draggedKey || draggedKey === key) return;
 
-            const from = movableKeys.indexOf(draggedKey);
-            const to = movableKeys.indexOf(key);
+            const from = columnKeys.indexOf(draggedKey);
+            let to = columnKeys.indexOf(key);
             if (from < 0 || to < 0) return;
-            movableKeys.splice(from, 1);
-            movableKeys.splice(to, 0, draggedKey);
-            localStorage.setItem(storageKey, JSON.stringify(movableKeys));
+
+            // Use the pointer position so dropping on the left/right half of a
+            // header inserts the column exactly before/after that header.
+            const placeAfter = event.clientX > header.getBoundingClientRect().left + (header.offsetWidth / 2);
+            columnKeys.splice(from, 1);
+            to = columnKeys.indexOf(key);
+            if (placeAfter) to += 1;
+            columnKeys.splice(to, 0, draggedKey);
+            localStorage.setItem(storageKey, JSON.stringify(columnKeys));
             applyOrder();
         });
 
@@ -1473,7 +1471,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // Filter/search responses insert fresh rows in the server's default column
     // order. Reapply this user's saved order to every newly inserted row.
     const observer = new MutationObserver(mutations => {
-        const targetKeys = fullOrder();
+        const targetKeys = columnKeys;
         mutations.forEach(mutation => mutation.addedNodes.forEach(node => {
             if (node.nodeType !== Node.ELEMENT_NODE) return;
             if (node.matches?.('tr')) reorderRow(node, defaultKeys, targetKeys);
