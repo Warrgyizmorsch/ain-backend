@@ -343,7 +343,7 @@
                                             $orderSearchTerm = !empty($orderCode) ? $orderCode : $rawEmail;
                                             $clientAccountId = crm_email_account_id('client');
                                             $orderEmailUrl = route('emails.index', array_filter(['account_id' => $clientAccountId, 'search' => $orderSearchTerm]));
-                                            $orderWhatsAppUrl = !empty($orderRawWAPhone) ? route('whatsapp.chat', ['phone' => $orderRawWAPhone]) : route('whatsapp.chat');
+                                            $orderWhatsAppUrl = !empty($orderRawWAPhone) ? route('whatsapp.chat', ['order_ref' => $order->id]) : route('whatsapp.chat');
                                         @endphp
 
                                         <div class="d-flex flex-column gap-1 py-1">

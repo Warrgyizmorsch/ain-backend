@@ -643,15 +643,22 @@ class WhatsappController extends Controller
 
         $users = User::query()
             ->where(function ($q) use ($variants, $cleanPhone, $last10) {
-                $q->whereIn('mobile_no', $variants);
+                $q->whereIn('mobile_no', $variants)
+                  ->orWhereIn('mobile_no2', $variants);
                 if (!empty($cleanPhone)) {
-                    $q->orWhere('mobile_no', 'like', "%{$cleanPhone}%");
+                    $q->orWhere('mobile_no', 'like', "%{$cleanPhone}%")
+                      ->orWhere('mobile_no2', 'like', "%{$cleanPhone}%")
+                      ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile_no, '')) LIKE ?", ["%{$cleanPhone}%"])
+                      ->orWhereRaw("CONCAT(IFNULL(countrycode2, ''), IFNULL(mobile_no2, '')) LIKE ?", ["%{$cleanPhone}%"]);
                 }
                 if (!empty($last10)) {
-                    $q->orWhere('mobile_no', 'like', "%{$last10}");
+                    $q->orWhere('mobile_no', 'like', "%{$last10}")
+                      ->orWhere('mobile_no2', 'like', "%{$last10}")
+                      ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile_no, '')) LIKE ?", ["%{$last10}"])
+                      ->orWhereRaw("CONCAT(IFNULL(countrycode2, ''), IFNULL(mobile_no2, '')) LIKE ?", ["%{$last10}"]);
                 }
             })
-            ->get(['id', 'email', 'name', 'mobile_no']);
+            ->get(['id', 'email', 'name', 'mobile_no', 'mobile_no2']);
 
         $userIds = $users->pluck('id')->filter()->all();
         $userEmails = $users->pluck('email')->filter()->all();
@@ -676,25 +683,31 @@ class WhatsappController extends Controller
             })
             ->get(['id', 'order_id', 'emp_id', 'is_converted']);
 
-        $matchingLeadIds = $matchingLeads->pluck('id')->filter()->all();
-        $matchingLeadOrderIds = $matchingLeads->pluck('order_id')->filter()->all();
+        $convertedLeadIds = $matchingLeads->where('is_converted', 1)->pluck('id')->filter()->all();
+        $convertedLeadOrderIds = $matchingLeads->where('is_converted', 1)->pluck('order_id')->filter()->all();
 
         $query = Order::query()
-            ->with(['team', 'lead', 'frontendLead', 'user'])
-            ->where(function ($q) use ($userIds, $matchingLeadIds, $matchingLeadOrderIds) {
-                if (!empty($userIds)) {
-                    $q->whereIn('orders.uid', $userIds);
+            ->with(['team', 'lead', 'frontendLead', 'user']);
+
+        if (!empty($userIds)) {
+            // A resolved CRM user is authoritative. Mixing all of that user's
+            // lead records here double-counts/introduces unrelated orders.
+            $query->whereIn('orders.uid', $userIds);
+        } else {
+            $query->where(function ($q) use ($convertedLeadIds, $convertedLeadOrderIds) {
+                if (!empty($convertedLeadIds)) {
+                    $q->whereIn('orders.lead_id', $convertedLeadIds);
                 }
-                if (!empty($matchingLeadIds)) {
-                    $q->orWhereIn('orders.lead_id', $matchingLeadIds);
+                if (!empty($convertedLeadOrderIds)) {
+                    $q->orWhereIn('orders.order_id', $convertedLeadOrderIds);
                 }
-                if (!empty($matchingLeadOrderIds)) {
-                    $q->orWhereIn('orders.order_id', $matchingLeadOrderIds);
-                }
-            })
+            });
+        }
+
+        $query
             ->orderByDesc('id');
 
-        $hasMatchCriteria = !empty($userIds) || !empty($matchingLeadIds) || !empty($matchingLeadOrderIds);
+        $hasMatchCriteria = !empty($userIds) || !empty($convertedLeadIds) || !empty($convertedLeadOrderIds);
         $total = $hasMatchCriteria ? $query->count() : 0;
         $orders = $hasMatchCriteria ? $query->skip(($page - 1) * $limit)->take($limit)->get() : collect();
 
@@ -2130,24 +2143,26 @@ class WhatsappController extends Controller
 
         $unconvertedLeadsCount = $matchingLeads->where('is_converted', '!=', 1)->count();
 
-        $matchingLeadIds = $matchingLeads->pluck('id')->filter()->all();
-        $matchingLeadOrderIds = $matchingLeads->pluck('order_id')->filter()->all();
+        $convertedLeadIds = $matchingLeads->where('is_converted', 1)->pluck('id')->filter()->all();
+        $convertedLeadOrderIds = $matchingLeads->where('is_converted', 1)->pluck('order_id')->filter()->all();
 
         $ordersCount = 0;
         $ordersQuery = null;
-        if (!empty($userIds) || !empty($matchingLeadIds) || !empty($matchingLeadOrderIds)) {
-            $ordersQuery = Order::query()
-                ->where(function ($q) use ($userIds, $matchingLeadIds, $matchingLeadOrderIds) {
-                    if (!empty($userIds)) {
-                        $q->whereIn('orders.uid', $userIds);
+        if (!empty($userIds) || !empty($convertedLeadIds) || !empty($convertedLeadOrderIds)) {
+            $ordersQuery = Order::query();
+
+            if (!empty($userIds)) {
+                $ordersQuery->whereIn('orders.uid', $userIds);
+            } else {
+                $ordersQuery->where(function ($q) use ($convertedLeadIds, $convertedLeadOrderIds) {
+                    if (!empty($convertedLeadIds)) {
+                        $q->whereIn('orders.lead_id', $convertedLeadIds);
                     }
-                    if (!empty($matchingLeadIds)) {
-                        $q->orWhereIn('orders.lead_id', $matchingLeadIds);
-                    }
-                    if (!empty($matchingLeadOrderIds)) {
-                        $q->orWhereIn('orders.order_id', $matchingLeadOrderIds);
+                    if (!empty($convertedLeadOrderIds)) {
+                        $q->orWhereIn('orders.order_id', $convertedLeadOrderIds);
                     }
                 });
+            }
 
             $ordersCount = (clone $ordersQuery)->count();
         }
