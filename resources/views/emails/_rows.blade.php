@@ -15,15 +15,22 @@
             $clientContact = ($emailClientContacts ?? collect())[strtolower($rawFromEmail)] ?? null;
         }
 
-        $clientWhatsAppPhone = null;
-        $clientWhatsAppUrl = null;
-        if ($clientContact && !empty($clientContact->mobile_no)) {
-            $clientWhatsAppPhone = \App\Http\Controllers\EmailController::formatWhatsAppPhone($clientContact->countrycode ?? '', $clientContact->mobile_no);
-            if (!empty($clientWhatsAppPhone)) {
-                $clientWhatsAppUrl = route('whatsapp.chat', ['phone' => $clientWhatsAppPhone]);
-            }
+        // Resolve the CRM order from the email subject first. This allows the
+        // WhatsApp action to work even when the sender email is not a User email.
+        $rowOrderCode = null;
+        if (!empty($email->subject) && preg_match('/\b([A-Za-z]{2,5}\d{3,7})\b/', $email->subject, $orderMatch)) {
+            $rowOrderCode = strtoupper($orderMatch[1]);
         }
-        $effectiveWhatsAppUrl = $clientWhatsAppUrl;
+        $rowOrder = $rowOrderCode && isset($ordersMap[$rowOrderCode])
+            ? $ordersMap[$rowOrderCode]
+            : null;
+        if ($rowOrderCode && !$rowOrder) {
+            $rowOrder = \App\Models\Order::query()
+                ->where('order_id', $rowOrderCode)
+                ->select(['id', 'order_id', 'uid', 'order_date', 'delivery_date', 'deadline', 'created_at', 'status', 'projectstatus'])
+                ->first();
+        }
+        $whatsAppOrderRef = $rowOrder?->id;
 
         static $cachedAllRowLabels = null;
         if ($cachedAllRowLabels === null) {
@@ -88,24 +95,19 @@
         }
         $plainSnippet = Str::limit($cleanSnippetText, 120);
 
-        // Extract Order ID if present in subject or snippet to render Order Duration Badge (< 2 Days, 3-5 Days, etc.)
-        $rowOrderCode = null;
-        if (!empty($email->subject) && preg_match('/\b([A-Za-z]{2,5}\d{3,7})\b/', $email->subject, $orderMatch)) {
+        // Fall back to the snippet only when the subject has no order code.
+        if (!$rowOrderCode && !empty($plainSnippet) && preg_match('/\b([A-Za-z]{2,5}\d{3,7})\b/', $plainSnippet, $orderMatch)) {
             $rowOrderCode = strtoupper($orderMatch[1]);
-        } elseif (!empty($plainSnippet) && preg_match('/\b([A-Za-z]{2,5}\d{3,7})\b/', $plainSnippet, $orderMatch)) {
-            $rowOrderCode = strtoupper($orderMatch[1]);
-        }
 
-        $rowOrder = null;
-        if ($rowOrderCode) {
             if (isset($ordersMap) && isset($ordersMap[$rowOrderCode])) {
                 $rowOrder = $ordersMap[$rowOrderCode];
             } else {
                 $rowOrder = \App\Models\Order::query()
                     ->where('order_id', $rowOrderCode)
-                    ->select(['id', 'order_id', 'order_date', 'delivery_date', 'deadline', 'created_at', 'status', 'projectstatus'])
+                    ->select(['id', 'order_id', 'uid', 'order_date', 'delivery_date', 'deadline', 'created_at', 'status', 'projectstatus'])
                     ->first();
             }
+            $whatsAppOrderRef = $rowOrder?->id;
         }
 
         $rowOrderDurationBadge = '';
@@ -143,6 +145,12 @@
          onclick="{{ $isDraftEmail ? "openDraft({$email->id})" : "openEmailThread({$email->id})" }}"
          tabindex="0"
          role="row">
+        @if($whatsAppOrderRef)
+            <form id="email-wa-order-{{ $email->id }}" method="POST" action="{{ route('whatsapp.chat.open-order') }}" target="_blank" class="d-none">
+                @csrf
+                <input type="hidden" name="order_ref" value="{{ $whatsAppOrderRef }}">
+            </form>
+        @endif
         
         {{-- Left Controls: Checkbox & Star --}}
         <div class="gmail-row-controls duralux-item-left" onclick="event.stopPropagation();">
@@ -182,15 +190,14 @@
                         onclick="event.stopPropagation(); crmCopyToClipboard('{{ $displayFromEmail }}', 'Email copied!');">
                     <i class="fa fa-clone" style="font-size: 11px;"></i>
                 </button>
-                @if(!empty($effectiveWhatsAppUrl))
-                <a href="{{ $effectiveWhatsAppUrl }}" 
-                   target="_blank" 
+                @if($whatsAppOrderRef)
+                <button type="submit" form="email-wa-order-{{ $email->id }}"
                    class="btn btn-icon btn-sm p-0 flex-shrink-0 text-success d-inline-flex align-items-center justify-content-center" 
                    style="width: 18px; height: 18px; min-width: 18px; border: none; background: transparent; color: #25D366 !important;" 
-                   title="WhatsApp: {{ $clientContact?->name ?: ($clientWhatsAppPhone ?: 'Open Chat') }}"
+                   title="Open order {{ $rowOrderCode }} customer in WhatsApp"
                    onclick="event.stopPropagation();">
                     <svg width="13" height="13" viewBox="0 0 16 16" fill="#25D366"><path fill="#25D366" d="M13.601 2.326A7.85 7.85 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.364 2.76 1.057 3.965L0 16l4.204-1.102a7.9 7.9 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.9 7.9 0 0 0 13.6 2.326zM7.994 14.521a6.6 6.6 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.56 6.56 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592m3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.73.73 0 0 0-.529.247c-.182.198-.691.677-.691 1.654s.707 2.002.806 2.134c.098.133 1.392 2.123 3.372 2.978.471.204.838.326 1.124.418.473.15.905.129 1.246.078.38-.058 1.17-.479 1.338-.943.166-.464.166-.862.116-.944-.049-.082-.182-.133-.38-.232"/></svg>
-                </a>
+                </button>
                 @endif
             </span>
         </div>
@@ -236,16 +243,15 @@
         <div class="gmail-row-right duralux-item-right" onclick="event.stopPropagation();">
             {{-- Default View: Attachment & Date --}}
             <div class="gmail-date-wrap">
-                @if(!empty($effectiveWhatsAppUrl))
-                <a href="{{ $effectiveWhatsAppUrl }}"
-                   target="_blank"
+                @if($whatsAppOrderRef)
+                <button type="submit" form="email-wa-order-{{ $email->id }}"
                    class="d-inline-flex align-items-center justify-content-center me-1"
-                   style="color: #25D366 !important;"
-                   title="WhatsApp: {{ $clientContact?->name ?: ($clientWhatsAppPhone ?: 'Open Chat') }}"
+                   style="color: #25D366 !important; border:0; background:transparent; padding:0;"
+                   title="Open order {{ $rowOrderCode }} customer in WhatsApp"
                    aria-label="Open in WhatsApp"
                    onclick="event.stopPropagation();">
                     <svg width="17" height="17" viewBox="0 0 16 16" fill="currentColor"><path d="M13.601 2.326A7.85 7.85 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.364 2.76 1.057 3.965L0 16l4.204-1.102a7.9 7.9 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.9 7.9 0 0 0 13.6 2.326zM7.994 14.521a6.6 6.6 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.56 6.56 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592m3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.73.73 0 0 0-.529.247c-.182.198-.691.677-.691 1.654s.707 2.002.806 2.134c.098.133 1.392 2.123 3.372 2.978.471.204.838.326 1.124.418.473.15.905.129 1.246.078.38-.058 1.17-.479 1.338-.943.166-.464.166-.862.116-.944-.049-.082-.182-.133-.38-.232"/></svg>
-                </a>
+                </button>
                 @endif
 
                 @if($email->has_attachments)
@@ -270,16 +276,15 @@
                     <i class="fa fa-clone" style="font-size: 14px;"></i>
                 </button>
 
-                @if(!empty($effectiveWhatsAppUrl))
-                <a href="{{ $effectiveWhatsAppUrl }}"
-                   target="_blank"
+                @if($whatsAppOrderRef)
+                <button type="submit" form="email-wa-order-{{ $email->id }}"
                    class="gmail-hover-btn gmail-hover-wa-btn d-inline-flex align-items-center justify-content-center"
                    style="color: #25D366 !important;"
-                   title="WhatsApp: {{ $clientContact?->name ?: ($clientWhatsAppPhone ?: 'Open Chat') }}"
+                   title="Open order {{ $rowOrderCode }} customer in WhatsApp"
                    aria-label="Open in WhatsApp"
                    onclick="event.stopPropagation();">
                     <svg width="17" height="17" viewBox="0 0 16 16" fill="#25D366"><path fill="#25D366" d="M13.601 2.326A7.85 7.85 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.364 2.76 1.057 3.965L0 16l4.204-1.102a7.9 7.9 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.9 7.9 0 0 0 13.6 2.326zM7.994 14.521a6.6 6.6 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.56 6.56 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592m3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.73.73 0 0 0-.529.247c-.182.198-.691.677-.691 1.654s.707 2.002.806 2.134c.098.133 1.392 2.123 3.372 2.978.471.204.838.326 1.124.418.473.15.905.129 1.246.078.38-.058 1.17-.479 1.338-.943.166-.464.166-.862.116-.944-.049-.082-.182-.133-.38-.232"/></svg>
-                </a>
+                </button>
                 @endif
 
                 <button type="button" 

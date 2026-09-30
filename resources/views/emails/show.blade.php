@@ -830,17 +830,21 @@
                         <h2 class="duralux-subject-title">{{ $email->subject ?: '(No Subject)' }}</h2>
                         <span class="badge bg-light text-muted border px-2 py-1 fs-8 text-capitalize">{{ $email->folder }}</span>
                         @php
-                            $effectiveWhatsAppUrl = $clientWhatsAppUrl;
+                            $whatsAppOrderRef = $emailOrder?->id;
                             $isSuperAdmin = Auth::check() && (int) Auth::user()->role_id === 1;
                         @endphp
-                        @if(!empty($effectiveWhatsAppUrl))
-                        <a href="{{ $effectiveWhatsAppUrl }}"
+                        @if($whatsAppOrderRef)
+                        <form id="show-email-wa-order" method="POST" action="{{ route('whatsapp.chat.open-order') }}" target="_blank" class="d-none">
+                            @csrf
+                            <input type="hidden" name="order_ref" value="{{ $whatsAppOrderRef }}">
+                        </form>
+                        <button type="submit" form="show-email-wa-order"
                            target="_blank"
                            class="btn btn-sm btn-light-success d-inline-flex align-items-center gap-1"
-                           title="WhatsApp: {{ $clientContact?->name ?: ($whatsAppPhone ?: 'Open Chat') }}">
+                           title="Open order {{ $emailOrder->order_id }} customer in WhatsApp">
                             <svg width="16" height="16" viewBox="0 0 16 16" fill="#25D366"><path fill="#25D366" d="M13.601 2.326A7.85 7.85 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.364 2.76 1.057 3.965L0 16l4.204-1.102a7.9 7.9 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.9 7.9 0 0 0 13.6 2.326zM7.994 14.521a6.6 6.6 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.56 6.56 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592m3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.73.73 0 0 0-.529.247c-.182.198-.691.677-.691 1.654s.707 2.002.806 2.134c.098.133 1.392 2.123 3.372 2.978.471.204.838.326 1.124.418.473.15.905.129 1.246.078.38-.058 1.17-.479 1.338-.943.166-.464.166-.862.116-.944-.049-.082-.182-.133-.38-.232"/></svg>
                             <span>WhatsApp</span>
-                        </a>
+                        </button>
                         @endif
                     </div>
                     <div class="d-flex flex-wrap gap-1 mt-1" id="showLabelsBadges">
@@ -881,15 +885,14 @@
                             <div class="duralux-avatar" style="{{ $avatarBg }}; width: 28px; height: 28px; font-size: 13px;">{{ $avatarLetter }}</div>
                             <div class="fw-bold fs-7 text-truncate" style="width: 170px; color: #202124;">{{ $displayMsgFromName }}</div>
                             <div class="fs-8 text-muted text-truncate flex-grow-1">{{ $snippet }}</div>
-                            @if(!empty($effectiveWhatsAppUrl))
-                            <a href="{{ $effectiveWhatsAppUrl }}"
-                               target="_blank"
+                            @if($whatsAppOrderRef)
+                            <button type="submit" form="show-email-wa-order"
                                class="text-success me-2 d-inline-flex align-items-center justify-content-center"
                                style="color: #25D366 !important; display: inline-flex !important;"
                                title="WhatsApp: {{ $clientContact?->name ?: ($whatsAppPhone ?: 'Open Chat') }}"
                                onclick="event.stopPropagation();">
                                 <svg width="15" height="15" viewBox="0 0 16 16" fill="#25D366"><path fill="#25D366" d="M13.601 2.326A7.85 7.85 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.364 2.76 1.057 3.965L0 16l4.204-1.102a7.9 7.9 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.9 7.9 0 0 0 13.6 2.326zM7.994 14.521a6.6 6.6 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.56 6.56 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592m3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.73.73 0 0 0-.529.247c-.182.198-.691.677-.691 1.654s.707 2.002.806 2.134c.098.133 1.392 2.123 3.372 2.978.471.204.838.326 1.124.418.473.15.905.129 1.246.078.38-.058 1.17-.479 1.338-.943.166-.464.166-.862.116-.944-.049-.082-.182-.133-.38-.232"/></svg>
-                            </a>
+                            </button>
                             @endif
                             <div class="fs-9 text-muted ms-auto">{{ optional($msg->received_at ?: $msg->created_at)->format('M d, h:i A') }}</div>
                         </div>
@@ -910,15 +913,14 @@
                                                     onclick="event.stopPropagation(); crmCopyToClipboard('{{ $displayMsgFromEmail }}', 'Email copied!');">
                                                 <i class="fa fa-clone" style="font-size: 11px;"></i>
                                             </button>
-                                            @if(!empty($effectiveWhatsAppUrl))
-                                            <a href="{{ $effectiveWhatsAppUrl }}" 
-                                               target="_blank" 
+                                            @if($whatsAppOrderRef)
+                                            <button type="submit" form="show-email-wa-order"
                                                class="btn btn-icon btn-sm p-0 flex-shrink-0 ms-1 gmail-wa-btn" 
                                                style="width: 22px; height: 22px; min-width: 22px;" 
                                                title="WhatsApp: {{ $clientContact?->name ?: ($whatsAppPhone ?: 'Open Chat') }}" 
                                                onclick="event.stopPropagation();">
                                                 <svg width="13" height="13" viewBox="0 0 16 16"><path d="M13.601 2.326A7.85 7.85 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.364 2.76 1.057 3.965L0 16l4.204-1.102a7.9 7.9 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.9 7.9 0 0 0 13.6 2.326zM7.994 14.521a6.6 6.6 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.56 6.56 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592m3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.73.73 0 0 0-.529.247c-.182.198-.691.677-.691 1.654s.707 2.002.806 2.134c.098.133 1.392 2.123 3.372 2.978.471.204.838.326 1.124.418.473.15.905.129 1.246.078.38-.058 1.17-.479 1.338-.943.166-.464.166-.862.116-.944-.049-.082-.182-.133-.38-.232"/></svg>
-                                            </a>
+                                            </button>
                                             @endif
                                         </div>
                                         <div class="text-muted fs-8">to {{ $isSuperAdmin ? ($msg->to_name ?: ($msg->to_email ?: 'me')) : mask_email_for_display($msg->to_email ?: 'me') }}</div>

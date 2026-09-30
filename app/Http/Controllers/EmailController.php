@@ -464,7 +464,7 @@ class EmailController extends Controller
         $ordersMap = !empty($displayedCodes)
             ? \App\Models\Order::query()
                 ->whereIn('order_id', array_keys($displayedCodes))
-                ->select(['id', 'order_id', 'order_date', 'delivery_date', 'deadline', 'created_at', 'status', 'projectstatus'])
+                ->select(['id', 'order_id', 'uid', 'order_date', 'delivery_date', 'deadline', 'created_at', 'status', 'projectstatus'])
                 ->get()
                 ->keyBy(fn($o) => strtoupper($o->order_id))
             : collect();
@@ -562,7 +562,7 @@ class EmailController extends Controller
             $cacheOrdersMap = !empty($cacheCodes)
                 ? \App\Models\Order::query()
                     ->whereIn('order_id', array_keys($cacheCodes))
-                    ->select(['id', 'order_id', 'order_date', 'delivery_date', 'deadline', 'created_at', 'status', 'projectstatus'])
+                    ->select(['id', 'order_id', 'uid', 'order_date', 'delivery_date', 'deadline', 'created_at', 'status', 'projectstatus'])
                     ->get()
                     ->keyBy(fn($o) => strtoupper($o->order_id))
                 : collect();
@@ -781,15 +781,16 @@ class EmailController extends Controller
         $contacts = $this->clientContactsForEmails(collect([$email]));
         $clientContact = $contacts->get(strtolower((string) $customerEmail))
             ?: ($email->from_email ? $contacts->get(strtolower((string) $email->from_email)) : null);
+        $emailOrder = null;
+        if (!empty($email->subject) && preg_match('/\b([A-Za-z]{2,5}\d{3,7})\b/', $email->subject, $orderMatch)) {
+            $emailOrder = \App\Models\Order::query()
+                ->where('order_id', strtoupper($orderMatch[1]))
+                ->first(['id', 'order_id']);
+        }
         $whatsAppPhone = null;
-        $clientWhatsAppUrl = null;
         if ($clientContact && !empty($clientContact->mobile_no)) {
             $whatsAppPhone = self::formatWhatsAppPhone($clientContact->countrycode ?? '', $clientContact->mobile_no);
-            if (!empty($whatsAppPhone)) {
-                $clientWhatsAppUrl = route('whatsapp.chat', ['phone' => $whatsAppPhone]);
-            }
         }
-        $fallbackWhatsAppUrl = $clientWhatsAppUrl;
 
         $threadLabelIds = \App\Models\EmailThreadLabel::where('thread_id', $email->thread_id)
             ->when(empty($email->thread_id) && !empty($customerEmail), function($q) use ($customerEmail) {
@@ -838,7 +839,9 @@ class EmailController extends Controller
                     'customer_email' => $maskEmail($customerEmail),
                     'client_name' => $clientContact?->name,
                     'whatsapp_phone' => $whatsAppPhone,
-                    'whatsapp_url' => $fallbackWhatsAppUrl,
+                    'whatsapp_url' => null,
+                    'whatsapp_order_ref' => $emailOrder?->id,
+                    'whatsapp_order_code' => $emailOrder?->order_id,
                     'cc' => $email->cc,
                     'bcc' => $email->bcc,
                     'subject' => $email->subject,
@@ -869,7 +872,7 @@ class EmailController extends Controller
                 ],
                 'labels' => $threadLabels,
                 'all_labels' => $allLabels,
-                'messages' => $threadMessages->map(function ($msg) use ($maskEmail, $maskName, $fallbackWhatsAppUrl, $whatsAppPhone) {
+                'messages' => $threadMessages->map(function ($msg) use ($maskEmail, $maskName, $whatsAppPhone, $emailOrder) {
                     return [
                         'id' => $msg->id,
                         'thread_id' => $msg->thread_id,
@@ -880,7 +883,8 @@ class EmailController extends Controller
                         'to_email' => $maskEmail($msg->to_email),
                         'raw_from_email' => $msg->from_email,
                         'whatsapp_phone' => $whatsAppPhone,
-                        'whatsapp_url' => $fallbackWhatsAppUrl,
+                        'whatsapp_url' => null,
+                        'whatsapp_order_ref' => $emailOrder?->id,
                         'subject' => $msg->subject,
                         'snippet' => $this->getCleanSnippet($msg, 120),
                         'body_html' => $this->formatIsolatedBodyHtml($msg->body_html, $msg->body_plain),
@@ -944,9 +948,8 @@ class EmailController extends Controller
             'allLabels',
             'threadLabelIds',
             'clientContact',
-            'clientWhatsAppUrl',
-            'fallbackWhatsAppUrl',
             'whatsAppPhone',
+            'emailOrder',
             'isSuperAdmin'
         ));
     }
