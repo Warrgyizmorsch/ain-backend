@@ -235,6 +235,44 @@ class WhatsappController extends Controller
         ]);
     }
 
+    public function openOrderChat(Request $request)
+    {
+        $validated = $request->validate([
+            'order_ref' => ['required', 'integer', 'exists:orders,id'],
+        ]);
+
+        $order = Order::with(['user', 'lead', 'frontendLead'])->findOrFail($validated['order_ref']);
+        $phone = $this->resolveOrderChatPhone($order);
+
+        if ($phone !== '') {
+            session(['wab_active_phone' => $phone]);
+        }
+
+        // POST body carries the order reference; the final browser URL stays clean.
+        return redirect()->route('whatsapp.chat');
+    }
+
+    private function resolveOrderChatPhone(Order $order): string
+    {
+        $user = $order->user ?: $order->lead?->user ?: $order->frontendLead?->user;
+        $lead = $order->lead ?: $order->frontendLead;
+
+        $candidates = [
+            [$user?->countrycode, $user?->mobile_no],
+            [$user?->countrycode2, $user?->mobile_no2],
+            [$lead?->countrycode, $lead?->mobile],
+            [$lead?->countrycode2, $lead?->mobile2],
+        ];
+
+        foreach ($candidates as [$countryCode, $mobile]) {
+            if (!empty($mobile) && strtoupper(trim((string)$mobile)) !== 'NA') {
+                return preg_replace('/\D+/', '', (string)$countryCode . (string)$mobile);
+            }
+        }
+
+        return '';
+    }
+
     public function closeChatSession(): JsonResponse
     {
         session()->forget('wab_active_phone');
@@ -538,10 +576,15 @@ class WhatsappController extends Controller
                       ->orWhereRaw("CONCAT(IFNULL(countrycode2, ''), IFNULL(mobile_no2, '')) LIKE ?", ["%{$last10}"]);
                 }
             })
-            ->get(['id', 'email', 'name', 'mobile_no', 'mobile_no2']);
+            ->get(['id', 'email', 'name', 'mobile_no', 'mobile_no2', 'countrycode', 'countrycode2']);
 
-        $userIds = $users->pluck('id')->filter()->all();
-        $userEmails = $users->pluck('email')->filter()->all();
+        $resolvedUser = $users->first(function ($user) use ($cleanPhone) {
+            $primary = preg_replace('/\D+/', '', (string)$user->countrycode . (string)$user->mobile_no);
+            $secondary = preg_replace('/\D+/', '', (string)$user->countrycode2 . (string)$user->mobile_no2);
+            return $cleanPhone !== '' && ($primary === $cleanPhone || $secondary === $cleanPhone);
+        }) ?: $users->first();
+        $userIds = $resolvedUser ? [$resolvedUser->id] : [];
+        $userEmails = $resolvedUser && !empty($resolvedUser->email) ? [$resolvedUser->email] : [];
 
         $query = Leads::query()
             ->where(function ($q) use ($phone, $cleanPhone, $last10, $variants, $userIds, $userEmails) {
@@ -856,9 +899,11 @@ class WhatsappController extends Controller
             'has_more' => ($page * $limit) < $total,
             'page' => $page,
             'customer_email' => $customerPrimaryEmail,
-            'client_email_url' => !empty($customerPrimaryEmail) ? route('emails.index', ['account_id' => 2, 'search' => mask_email_for_display($customerPrimaryEmail)]) : null,
-            'writer_email_url' => !empty($firstOrderCode) ? route('emails.index', ['account_id' => 1, 'search' => $firstOrderCode]) : (!empty($customerPrimaryEmail) ? route('emails.index', ['account_id' => 1, 'search' => mask_email_for_display($customerPrimaryEmail)]) : null),
-            'all_orders_url' => route('orders.index') . '?search=' . urlencode($cleanPhone),
+            'client_email_url' => !empty($firstOrderCode) ? route('emails.index', ['account_id' => crm_email_account_id('client'), 'search' => $firstOrderCode]) : null,
+            'writer_email_url' => !empty($firstOrderCode) ? route('emails.index', ['account_id' => crm_email_account_id('writer'), 'search' => $firstOrderCode]) : null,
+            'all_orders_url' => $resolvedUser
+                ? route('orders.index', ['uid' => $resolvedUser->id, 'user' => $resolvedUser->name])
+                : route('orders.index'),
         ]);
     }
 
@@ -2093,9 +2138,13 @@ class WhatsappController extends Controller
             })
             ->get(['id', 'email', 'name', 'mobile_no', 'mobile_no2', 'countrycode', 'countrycode2', 'refer_id']);
 
-        $existingUser = $users->first();
-        $userIds = $users->pluck('id')->filter()->all();
-        $userEmails = $users->pluck('email')->filter()->all();
+        $existingUser = $users->first(function ($user) use ($cleanPhone) {
+            $primary = preg_replace('/\D+/', '', (string)$user->countrycode . (string)$user->mobile_no);
+            $secondary = preg_replace('/\D+/', '', (string)$user->countrycode2 . (string)$user->mobile_no2);
+            return $cleanPhone !== '' && ($primary === $cleanPhone || $secondary === $cleanPhone);
+        }) ?: $users->first();
+        $userIds = $existingUser ? [$existingUser->id] : [];
+        $userEmails = $existingUser && !empty($existingUser->email) ? [$existingUser->email] : [];
 
         $matchingLeads = Leads::query()
             ->where(function ($q) use ($phone, $cleanPhone, $last10, $variants, $userIds, $userEmails) {
@@ -2225,17 +2274,14 @@ class WhatsappController extends Controller
         $latestOrder = $ordersQuery ? (clone $ordersQuery)->latest('id')->first(['id', 'order_id']) : null;
         $latestOrderCode = $latestOrder ? trim((string)($latestOrder->order_id ?: $latestOrder->id)) : '';
 
-        // If non-admin, mask the email parameter in the URL so raw email is not exposed in the browser URL
-        $emailSearchParam = mask_email_for_display($linkedUserEmail);
-
-        // Client Email header button is ONLY available if the customer is linked to a user with an email
-        $clientEmailUrl = !empty($linkedUserEmail)
-            ? route('emails.index', ['account_id' => 2, 'search' => $emailSearchParam])
+        // Both mailbox shortcuts search by order code, never by customer number.
+        $clientEmailUrl = !empty($latestOrderCode)
+            ? route('emails.index', ['account_id' => crm_email_account_id('client'), 'search' => $latestOrderCode])
             : null;
 
         $writerEmailUrl = !empty($latestOrderCode)
-            ? route('emails.index', ['account_id' => 1, 'search' => $latestOrderCode])
-            : (!empty($linkedUserEmail) ? route('emails.index', ['account_id' => 1, 'search' => $emailSearchParam]) : null);
+            ? route('emails.index', ['account_id' => crm_email_account_id('writer'), 'search' => $latestOrderCode])
+            : null;
 
         return [
             'name' => $resolvedName,
