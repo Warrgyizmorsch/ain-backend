@@ -47,6 +47,28 @@
     .timer-missed {
         color: #FFA800;
     }
+
+    #leads-table thead th.crm-order-column-draggable {
+        cursor: grab;
+        user-select: none;
+        position: relative;
+    }
+
+    #leads-table thead th.crm-order-column-draggable::after {
+        content: '\22EE\22EE';
+        margin-left: 7px;
+        color: #a1a5b7;
+        font-size: 11px;
+        letter-spacing: -3px;
+    }
+
+    #leads-table thead th.crm-order-column-dragging {
+        opacity: .45;
+    }
+
+    #leads-table thead th.crm-order-column-drop-target {
+        box-shadow: inset 3px 0 0 #009ef7;
+    }
 </style>
 <div style="margin-top: -20px;" id="kt_content">
     @include('back-end.order.partials.fail')
@@ -1339,5 +1361,127 @@ function saveReferralAjax(orderId, status, clientWillRefer, comment) {
         }
     });
 }
+</script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const table = document.getElementById('leads-table');
+    const headerRow = table?.querySelector('thead tr');
+    if (!table || !headerRow) return;
+
+    const storageKey = 'crm-order-columns-v1-user-{{ auth()->id() ?? 'guest' }}';
+    const slug = value => value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    const headers = Array.from(headerRow.cells);
+    const duplicateCounts = {};
+
+    headers.forEach((header, index) => {
+        const base = slug(header.textContent) || `column-${index}`;
+        duplicateCounts[base] = (duplicateCounts[base] || 0) + 1;
+        header.dataset.columnKey = duplicateCounts[base] > 1 ? `${base}-${duplicateCounts[base]}` : base;
+    });
+
+    const defaultKeys = headers.map(header => header.dataset.columnKey);
+    const actionKey = headers.find(header => /^actions?$/.test(header.textContent.trim().toLowerCase()))?.dataset.columnKey;
+    const movableDefaults = defaultKeys.filter(key => key !== actionKey);
+    let movableKeys = [...movableDefaults];
+
+    try {
+        const saved = JSON.parse(localStorage.getItem(storageKey) || '[]');
+        if (Array.isArray(saved) && saved.length === movableDefaults.length &&
+            saved.every(key => movableDefaults.includes(key))) {
+            movableKeys = saved;
+        }
+    } catch (error) {
+        localStorage.removeItem(storageKey);
+    }
+
+    const fullOrder = () => {
+        const queue = [...movableKeys];
+        return defaultKeys.map(key => key === actionKey ? actionKey : queue.shift());
+    };
+
+    const reorderRow = (row, sourceKeys, targetKeys) => {
+        const cells = Array.from(row.cells || []);
+        if (cells.length !== sourceKeys.length) return;
+        const cellMap = new Map(sourceKeys.map((key, index) => [key, cells[index]]));
+        targetKeys.forEach(key => {
+            const cell = cellMap.get(key);
+            if (cell) row.appendChild(cell);
+        });
+    };
+
+    const applyOrder = () => {
+        const currentHeaders = Array.from(headerRow.cells);
+        const currentKeys = currentHeaders.map(header => header.dataset.columnKey);
+        const targetKeys = fullOrder();
+
+        table.querySelectorAll('tbody tr').forEach(row => reorderRow(row, currentKeys, targetKeys));
+        const headerMap = new Map(currentHeaders.map(header => [header.dataset.columnKey, header]));
+        targetKeys.forEach(key => headerRow.appendChild(headerMap.get(key)));
+    };
+
+    applyOrder();
+
+    let draggedKey = null;
+    Array.from(headerRow.cells).forEach(header => {
+        const key = header.dataset.columnKey;
+        if (key === actionKey) {
+            header.draggable = false;
+            header.title = 'Action column is fixed';
+            return;
+        }
+
+        header.draggable = true;
+        header.classList.add('crm-order-column-draggable');
+        header.title = 'Drag left or right to reorder this column';
+
+        header.addEventListener('dragstart', event => {
+            draggedKey = key;
+            header.classList.add('crm-order-column-dragging');
+            event.dataTransfer.effectAllowed = 'move';
+            event.dataTransfer.setData('text/plain', key);
+        });
+
+        header.addEventListener('dragover', event => {
+            if (!draggedKey || draggedKey === key) return;
+            event.preventDefault();
+            header.classList.add('crm-order-column-drop-target');
+        });
+
+        header.addEventListener('dragleave', () => header.classList.remove('crm-order-column-drop-target'));
+        header.addEventListener('drop', event => {
+            event.preventDefault();
+            header.classList.remove('crm-order-column-drop-target');
+            if (!draggedKey || draggedKey === key) return;
+
+            const from = movableKeys.indexOf(draggedKey);
+            const to = movableKeys.indexOf(key);
+            if (from < 0 || to < 0) return;
+            movableKeys.splice(from, 1);
+            movableKeys.splice(to, 0, draggedKey);
+            localStorage.setItem(storageKey, JSON.stringify(movableKeys));
+            applyOrder();
+        });
+
+        header.addEventListener('dragend', () => {
+            draggedKey = null;
+            headerRow.querySelectorAll('th').forEach(item => {
+                item.classList.remove('crm-order-column-dragging', 'crm-order-column-drop-target');
+            });
+        });
+    });
+
+    // Filter/search responses insert fresh rows in the server's default column
+    // order. Reapply this user's saved order to every newly inserted row.
+    const observer = new MutationObserver(mutations => {
+        const targetKeys = fullOrder();
+        mutations.forEach(mutation => mutation.addedNodes.forEach(node => {
+            if (node.nodeType !== Node.ELEMENT_NODE) return;
+            if (node.matches?.('tr')) reorderRow(node, defaultKeys, targetKeys);
+            node.querySelectorAll?.('tr').forEach(row => reorderRow(row, defaultKeys, targetKeys));
+        }));
+    });
+
+    table.querySelectorAll('tbody').forEach(body => observer.observe(body, { childList: true, subtree: true }));
+});
 </script>
 @endsection
