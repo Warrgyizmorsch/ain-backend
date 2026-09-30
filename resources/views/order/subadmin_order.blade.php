@@ -181,7 +181,7 @@
 												$orderRawEmail = optional($order->user)->email ?? '';
 												$orderSearchTerm = !empty($orderCode) ? $orderCode : $orderRawEmail;
 												$orderEmailUrl = route('emails.index', array_filter(['account_id' => $clientAccountId, 'search' => $orderSearchTerm]));
-												$orderWhatsAppUrl = !empty($orderRawWAPhone) ? route('whatsapp.chat', ['phone' => $orderRawWAPhone]) : route('whatsapp.chat');
+										$orderWhatsAppUrl = !empty($orderRawWAPhone) ? route('whatsapp.chat', ['order_ref' => $order->id]) : route('whatsapp.chat');
 											@endphp
 
 											{{-- Direct Contact Actions: WhatsApp & Email --}}

@@ -89,7 +89,32 @@ class WhatsappController extends Controller
             session()->forget('wab_active_phone');
             $activePhone = null;
         } else {
-            $activePhone = $request->query('phone') ?: session('wab_active_phone');
+            // Order-page links pass only the internal order reference so a raw
+            // customer phone number is never exposed in the browser URL.
+            $activePhone = null;
+            if ($request->filled('order_ref')) {
+                $sourceOrder = Order::with(['user', 'lead', 'frontendLead'])
+                    ->find($request->integer('order_ref'));
+
+                if ($sourceOrder) {
+                    $sourceUser = $sourceOrder->user
+                        ?: $sourceOrder->lead?->user
+                        ?: $sourceOrder->frontendLead?->user;
+                    $sourceLead = $sourceOrder->lead ?: $sourceOrder->frontendLead;
+
+                    if ($sourceUser && !empty($sourceUser->mobile_no)) {
+                        $activePhone = preg_replace('/\D+/', '', (string)($sourceUser->countrycode . $sourceUser->mobile_no));
+                    } elseif ($sourceUser && !empty($sourceUser->mobile_no2)) {
+                        $activePhone = preg_replace('/\D+/', '', (string)($sourceUser->countrycode2 . $sourceUser->mobile_no2));
+                    } elseif ($sourceLead && !empty($sourceLead->mobile)) {
+                        $activePhone = preg_replace('/\D+/', '', (string)($sourceLead->countrycode . $sourceLead->mobile));
+                    } elseif ($sourceLead && !empty($sourceLead->mobile2)) {
+                        $activePhone = preg_replace('/\D+/', '', (string)($sourceLead->countrycode2 . $sourceLead->mobile2));
+                    }
+                }
+            }
+
+            $activePhone = $activePhone ?: $request->query('phone') ?: session('wab_active_phone');
             if ($activePhone) {
                 session(['wab_active_phone' => $activePhone]);
             }
