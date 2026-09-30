@@ -82,7 +82,7 @@
         @endif
     </div>
     <div class="card-body py-3" id="filterBody" style="display:none;">
-        <form action="">
+        <form action="" onsubmit="event.preventDefault(); applyFilters(); return false;">
             <div class="row mb-3">
                 <div class="col-md-3 fv-row">
                     <input type="search" name="search" id="search" class="form-control form-control-solid"
@@ -105,6 +105,14 @@
                     $(document).ready(function() {
                         let searchTimeout = null;
 
+                        $('#search, #searchInput').on('keypress', function(e) {
+                            if (e.which === 13 || e.keyCode === 13) {
+                                e.preventDefault();
+                                $('#searchResultss').hide();
+                                applyFilters();
+                            }
+                        });
+
                         $('#searchInput').on('input focus', function() {
                             var searchValue = $(this).val().trim();
 
@@ -114,7 +122,7 @@
                                 $('#searchResultss').html(
                                     '<div class="p-3 text-center text-muted fs-7 d-flex align-items-center justify-content-center gap-2">' +
                                         '<div class="spinner-border spinner-border-sm text-primary" role="status"></div>' +
-                                        '<span>Searching users...</span>' +
+                                        '<span>Searching users & orders...</span>' +
                                     '</div>'
                                 ).show();
 
@@ -130,8 +138,9 @@
                                             if (response && response.length > 0) {
                                                 $.each(response, function(key, value) {
                                                     var mobileStr = value.mobile_no ? ' | 📞 ' + value.mobile_no : '';
+                                                    var orderAttr = value.order_id ? ' data-order-id="' + value.order_id + '"' : '';
                                                     resultsHtml += '<a href="javascript:void(0)" class="dropdown-item user-select-item p-3 border-bottom text-wrap" ' +
-                                                        'data-id="' + value.id + '" data-email="' + value.email + '" data-name="' + value.name + '">' +
+                                                        'data-id="' + value.id + '" data-email="' + value.email + '" data-name="' + value.name + '"' + orderAttr + '>' +
                                                         '<div class="fw-bolder text-dark fs-6">' + value.name + '</div>' +
                                                         '<div class="text-muted fs-7">' + value.email + mobileStr + '</div>' +
                                                         '</a>';
@@ -160,10 +169,18 @@
                             var selectedId = $(this).attr('data-id');
                             var selectedEmail = $(this).attr('data-email');
                             var selectedName = $(this).attr('data-name');
+                            var selectedOrderId = $(this).attr('data-order-id');
 
-                            $('#searchInput').val(selectedName + ' (' + selectedEmail + ')');
-                            $('#selectedValue').val(selectedId);
+                            if (selectedOrderId) {
+                                $('#search').val(selectedOrderId);
+                                $('#searchInput').val(selectedOrderId);
+                                $('#selectedValue').val(selectedId);
+                            } else {
+                                $('#searchInput').val(selectedName + ' (' + selectedEmail + ')');
+                                $('#selectedValue').val(selectedId);
+                            }
                             $('#searchResultss').hide().empty();
+                            applyFilters();
                         });
 
                         // Close dropdown on clicking outside

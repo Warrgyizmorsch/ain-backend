@@ -65,6 +65,49 @@ class SearchController extends Controller
                         ->take(10)
                         ->get();
 
+        // Also search Orders by order_id or title
+        $cleanSearch = trim(preg_replace('/^[#\s]+|^order[:\s-]*/i', '', $query));
+        $noSpaces = strtoupper(str_replace(' ', '', $cleanSearch));
+        $orderCodes = array_values(array_filter(array_unique([
+            $cleanSearch,
+            $noSpaces,
+            is_numeric($noSpaces) ? ('UKS' . $noSpaces) : null,
+            str_starts_with($noSpaces, 'UKS') ? substr($noSpaces, 3) : null,
+        ])));
+
+        $orderMatches = collect();
+        if (!empty($orderCodes)) {
+            $matchingOrders = Order::with('user:id,name,email,mobile_no,countrycode')
+                ->where(function ($oq) use ($orderCodes, $noSpaces) {
+                    $oq->whereIn('order_id', $orderCodes);
+                    if (str_starts_with($noSpaces, 'UKS') && strlen($noSpaces) >= 4) {
+                        $oq->orWhere('order_id', 'like', $noSpaces . '%');
+                    } elseif (is_numeric($noSpaces) && strlen($noSpaces) >= 4) {
+                        $oq->orWhere('order_id', 'like', 'UKS' . $noSpaces . '%');
+                    }
+                })
+                ->orderByDesc('id')
+                ->take(5)
+                ->get();
+
+            foreach ($matchingOrders as $ord) {
+                $userObj = (object)[
+                    'id' => $ord->uid ?: $ord->id,
+                    'name' => '[' . $ord->order_id . '] ' . ($ord->user->name ?? $ord->title ?? 'Order'),
+                    'email' => $ord->user->email ?? ('Order #' . $ord->order_id),
+                    'mobile_no' => $ord->user->mobile_no ?? '',
+                    'mobile_no2' => null,
+                    'countrycode' => $ord->user->countrycode ?? null,
+                    'order_id' => $ord->order_id,
+                ];
+                $orderMatches->push($userObj);
+            }
+        }
+
+        if ($orderMatches->isNotEmpty()) {
+            $results = $orderMatches->concat($results)->take(10);
+        }
+
         // Also search Leads table so customer phone numbers, emails, or names on leads are found
         if ($results->count() < 10) {
             $existingMobiles = $results->pluck('mobile_no')->filter()->map(function($m) {
@@ -126,6 +169,18 @@ class SearchController extends Controller
 
         $results->transform(function ($user) {
             $isSuperAdmin = auth()->check() && (int) auth()->user()->role_id === 1;
+
+            if (isset($user->order_id)) {
+                $user->masked_mobile = mask_mobile_only($user->countrycode, $user->mobile_no);
+                $user->masked_email = mask_email_for_display($user->email);
+                $user->display_name = (string)$user->name;
+                if (!$isSuperAdmin) {
+                    $user->mobile_no = $user->masked_mobile;
+                    $user->email = $user->masked_email;
+                }
+                $user->countrycode = null;
+                return $user;
+            }
 
             if (!$isSuperAdmin) {
                 $user->masked_mobile = mask_mobile_only($user->countrycode, $user->mobile_no);

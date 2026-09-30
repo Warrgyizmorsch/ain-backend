@@ -5,7 +5,7 @@
     	</h3>
     </div>
     <div class="card-body py-3">
-    	<form action="">
+    	<form action="" onsubmit="event.preventDefault(); applyFilters(); return false;">
     		<div class="row mb-3">
             <div class="col-md-3 fv-row">
                 <input type="search" name="search" id="search" class="form-control form-control-solid" placeholder="Search By OrderCode or Title">
@@ -40,6 +40,13 @@
                 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
                 <script>
                     $(document).ready(function () {
+                        $('#search, #searchInput').on('keypress', function(e) {
+                            if (e.which === 13 || e.keyCode === 13) {
+                                e.preventDefault();
+                                applyFilters();
+                            }
+                        });
+
                         $('#searchInput').on('input', function () {
                             var searchValue = $(this).val();
 

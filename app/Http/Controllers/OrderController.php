@@ -1176,16 +1176,44 @@ class OrderController extends Controller
             'projectStatusCounts' => collect()
         ];
 
-        $orders = Order::query()
-            ->whereNotNull('uid')->where('uid', '!=', 0)->where('uid', '!=', '0')
-            ->where(function ($q) {
-                $q->where(function ($noLead) {
-                    $noLead->whereDoesntHave('lead')->whereDoesntHave('frontendLead');
-                })
-                ->orWhereHas('lead', fn ($lq) => $lq->where('is_converted', 1))
-                ->orWhereHas('frontendLead', fn ($flq) => $flq->where('is_converted', 1));
-            })
-            ->select($this->orderListColumns());
+        // Resolve exact and candidate order codes
+        $rawSearch = trim((string)($searchTerm ?? $selectedDataTextBox ?? $userParam ?? ''));
+        $cleanSearch = trim(preg_replace('/^[#\s]+|^order[:\s-]*/i', '', $rawSearch));
+        $noSpaces = strtoupper(str_replace(' ', '', $cleanSearch));
+        $possibleCodes = array_values(array_filter(array_unique([
+            $rawSearch,
+            $cleanSearch,
+            $noSpaces,
+            is_numeric($noSpaces) ? ('UKS' . $noSpaces) : null,
+            str_starts_with($noSpaces, 'UKS') ? substr($noSpaces, 3) : null,
+        ])));
+
+        $matchedOrderIds = [];
+        if (!empty($rawSearch)) {
+            $matchedOrderIds = Order::where(function ($oq) use ($possibleCodes, $noSpaces) {
+                $oq->whereIn('order_id', $possibleCodes);
+                if (str_starts_with($noSpaces, 'UKS') && strlen($noSpaces) >= 4) {
+                    $oq->orWhere('order_id', 'like', $noSpaces . '%');
+                } elseif (is_numeric($noSpaces) && strlen($noSpaces) >= 3) {
+                    $oq->orWhere('order_id', 'like', 'UKS' . $noSpaces . '%')
+                       ->orWhere('order_id', 'like', '%' . $noSpaces . '%');
+                }
+            })->pluck('order_id')->toArray();
+        }
+
+        $orders = Order::query()->select($this->orderListColumns());
+
+        // Only enforce uid != 0 and lead conversion if not explicitly searching for a matched order code
+        if (empty($matchedOrderIds)) {
+            $orders->whereNotNull('uid')->where('uid', '!=', 0)->where('uid', '!=', '0')
+                ->where(function ($q) {
+                    $q->where(function ($noLead) {
+                        $noLead->whereDoesntHave('lead')->whereDoesntHave('frontendLead');
+                    })
+                    ->orWhereHas('lead', fn ($lq) => $lq->where('is_converted', 1))
+                    ->orWhereHas('frontendLead', fn ($flq) => $flq->where('is_converted', 1));
+                });
+        }
 
         if ($semester != '') {
             $orders->where('semester',  $semester);
@@ -1193,9 +1221,14 @@ class OrderController extends Controller
 
         if ($searchTerm != '') {
             $searchUserIds = find_user_ids_by_search_term($searchTerm);
-            $orders->where(function ($query) use ($searchTerm, $searchUserIds) {
-                $query->where('order_id', 'like', '%' . $searchTerm . '%')
-                    ->orWhere('title', 'like', '%' . $searchTerm . '%');
+            $orders->where(function ($query) use ($searchTerm, $searchUserIds, $matchedOrderIds, $possibleCodes) {
+                if (!empty($matchedOrderIds)) {
+                    $query->whereIn('order_id', $matchedOrderIds)
+                          ->orWhereIn('order_id', $possibleCodes);
+                } else {
+                    $query->where('order_id', 'like', '%' . $searchTerm . '%');
+                }
+                $query->orWhere('title', 'like', '%' . $searchTerm . '%');
                 if (!empty($searchUserIds)) {
                     $query->orWhereIn('uid', $searchUserIds);
                 }
@@ -1301,9 +1334,16 @@ class OrderController extends Controller
                 },
                 'payment:id,order_id,paid_amount,is_revoked,payee_name,company_accounts',
                 'team:id,team_name',
-            ])
-            ->orderBy('id', 'desc')
-            ->where('uid', '!=', '0');
+            ]);
+
+        if (!empty($matchedOrderIds)) {
+            $escapedCodes = implode("','", array_map(fn($c) => addslashes($c), $matchedOrderIds));
+            $ordersQueryBuilder->orderByRaw("CASE WHEN orders.order_id IN ('{$escapedCodes}') THEN 0 ELSE 1 END");
+        } else {
+            $ordersQueryBuilder->where('uid', '!=', '0');
+        }
+
+        $ordersQueryBuilder->orderBy('id', 'desc');
 
         if (empty($uid) && empty($userParam)) {
             $ordersQueryBuilder->limit((int) $request->get('limit', 100));
@@ -1352,7 +1392,7 @@ class OrderController extends Controller
                            
                                 </td>  
                             
-                                ' . ($order->user !=  ''  && auth()->user()->role_id !=  '5' ?
+                                ' . ($order->user !=  ''  && auth()->user()?->role_id !=  '5' ?
 
                 '<td>
                                 ' . $order->user->name . '
@@ -1361,7 +1401,7 @@ class OrderController extends Controller
 
                 : '') . '
 
-                                ' . ($order->user ==  ''  &&  auth()->user()->role_id !=  '5'  ?
+                                ' . ($order->user ==  ''  &&  auth()->user()?->role_id !=  '5'  ?
 
                 '<td>
                                 Deleted User
@@ -3831,7 +3871,7 @@ class OrderController extends Controller
               ->orWhereNotNull('orders.lead_id');
         });
 
-        // ─── Lead Filtering (Performance-Optimized) ──────────────────────────────────
+        // ─── Lead Filtering & Exact Order Code Matching ──────────────────────────────
         $unconvertedOrderCodes = Cache::remember('unconverted_order_codes_in_orders', 60, function () {
             return DB::table('orders')
                 ->join('leads', 'orders.order_id', '=', 'leads.order_id')
@@ -3842,6 +3882,55 @@ class OrderController extends Controller
                 ->toArray();
         });
 
+        // Resolve exact and candidate order codes from 'search', 'order', or 'user'
+        $rawSearch = trim((string)($request->search ?? $request->order ?? ''));
+        $cleanSearch = trim(preg_replace('/^[#\s]+|^order[:\s-]*/i', '', $rawSearch));
+        $noSpaces = str_replace(' ', '', $cleanSearch);
+        $upperSearch = strtoupper($noSpaces);
+
+        $possibleCodes = array_values(array_filter(array_unique([
+            $rawSearch,
+            $cleanSearch,
+            $noSpaces,
+            $upperSearch,
+            is_numeric($noSpaces) ? ('UKS' . $noSpaces) : null,
+            str_starts_with($upperSearch, 'UKS') ? substr($upperSearch, 3) : null,
+        ])));
+
+        $matchedOrderIds = [];
+        if (!empty($rawSearch)) {
+            $matchedOrderIds = Order::where(function ($oq) use ($possibleCodes, $upperSearch, $noSpaces) {
+                $oq->whereIn('order_id', $possibleCodes);
+                if (str_starts_with($upperSearch, 'UKS') && strlen($upperSearch) >= 4) {
+                    $oq->orWhere('order_id', 'like', $upperSearch . '%');
+                } elseif (is_numeric($noSpaces) && strlen($noSpaces) >= 3) {
+                    $oq->orWhere('order_id', 'like', 'UKS' . $noSpaces . '%')
+                       ->orWhere('order_id', 'like', '%' . $noSpaces . '%');
+                }
+            })->pluck('order_id')->toArray();
+        }
+
+        // Also check if user typed an order code into the 'user' (searchInput) box
+        $userParam = trim((string)$request->user);
+        if (!empty($userParam)) {
+            $cleanUserParam = strtoupper(str_replace(' ', '', preg_replace('/^[#\s]+|^order[:\s-]*/i', '', $userParam)));
+            $userMatchedCodes = Order::where(function ($oq) use ($userParam, $cleanUserParam) {
+                $oq->where('order_id', $userParam)
+                   ->orWhere('order_id', $cleanUserParam);
+                if (is_numeric($userParam) && strlen($userParam) >= 3) {
+                    $oq->orWhere('order_id', 'like', 'UKS' . $userParam . '%');
+                }
+            })->pluck('order_id')->toArray();
+            if (!empty($userMatchedCodes)) {
+                $matchedOrderIds = array_values(array_unique(array_merge($matchedOrderIds, $userMatchedCodes)));
+            }
+        }
+
+        // Never let unconverted lead filter hide explicitly searched order codes
+        if (!empty($matchedOrderIds) && !empty($unconvertedOrderCodes)) {
+            $unconvertedOrderCodes = array_diff($unconvertedOrderCodes, $matchedOrderIds);
+        }
+
         if (!empty($unconvertedOrderCodes)) {
             $query->whereNotIn('orders.order_id', $unconvertedOrderCodes);
         }
@@ -3850,20 +3939,19 @@ class OrderController extends Controller
 
         if ($request->filled('search')) {
             $search = trim($request->search);
-            $hasOrderCodeMatch = Order::where('order_id', $search)
-                ->orWhere('order_id', 'like', $search . '%')
-                ->exists();
-
             $searchUserIds = find_user_ids_by_search_term($search);
             if (is_numeric($search)) {
                 $searchUserIds[] = (int) $search;
                 $searchUserIds = array_unique($searchUserIds);
             }
 
-            if ($hasOrderCodeMatch) {
-                $query->where(function ($q) use ($search, $searchUserIds) {
-                    $q->where('order_id', $search)
-                        ->orWhere('order_id', 'like', $search . '%');
+            if (!empty($matchedOrderIds)) {
+                $query->where(function ($q) use ($matchedOrderIds, $possibleCodes, $search, $searchUserIds) {
+                    $q->whereIn('orders.order_id', $matchedOrderIds)
+                      ->orWhereIn('orders.order_id', $possibleCodes);
+                    if (!empty($search)) {
+                        $q->orWhere('orders.title', 'like', '%' . $search . '%');
+                    }
                     if (is_numeric($search)) {
                         $q->orWhere('orders.uid', (int) $search);
                     }
@@ -3959,9 +4047,12 @@ class OrderController extends Controller
             $cleanDigits = preg_replace('/\D+/', '', $userTerm);
             $last10 = strlen($cleanDigits) >= 10 ? substr($cleanDigits, -10) : $cleanDigits;
 
-            $query->where(function ($q) use ($userIds, $userTerm, $cleanMaskedPattern, $last10) {
+            $query->where(function ($q) use ($userIds, $userTerm, $cleanMaskedPattern, $last10, $matchedOrderIds) {
+                if (!empty($matchedOrderIds)) {
+                    $q->whereIn('orders.order_id', $matchedOrderIds);
+                }
                 if (!empty($userIds)) {
-                    $q->whereIn('orders.uid', $userIds)
+                    $q->orWhereIn('orders.uid', $userIds)
                       ->orWhereHas('lead', fn($lq) => $lq->whereIn('emp_id', $userIds))
                       ->orWhereHas('frontendLead', fn($flq) => $flq->whereIn('emp_id', $userIds));
                 }
@@ -4403,7 +4494,24 @@ class OrderController extends Controller
         $offset = (int) $request->get('offset', 0);
 
         $baseQuery = $this->buildOrderFilterQuery($request);
-        $query = (clone $baseQuery)->orderByDesc('orders.order_date')->orderByDesc('orders.id');
+
+        // Prioritize exact order code matches at the very top (Row #1)
+        $rawSearch = trim((string)($request->search ?? $request->order ?? $request->user ?? ''));
+        $cleanSearch = trim(preg_replace('/^[#\s]+|^order[:\s-]*/i', '', $rawSearch));
+        $noSpaces = strtoupper(str_replace(' ', '', $cleanSearch));
+        $exactCodeCandidates = array_values(array_filter(array_unique([
+            $cleanSearch,
+            $noSpaces,
+            is_numeric($noSpaces) ? ('UKS' . $noSpaces) : null,
+            str_starts_with($noSpaces, 'UKS') ? substr($noSpaces, 3) : null,
+        ])));
+
+        $query = clone $baseQuery;
+        if (!empty($exactCodeCandidates)) {
+            $escapedCodes = implode("','", array_map(fn($c) => addslashes($c), $exactCodeCandidates));
+            $query->orderByRaw("CASE WHEN orders.order_id IN ('{$escapedCodes}') THEN 0 ELSE 1 END");
+        }
+        $query->orderByDesc('orders.order_date')->orderByDesc('orders.id');
 
         $orders = $query->skip($offset)->take($limit + 1)->get();
         $hasMore = $orders->count() > $limit;
