@@ -3898,29 +3898,50 @@ class OrderController extends Controller
         ])));
 
         $matchedOrderIds = [];
+        $exactMatchedOrderIds = [];
         if (!empty($rawSearch)) {
-            $matchedOrderIds = Order::where(function ($oq) use ($possibleCodes, $upperSearch, $noSpaces) {
-                $oq->whereIn('order_id', $possibleCodes);
-                if (str_starts_with($upperSearch, 'UKS') && strlen($upperSearch) >= 4) {
-                    $oq->orWhere('order_id', 'like', $upperSearch . '%');
-                } elseif (is_numeric($noSpaces) && strlen($noSpaces) >= 3) {
-                    $oq->orWhere('order_id', 'like', 'UKS' . $noSpaces . '%')
-                       ->orWhere('order_id', 'like', '%' . $noSpaces . '%');
-                }
-            })->pluck('order_id')->toArray();
+            $exactMatchedOrderIds = Order::whereIn('order_id', $possibleCodes)
+                ->pluck('order_id')
+                ->toArray();
+
+            if (!empty($exactMatchedOrderIds)) {
+                $matchedOrderIds = $exactMatchedOrderIds;
+            } else {
+                $matchedOrderIds = Order::where(function ($oq) use ($upperSearch, $noSpaces) {
+                    if (str_starts_with($upperSearch, 'UKS') && strlen($upperSearch) >= 4) {
+                        $oq->where('order_id', 'like', $upperSearch . '%');
+                    } elseif (is_numeric($noSpaces) && strlen($noSpaces) >= 3) {
+                        $oq->where('order_id', 'like', 'UKS' . $noSpaces . '%')
+                           ->orWhere('order_id', 'like', '%' . $noSpaces . '%');
+                    } else {
+                        $oq->whereRaw('0 = 1');
+                    }
+                })->pluck('order_id')->toArray();
+            }
         }
 
         // Also check if user typed an order code into the 'user' (searchInput) box
         $userParam = trim((string)$request->user);
         if (!empty($userParam)) {
             $cleanUserParam = strtoupper(str_replace(' ', '', preg_replace('/^[#\s]+|^order[:\s-]*/i', '', $userParam)));
-            $userMatchedCodes = Order::where(function ($oq) use ($userParam, $cleanUserParam) {
-                $oq->where('order_id', $userParam)
-                   ->orWhere('order_id', $cleanUserParam);
-                if (is_numeric($userParam) && strlen($userParam) >= 3) {
-                    $oq->orWhere('order_id', 'like', 'UKS' . $userParam . '%');
-                }
-            })->pluck('order_id')->toArray();
+            $userExactMatchedCodes = Order::whereIn('order_id', array_values(array_filter(array_unique([
+                $userParam,
+                $cleanUserParam,
+                is_numeric($cleanUserParam) ? ('UKS' . $cleanUserParam) : null,
+            ]))))->pluck('order_id')->toArray();
+
+            if (!empty($userExactMatchedCodes)) {
+                $exactMatchedOrderIds = array_values(array_unique(array_merge($exactMatchedOrderIds, $userExactMatchedCodes)));
+                $userMatchedCodes = $userExactMatchedCodes;
+            } else {
+                $userMatchedCodes = Order::where(function ($oq) use ($userParam) {
+                    if (is_numeric($userParam) && strlen($userParam) >= 3) {
+                        $oq->where('order_id', 'like', 'UKS' . $userParam . '%');
+                    } else {
+                        $oq->whereRaw('0 = 1');
+                    }
+                })->pluck('order_id')->toArray();
+            }
             if (!empty($userMatchedCodes)) {
                 $matchedOrderIds = array_values(array_unique(array_merge($matchedOrderIds, $userMatchedCodes)));
             }
@@ -3945,7 +3966,11 @@ class OrderController extends Controller
                 $searchUserIds = array_unique($searchUserIds);
             }
 
-            if (!empty($matchedOrderIds)) {
+            if (!empty($exactMatchedOrderIds)) {
+                // A complete order code is an exact lookup. Do not broaden it with
+                // title/customer/UID matches, otherwise unrelated orders leak in.
+                $query->whereIn('orders.order_id', $exactMatchedOrderIds);
+            } elseif (!empty($matchedOrderIds)) {
                 $query->where(function ($q) use ($matchedOrderIds, $possibleCodes, $search, $searchUserIds) {
                     $q->whereIn('orders.order_id', $matchedOrderIds)
                       ->orWhereIn('orders.order_id', $possibleCodes);
@@ -4047,7 +4072,10 @@ class OrderController extends Controller
             $cleanDigits = preg_replace('/\D+/', '', $userTerm);
             $last10 = strlen($cleanDigits) >= 10 ? substr($cleanDigits, -10) : $cleanDigits;
 
-            $query->where(function ($q) use ($userIds, $userTerm, $cleanMaskedPattern, $last10, $matchedOrderIds) {
+            if (!empty($exactMatchedOrderIds)) {
+                $query->whereIn('orders.order_id', $exactMatchedOrderIds);
+            } else {
+                $query->where(function ($q) use ($userIds, $userTerm, $cleanMaskedPattern, $last10, $matchedOrderIds) {
                 if (!empty($matchedOrderIds)) {
                     $q->whereIn('orders.order_id', $matchedOrderIds);
                 }
@@ -4069,7 +4097,8 @@ class OrderController extends Controller
                            ->orWhere('mobile2', 'like', '%' . $last10 . '%');
                     }
                 });
-            });
+                });
+            }
         }
 
         $query->when($request->filled('group_id'), fn($q) => $q->whereHas('user.groups', fn($g) => $g->where('group_masters.id', $request->group_id)));
