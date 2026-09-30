@@ -3881,6 +3881,7 @@ class OrderController extends Controller
         $cleanSearch = trim(preg_replace('/^[#\s]+|^order[:\s-]*/i', '', $rawSearch));
         $noSpaces = str_replace(' ', '', $cleanSearch);
         $upperSearch = strtoupper($noSpaces);
+        $looksLikeOrderCode = (bool) preg_match('/^[A-Z]{1,5}\d{3,7}$/', $upperSearch);
 
         $possibleCodes = array_values(array_filter(array_unique([
             $rawSearch,
@@ -3960,10 +3961,12 @@ class OrderController extends Controller
                 $searchUserIds = array_unique($searchUserIds);
             }
 
-            if (!empty($exactMatchedOrderIds)) {
+            if ($looksLikeOrderCode) {
                 // A complete order code is an exact lookup. Do not broaden it with
-                // title/customer/UID matches, otherwise unrelated orders leak in.
-                $query->whereIn('orders.order_id', $exactMatchedOrderIds);
+                // title/customer/UID matches, even when that code does not exist.
+                // A missing exact code must return zero rows, never another
+                // order belonging to a loosely matched customer.
+                $query->whereRaw('UPPER(orders.order_id) = ?', [$upperSearch]);
             } elseif (!empty($matchedOrderIds)) {
                 $query->where(function ($q) use ($matchedOrderIds, $possibleCodes, $search, $searchUserIds) {
                     $q->whereIn('orders.order_id', $matchedOrderIds)
@@ -4065,8 +4068,11 @@ class OrderController extends Controller
             $cleanDigits = preg_replace('/\D+/', '', $userTerm);
             $last10 = strlen($cleanDigits) >= 10 ? substr($cleanDigits, -10) : $cleanDigits;
 
-            if (!empty($exactMatchedOrderIds)) {
-                $query->whereIn('orders.order_id', $exactMatchedOrderIds);
+            $cleanUserOrderCode = strtoupper(str_replace(' ', '', preg_replace('/^[#\s]+|^order[:\s-]*/i', '', $userTerm)));
+            $userLooksLikeOrderCode = (bool) preg_match('/^[A-Z]{1,5}\d{3,7}$/', $cleanUserOrderCode);
+
+            if ($userLooksLikeOrderCode) {
+                $query->whereRaw('UPPER(orders.order_id) = ?', [$cleanUserOrderCode]);
             } else {
                 $query->where(function ($q) use ($userIds, $userTerm, $cleanMaskedPattern, $last10, $matchedOrderIds) {
                 if (!empty($matchedOrderIds)) {
