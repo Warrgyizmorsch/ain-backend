@@ -558,10 +558,20 @@ function testNext2CallOutbound() {
         Swal && Swal.fire('Error', 'Please enter a test phone number.', 'warning');
         return;
     }
-    $('#next2callTestCallModal').modal('hide');
+    try {
+        const modalEl = document.getElementById('next2callTestCallModal');
+        if (modalEl && window.bootstrap && bootstrap.Modal) {
+            const inst = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+            inst.hide();
+        } else if (typeof $('#next2callTestCallModal').modal === 'function') {
+            $('#next2callTestCallModal').modal('hide');
+        }
+    } catch(e) {
+        console.warn('Modal hide error:', e);
+    }
 
     if (typeof window.dialNext2CallNumber === 'function') {
-        window.dialNext2CallNumber(testNum);
+        window.dialNext2CallNumber(testNum, '', 'Next2Call Test Call');
     } else if (typeof window.openRingfyDialer === 'function') {
         window.openRingfyDialer(testNum);
     }
