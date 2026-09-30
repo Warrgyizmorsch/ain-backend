@@ -715,10 +715,11 @@ class WhatsappController extends Controller
     public function customerOrders(Request $request): JsonResponse
     {
         $phone = (string) $request->input('phone');
+        $customerId = $request->integer('customer_id') ?: null;
         $page = max(1, (int) $request->input('page', 1));
         $limit = max(1, min(50, (int) $request->input('limit', 10)));
 
-        if (! $phone) {
+        if (!$phone && !$customerId) {
             return response()->json(['success' => false, 'orders' => [], 'total' => 0, 'has_more' => false]);
         }
 
@@ -726,27 +727,32 @@ class WhatsappController extends Controller
         $cleanPhone = preg_replace('/\D+/', '', $phone);
         $last10 = strlen($cleanPhone) >= 10 ? substr($cleanPhone, -10) : $cleanPhone;
 
-        $users = User::query()
-            ->where(function ($q) use ($variants, $cleanPhone, $last10) {
-                $q->whereIn('mobile_no', $variants)
-                  ->orWhereIn('mobile_no2', $variants);
-                if (!empty($cleanPhone)) {
-                    $q->orWhere('mobile_no', 'like', "%{$cleanPhone}%")
-                      ->orWhere('mobile_no2', 'like', "%{$cleanPhone}%")
-                      ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile_no, '')) LIKE ?", ["%{$cleanPhone}%"])
-                      ->orWhereRaw("CONCAT(IFNULL(countrycode2, ''), IFNULL(mobile_no2, '')) LIKE ?", ["%{$cleanPhone}%"]);
-                }
-                if (!empty($last10)) {
-                    $q->orWhere('mobile_no', 'like', "%{$last10}")
-                      ->orWhere('mobile_no2', 'like', "%{$last10}")
-                      ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile_no, '')) LIKE ?", ["%{$last10}"])
-                      ->orWhereRaw("CONCAT(IFNULL(countrycode2, ''), IFNULL(mobile_no2, '')) LIKE ?", ["%{$last10}"]);
-                }
-            })
-            ->get(['id', 'email', 'name', 'mobile_no', 'mobile_no2']);
+        if ($customerId) {
+            $users = User::query()->whereKey($customerId)
+                ->get(['id', 'email', 'name', 'mobile_no', 'mobile_no2', 'countrycode', 'countrycode2']);
+        } else {
+            $users = User::query()
+                ->where(function ($q) use ($variants, $cleanPhone, $last10) {
+                    $q->whereIn('mobile_no', $variants)->orWhereIn('mobile_no2', $variants);
+                    if (!empty($cleanPhone)) {
+                        $q->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile_no, '')) = ?", [$cleanPhone])
+                          ->orWhereRaw("CONCAT(IFNULL(countrycode2, ''), IFNULL(mobile_no2, '')) = ?", [$cleanPhone]);
+                    }
+                    if (!empty($last10)) {
+                        $q->orWhere('mobile_no', 'like', "%{$last10}")
+                          ->orWhere('mobile_no2', 'like', "%{$last10}");
+                    }
+                })
+                ->get(['id', 'email', 'name', 'mobile_no', 'mobile_no2', 'countrycode', 'countrycode2']);
+        }
 
-        $userIds = $users->pluck('id')->filter()->all();
-        $userEmails = $users->pluck('email')->filter()->all();
+        $resolvedUser = $users->first(function ($user) use ($cleanPhone) {
+            $primary = preg_replace('/\D+/', '', (string)$user->countrycode . (string)$user->mobile_no);
+            $secondary = preg_replace('/\D+/', '', (string)$user->countrycode2 . (string)$user->mobile_no2);
+            return $cleanPhone !== '' && ($primary === $cleanPhone || $secondary === $cleanPhone);
+        }) ?: $users->first();
+        $userIds = $resolvedUser ? [$resolvedUser->id] : [];
+        $userEmails = $resolvedUser && !empty($resolvedUser->email) ? [$resolvedUser->email] : [];
 
         $matchingLeads = Leads::query()
             ->where(function ($q) use ($phone, $cleanPhone, $last10, $variants, $userIds, $userEmails) {

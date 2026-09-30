@@ -1340,7 +1340,7 @@
                     </div>
                 </div>
                 <div class="ms-auto d-flex align-items-center gap-2">
-                    <a href="{{ route('orders.index') }}" target="_blank" id="waOrdersModalViewAllBtn" class="btn btn-sm btn-light py-1.5 px-3 fs-9 fw-bold rounded" title="Open Orders page for this customer">
+                    <a href="{{ !empty($customerSummary['user']['id']) ? route('orders.index', ['uid' => $customerSummary['user']['id'], 'user' => $customerSummary['user']['name'] ?? '']) : route('orders.index') }}" target="_blank" id="waOrdersModalViewAllBtn" class="btn btn-sm btn-light py-1.5 px-3 fs-9 fw-bold rounded" title="Open Orders page for this customer">
                         <i class="fa fa-external-link me-1"></i>View All Orders
                     </a>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
@@ -1581,11 +1581,11 @@ window.currentCustomerUser = @json($initialCustomerUser);
 window.currentCustomerRefer = @json($customerSummary['refer_user'] ?? null);
 window.currentCustomerName = @json($customerSummary['name'] ?? ($selectedName ?? ''));
 window.leadsLoadedPhone = null;
-window.ordersLoadedPhone = null;
+window.ordersLoadedCustomerKey = null;
 window.resetLeadsOrdersPhone = function(phone) {
     window.selectedCustomerPhone = phone;
     window.leadsLoadedPhone = null;
-    window.ordersLoadedPhone = null;
+    window.ordersLoadedCustomerKey = null;
 };
 
 window.parseChatPhone = function(phone) {
@@ -2001,7 +2001,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
                     // Invalidate leads loaded cache so next open fetches fresh leads
                     window.leadsLoadedPhone = null;
-                    window.ordersLoadedPhone = null;
+                    window.ordersLoadedCustomerKey = null;
 
                     // Instant 0ms UI update for Leads button
                     const leadsBtn = document.getElementById('waHeaderCheckLeadsBtn');
@@ -2248,9 +2248,20 @@ document.addEventListener('DOMContentLoaded', function() {
     const loadMoreOrdersBtn = document.getElementById('waLoadMoreOrdersBtn');
     const ordersScrollBody = document.getElementById('waOrdersScrollBody');
 
+    function updateViewAllOrdersLink(customer = window.currentCustomerUser) {
+        const button = document.getElementById('waOrdersModalViewAllBtn');
+        if (!button || !customer?.id) return;
+
+        const ordersUrl = new URL(`{{ route('orders.index') }}`, window.location.origin);
+        ordersUrl.searchParams.set('uid', String(customer.id));
+        if (customer.name) ordersUrl.searchParams.set('user', customer.name);
+        button.href = ordersUrl.toString();
+    }
+
     function fetchOrders(page = 1) {
         const phone = window.selectedCustomerPhone;
-        if (!phone || ordersIsLoading) return;
+        const customerId = window.currentCustomerUser?.id || '';
+        if ((!phone && !customerId) || ordersIsLoading) return;
         ordersIsLoading = true;
 
         if (page === 1) {
@@ -2264,7 +2275,14 @@ document.addEventListener('DOMContentLoaded', function() {
             loadMoreOrdersBtn.disabled = true;
         }
 
-        fetch(`{{ route('whatsapp.chat.customer-orders', [], false) }}?phone=${encodeURIComponent(phone)}&page=${page}&limit=10`)
+        const ordersParams = new URLSearchParams({ page: String(page), limit: '10' });
+        if (customerId) {
+            ordersParams.set('customer_id', String(customerId));
+        } else {
+            ordersParams.set('phone', phone);
+        }
+
+        fetch(`{{ route('whatsapp.chat.customer-orders', [], false) }}?${ordersParams.toString()}`)
             .then(res => res.json())
             .then(data => {
                 ordersIsLoading = false;
@@ -2272,6 +2290,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (loadMoreOrdersBtn) {
                     loadMoreOrdersBtn.innerHTML = '<i class="fa fa-arrow-down me-1"></i>Load Next 10';
                     loadMoreOrdersBtn.disabled = false;
+                }
+
+                const ordersModalViewAll = document.getElementById('waOrdersModalViewAllBtn');
+                if (ordersModalViewAll && data.all_orders_url) {
+                    ordersModalViewAll.href = data.all_orders_url;
                 }
 
                 if (!data.success || !data.orders || data.orders.length === 0) {
@@ -2289,11 +2312,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 ordersTotal = data.total;
                 ordersHasMore = data.has_more;
                 ordersCurrentPage = data.page;
-
-                const ordersModalViewAll = document.getElementById('waOrdersModalViewAllBtn');
-                if (ordersModalViewAll && data.all_orders_url) {
-                    ordersModalViewAll.href = data.all_orders_url;
-                }
 
                 let rowsHtml = '';
                 data.orders.forEach((ord) => {
@@ -2441,8 +2459,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (ordersModal) {
         ordersModal.addEventListener('show.bs.modal', function() {
-            if (window.ordersLoadedPhone !== window.selectedCustomerPhone) {
-                window.ordersLoadedPhone = window.selectedCustomerPhone;
+            updateViewAllOrdersLink();
+            const customerKey = window.currentCustomerUser?.id
+                ? `user:${window.currentCustomerUser.id}`
+                : `phone:${window.selectedCustomerPhone || ''}`;
+            if (window.ordersLoadedCustomerKey !== customerKey) {
+                window.ordersLoadedCustomerKey = customerKey;
                 fetchOrders(1);
             }
         });
@@ -6292,7 +6314,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Update Check Leads / Orders modal subtitles & state
         window.selectedCustomerPhone = phone;
         window.leadsLoadedPhone = null;
-        window.ordersLoadedPhone = null;
+        window.ordersLoadedCustomerKey = null;
         const leadsModalSub = document.querySelector('#waCheckLeadsModal .opacity-75');
         if (leadsModalSub) leadsModalSub.innerHTML = `Customer: <strong>${escapeHtml(resolvedName)}</strong> (${escapeHtml(window.maskPhoneForDisplay(phone))})`;
         const ordersModalSub = document.querySelector('#waCheckOrdersModal .opacity-75');

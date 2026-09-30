@@ -4059,11 +4059,10 @@ class OrderController extends Controller
 
         if (!empty($selectedUid) && is_numeric($selectedUid) && (int)$selectedUid > 0) {
             $uid = (int) $selectedUid;
-            $query->where(function ($q) use ($uid) {
-                $q->where('orders.uid', $uid)
-                  ->orWhereHas('lead', fn($lq) => $lq->where('emp_id', $uid))
-                  ->orWhereHas('frontendLead', fn($flq) => $flq->where('emp_id', $uid));
-            });
+            // A UID filter represents one exact CRM customer. Including orders
+            // through lead.emp_id can pull unrelated/legacy records and makes
+            // WhatsApp's order count disagree with the Orders page.
+            $query->where('orders.uid', $uid);
         } elseif ($request->filled('user')) {
             $userTerm = trim((string)$request->user);
             $userIds = find_user_ids_by_search_term($userTerm);
