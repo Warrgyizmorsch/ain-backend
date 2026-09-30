@@ -321,17 +321,22 @@ if (!function_exists('find_user_ids_by_search_term')) {
 
         // 1. Masked phone number (e.g. 4474****2051, 77******9811)
         if ($hasAsterisk) {
-            $rawPattern = preg_replace('/\*+/', '%', preg_replace('/[^0-9*]/', '', $term));
-            $cleanMaskedPhone = ltrim($rawPattern, '0');
-            if (!empty($cleanMaskedPhone) && strpos($cleanMaskedPhone, '%') !== false && preg_match('/\d/', $cleanMaskedPhone)) {
-                $query->where(function ($q) use ($cleanMaskedPhone, $rawPattern) {
-                    $q->where('mobile_no', 'like', '%' . $cleanMaskedPhone . '%')
-                      ->orWhere('mobile_no2', 'like', '%' . $cleanMaskedPhone . '%')
-                      ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile_no, '')) LIKE ?", ['%' . $cleanMaskedPhone . '%'])
-                      ->orWhereRaw("CONCAT(IFNULL(countrycode2, ''), IFNULL(mobile_no2, '')) LIKE ?", ['%' . $cleanMaskedPhone . '%']);
-                    if ($rawPattern !== $cleanMaskedPhone) {
-                        $q->orWhere('mobile_no', 'like', '%' . $rawPattern . '%')
-                          ->orWhere('mobile_no2', 'like', '%' . $rawPattern . '%');
+            $rawMaskedPhone = preg_replace('/[^0-9*]/', '', $term);
+            $maskedPhonePattern = str_replace('*', '_', $rawMaskedPhone);
+            $withoutLeadingZeroPattern = ltrim($maskedPhonePattern, '0');
+
+            if (!empty($maskedPhonePattern) && strpos($maskedPhonePattern, '_') !== false && preg_match('/\d/', $maskedPhonePattern)) {
+                $query->where(function ($q) use ($maskedPhonePattern, $withoutLeadingZeroPattern) {
+                    // Each mask character represents exactly one hidden digit. Do not
+                    // wrap this in %, otherwise a visible suffix can match anywhere.
+                    $q->where('mobile_no', 'like', $maskedPhonePattern)
+                      ->orWhere('mobile_no2', 'like', $maskedPhonePattern)
+                      ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile_no, '')) LIKE ?", [$maskedPhonePattern])
+                      ->orWhereRaw("CONCAT(IFNULL(countrycode2, ''), IFNULL(mobile_no2, '')) LIKE ?", [$maskedPhonePattern]);
+
+                    if ($withoutLeadingZeroPattern !== $maskedPhonePattern) {
+                        $q->orWhere('mobile_no', 'like', $withoutLeadingZeroPattern)
+                          ->orWhere('mobile_no2', 'like', $withoutLeadingZeroPattern);
                     }
                 });
             }

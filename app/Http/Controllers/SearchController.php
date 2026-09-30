@@ -32,12 +32,21 @@ class SearchController extends Controller
         $hasAsterisk = strpos($query, '*') !== false;
         $userIds = find_user_ids_by_search_term($query);
         $cleanDigits = preg_replace('/\D+/', '', $query);
-        $pattern = $hasAsterisk ? preg_replace('/\*+/', '%', preg_replace('/[^0-9*]/', '', $query)) : '';
+        $pattern = $hasAsterisk ? str_replace('*', '_', preg_replace('/[^0-9*]/', '', $query)) : '';
         $cleanPattern = ltrim($pattern, '0');
 
         // Fetch data from the database based on the query, limiting to 10 results
         $results = User::select('id', 'name', 'email', 'mobile_no', 'mobile_no2', 'countrycode')
                         ->where(function($q) use ($query, $userIds, $cleanDigits, $hasAsterisk, $pattern, $cleanPattern) {
+                            if ($hasAsterisk) {
+                                if (!empty($userIds)) {
+                                    $q->whereIn('id', $userIds);
+                                } else {
+                                    $q->whereRaw('0 = 1');
+                                }
+                                return;
+                            }
+
                             if (!empty($userIds)) {
                                 $q->whereIn('id', $userIds);
                             }
@@ -46,14 +55,7 @@ class SearchController extends Controller
                             }
                             $q->orWhere('name', 'like', "%$query%")
                                 ->orWhere('email', 'like', "%$query%");
-                            if ($hasAsterisk) {
-                                if (!empty($cleanPattern) && preg_match('/\d/', $cleanPattern)) {
-                                    $q->orWhere('mobile_no', 'like', "%$cleanPattern%")
-                                      ->orWhere('mobile_no2', 'like', "%$cleanPattern%")
-                                      ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile_no, '')) LIKE ?", ["%$cleanPattern%"])
-                                      ->orWhereRaw("CONCAT(IFNULL(countrycode2, ''), IFNULL(mobile_no2, '')) LIKE ?", ["%$cleanPattern%"]);
-                                }
-                            } else if (strlen($cleanDigits) >= 2) {
+                            if (strlen($cleanDigits) >= 2) {
                                 $last10 = (strlen($cleanDigits) >= 10) ? substr($cleanDigits, -10) : $cleanDigits;
                                 $q->orWhere('mobile_no', 'like', "%$cleanDigits%")
                                   ->orWhere('mobile_no2', 'like', "%$cleanDigits%")
@@ -122,8 +124,9 @@ class SearchController extends Controller
             $leadMatches = \App\Models\Leads::select('emp_id as id', 'user_name as name', 'email', 'mobile as mobile_no', 'countrycode')
                 ->where(function($lq) use ($query, $cleanDigits, $last10Digits, $hasAsterisk, $cleanPattern) {
                     if ($hasAsterisk && !empty($cleanPattern)) {
-                        $lq->where('mobile', 'like', "%{$cleanPattern}%")
-                           ->orWhere('mobile2', 'like', "%{$cleanPattern}%");
+                        $lq->where('mobile', 'like', $cleanPattern)
+                           ->orWhere('mobile2', 'like', $cleanPattern)
+                           ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile, '')) LIKE ?", [$cleanPattern]);
                     } elseif (strlen($cleanDigits) >= 2) {
                         $lq->where('mobile', 'like', "%{$cleanDigits}%")
                            ->orWhere('mobile2', 'like', "%{$cleanDigits}%")
