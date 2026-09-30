@@ -168,38 +168,6 @@
         background: #ffffff;
     }
 
-    .n2c-logout-btn {
-        background: #dc3545;
-        color: #ffffff;
-        border: 0;
-        border-radius: 6px;
-        padding: 4px 9px;
-        font-size: 11px;
-        font-weight: 600;
-        display: inline-flex;
-        align-items: center;
-        gap: 5px;
-        cursor: pointer;
-        transition: background 0.15s, transform 0.1s;
-    }
-    .n2c-logout-btn:hover {
-        background: #bb2d3b;
-        color: #ffffff;
-    }
-    .n2c-logout-btn:active {
-        transform: scale(0.97);
-    }
-    .n2c-notice-bar {
-        background: #2a2215;
-        border-bottom: 1px solid #4a3b1a;
-        color: #ffd666;
-        padding: 5px 12px;
-        font-size: 11px;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-    }
-
     @media (max-width: 575.98px) {
         .n2c-softphone-box {
             right: 10px;
@@ -221,9 +189,6 @@
             <span class="n2c-title-text" id="n2cHeaderTitle">Next2Call Softphone</span>
         </div>
         <div class="n2c-header-actions">
-            <button type="button" class="n2c-logout-btn" id="n2cLogoutBtn" title="Registration Failed ya Forbidden aane par yahan click karein: Session Logout karke fresh 12h login banayega">
-                <i class="fa fa-sign-out-alt"></i> Logout / Reset
-            </button>
             <button type="button" class="n2c-header-btn" id="n2cRefreshBtn" title="Re-Login / Refresh 12h Session">
                 <i class="fa fa-sync-alt"></i>
             </button>
@@ -231,12 +196,6 @@
                 <i class="fa fa-times"></i>
             </button>
         </div>
-    </div>
-
-    <!-- Quick Help Notice Bar for Forbidden / Login issues -->
-    <div id="n2cNoticeBar" class="n2c-notice-bar">
-        <span><i class="fa fa-info-circle me-1"></i> Forbidden ya registration error aane par <strong>Logout / Reset</strong> karein.</span>
-        <button type="button" id="n2cQuickResetLink" style="background:none;border:none;color:#ff7875;cursor:pointer;text-decoration:underline;font-size:11px;font-weight:700;padding:0;">Re-login</button>
     </div>
 
     <!-- Default Next2Call Phone Iframe Container -->
@@ -271,8 +230,6 @@
 
         const closeBtn = document.getElementById('n2cCloseBtn');
         const refreshBtn = document.getElementById('n2cRefreshBtn');
-        const logoutBtn = document.getElementById('n2cLogoutBtn');
-        const quickResetLink = document.getElementById('n2cQuickResetLink');
 
         function ensureNext2CallIpAllowed(callback) {
             const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '{{ csrf_token() }}';
@@ -304,104 +261,58 @@
                 });
         }
 
-        // Full Session Reset & Logout Flow:
-        // Automatically clears stale session from DB, ensures IP whitelist, drops old Asterisk socket,
-        // and generates a fresh 12-hour session and fresh dialer URLs cleanly.
-        async function performNext2CallSessionReset() {
-            const icon = logoutBtn?.querySelector('i');
-            if (icon) icon.className = 'fa fa-spinner fa-spin';
-            const refreshIcon = refreshBtn?.querySelector('i');
-            if (refreshIcon) refreshIcon.classList.add('fa-spin');
-
+        // Re-Login & Refresh Session right here in the widget (NO duplicate tab!)
+        refreshBtn?.addEventListener('click', function (e) {
+            e.preventDefault();
+            const icon = this.querySelector('i');
+            if (icon) icon.classList.add('fa-spin');
             if (overlay) overlay.style.display = 'flex';
-            if (loaderContact) loaderContact.textContent = 'Next2Call PBX';
-            if (loaderNumber) loaderNumber.textContent = 'Logging out stale session...';
-            if (loaderStatus) loaderStatus.textContent = 'Clearing DB session & re-registering fresh SIP connection...';
-
-            // 1. Immediately drop previous WebRTC socket connection on iframe
-            const currentFrame = document.getElementById('ringfySoftphoneFrame');
-            if (currentFrame) {
-                currentFrame.src = 'about:blank';
-            }
-
-            // 2. Discover client IP for firewall whitelisting
-            let clientIp = '';
-            try {
-                const ipRes = await fetch('https://api.ipify.org?format=json');
-                const ipData = await ipRes.json();
-                clientIp = ipData.ip || '';
-            } catch (e) {}
+            if (loaderContact) loaderContact.textContent = 'Next2Call Softphone';
+            if (loaderNumber) loaderNumber.textContent = 'Re-authenticating...';
+            if (loaderStatus) loaderStatus.textContent = 'Generating fresh 12-hour session in database...';
 
             const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '{{ csrf_token() }}';
-            try {
-                const res = await fetch('{{ route('softphone.reset-session') }}', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json',
-                        'X-CSRF-TOKEN': csrfToken,
-                        'X-Requested-With': 'XMLHttpRequest',
-                    },
-                    body: JSON.stringify({ client_ip: clientIp })
-                });
-                const data = await res.json();
-                if (data && data.success && data.dialer_url) {
-                    const freshDialer = data.dialer_url.replace(/&amp;/g, '&');
+            fetch('{{ route('softphone.call-url') }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: JSON.stringify({ force_refresh: true }),
+            })
+            .then(r => r.json())
+            .then(res => {
+                if (res && res.success && res.dialer_url) {
+                    const freshDialer = res.dialer_url.replace(/&amp;/g, '&');
                     if (widget) {
                         widget.dataset.dialerUrl = freshDialer;
                         DIALER_URL = freshDialer;
-                        if (data.click_to_call_url) {
-                            const newBase = data.click_to_call_url.includes('&d=') 
-                                ? (data.click_to_call_url.split('&d=')[0] + '&d=')
-                                : data.click_to_call_url;
+                        if (res.url) {
+                            const newBase = res.url.split('&d=')[0] + '&d=';
                             widget.dataset.ctcBase = newBase;
                             CTC_BASE_URL = newBase;
                         }
                     }
-
-                    // Delay mounting by 600ms so Asterisk drops old socket cleanly
-                    setTimeout(() => {
-                        const targetFrame = document.getElementById('ringfySoftphoneFrame');
-                        if (targetFrame) {
-                            targetFrame.src = freshDialer;
-                        }
-                        if (overlay) overlay.style.display = 'none';
-                        if (icon) icon.className = 'fa fa-sign-out-alt';
-                        if (refreshIcon) refreshIcon.classList.remove('fa-spin');
-                        if (typeof toastr !== 'undefined') {
-                            toastr.success('Next2Call session reset successfully! Logged in with fresh 12h token.');
-                        }
-                    }, 600);
-                    return;
+                    const currentFrame = document.getElementById('ringfySoftphoneFrame');
+                    if (currentFrame) {
+                        currentFrame.src = freshDialer;
+                    }
                 }
-            } catch (err) {
-                console.warn('[Next2Call] Reset error:', err);
-            }
-
-            setTimeout(() => {
-                if (overlay) overlay.style.display = 'none';
-                if (icon) icon.className = 'fa fa-sign-out-alt';
-                if (refreshIcon) refreshIcon.classList.remove('fa-spin');
-            }, 800);
-        }
-
-        logoutBtn?.addEventListener('click', function(e) {
-            e.preventDefault();
-            performNext2CallSessionReset();
+            })
+            .catch(err => {
+                console.warn('[Next2Call] Session refresh error:', err);
+            })
+            .finally(() => {
+                ensureNext2CallIpAllowed(function () {
+                    setTimeout(() => {
+                        if (icon) icon.classList.remove('fa-spin');
+                        if (overlay) overlay.style.display = 'none';
+                    }, 1200);
+                });
+            });
         });
-
-        quickResetLink?.addEventListener('click', function(e) {
-            e.preventDefault();
-            performNext2CallSessionReset();
-        });
-
-        refreshBtn?.addEventListener('click', function (e) {
-            e.preventDefault();
-            performNext2CallSessionReset();
-        });
-
-        window.resetNext2CallSession = performNext2CallSessionReset;
-        window.logoutNext2Call = performNext2CallSessionReset;
 
         // Automatically ensure agent IP is whitelisted on Next2Call when page loads
         ensureNext2CallIpAllowed();
