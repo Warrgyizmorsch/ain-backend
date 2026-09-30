@@ -323,7 +323,10 @@ class PluginController extends Controller
         $apiBaseUrl = rtrim(!empty($settings['api_base_url']) ? (string) $settings['api_base_url'] : 'https://ringfy.next2call.com', '/');
         $clickToDialPath = (!empty($settings['click_to_dial_path']) && !str_contains($settings['click_to_dial_path'], 'index.html'))
             ? (string) $settings['click_to_dial_path']
-            : '/softphone/Phone/click-to-dial.html';
+            : '/api-section/softphone/Phone/click-to-dial.html';
+        if (!str_contains($clickToDialPath, 'api-section')) {
+            $clickToDialPath = '/api-section' . (str_starts_with($clickToDialPath, '/') ? $clickToDialPath : '/' . $clickToDialPath);
+        }
 
         $targetUser = $user ?: (Auth::check() ? Auth::user() : null);
 
@@ -449,12 +452,15 @@ class PluginController extends Controller
                 $rawCtc = (string) ($data['click_to_call_url'] ?? '');
                 $autoDialCtc = !empty($rawCtc)
                     ? str_replace('index.html', 'click-to-dial.html', $rawCtc)
-                    : ("https://{$creds['sip_domain']}/softphone/Phone/click-to-dial.html?" . http_build_query([
+                    : ("https://{$creds['sip_domain']}/api-section/softphone/Phone/click-to-dial.html?" . http_build_query([
                         'profileName' => $userId,
                         'SipDomain'   => $creds['sip_domain'],
                         'SipUsername' => $userId,
                         'SipPassword' => $password,
                     ]) . '&d=');
+                if (!str_contains($autoDialCtc, 'api-section')) {
+                    $autoDialCtc = str_replace('/softphone/Phone/', '/api-section/softphone/Phone/', $autoDialCtc);
+                }
                 if (!str_contains($autoDialCtc, '&d=')) {
                     $autoDialCtc .= '&d=';
                 }

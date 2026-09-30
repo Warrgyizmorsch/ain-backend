@@ -20,16 +20,22 @@
         'SipUsername' => $userId,
         'SipPassword' => $password,
     ]));
+    if (!str_contains($n2cDialerUrl, 'api-section')) {
+        $n2cDialerUrl = str_replace('/softphone/Phone/', '/api-section/softphone/Phone/', $n2cDialerUrl);
+    }
 
     $n2cRawCtc = $n2cSession['click_to_call_url'] ?? '';
     $n2cCtcBaseUrl = !empty($n2cRawCtc)
         ? str_replace('index.html', 'click-to-dial.html', $n2cRawCtc)
-        : ("https://{$sipDomain}/softphone/Phone/click-to-dial.html?" . http_build_query([
+        : ("https://{$sipDomain}/api-section/softphone/Phone/click-to-dial.html?" . http_build_query([
             'profileName' => $userId,
             'SipDomain'   => $sipDomain,
             'SipUsername' => $userId,
             'SipPassword' => $password,
         ]) . '&d=');
+    if (!str_contains($n2cCtcBaseUrl, 'api-section')) {
+        $n2cCtcBaseUrl = str_replace('/softphone/Phone/', '/api-section/softphone/Phone/', $n2cCtcBaseUrl);
+    }
 @endphp
 
 <style>
@@ -183,13 +189,10 @@
             <span class="n2c-title-text" id="n2cHeaderTitle">Next2Call Softphone</span>
         </div>
         <div class="n2c-header-actions">
-            <button type="button" class="n2c-header-btn" id="n2cRefreshBtn" title="Reconnect / Reload 12h Session">
+            <button type="button" class="n2c-header-btn" id="n2cRefreshBtn" title="Re-Login / Refresh 12h Session">
                 <i class="fa fa-sync-alt"></i>
             </button>
-            <button type="button" class="n2c-header-btn" id="n2cExternalBtn" title="Open in Standalone Popup">
-                <i class="fa fa-external-link-alt"></i>
-            </button>
-            <button type="button" class="n2c-header-btn" id="n2cCloseBtn" title="Close">
+            <button type="button" class="n2c-header-btn" id="n2cCloseBtn" title="Close Softphone">
                 <i class="fa fa-times"></i>
             </button>
         </div>
@@ -226,7 +229,6 @@
         const loaderStatus = document.getElementById('n2cLoaderStatus');
 
         const closeBtn = document.getElementById('n2cCloseBtn');
-        const externalBtn = document.getElementById('n2cExternalBtn');
         const refreshBtn = document.getElementById('n2cRefreshBtn');
 
         function ensureNext2CallIpAllowed(callback) {
@@ -259,23 +261,56 @@
                 });
         }
 
+        // Re-Login & Refresh Session right here in the widget (NO duplicate tab!)
         refreshBtn?.addEventListener('click', function (e) {
             e.preventDefault();
             const icon = this.querySelector('i');
             if (icon) icon.classList.add('fa-spin');
             if (overlay) overlay.style.display = 'flex';
-            if (loaderStatus) loaderStatus.textContent = 'Re-authenticating 12-hour session...';
+            if (loaderContact) loaderContact.textContent = 'Next2Call Softphone';
+            if (loaderNumber) loaderNumber.textContent = 'Re-authenticating...';
+            if (loaderStatus) loaderStatus.textContent = 'Generating fresh 12-hour session in database...';
 
-            ensureNext2CallIpAllowed(function () {
-                const currentFrame = document.getElementById('ringfySoftphoneFrame');
-                const dialerUrl = (widget?.dataset?.dialerUrl || DIALER_URL).replace(/&amp;/g, '&');
-                if (currentFrame) {
-                    currentFrame.src = dialerUrl;
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '{{ csrf_token() }}';
+            fetch('{{ route('softphone.call-url') }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: JSON.stringify({ force_refresh: true }),
+            })
+            .then(r => r.json())
+            .then(res => {
+                if (res && res.success && res.dialer_url) {
+                    const freshDialer = res.dialer_url.replace(/&amp;/g, '&');
+                    if (widget) {
+                        widget.dataset.dialerUrl = freshDialer;
+                        DIALER_URL = freshDialer;
+                        if (res.url) {
+                            const newBase = res.url.split('&d=')[0] + '&d=';
+                            widget.dataset.ctcBase = newBase;
+                            CTC_BASE_URL = newBase;
+                        }
+                    }
+                    const currentFrame = document.getElementById('ringfySoftphoneFrame');
+                    if (currentFrame) {
+                        currentFrame.src = freshDialer;
+                    }
                 }
-                setTimeout(() => {
-                    if (icon) icon.classList.remove('fa-spin');
-                    if (overlay) overlay.style.display = 'none';
-                }, 1500);
+            })
+            .catch(err => {
+                console.warn('[Next2Call] Session refresh error:', err);
+            })
+            .finally(() => {
+                ensureNext2CallIpAllowed(function () {
+                    setTimeout(() => {
+                        if (icon) icon.classList.remove('fa-spin');
+                        if (overlay) overlay.style.display = 'none';
+                    }, 1200);
+                });
             });
         });
 
@@ -402,15 +437,6 @@
             }
         });
 
-        // Popout External Button
-        externalBtn?.addEventListener('click', function () {
-            const currentFrame = document.getElementById('ringfySoftphoneFrame');
-            const currentSrc = (currentFrame && currentFrame.src && currentFrame.src !== 'about:blank' && currentFrame.src !== '') ? currentFrame.src : DIALER_URL;
-            if (currentSrc) {
-                window.open(currentSrc, 'Next2CallSoftphone', 'width=380,height=600,menubar=no,toolbar=no,location=no');
-            }
-        });
-
         // Listen for hangup events from Next2Call dialer
         window.addEventListener('message', function (event) {
             if (event.origin !== 'https://ringfy.next2call.com') return;
@@ -500,6 +526,10 @@
 
             // Calculate target direct dial URL immediately from base CTC
             let baseCtc = ((widget?.dataset?.ctcBase) || CTC_BASE_URL || '').replace(/&amp;/g, '&');
+            if (!baseCtc.includes('api-section')) {
+                baseCtc = baseCtc.replace('/softphone/Phone/', '/api-section/softphone/Phone/');
+            }
+
             let targetCallUrl = '';
             if (baseCtc) {
                 if (baseCtc.includes('&d=')) {
@@ -569,7 +599,10 @@
             const headerTitleEl = document.getElementById('n2cHeaderTitle');
             if (headerTitleEl) headerTitleEl.textContent = 'Next2Call Softphone';
 
-            const activeDialerUrl = ((currentWidget?.dataset?.dialerUrl) || DIALER_URL).replace(/&amp;/g, '&');
+            let activeDialerUrl = ((currentWidget?.dataset?.dialerUrl) || DIALER_URL).replace(/&amp;/g, '&');
+            if (!activeDialerUrl.includes('api-section')) {
+                activeDialerUrl = activeDialerUrl.replace('/softphone/Phone/', '/api-section/softphone/Phone/');
+            }
             mountIframe(activeDialerUrl);
         };
 
@@ -644,7 +677,7 @@
 
                 const newTitle = doc.querySelector('title')?.innerText || document.title;
                 const newMain = doc.querySelector('main.content') || doc.querySelector('#kt_content') || doc.querySelector('#kt_wrapper');
-                const currentMain = document.querySelector('main.content') || document.querySelector('#kt_content') || document.querySelector('#kt_wrapper');
+                const currentMain = document.querySelector('main.content') || doc.querySelector('#kt_content') || doc.querySelector('#kt_wrapper');
 
                 if (newMain && currentMain) {
                     currentMain.innerHTML = newMain.innerHTML;

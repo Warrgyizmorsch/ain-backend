@@ -1672,44 +1672,47 @@ class OrderController extends Controller
 
         $targetNumber = $this->normalizeSoftphoneNumber((string)$countryCode, (string)$mobile);
 
-        if (! $targetNumber) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Customer phone number is not valid.',
-            ], 422);
-        }
-
+        $forceRefresh = $request->boolean('force_refresh');
         $creds = \App\Http\Controllers\PluginController::resolveNext2CallCredentials();
         $userId = $creds['user_id'];
         $password = $creds['password'];
         $sipDomain = $creds['sip_domain'];
         $clickToDialPath = $creds['click_to_dial_path'];
 
-        // Get 12-hour session (will auto-refresh token if expired or invalid)
-        $session = \App\Http\Controllers\PluginController::getNext2CallSession($userId, $password);
+        // Get 12-hour session from DB (auto-refreshes if >= 12h or forceRefresh requested)
+        $session = \App\Http\Controllers\PluginController::getNext2CallSession($userId, $password, $forceRefresh);
         $baseCtc = !empty($session['click_to_call_url'])
             ? str_replace('index.html', 'click-to-dial.html', $session['click_to_call_url'])
-            : ("https://{$sipDomain}/softphone/Phone/click-to-dial.html?" . http_build_query([
+            : ("https://{$sipDomain}/api-section/softphone/Phone/click-to-dial.html?" . http_build_query([
                 'profileName' => $userId,
                 'SipDomain'   => $sipDomain,
                 'SipUsername' => $userId,
                 'SipPassword' => $password,
             ]) . '&d=');
+        if (!str_contains($baseCtc, 'api-section')) {
+            $baseCtc = str_replace('/softphone/Phone/', '/api-section/softphone/Phone/', $baseCtc);
+        }
 
-        $callUrl = str_ends_with($baseCtc, '=') ? ($baseCtc . $targetNumber) : ($baseCtc . '&d=' . $targetNumber);
+        $callUrl = null;
+        $maskedNumber = '';
+        if (!empty($targetNumber)) {
+            $callUrl = str_ends_with($baseCtc, '=') ? ($baseCtc . $targetNumber) : ($baseCtc . '&d=' . $targetNumber);
+            $maskedNumber = function_exists('mask_phone_for_display')
+                ? mask_phone_for_display($countryCode, $mobile)
+                : ('+' . substr($targetNumber, 0, -4) . '****');
+        }
 
         $dialerUrl = !empty($session['webphone_url'])
             ? $session['webphone_url']
-            : ("https://{$sipDomain}/softphone/Phone/index.html?" . http_build_query([
+            : ("https://{$sipDomain}/api-section/softphone/Phone/index.html?" . http_build_query([
                 'profileName' => $userId,
                 'SipDomain'   => $sipDomain,
                 'SipUsername' => $userId,
                 'SipPassword' => $password,
             ]));
-
-        $maskedNumber = function_exists('mask_phone_for_display')
-            ? mask_phone_for_display($countryCode, $mobile)
-            : ('+' . substr($targetNumber, 0, -4) . '****');
+        if (!str_contains($dialerUrl, 'api-section')) {
+            $dialerUrl = str_replace('/softphone/Phone/', '/api-section/softphone/Phone/', $dialerUrl);
+        }
 
         \Illuminate\Support\Facades\Log::info('[Softphone] Generated Click-to-Dial URL', [
             'country_code' => $countryCode,
