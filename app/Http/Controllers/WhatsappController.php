@@ -2322,9 +2322,10 @@ class WhatsappController extends Controller
         $latestOrder = $ordersQuery ? (clone $ordersQuery)->latest('id')->first(['id', 'order_id']) : null;
         $latestOrderCode = $latestOrder ? trim((string)($latestOrder->order_id ?: $latestOrder->id)) : '';
 
-        // Both mailbox shortcuts search by order code, never by customer number.
-        $clientEmailUrl = !empty($latestOrderCode)
-            ? route('emails.index', ['account_id' => crm_email_account_id('client'), 'search' => $latestOrderCode])
+        // Header Client Email follows the active WhatsApp customer's resolved
+        // email. Order-row mailbox shortcuts below continue to use order code.
+        $clientEmailUrl = !empty($customerResolvedEmail)
+            ? route('emails.index', ['account_id' => crm_email_account_id('client'), 'search' => $customerResolvedEmail])
             : null;
 
         $writerEmailUrl = !empty($latestOrderCode)
