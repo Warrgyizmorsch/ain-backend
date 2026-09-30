@@ -62,7 +62,7 @@
                                             $('#searchDatalist').empty();
                                             $.each(response, function (key, value) {
                                                 // Append each option with email, name, and mobile number
-                                                $('#searchDatalist').append('<option data-id="' + value.id + '" value="' + value.email + '">' + value.name + ' (' + value.mobile_no + ')</option>');
+                                                $('#searchDatalist').append('<option data-id="' + value.id + '" value="' + value.email + '">' + value.name + (value.id ? ' (ID: ' + value.id + ')' : '') + ' (' + value.mobile_no + ')</option>');
                                             });
                                             if(response.length === 1) {
                                                 // If there is only one result, automatically fill in the search input

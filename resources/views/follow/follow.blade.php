@@ -604,10 +604,14 @@ $(document).ready(function () {
                                 var mobileStr = value.mobile_no ? ' | 📞 ' + value.mobile_no : '';
                                 var emailStr = value.email ? value.email : '';
 
+                                var idBadge = value.id ? '<span class="badge badge-light-primary fw-bolder fs-8 ms-2 px-2 py-0.5" style="border: 1px solid #bfdbfe;">ID: ' + value.id + '</span>' : '';
                                 customDropdownHtml += '<a href="javascript:void(0)" class="dropdown-item user-select-item p-3 border-bottom text-wrap" ' +
                                     'data-id="' + value.id + '" data-email="' + emailStr + '" data-name="' + value.name + '" data-mobile="' + (value.mobile_no || '') + '" style="display: block; cursor: pointer;">' +
-                                    '<div class="fw-bolder text-dark fs-6">' + value.name + '</div>' +
-                                    '<div class="text-muted fs-7">' + emailStr + mobileStr + '</div>' +
+                                    '<div class="d-flex align-items-center justify-content-between">' +
+                                        '<span class="fw-bolder text-dark fs-6">' + value.name + '</span>' +
+                                        idBadge +
+                                    '</div>' +
+                                    '<div class="text-muted fs-7 mt-1">' + emailStr + mobileStr + '</div>' +
                                     '</a>';
                             });
 

@@ -139,10 +139,14 @@
                                                 $.each(response, function(key, value) {
                                                     var mobileStr = value.mobile_no ? ' | 📞 ' + value.mobile_no : '';
                                                     var orderAttr = value.order_id ? ' data-order-id="' + value.order_id + '"' : '';
+                                                    var idBadge = value.id ? '<span class="badge badge-light-primary fw-bolder fs-8 ms-2 px-2 py-0.5" style="border: 1px solid #bfdbfe;">ID: ' + value.id + '</span>' : '';
                                                     resultsHtml += '<a href="javascript:void(0)" class="dropdown-item user-select-item p-3 border-bottom text-wrap" ' +
                                                         'data-id="' + value.id + '" data-email="' + value.email + '" data-name="' + value.name + '"' + orderAttr + '>' +
-                                                        '<div class="fw-bolder text-dark fs-6">' + value.name + '</div>' +
-                                                        '<div class="text-muted fs-7">' + value.email + mobileStr + '</div>' +
+                                                        '<div class="d-flex align-items-center justify-content-between">' +
+                                                            '<span class="fw-bolder text-dark fs-6">' + value.name + '</span>' +
+                                                            idBadge +
+                                                        '</div>' +
+                                                        '<div class="text-muted fs-7 mt-1">' + value.email + mobileStr + '</div>' +
                                                         '</a>';
                                                 });
                                             } else {
@@ -176,7 +180,11 @@
                                 $('#searchInput').val(selectedOrderId);
                                 $('#selectedValue').val(selectedId);
                             } else {
-                                $('#searchInput').val(selectedName + ' (' + selectedEmail + ')');
+                                var displayName = selectedName;
+                                if (selectedId && displayName.indexOf('ID:') === -1) {
+                                    displayName += ' (ID: ' + selectedId + ')';
+                                }
+                                $('#searchInput').val(displayName);
                                 $('#selectedValue').val(selectedId);
                             }
                             $('#searchResultss').hide().empty();
