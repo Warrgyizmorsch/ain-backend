@@ -539,6 +539,50 @@ class PluginController extends Controller
     }
 
     /**
+     * Logout / Reset Next2Call session:
+     * Clears the stored session from DB and cache, forces an immediate clean re-login,
+     * auto-whitelists IP, and returns the fresh 12h session.
+     */
+    public static function resetNext2CallSession(?string $userId = null, ?string $password = null, ?string $clientIp = null): ?array
+    {
+        $creds = self::resolveNext2CallCredentials($userId, $password);
+        $targetUserId = $creds['user_id'];
+
+        // 1. Delete existing session from next2call_sessions table
+        try {
+            if (\Illuminate\Support\Facades\Schema::hasTable('next2call_sessions')) {
+                \App\Models\Next2CallSession::where('user_id', $targetUserId)->delete();
+                Log::info("[Next2Call DB] Cleared stored session from next2call_sessions for user {$targetUserId}");
+            }
+
+            $plugin = PluginSetting::where('plugin_key', 'next2call')->first();
+            if ($plugin) {
+                $settings = $plugin->settings ?? [];
+                if (isset($settings['sip_sessions'][$targetUserId])) {
+                    unset($settings['sip_sessions'][$targetUserId]);
+                    $plugin->settings = $settings;
+                    $plugin->save();
+                }
+            }
+        } catch (\Throwable $e) {
+            Log::warning('[Next2Call] Session delete warning: ' . $e->getMessage());
+        }
+
+        // 2. Auto-whitelist client IP on Next2Call PBX firewall
+        if ($clientIp && filter_var($clientIp, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+            try {
+                Http::timeout(5)->asForm()->post('http://ipallow.next2call.com/ipallow/process_ip.php', [
+                    'client_id'  => 'CLT-5009FAA4F58D',
+                    'ip_address' => $clientIp,
+                ]);
+            } catch (\Throwable $e) {}
+        }
+
+        // 3. Obtain a brand new 12-hour session via official Webphone Login API
+        return self::getNext2CallSession($targetUserId, $creds['password'], forceRefresh: true);
+    }
+
+    /**
      * Sync call logs from Next2Call Agent Call Report API into local database table next2call_call_logs
      */
     public static function syncNext2CallLogs(?string $userId = null, int $limit = 100): int

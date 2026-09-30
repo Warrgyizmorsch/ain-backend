@@ -1737,6 +1737,35 @@ class OrderController extends Controller
         ], 200, [], JSON_UNESCAPED_SLASHES);
     }
 
+    public function resetNext2CallSession(Request $request)
+    {
+        $creds = \App\Http\Controllers\PluginController::resolveNext2CallCredentials();
+        $clientIp = $request->input('client_ip');
+        if (!$clientIp || !filter_var($clientIp, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+            $clientIp = $request->header('cf-connecting-ip')
+                ?: $request->header('x-real-ip')
+                ?: $request->header('x-forwarded-for')
+                ?: $request->ip();
+            if (is_string($clientIp) && str_contains($clientIp, ',')) {
+                $clientIp = trim(explode(',', $clientIp)[0]);
+            }
+        }
+
+        $session = \App\Http\Controllers\PluginController::resetNext2CallSession($creds['user_id'], $creds['password'], $clientIp);
+
+        $dialerUrl = $session['webphone_url'] ?? null;
+        $ctcUrl = $session['click_to_call_url'] ?? null;
+
+        return response()->json([
+            'success' => !empty($session),
+            'message' => 'Next2Call session reset successfully.',
+            'dialer_url' => $dialerUrl,
+            'click_to_call_url' => $ctcUrl,
+            'user_id' => $creds['user_id'],
+            'ip' => $clientIp,
+        ], 200, [], JSON_UNESCAPED_SLASHES);
+    }
+
     public function whitelistNext2CallIp(Request $request)
     {
         $clientIp = $request->input('client_ip');
