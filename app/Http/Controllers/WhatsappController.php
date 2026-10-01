@@ -83,7 +83,7 @@ class WhatsappController extends Controller
         return back()->with('success', 'WhatsApp settings saved successfully.');
     }
 
-    public function chat(Request $request): View
+    public function chat(Request $request): View|RedirectResponse
     {
         if ($request->has('close')) {
             session()->forget('wab_active_phone');
@@ -117,6 +117,10 @@ class WhatsappController extends Controller
             $activePhone = $activePhone ?: $request->query('phone') ?: session('wab_active_phone');
             if ($activePhone) {
                 session(['wab_active_phone' => $activePhone]);
+            }
+
+            if ($request->filled('phone') || $request->filled('order_ref') || $request->filled('lead_ref')) {
+                return redirect()->route('whatsapp.chat');
             }
         }
 
