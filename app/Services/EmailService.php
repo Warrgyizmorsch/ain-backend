@@ -568,9 +568,8 @@ class EmailService
     }
 
     /**
-     * Synchronize Incoming Emails via IMAP over Native SSL Socket.
-    /**
-     * Synchronize Incoming Emails via IMAP over Native SSL Socket.
+     * Synchronize Emails via IMAP over Native SSL Socket.
+     * Syncs both INBOX (inbound) and [Gmail]/Sent Mail (outbound sent from Gmail directly).
      * Works with configured EmailConfiguration accounts.
      */
     public function syncImap(?\App\Models\EmailConfiguration $targetAccount = null): array
@@ -605,7 +604,7 @@ class EmailService
                 continue;
             }
 
-            $syncLock = Cache::lock("email-imap-sync-{$account->id}", 55);
+            $syncLock = Cache::lock("email-imap-sync-{$account->id}", 90);
             if (!$syncLock->get()) {
                 continue;
             }
@@ -645,63 +644,14 @@ class EmailService
 
                 Cache::forget($authFailKey);
 
-                // 2. SELECT INBOX, then sync stable UIDs in bounded batches.
-                fputs($socket, "TAG2 SELECT INBOX\r\n");
-                while ($line = fgets($socket)) {
-                    if (str_starts_with($line, 'TAG2 ')) break;
-                }
-
                 $settings = $account->settings ?: [];
-                if (!array_key_exists('last_imap_uid', $settings)) {
-                    // First connection: fetch all UIDs, start sync from the last 20 messages
-                    fputs($socket, "TAG3 UID SEARCH ALL\r\n");
-                    $initialUids = [];
-                    while ($line = fgets($socket)) {
-                        if (preg_match('/^\* SEARCH\s*(.*)$/i', trim($line), $matches)) {
-                            $initialUids = array_values(array_filter(array_map('intval', preg_split('/\s+/', trim($matches[1])))));
-                        }
-                        if (str_starts_with($line, 'TAG3 ')) break;
-                    }
-                    $maxUid = empty($initialUids) ? 0 : max($initialUids);
-                    // Fetch up to the last 20 recent messages on baseline
-                    $settings['last_imap_uid'] = max(0, $maxUid - 20);
-                    $settings['imap_baselined_at'] = now()->toIso8601String();
-                    $account->update(['settings' => $settings]);
-                }
 
-                $lastUid = (int) ($settings['last_imap_uid'] ?? 0);
-                $nextUid = $lastUid + 1;
+                // ── Sync INBOX (inbound emails) ──
+                $totalSynced += $this->syncImapFolder($socket, $account, $settings, 'INBOX', 'inbox', 'inbound', 'last_imap_uid');
 
-                // Query ONLY strictly new messages with UID > lastUid (avoids loading historical emails)
-                fputs($socket, "TAG3 UID SEARCH UID {$nextUid}:*\r\n");
-                $uids = [];
-                while ($line = fgets($socket)) {
-                    if (preg_match('/^\* SEARCH\s*(.*)$/i', trim($line), $matches)) {
-                        $rawUids = array_values(array_filter(array_map('intval', preg_split('/\s+/', trim($matches[1])))));
-                        $uids = array_values(array_filter($rawUids, fn ($u) => $u > $lastUid));
-                    }
-                    if (str_starts_with($line, 'TAG3 ')) break;
-                }
+                // ── Sync [Gmail]/Sent Mail (emails sent directly from Gmail web/app) ──
+                $totalSynced += $this->syncImapFolder($socket, $account, $settings, '"[Gmail]/Sent Mail"', 'sent', 'outbound', 'last_sent_imap_uid');
 
-                $pendingUids = array_slice($uids, 0, 50);
-                foreach ($pendingUids as $uid) {
-                    fputs($socket, "TAG_F{$uid} UID FETCH {$uid} (RFC822)\r\n");
-                    $fetchData = '';
-                    while ($line = fgets($socket)) {
-                        if (str_starts_with($line, "TAG_F{$uid} ")) break;
-                        $fetchData .= $line;
-                    }
-
-                    $parsed = $this->parseRawEmail($fetchData);
-                    if ($parsed && !empty($parsed['from_email'])) {
-                        if (!EmailMessage::where('message_id', $parsed['message_id'])->exists()) {
-                            $this->saveParsedEmail($parsed, $account);
-                            $totalSynced++;
-                        }
-                    }
-                    $lastUid = max($lastUid, $uid);
-                }
-                $settings['last_imap_uid'] = $lastUid;
                 $account->update(['settings' => $settings]);
 
                 // LOGOUT
@@ -723,6 +673,86 @@ class EmailService
             'synced_count' => $totalSynced,
             'errors' => $failures,
         ];
+    }
+
+    /**
+     * Sync a single IMAP folder (INBOX or Sent Mail) for an account.
+     * Returns the number of newly synced messages.
+     */
+    private function syncImapFolder($socket, \App\Models\EmailConfiguration $account, array &$settings, string $folderName, string $localFolder, string $direction, string $uidKey): int
+    {
+        $synced = 0;
+        $tagSeq = 'SF_' . substr(md5($folderName), 0, 4) . '_';
+
+        // SELECT the folder
+        $selectTag = $tagSeq . 'SEL';
+        fputs($socket, "{$selectTag} SELECT {$folderName}\r\n");
+        $selectOk = false;
+        while ($line = fgets($socket)) {
+            if (str_starts_with($line, "{$selectTag} OK")) {
+                $selectOk = true;
+                break;
+            }
+            if (str_starts_with($line, "{$selectTag} ")) break;
+        }
+
+        if (!$selectOk) {
+            // Folder doesn't exist (e.g. non-Gmail), skip silently
+            return 0;
+        }
+
+        if (!array_key_exists($uidKey, $settings)) {
+            // First connection for this folder: baseline from last 20 messages
+            $baseTag = $tagSeq . 'BASE';
+            fputs($socket, "{$baseTag} UID SEARCH ALL\r\n");
+            $initialUids = [];
+            while ($line = fgets($socket)) {
+                if (preg_match('/^\* SEARCH\s*(.*)$/i', trim($line), $matches)) {
+                    $initialUids = array_values(array_filter(array_map('intval', preg_split('/\s+/', trim($matches[1])))));
+                }
+                if (str_starts_with($line, "{$baseTag} ")) break;
+            }
+            $maxUid = empty($initialUids) ? 0 : max($initialUids);
+            $settings[$uidKey] = max(0, $maxUid - 20);
+        }
+
+        $lastUid = (int) ($settings[$uidKey] ?? 0);
+        $nextUid = $lastUid + 1;
+
+        // Search for new UIDs
+        $searchTag = $tagSeq . 'SRCH';
+        fputs($socket, "{$searchTag} UID SEARCH UID {$nextUid}:*\r\n");
+        $uids = [];
+        while ($line = fgets($socket)) {
+            if (preg_match('/^\* SEARCH\s*(.*)$/i', trim($line), $matches)) {
+                $rawUids = array_values(array_filter(array_map('intval', preg_split('/\s+/', trim($matches[1])))));
+                $uids = array_values(array_filter($rawUids, fn ($u) => $u > $lastUid));
+            }
+            if (str_starts_with($line, "{$searchTag} ")) break;
+        }
+
+        $pendingUids = array_slice($uids, 0, 50);
+        foreach ($pendingUids as $uid) {
+            $fetchTag = $tagSeq . "F{$uid}";
+            fputs($socket, "{$fetchTag} UID FETCH {$uid} (RFC822)\r\n");
+            $fetchData = '';
+            while ($line = fgets($socket)) {
+                if (str_starts_with($line, "{$fetchTag} ")) break;
+                $fetchData .= $line;
+            }
+
+            $parsed = $this->parseRawEmail($fetchData);
+            if ($parsed && !empty($parsed['from_email'])) {
+                if (!EmailMessage::where('message_id', $parsed['message_id'])->exists()) {
+                    $this->saveParsedEmail($parsed, $account, $localFolder, $direction);
+                    $synced++;
+                }
+            }
+            $lastUid = max($lastUid, $uid);
+        }
+        $settings[$uidKey] = $lastUid;
+
+        return $synced;
     }
 
     public function testConnections(\App\Models\EmailConfiguration $account): array
@@ -1036,7 +1066,7 @@ class EmailService
     /**
      * Save parsed email to database with proper threading.
      */
-    public function saveParsedEmail(array $data, ?\App\Models\EmailConfiguration $account = null): EmailMessage
+    public function saveParsedEmail(array $data, ?\App\Models\EmailConfiguration $account = null, string $folder = 'inbox', string $direction = 'inbound'): EmailMessage
     {
         $fromEmail = $data['from_email'];
         $subject = $data['subject'] ?? '(No Subject)';
@@ -1066,6 +1096,8 @@ class EmailService
             $threadId = $existingMsg ? $existingMsg->thread_id : (string) Str::uuid();
         }
 
+        $isSent = ($direction === 'outbound');
+
         $message = EmailMessage::create([
             'email_configuration_id' => $account?->id,
             'message_id' => $data['message_id'],
@@ -1077,13 +1109,14 @@ class EmailService
             'subject' => $subject,
             'body_html' => $this->htmlSanitizer->sanitize($data['body_html'] ?? ''),
             'body_plain' => $data['body_plain'] ?? '',
-            'folder' => 'inbox',
-            'direction' => 'inbound',
-            'status' => 'received',
-            'is_read' => false,
+            'folder' => $folder,
+            'direction' => $direction,
+            'status' => $isSent ? 'sent' : 'received',
+            'is_read' => $isSent,
             'is_draft' => false,
             'has_attachments' => !empty($data['attachments']),
             'received_at' => $data['received_at'] ?? now(),
+            'sent_at' => $isSent ? ($data['received_at'] ?? now()) : null,
         ]);
 
         foreach ($data['attachments'] ?? [] as $attachment) {
