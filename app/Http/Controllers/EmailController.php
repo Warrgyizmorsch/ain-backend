@@ -103,6 +103,9 @@ class EmailController extends Controller
             $query->where('email_configuration_id', $selectedAccount->id);
         }
 
+        $writerConfigId = function_exists('crm_email_account_id') ? crm_email_account_id('writer') : 1;
+        $isWriterEmail = $selectedAccount && ((int)$selectedAccount->id === (int)$writerConfigId || stripos($selectedAccount->name ?? '', 'writer') !== false);
+
         if (!empty($search)) {
             $cleanSearch = trim($search);
             $terms = collect(preg_split('/\s+/', $cleanSearch))->filter()->values();
@@ -294,8 +297,11 @@ class EmailController extends Controller
             $query->whereBetween('created_at', [$refDate->copy()->subDays($days)->startOfDay(), $refDate->copy()->addDays($days)->endOfDay()]);
         }
 
-        // 6. Deadline Type Filter (< 2 Days, 3-5 Days, 6-15 Days, 15 Days & Above) & Order Code Filter
+        // 6. Deadline Type Filter (< 2 Days, 3-5 Days, 6-15 Days, 15 Days & Above) & Order Code Filter (Only for Writer Email)
         $deadlineType = trim((string)($request->input('deadline_type') ?? ''));
+        if (!$isWriterEmail) {
+            $deadlineType = '';
+        }
         $filterOrderCode = trim((string)($request->input('order_code') ?? $request->input('filter_order_code') ?? ''));
 
         if (!empty($deadlineType) || !empty($filterOrderCode)) {
@@ -353,7 +359,8 @@ class EmailController extends Controller
                 if (!empty($candidateCodes) && $gapCondition) {
                     $orderCandidateQuery = Order::query()
                         ->whereIn('order_id', $candidateCodes)
-                        ->whereRaw($gapCondition);
+                        ->whereRaw($gapCondition)
+                        ->whereIn(DB::raw('LOWER(TRIM(projectstatus))'), ['initiated', 'other']);
                     if (!empty($filterOrderCode)) {
                         $orderCandidateQuery->where('order_id', 'like', "%{$filterOrderCode}%");
                     }
@@ -363,7 +370,8 @@ class EmailController extends Controller
                 // C. Also include recent orders matching the deadline gap (ordered by latest ID)
                 $recentOrdersQuery = Order::query()
                     ->whereNotNull('order_id')
-                    ->where('order_id', '!=', '');
+                    ->where('order_id', '!=', '')
+                    ->whereIn(DB::raw('LOWER(TRIM(projectstatus))'), ['initiated', 'other']);
                 if ($gapCondition) {
                     $recentOrdersQuery->whereRaw($gapCondition);
                 }
@@ -471,7 +479,7 @@ class EmailController extends Controller
 
         if ($request->ajax() && $request->boolean('partial')) {
             return response(
-                view('emails._rows', compact('emailClientContacts', 'threadLabelsMap', 'allLabels', 'ordersMap') + ['emails' => $threads, 'isAppend' => false])->render()
+                view('emails._rows', compact('emailClientContacts', 'threadLabelsMap', 'allLabels', 'ordersMap', 'isWriterEmail') + ['currentAccount' => $selectedAccount, 'emails' => $threads, 'isAppend' => false])->render()
             )->withHeaders([
                 'Cache-Control' => 'no-store, private',
                 'X-Email-Partial' => 'rows',
@@ -481,7 +489,7 @@ class EmailController extends Controller
         if ($request->ajax() && ($request->get('scroll') == '1' || $request->has('page'))) {
             return response()->json([
                 'success' => true,
-                'html' => view('emails._rows', compact('emailClientContacts', 'threadLabelsMap', 'allLabels', 'ordersMap') + ['emails' => $threads, 'isAppend' => true])->render(),
+                'html' => view('emails._rows', compact('emailClientContacts', 'threadLabelsMap', 'allLabels', 'ordersMap', 'isWriterEmail') + ['currentAccount' => $selectedAccount, 'emails' => $threads, 'isAppend' => true])->render(),
                 'has_more' => $threads->hasMorePages(),
                 'current_page' => $threads->currentPage(),
                 'total' => $threads->total(),
@@ -589,6 +597,8 @@ class EmailController extends Controller
                     'threadLabelsMap' => $cacheThreadLabelsMap,
                     'allLabels' => $allLabels,
                     'ordersMap' => $cacheOrdersMap,
+                    'isWriterEmail' => $isWriterEmail,
+                    'currentAccount' => $selectedAccount,
                 ])->render();
             }
         }

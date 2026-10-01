@@ -2849,7 +2849,8 @@
                                         <input type="text" class="form-control form-control-sm gmail-adv-input" id="advFilterDoesntHave" placeholder="Excluded words">
                                     </div>
                                 </div>
-                                {{-- Deadline Type Filter (< 2 Days, 3-5 Days, 6-15 Days, 15 Days & Above) --}}
+                                @if($isWriterEmail ?? false)
+                                {{-- Deadline Type Filter (< 2 Days, 3-5 Days, 6-15 Days, 15 Days & Above) (Writer Email only) --}}
                                 <div class="row align-items-center g-2">
                                     <label class="col-sm-3 col-form-label text-muted fs-8 py-0">Deadline Type</label>
                                     <div class="col-sm-9">
@@ -2862,6 +2863,7 @@
                                         </select>
                                     </div>
                                 </div>
+                                @endif
                                 <div class="row align-items-center g-2">
                                     <label class="col-sm-3 col-form-label text-muted fs-8 py-0">Order Code</label>
                                     <div class="col-sm-9">
@@ -3171,7 +3173,7 @@
 
             {{-- Email List Container (Only this part scrolls) --}}
             <div class="duralux-email-list-wrapper" id="emailListContainer">
-                @include('emails._rows', ['emails' => $emails])
+                @include('emails._rows', ['emails' => $emails, 'isWriterEmail' => $isWriterEmail ?? false, 'currentAccount' => $currentAccount ?? null])
                 <div id="infiniteScrollSpinner" style="display: none;" class="text-center py-3 text-muted fs-8">
                     <i class="fa fa-circle-o-notch fa-spin text-primary me-1"></i> Loading more emails...
                 </div>

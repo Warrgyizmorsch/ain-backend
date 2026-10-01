@@ -110,16 +110,50 @@
             $whatsAppOrderRef = $rowOrder?->id;
         }
 
-        $rowOrderDurationBadge = '';
-        if ($rowOrder) {
-            $orderDate = $rowOrder->order_date ?? ($rowOrder->created_at ?? null);
-            $endDate = $rowOrder->delivery_date ?? ($rowOrder->deadline ?? null);
-            if (!empty($orderDate) && !empty($endDate)) {
-                try {
-                    $start = \Carbon\Carbon::parse($orderDate)->startOfDay();
-                    $end = \Carbon\Carbon::parse($endDate)->startOfDay();
-                    $days = (int) $start->diffInDays($end, false);
+        // Check if this row is for Writer Email (deadline badge must only show in Writer Email, never in Client Email)
+        $isWriterRow = false;
+        if (isset($isWriterEmail)) {
+            $isWriterRow = (bool) $isWriterEmail;
+        } elseif (isset($currentAccount) && $currentAccount) {
+            $writerConfigId = function_exists('crm_email_account_id') ? crm_email_account_id('writer') : 1;
+            $isWriterRow = ((int)$currentAccount->id === (int)$writerConfigId || stripos($currentAccount->name ?? '', 'writer') !== false);
+        } elseif (!empty($email->email_configuration_id)) {
+            $writerConfigId = function_exists('crm_email_account_id') ? crm_email_account_id('writer') : 1;
+            $isWriterRow = ((int)$email->email_configuration_id === (int)$writerConfigId);
+        } elseif (session()->has('active_email_account_id')) {
+            $writerConfigId = function_exists('crm_email_account_id') ? crm_email_account_id('writer') : 1;
+            $isWriterRow = ((int)session('active_email_account_id') === (int)$writerConfigId);
+        } elseif (request()->filled('account_id')) {
+            $writerConfigId = function_exists('crm_email_account_id') ? crm_email_account_id('writer') : 1;
+            $isWriterRow = ((int)request('account_id') === (int)$writerConfigId);
+        }
 
+        $rowOrderDurationBadge = '';
+        if ($isWriterRow && $rowOrder) {
+            // Deadline badge is only visible when order project status is 'initiated' or 'other'
+            $orderProjectStatus = strtolower(trim((string)($rowOrder->projectstatus ?? '')));
+            if (in_array($orderProjectStatus, ['initiated', 'other'], true)) {
+                $days = null;
+                $orderDate = $rowOrder->order_date ?? ($rowOrder->created_at ?? null);
+                if (!empty($rowOrder->delivery_date) && !empty($orderDate)) {
+                    try {
+                        $start = \Carbon\Carbon::parse($orderDate)->startOfDay();
+                        $end = \Carbon\Carbon::parse($rowOrder->delivery_date)->startOfDay();
+                        $days = (int) $start->diffInDays($end, false);
+                    } catch (\Throwable $e) {}
+                } elseif (!empty($rowOrder->deadline)) {
+                    if (is_numeric(trim((string)$rowOrder->deadline))) {
+                        $days = (int) trim((string)$rowOrder->deadline);
+                    } elseif (!empty($orderDate)) {
+                        try {
+                            $start = \Carbon\Carbon::parse($orderDate)->startOfDay();
+                            $end = \Carbon\Carbon::parse($rowOrder->deadline)->startOfDay();
+                            $days = (int) $start->diffInDays($end, false);
+                        } catch (\Throwable $e) {}
+                    }
+                }
+
+                if ($days !== null) {
                     if ($days <= 2) {
                         $badgeText = '&lt; 2 Days';
                         $badgeStyle = 'background-color: #fff0f3; color: #e11d48; border: 1px solid rgba(241, 65, 108, 0.4);';
@@ -134,8 +168,8 @@
                         $badgeStyle = 'background-color: #ecfdf5; color: #047857; border: 1px solid rgba(80, 205, 137, 0.4);';
                     }
 
-                    $rowOrderDurationBadge = '<span class="badge fw-bold flex-shrink-0 me-1" style="' . $badgeStyle . ' border-radius: 4px; padding: 2px 7px; font-size: 11px; line-height: 1.2;" title="Order Duration: ' . $days . ' Days (' . $start->format('d M Y') . ' to ' . $end->format('d M Y') . ')">' . $badgeText . '</span>';
-                } catch (\Throwable $e) {}
+                    $rowOrderDurationBadge = '<span class="badge fw-bold flex-shrink-0 me-1" style="' . $badgeStyle . ' border-radius: 4px; padding: 2px 7px; font-size: 11px; line-height: 1.2;" title="Order Duration: ' . $days . ' Days">' . $badgeText . '</span>';
+                }
             }
         }
     @endphp
