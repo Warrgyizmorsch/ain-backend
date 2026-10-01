@@ -104,7 +104,21 @@ class EmailController extends Controller
         }
 
         $writerConfigId = function_exists('crm_email_account_id') ? crm_email_account_id('writer') : 1;
-        $isWriterEmail = $selectedAccount && ((int)$selectedAccount->id === (int)$writerConfigId || stripos($selectedAccount->name ?? '', 'writer') !== false);
+        $clientConfigId = function_exists('crm_email_account_id') ? crm_email_account_id('client') : 2;
+
+        $isClientEmail = $selectedAccount && (
+            (int)$selectedAccount->id === (int)$clientConfigId
+            || stripos($selectedAccount->name ?? '', 'client') !== false
+            || stripos($selectedAccount->email_address ?? '', 'order@assignnmentinneed.com') !== false
+        );
+
+        $isWriterEmail = !$isClientEmail && (
+            !$selectedAccount
+            || (int)$selectedAccount->id === (int)$writerConfigId
+            || stripos($selectedAccount->name ?? '', 'writer') !== false
+            || stripos($selectedAccount->email_address ?? '', 'assignmentinneedhelp') !== false
+            || (int)$selectedAccount->id === 1
+        );
 
         if (!empty($search)) {
             $cleanSearch = trim($search);
@@ -299,7 +313,7 @@ class EmailController extends Controller
 
         // 6. Deadline Type Filter (< 2 Days, 3-5 Days, 6-15 Days, 15 Days & Above) & Order Code Filter (Only for Writer Email)
         $deadlineType = trim((string)($request->input('deadline_type') ?? ''));
-        if (!$isWriterEmail) {
+        if ($isClientEmail) {
             $deadlineType = '';
         }
         $filterOrderCode = trim((string)($request->input('order_code') ?? $request->input('filter_order_code') ?? ''));
@@ -308,11 +322,34 @@ class EmailController extends Controller
             $matchingCodes = [];
 
             if (!empty($deadlineType)) {
-                // Match duration difference between delivery_date / deadline and order_date / created_at (NOT writer_deadline)
+                // Match duration difference between delivery_date / writer_deadline / deadline and order_date / created_at
                 $gapSql = "CASE 
-                    WHEN delivery_date IS NOT NULL AND order_date IS NOT NULL THEN DATEDIFF(delivery_date, order_date)
-                    WHEN delivery_date IS NOT NULL THEN DATEDIFF(delivery_date, DATE(created_at))
-                    WHEN deadline REGEXP '^[0-9]+$' THEN CAST(deadline AS SIGNED)
+                    WHEN deadline IS NOT NULL AND deadline != '' AND deadline REGEXP '^[0-9]+$' 
+                        THEN CAST(deadline AS SIGNED)
+                    WHEN delivery_date IS NOT NULL AND delivery_date != '' AND delivery_date != '0000-00-00' AND delivery_date > '2000-01-01' 
+                        THEN DATEDIFF(
+                            delivery_date, 
+                            CASE 
+                                WHEN order_date IS NOT NULL AND order_date != '' AND order_date != '0000-00-00' AND order_date > '2000-01-01' THEN order_date
+                                ELSE DATE(created_at)
+                            END
+                        )
+                    WHEN writer_deadline IS NOT NULL AND writer_deadline != '' AND writer_deadline != '0000-00-00' AND writer_deadline > '2000-01-01' 
+                        THEN DATEDIFF(
+                            writer_deadline, 
+                            CASE 
+                                WHEN order_date IS NOT NULL AND order_date != '' AND order_date != '0000-00-00' AND order_date > '2000-01-01' THEN order_date
+                                ELSE DATE(created_at)
+                            END
+                        )
+                    WHEN deadline IS NOT NULL AND deadline != '' AND deadline != '0000-00-00' AND deadline > '2000-01-01' 
+                        THEN DATEDIFF(
+                            deadline, 
+                            CASE 
+                                WHEN order_date IS NOT NULL AND order_date != '' AND order_date != '0000-00-00' AND order_date > '2000-01-01' THEN order_date
+                                ELSE DATE(created_at)
+                            END
+                        )
                     ELSE NULL 
                 END";
 
@@ -329,20 +366,24 @@ class EmailController extends Controller
                 if ($selectedAccount && !empty($selectedAccount->id)) {
                     $recentMailQuery->where('email_configuration_id', $selectedAccount->id);
                 }
-                $recentMailSamples = $recentMailQuery->orderByDesc('id')->limit(2000)->get(['subject', 'body_plain']);
+                $recentMailSamples = $recentMailQuery->orderByDesc('id')->limit(2000)->get(['subject', 'body_plain', 'body_html']);
 
                 $candidateCodes = [];
                 foreach ($recentMailSamples as $m) {
-                    if (!empty($m->subject) && preg_match_all('/\b([A-Za-z]{2,5}\d{3,7})\b/', $m->subject, $matches)) {
-                        foreach ($matches[1] as $c) {
-                            $candidateCodes[strtoupper($c)] = true;
-                        }
-                    }
+                    $textToScan = ($m->subject ?? '');
                     if (!empty($m->body_plain)) {
-                        $bodySample = substr($m->body_plain, 0, 400);
-                        if (preg_match_all('/\b([A-Za-z]{2,5}\d{3,7})\b/', $bodySample, $matches)) {
-                            foreach ($matches[1] as $c) {
-                                $candidateCodes[strtoupper($c)] = true;
+                        $textToScan .= ' ' . substr($m->body_plain, 0, 2000);
+                    } elseif (!empty($m->body_html)) {
+                        $textToScan .= ' ' . substr(strip_tags($m->body_html), 0, 2000);
+                    }
+
+                    if (preg_match_all('/\b([A-Za-z]{1,6}[-_ ]?\d{2,8})\b/', $textToScan, $matches)) {
+                        foreach ($matches[1] as $c) {
+                            $upper = strtoupper(trim($c));
+                            $candidateCodes[$upper] = true;
+                            $clean = str_replace(['-', '_', ' '], '', $upper);
+                            if ($clean !== $upper) {
+                                $candidateCodes[$clean] = true;
                             }
                         }
                     }
@@ -358,27 +399,51 @@ class EmailController extends Controller
                 $matchedCandidateCodes = [];
                 if (!empty($candidateCodes) && $gapCondition) {
                     $orderCandidateQuery = Order::query()
-                        ->whereIn('order_id', $candidateCodes)
-                        ->whereRaw($gapCondition)
-                        ->whereIn(DB::raw('LOWER(TRIM(projectstatus))'), ['initiated', 'other']);
+                        ->where(function ($oq) use ($candidateCodes) {
+                            $oq->whereIn('order_id', $candidateCodes);
+                            $cleanCodes = array_map(fn($c) => str_replace(['-', '_', ' '], '', $c), $candidateCodes);
+                            $oq->orWhereIn('order_id', $cleanCodes);
+                        })
+                        ->whereRaw($gapCondition);
+
                     if (!empty($filterOrderCode)) {
                         $orderCandidateQuery->where('order_id', 'like', "%{$filterOrderCode}%");
                     }
-                    $matchedCandidateCodes = $orderCandidateQuery->pluck('order_id')->filter()->unique()->values()->all();
+
+                    // Look for initiated/other status first
+                    $matchedWithStatus = (clone $orderCandidateQuery)
+                        ->whereIn(DB::raw("LOWER(TRIM(COALESCE(projectstatus, '')))"), ['initiated', 'other'])
+                        ->pluck('order_id')->filter()->unique()->values()->all();
+
+                    if (!empty($matchedWithStatus)) {
+                        $matchedCandidateCodes = $matchedWithStatus;
+                    } else {
+                        $matchedCandidateCodes = $orderCandidateQuery->pluck('order_id')->filter()->unique()->values()->all();
+                    }
                 }
 
                 // C. Also include recent orders matching the deadline gap (ordered by latest ID)
                 $recentOrdersQuery = Order::query()
                     ->whereNotNull('order_id')
                     ->where('order_id', '!=', '')
-                    ->whereIn(DB::raw('LOWER(TRIM(projectstatus))'), ['initiated', 'other']);
-                if ($gapCondition) {
-                    $recentOrdersQuery->whereRaw($gapCondition);
-                }
+                    ->whereRaw($gapCondition);
+
                 if (!empty($filterOrderCode)) {
                     $recentOrdersQuery->where('order_id', 'like', "%{$filterOrderCode}%");
                 }
-                $recentMatchingCodes = $recentOrdersQuery->orderByDesc('id')->limit(300)->pluck('order_id')->filter()->unique()->values()->all();
+
+                $recentMatchingCodes = (clone $recentOrdersQuery)
+                    ->whereIn(DB::raw("LOWER(TRIM(COALESCE(projectstatus, '')))"), ['initiated', 'other'])
+                    ->orderByDesc('id')
+                    ->limit(300)
+                    ->pluck('order_id')->filter()->unique()->values()->all();
+
+                if (empty($recentMatchingCodes)) {
+                    $recentMatchingCodes = $recentOrdersQuery
+                        ->orderByDesc('id')
+                        ->limit(300)
+                        ->pluck('order_id')->filter()->unique()->values()->all();
+                }
 
                 $matchingCodes = array_values(array_unique(array_merge($matchedCandidateCodes, $recentMatchingCodes)));
 
@@ -394,19 +459,13 @@ class EmailController extends Controller
             }
 
             if (!empty($matchingCodes)) {
-                $query->where(function ($eq) use ($matchingCodes) {
-                    if (count($matchingCodes) <= 15) {
-                        foreach ($matchingCodes as $code) {
-                            $eq->orWhere('subject', 'like', "%{$code}%")
-                               ->orWhere('body_plain', 'like', "%{$code}%");
-                        }
-                    } else {
-                        $chunks = array_chunk($matchingCodes, 25);
-                        foreach ($chunks as $chunk) {
-                            $escaped = array_map(fn($c) => preg_quote($c, '/'), $chunk);
-                            $pattern = implode('|', $escaped);
-                            $eq->orWhere('subject', 'REGEXP', $pattern)
-                               ->orWhere('body_plain', 'REGEXP', $pattern);
+                $searchCodes = array_slice($matchingCodes, 0, 80);
+                $query->where(function ($eq) use ($searchCodes) {
+                    foreach ($searchCodes as $code) {
+                        $clean = trim((string)$code);
+                        if (strlen($clean) >= 3) {
+                            $eq->orWhere('subject', 'like', "%{$clean}%")
+                               ->orWhere('body_plain', 'like', "%{$clean}%");
                         }
                     }
                 });
@@ -463,16 +522,23 @@ class EmailController extends Controller
         // Fetch Order details for displayed emails to render duration badge (< 2 Days, 3-5 Days, etc.)
         $displayedCodes = [];
         foreach ($threadsCollection as $m) {
-            if (!empty($m->subject) && preg_match_all('/\b([A-Za-z]{2,5}\d{3,7})\b/', $m->subject, $matches)) {
+            $scanText = ($m->subject ?? '');
+            if (!empty($m->body_plain)) {
+                $scanText .= ' ' . substr($m->body_plain, 0, 500);
+            }
+            if (preg_match_all('/\b([A-Za-z]{1,6}[-_ ]?\d{2,8})\b/', $scanText, $matches)) {
                 foreach ($matches[1] as $c) {
-                    $displayedCodes[strtoupper($c)] = true;
+                    $upper = strtoupper(trim($c));
+                    $displayedCodes[$upper] = true;
+                    $clean = str_replace(['-', '_', ' '], '', $upper);
+                    $displayedCodes[$clean] = true;
                 }
             }
         }
         $ordersMap = !empty($displayedCodes)
             ? \App\Models\Order::query()
                 ->whereIn('order_id', array_keys($displayedCodes))
-                ->select(['id', 'order_id', 'uid', 'order_date', 'delivery_date', 'deadline', 'created_at', 'status', 'projectstatus'])
+                ->select(['id', 'order_id', 'uid', 'order_date', 'delivery_date', 'deadline', 'writer_deadline', 'created_at', 'status', 'projectstatus'])
                 ->get()
                 ->keyBy(fn($o) => strtoupper($o->order_id))
             : collect();
@@ -570,7 +636,7 @@ class EmailController extends Controller
             $cacheOrdersMap = !empty($cacheCodes)
                 ? \App\Models\Order::query()
                     ->whereIn('order_id', array_keys($cacheCodes))
-                    ->select(['id', 'order_id', 'uid', 'order_date', 'delivery_date', 'deadline', 'created_at', 'status', 'projectstatus'])
+                    ->select(['id', 'order_id', 'uid', 'order_date', 'delivery_date', 'deadline', 'writer_deadline', 'created_at', 'status', 'projectstatus'])
                     ->get()
                     ->keyBy(fn($o) => strtoupper($o->order_id))
                 : collect();

@@ -27,7 +27,7 @@
         if ($rowOrderCode && !$rowOrder) {
             $rowOrder = \App\Models\Order::query()
                 ->where('order_id', $rowOrderCode)
-                ->select(['id', 'order_id', 'uid', 'order_date', 'delivery_date', 'deadline', 'created_at', 'status', 'projectstatus'])
+                ->select(['id', 'order_id', 'uid', 'order_date', 'delivery_date', 'deadline', 'writer_deadline', 'created_at', 'status', 'projectstatus'])
                 ->first();
         }
         $whatsAppOrderRef = $rowOrder?->id;
@@ -104,7 +104,7 @@
             } else {
                 $rowOrder = \App\Models\Order::query()
                     ->where('order_id', $rowOrderCode)
-                    ->select(['id', 'order_id', 'uid', 'order_date', 'delivery_date', 'deadline', 'created_at', 'status', 'projectstatus'])
+                    ->select(['id', 'order_id', 'uid', 'order_date', 'delivery_date', 'deadline', 'writer_deadline', 'created_at', 'status', 'projectstatus'])
                     ->first();
             }
             $whatsAppOrderRef = $rowOrder?->id;
@@ -116,16 +116,21 @@
             $isWriterRow = (bool) $isWriterEmail;
         } elseif (isset($currentAccount) && $currentAccount) {
             $writerConfigId = function_exists('crm_email_account_id') ? crm_email_account_id('writer') : 1;
-            $isWriterRow = ((int)$currentAccount->id === (int)$writerConfigId || stripos($currentAccount->name ?? '', 'writer') !== false);
+            $clientConfigId = function_exists('crm_email_account_id') ? crm_email_account_id('client') : 2;
+            $isClient = ((int)$currentAccount->id === (int)$clientConfigId || stripos($currentAccount->name ?? '', 'client') !== false);
+            $isWriterRow = !$isClient && ((int)$currentAccount->id === (int)$writerConfigId || stripos($currentAccount->name ?? '', 'writer') !== false || stripos($currentAccount->email_address ?? '', 'assignmentinneedhelp') !== false || (int)$currentAccount->id === 1);
         } elseif (!empty($email->email_configuration_id)) {
             $writerConfigId = function_exists('crm_email_account_id') ? crm_email_account_id('writer') : 1;
-            $isWriterRow = ((int)$email->email_configuration_id === (int)$writerConfigId);
+            $clientConfigId = function_exists('crm_email_account_id') ? crm_email_account_id('client') : 2;
+            $isWriterRow = ((int)$email->email_configuration_id !== (int)$clientConfigId && ((int)$email->email_configuration_id === (int)$writerConfigId || (int)$email->email_configuration_id === 1));
         } elseif (session()->has('active_email_account_id')) {
             $writerConfigId = function_exists('crm_email_account_id') ? crm_email_account_id('writer') : 1;
-            $isWriterRow = ((int)session('active_email_account_id') === (int)$writerConfigId);
+            $clientConfigId = function_exists('crm_email_account_id') ? crm_email_account_id('client') : 2;
+            $isWriterRow = ((int)session('active_email_account_id') !== (int)$clientConfigId && ((int)session('active_email_account_id') === (int)$writerConfigId || (int)session('active_email_account_id') === 1));
         } elseif (request()->filled('account_id')) {
             $writerConfigId = function_exists('crm_email_account_id') ? crm_email_account_id('writer') : 1;
-            $isWriterRow = ((int)request('account_id') === (int)$writerConfigId);
+            $clientConfigId = function_exists('crm_email_account_id') ? crm_email_account_id('client') : 2;
+            $isWriterRow = ((int)request('account_id') !== (int)$clientConfigId && ((int)request('account_id') === (int)$writerConfigId || (int)request('account_id') === 1));
         }
 
         $rowOrderDurationBadge = '';
@@ -139,6 +144,12 @@
                     try {
                         $start = \Carbon\Carbon::parse($orderDate)->startOfDay();
                         $end = \Carbon\Carbon::parse($rowOrder->delivery_date)->startOfDay();
+                        $days = (int) $start->diffInDays($end, false);
+                    } catch (\Throwable $e) {}
+                } elseif (!empty($rowOrder->writer_deadline) && !empty($orderDate)) {
+                    try {
+                        $start = \Carbon\Carbon::parse($orderDate)->startOfDay();
+                        $end = \Carbon\Carbon::parse($rowOrder->writer_deadline)->startOfDay();
                         $days = (int) $start->diffInDays($end, false);
                     } catch (\Throwable $e) {}
                 } elseif (!empty($rowOrder->deadline)) {
