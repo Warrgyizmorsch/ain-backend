@@ -3522,6 +3522,61 @@ document.addEventListener('DOMContentLoaded', function() {
     background: var(--wa-bubble-out);
     border-radius: 8px 8px 0 8px;
 }
+.wab-msg-text {
+    display: inline-block;
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-width: 100%;
+}
+.wab-media-caption {
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-width: 100%;
+}
+.wab-quote-block {
+    display: block;
+    margin: 6px 0 6px 0;
+    padding: 6px 10px;
+    border-left: 3.5px solid #25d366;
+    background: rgba(0, 0, 0, 0.04);
+    border-radius: 0 6px 6px 0;
+    color: inherit;
+    font-style: normal;
+}
+.wab-incoming .wab-quote-block {
+    border-left-color: #25d366;
+    background: rgba(0, 0, 0, 0.04);
+}
+.wab-outgoing .wab-quote-block {
+    border-left-color: #128c7e;
+    background: rgba(0, 0, 0, 0.05);
+}
+.wab-code-block {
+    display: block;
+    background: rgba(0, 0, 0, 0.06);
+    border-radius: 4px;
+    padding: 6px 8px;
+    font-family: monospace;
+    font-size: 12.5px;
+    margin: 4px 0;
+    overflow-x: auto;
+    white-space: pre-wrap;
+}
+.wab-inline-code {
+    background: rgba(0, 0, 0, 0.06);
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-family: monospace;
+    font-size: 12.5px;
+}
+.wab-msg-link {
+    color: #027eb5;
+    text-decoration: underline;
+    word-break: break-all;
+}
+.wab-msg-link:hover {
+    color: #015c85;
+}
 
 /* Tail */
 .wab-incoming .wab-msg-bubble::before {
@@ -7159,6 +7214,65 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
+    function formatWhatsAppHtml(rawText) {
+        if (!rawText) return '';
+        let text = (typeof window.maskChatHtml === 'function')
+            ? window.maskChatHtml(rawText)
+            : escapeHtml(rawText);
+
+        // Normalize line breaks
+        text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
+        // Code blocks: ```...```
+        text = text.replace(/```([\s\S]*?)```/g, '<pre class="wab-code-block"><code>$1</code></pre>');
+
+        // Inline code: `...`
+        text = text.replace(/`([^`\n]+)`/g, '<code class="wab-inline-code">$1</code>');
+
+        // Blockquotes: lines starting with &gt; or >
+        const lines = text.split('\n');
+        let inQuote = false;
+        let quoteLines = [];
+        let outputLines = [];
+
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            const qm = line.match(/^(?:&gt;|>)\s?(.*)$/);
+            if (qm) {
+                inQuote = true;
+                quoteLines.push(qm[1]);
+            } else {
+                if (inQuote) {
+                    outputLines.push('<div class="wab-quote-block">' + quoteLines.join('\n') + '</div>');
+                    quoteLines = [];
+                    inQuote = false;
+                }
+                outputLines.push(line);
+            }
+        }
+        if (inQuote) {
+            outputLines.push('<div class="wab-quote-block">' + quoteLines.join('\n') + '</div>');
+        }
+        text = outputLines.join('\n');
+
+        // Markdown bold: **text**
+        text = text.replace(/\*\*([^*\n]+?)\*\*/g, '<strong>$1</strong>');
+
+        // WhatsApp bold: *text* (excluding masked asterisks)
+        text = text.replace(/(^|[^\w*])\*(?!\s)([^*\n]+?)(?<!\s)\*(?=[^\w*]|$)/g, '$1<strong>$2</strong>');
+
+        // WhatsApp italic: _text_
+        text = text.replace(/(^|[^\w_])_(?!\s)([^_\n]+?)(?<!\s)_(?=[^\w_]|$)/g, '$1<em>$2</em>');
+
+        // WhatsApp strikethrough: ~text~
+        text = text.replace(/(^|[^\w~])~(?!\s)([^~\n]+?)(?<!\s)~(?=[^\w~]|$)/g, '$1<del>$2</del>');
+
+        // Links: https:// or http://
+        text = text.replace(/(?<!["'>=])(https?:\/\/[^\s<]+[a-zA-Z0-9/])/gi, '<a href="$1" target="_blank" rel="noopener noreferrer" class="wab-msg-link">$1</a>');
+
+        return text;
+    }
+
     function escapeHtml(value) {
         return String(value ?? '').replace(/[&<>"']/g, char => ({
             '&': '&amp;',
@@ -7340,12 +7454,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function messageContentMarkup(message) {
         const rawCaption = String(message.message || '').trim();
-        const maskedHtml = (typeof window.maskChatHtml === 'function')
-            ? window.maskChatHtml(message.message || '')
-            : escapeHtml(message.message || '');
+        const contentHtml = formatWhatsAppHtml(message.message || '');
 
         if (!message.media_url) {
-            return `<span class="wab-msg-text">${maskedHtml}</span>`;
+            return `<span class="wab-msg-text">${contentHtml}</span>`;
         }
 
         const url = escapeHtml(message.media_url);
@@ -7388,7 +7500,7 @@ document.addEventListener('DOMContentLoaded', function() {
             `;
         }
 
-        return mediaMarkup + (rawCaption ? `<div class="wab-media-caption">${maskedHtml}</div>` : '');
+        return mediaMarkup + (rawCaption ? `<div class="wab-media-caption">${contentHtml}</div>` : '');
     }
 
     async function fetchOlderMessages() {

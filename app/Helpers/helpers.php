@@ -237,6 +237,77 @@ if (!function_exists('mask_chat_text')) {
     }
 }
 
+if (!function_exists('format_whatsapp_message_html')) {
+    /**
+     * Formats WhatsApp / Markdown text into rich HTML:
+     * - Preserves line breaks & multiline paragraphs
+     * - Blockquotes (> quote)
+     * - Bold (*bold* and **bold**)
+     * - Italic (_italic_)
+     * - Strikethrough (~strike~)
+     * - Code blocks (```code``` and `code`)
+     * - Clickable links (https://...)
+     */
+    function format_whatsapp_message_html(?string $text): string
+    {
+        if ($text === null || $text === '') {
+            return '';
+        }
+
+        // 1. Normalize line endings
+        $text = str_replace(["\r\n", "\r"], "\n", $text);
+
+        // 2. Code blocks (```...```)
+        $text = preg_replace_callback('/```([\s\S]*?)```/', function ($m) {
+            return '<pre class="wab-code-block"><code>' . $m[1] . '</code></pre>';
+        }, $text);
+
+        // 3. Inline code (`...`)
+        $text = preg_replace('/`([^`\n]+)`/', '<code class="wab-inline-code">$1</code>', $text);
+
+        // 4. Blockquotes: lines starting with &gt; or >
+        $lines = explode("\n", $text);
+        $inQuote = false;
+        $quoteLines = [];
+        $outputLines = [];
+
+        foreach ($lines as $line) {
+            if (preg_match('/^(?:&gt;|>)\s?(.*)$/', $line, $qm)) {
+                $inQuote = true;
+                $quoteLines[] = $qm[1];
+            } else {
+                if ($inQuote) {
+                    $outputLines[] = '<div class="wab-quote-block">' . implode("\n", $quoteLines) . '</div>';
+                    $quoteLines = [];
+                    $inQuote = false;
+                }
+                $outputLines[] = $line;
+            }
+        }
+        if ($inQuote) {
+            $outputLines[] = '<div class="wab-quote-block">' . implode("\n", $quoteLines) . '</div>';
+        }
+        $text = implode("\n", $outputLines);
+
+        // 5. Bold: support both **bold** (markdown/AI bots) and *bold* (standard WhatsApp)
+        $text = preg_replace('/\*\*([^\*\n]+?)\*\*/', '<strong>$1</strong>', $text);
+        $text = preg_replace('/(?<![\w*])\*(?!\s)([^\*\n]+?)(?<!\s)\*(?![\w*])/', '<strong>$1</strong>', $text);
+
+        // 6. Italic: _italic_
+        $text = preg_replace('/(?<![\w_])_(?!\s)([^_\n]+?)(?<!\s)_(?![\w_])/', '<em>$1</em>', $text);
+
+        // 7. Strikethrough: ~strike~
+        $text = preg_replace('/(?<![\w~])~(?!\s)([^~\n]+?)(?<!\s)~(?![\w~])/', '<del>$1</del>', $text);
+
+        // 8. Links: https:// or http://
+        $text = preg_replace_callback('/(?<!["\'>=])(https?:\/\/[^\s<]+[a-zA-Z0-9\/])/i', function ($m) {
+            return '<a href="' . $m[1] . '" target="_blank" rel="noopener noreferrer" class="wab-msg-link">' . $m[1] . '</a>';
+        }, $text);
+
+        return $text;
+    }
+}
+
 if (!function_exists('mask_chat_html')) {
     /**
      * Returns HTML for chat messages with masked spans for 1-click copy
@@ -248,7 +319,7 @@ if (!function_exists('mask_chat_html')) {
         }
 
         if (Auth::check() && (int) Auth::user()->role_id === 1) {
-            return e($text);
+            return format_whatsapp_message_html(e($text));
         }
 
         $escaped = e($text);
@@ -298,7 +369,7 @@ if (!function_exists('mask_chat_html')) {
             return $raw;
         }, $escaped);
 
-        return $escaped;
+        return format_whatsapp_message_html($escaped);
     }
 }
 
