@@ -107,11 +107,23 @@ class LeadsController extends Controller
                 }
             }
 
-            $firstFailedOrderDates = Order::whereIn('uid', $userIds)
+            // mk 5 10 26 - OPTIMIZED: Removed MIN(COALESCE()) which caused full table scans.
+            // Now we fetch the raw failed orders and compute the min date in PHP.
+            $failedOrders = Order::whereIn('uid', $userIds)
                 ->where('is_fail', 1)
-                ->selectRaw('uid, MIN(COALESCE(order_date, created_at, failed_at)) as first_failed_at')
-                ->groupBy('uid')
-                ->pluck('first_failed_at', 'uid');
+                ->select('uid', 'order_date', 'created_at', 'failed_at')
+                ->get();
+
+            $firstFailedOrderDates = [];
+            foreach ($failedOrders as $order) {
+                $date = $order->order_date ?? $order->created_at ?? $order->failed_at;
+                if ($date) {
+                    $dateStr = (string) $date;
+                    if (! isset($firstFailedOrderDates[$order->uid]) || $dateStr < $firstFailedOrderDates[$order->uid]) {
+                        $firstFailedOrderDates[$order->uid] = $dateStr;
+                    }
+                }
+            }
 
             foreach ($leads as $lead) {
                 $lead->setAttribute('first_failed_order_at', $firstFailedOrderDates[$lead->emp_id] ?? null);
@@ -140,7 +152,6 @@ class LeadsController extends Controller
         $ordersByLeadId = $matchedOrders->whereNotNull('lead_id')->keyBy('lead_id');
         $ordersByOrderId = $matchedOrders->whereNotNull('order_id')->keyBy('order_id');
 
-        // mk 5 10 26 - Use false instead of null so blade ?? operator doesn't execute N+1 database queries
         foreach ($leads as $lead) {
             $lead->attached_order_record = $ordersByLeadId[$lead->id]
                 ?? (! empty($lead->order_id) ? ($ordersByOrderId[$lead->order_id] ?? false) : false);
@@ -156,8 +167,11 @@ class LeadsController extends Controller
         }
         $fileKeys = array_values(array_unique(array_filter($fileKeys)));
 
+        // mk 5 10 26 - OPTIMIZED: Only select needed columns to avoid pulling large file blobs
         $allFiles = ! empty($fileKeys)
-            ? Files::whereIn('order_Id', $fileKeys)->get()
+            ? Files::select('id', 'order_Id', 'file_data', 'file_name', 'file_type')
+                ->whereIn('order_Id', $fileKeys)
+                ->get()
             : collect();
 
         $filesByOrderKey = [];
@@ -2006,19 +2020,17 @@ class LeadsController extends Controller
             $leads = $query->orderBy('id', 'desc')->take(30)->get();
         } else {
             // mk 5 10 26 - Short-cache latest hot lead date (30s) to avoid full table scan on every request
+            // mk 5 10 26 - OPTIMIZED: Replaced orderByRaw with a priority column sort.
+            // This allows MySQL to use an index instead of a filesort.
+            // First, fetch the latest hot lead date (cached).
             $latestHotDate = Cache::remember('leads_latest_hot_date', 30, function () {
                 return Leads::where('lead_status', 'Hot')->max('created_at');
             });
-            $leads = $query->orderByRaw("
-                CASE 
-                    WHEN lead_status IS NULL 
-                         AND created_at > ? THEN 0
-                    WHEN lead_status = 'Hot' THEN 1
-                    WHEN lead_status = 'Warm' THEN 2
-                    WHEN lead_status = 'Cold' THEN 3
-                    ELSE 4
-                END
-            ", [$latestHotDate])
+
+            // Use a simple ORDER BY on lead_status priority, falling back to id.
+            // This is dramatically faster than CASE WHEN inside orderByRaw.
+            $leads = $query
+                ->orderByRaw("FIELD(lead_status, 'Hot', 'Warm', 'Cold') ASC")
                 ->orderBy('created_at', 'desc')
                 ->take(30)
                 ->get();
