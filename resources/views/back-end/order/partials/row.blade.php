@@ -734,8 +734,11 @@
             <div class="border rounded p-3 bg-light">
 
                 @php
+                    // mk 5 10 26 - Prioritize preloaded_creator_name to eliminate N+1 User::find queries in loop
                     $orderCreatorUser = null;
-                    if ($order->lead && $order->lead->creator) {
+                    if (!empty($order->preloaded_creator_name)) {
+                        $createdByName = $order->preloaded_creator_name;
+                    } elseif ($order->lead && $order->lead->creator) {
                         $orderCreatorUser = $order->lead->creator;
                     } elseif (!empty($order->created_by) && is_numeric($order->created_by)) {
                         $orderCreatorUser = \App\Models\User::select('id', 'name')->find($order->created_by);
@@ -743,10 +746,10 @@
                         $orderCreatorUser = \App\Models\User::select('id', 'name')->find($order->lead->created_by);
                     }
 
-                    if ($orderCreatorUser) {
+                    if (isset($createdByName)) {
+                        // already set
+                    } elseif ($orderCreatorUser) {
                         $createdByName = $orderCreatorUser->name . ' (ID: ' . $orderCreatorUser->id . ')';
-                    } elseif (!empty($order->preloaded_creator_name)) {
-                        $createdByName = $order->preloaded_creator_name;
                     } elseif (!empty($order->created_by) && !is_numeric($order->created_by)) {
                         $createdByName = $order->created_by;
                     } elseif (!empty($order->lead?->created_by) && !is_numeric($order->lead->created_by)) {

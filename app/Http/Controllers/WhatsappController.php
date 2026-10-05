@@ -2,20 +2,21 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\User;
-use App\Models\Order;
 use App\Models\Leads;
-use App\Models\Services;
+use App\Models\Order;
 use App\Models\Paper;
+use App\Models\Services;
 use App\Models\Source;
+use App\Models\User;
 use App\Models\WhatsappChatArchive;
-use App\Models\WhatsappChatPin;
-use App\Models\WhatsappChatState;
 use App\Models\WhatsappChatContactLabel;
 use App\Models\WhatsappChatLabel;
 use App\Models\WhatsappChatPanelSetting;
+use App\Models\WhatsappChatPin;
+use App\Models\WhatsappChatState;
 use App\Models\WhatsappMessage;
 use App\Models\WhatsappSetting;
+use App\Services\LabelSyncService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -53,7 +54,7 @@ class WhatsappController extends Controller
     public function saveSettings(Request $request): RedirectResponse|JsonResponse
     {
         $validated = $request->validate([
-            'provider' => ['required', 'in:' . implode(',', $this->providers)],
+            'provider' => ['required', 'in:'.implode(',', $this->providers)],
             'settings' => ['nullable', 'array'],
         ]);
 
@@ -83,8 +84,173 @@ class WhatsappController extends Controller
         return back()->with('success', 'WhatsApp settings saved successfully.');
     }
 
+    // public function chat(Request $request): View|RedirectResponse
+    // {
+    //     if ($request->has('close')) {
+    //         session()->forget('wab_active_phone');
+    //         $activePhone = null;
+    //     } else {
+    //         // Order-page links pass only the internal order reference so a raw
+    //         // customer phone number is never exposed in the browser URL.
+    //         $activePhone = null;
+    //         if ($request->filled('order_ref')) {
+    //             $sourceOrder = Order::with(['user', 'lead', 'frontendLead'])
+    //                 ->find($request->integer('order_ref'));
+
+    //             if ($sourceOrder) {
+    //                 $sourceUser = $sourceOrder->user
+    //                     ?: $sourceOrder->lead?->user
+    //                     ?: $sourceOrder->frontendLead?->user;
+    //                 $sourceLead = $sourceOrder->lead ?: $sourceOrder->frontendLead;
+
+    //                 if ($sourceUser && ! empty($sourceUser->mobile_no)) {
+    //                     $activePhone = preg_replace('/\D+/', '', (string) ($sourceUser->countrycode.$sourceUser->mobile_no));
+    //                 } elseif ($sourceUser && ! empty($sourceUser->mobile_no2)) {
+    //                     $activePhone = preg_replace('/\D+/', '', (string) ($sourceUser->countrycode2.$sourceUser->mobile_no2));
+    //                 } elseif ($sourceLead && ! empty($sourceLead->mobile)) {
+    //                     $activePhone = preg_replace('/\D+/', '', (string) ($sourceLead->countrycode.$sourceLead->mobile));
+    //                 } elseif ($sourceLead && ! empty($sourceLead->mobile2)) {
+    //                     $activePhone = preg_replace('/\D+/', '', (string) ($sourceLead->countrycode2.$sourceLead->mobile2));
+    //                 }
+    //             }
+    //         }
+
+    //         $activePhone = $activePhone ?: $request->query('phone') ?: session('wab_active_phone');
+    //         if ($activePhone) {
+    //             session(['wab_active_phone' => $activePhone]);
+    //         }
+
+    //         if ($request->filled('phone') || $request->filled('order_ref') || $request->filled('lead_ref')) {
+    //             return redirect()->route('whatsapp.chat');
+    //         }
+    //     }
+
+    //     if ($activePhone) {
+    //         $this->markPhoneMessagesRead($activePhone);
+    //     }
+
+    //     $contactData = $this->getContactsPaginated($activePhone, 25, 1);
+    //     $contacts = $contactData['contacts'];
+    //     $selectedContact = collect($contacts)->firstWhere('active', true);
+
+    //     // If activePhone was given but not in top 25 recent, fetch it directly
+    //     if ($activePhone && ! $selectedContact) {
+    //         $singleContactData = $this->getContactsPaginated($activePhone, 1, 1, $activePhone);
+    //         if (! empty($singleContactData['contacts'])) {
+    //             $selectedContact = $singleContactData['contacts'][0];
+    //             $selectedContact['active'] = true;
+    //             array_unshift($contacts, $selectedContact);
+    //         }
+    //     }
+
+    //     $selectedPhone = $selectedContact['phone'] ?? $activePhone;
+
+    //     $panelDefinitions = $this->chatPanelDefinitions();
+    //     $enabledPanelKeys = $this->enabledPanelKeys(Auth::id(), array_keys($panelDefinitions));
+    //     $selectedPanel = $request->query('panel');
+    //     $selectedPanel = in_array($selectedPanel, $enabledPanelKeys, true) ? $selectedPanel : null;
+    //     $panelRows = $selectedPanel ? $this->panelRows($selectedPanel) : collect();
+    //     $labels = WhatsappChatLabel::query()->forWhatsapp()->ordered()->get();
+    //     $selectedContactLabels = $selectedPhone
+    //         ? WhatsappChatContactLabel::query()
+    //             ->where('phone', $selectedPhone)
+    //             ->whereHas('label', fn ($q) => $q->where('is_whatsapp', true))
+    //             ->pluck('label_id')
+    //             ->all()
+    //         : [];
+
+    //     // Load contact-label assignments for loaded sidebar contacts
+    //     $allPhones = collect($contacts)->pluck('phone')->filter()->values()->all();
+    //     $allContactVariants = [];
+    //     foreach ($allPhones as $p) {
+    //         foreach ($this->getPhoneVariants($p) as $v) {
+    //             $allContactVariants[$v] = $p;
+    //         }
+    //     }
+    //     $allContactLabelMap = ! empty($allContactVariants)
+    //         ? WhatsappChatContactLabel::query()
+    //             ->whereIn('phone', array_keys($allContactVariants))
+    //             ->whereHas('label', fn ($q) => $q->where('is_whatsapp', true))
+    //             ->get()
+    //             ->groupBy(function ($item) use ($allContactVariants) {
+    //                 return $allContactVariants[$item->phone] ?? $item->phone;
+    //             })
+    //             ->map(fn ($rows) => $rows->pluck('label_id')->unique()->values()->all())
+    //         : collect();
+
+    //     $selectedPhoneVariants = $selectedPhone ? $this->getPhoneVariants($selectedPhone) : [];
+    //     $messages = ! empty($selectedPhoneVariants)
+    //         ? WhatsappMessage::query()
+    //             ->whereIn('phone', $selectedPhoneVariants)
+    //             ->where(function ($query) {
+    //                 $query->whereRaw("TRIM(COALESCE(message, '')) != ''")
+    //                     ->orWhereNotNull('media_url');
+    //             })
+    //             ->orderByDesc('id')
+    //             ->take(30)
+    //             ->get()
+    //             ->reverse()
+    //             ->values()
+    //         : collect();
+
+    //     $firstMsgId = optional($messages->first())->id ?? 0;
+    //     $hasMoreOlderMessages = (! empty($selectedPhoneVariants) && $firstMsgId > 0)
+    //         ? WhatsappMessage::query()
+    //             ->whereIn('phone', $selectedPhoneVariants)
+    //             ->where('id', '<', $firstMsgId)
+    //             ->where(function ($query) {
+    //                 $query->whereRaw("TRIM(COALESCE(message, '')) != ''")
+    //                     ->orWhereNotNull('media_url');
+    //             })
+    //             ->exists()
+    //         : false;
+
+    //     $customerSummary = $selectedPhone ? $this->getCustomerSummary($selectedPhone) : null;
+    //     $existingLead = $customerSummary['lead_model'] ?? null;
+    //     $existingUser = $customerSummary['user_model'] ?? null;
+
+    //     $servicesList = Services::all();
+    //     $papersList = Paper::all();
+    //     $sourcesList = Source::all();
+    //     // $whatsappTemplates = $this->getAvailableTemplates();
+    //     // mk for page load fast 2 10 26
+    //     $whatsappTemplates = collect();
+
+    //     return view('back-end.whatsapp.chat', [
+    //         'contacts' => $contacts,
+    //         'dynamicContacts' => $contacts,
+    //         'contactsHasMore' => $contactData['has_more'],
+    //         'contactsTotal' => $contactData['total'],
+    //         'selectedContact' => $selectedContact,
+    //         'selectedPhone' => $selectedPhone,
+    //         'messages' => $messages,
+    //         'panelDefinitions' => $panelDefinitions,
+    //         'enabledPanelKeys' => $enabledPanelKeys,
+    //         'selectedPanel' => $selectedPanel,
+    //         'panelRows' => $panelRows,
+    //         'labels' => $labels,
+    //         'selectedContactLabels' => $selectedContactLabels,
+    //         'allContactLabelMap' => $allContactLabelMap,
+    //         'customerSummary' => $customerSummary,
+    //         'existingLead' => $existingLead,
+    //         'existingUser' => $existingUser,
+    //         'hasMoreOlderMessages' => $hasMoreOlderMessages,
+    //         'servicesList' => $servicesList,
+    //         'papersList' => $papersList,
+    //         'sourcesList' => $sourcesList,
+    //         'whatsappTemplates' => $whatsappTemplates,
+    //     ]);
+    // }
+
+    // mk 2 10 26
     public function chat(Request $request): View|RedirectResponse
     {
+        $__t = microtime(true);
+        $__lap = function ($label) use (&$__t) {
+            \Log::info('CHAT_TIMING '.$label.': '.round((microtime(true) - $__t) * 1000).'ms');
+            $__t = microtime(true);
+        };
+
         if ($request->has('close')) {
             session()->forget('wab_active_phone');
             $activePhone = null;
@@ -102,14 +268,14 @@ class WhatsappController extends Controller
                         ?: $sourceOrder->frontendLead?->user;
                     $sourceLead = $sourceOrder->lead ?: $sourceOrder->frontendLead;
 
-                    if ($sourceUser && !empty($sourceUser->mobile_no)) {
-                        $activePhone = preg_replace('/\D+/', '', (string)($sourceUser->countrycode . $sourceUser->mobile_no));
-                    } elseif ($sourceUser && !empty($sourceUser->mobile_no2)) {
-                        $activePhone = preg_replace('/\D+/', '', (string)($sourceUser->countrycode2 . $sourceUser->mobile_no2));
-                    } elseif ($sourceLead && !empty($sourceLead->mobile)) {
-                        $activePhone = preg_replace('/\D+/', '', (string)($sourceLead->countrycode . $sourceLead->mobile));
-                    } elseif ($sourceLead && !empty($sourceLead->mobile2)) {
-                        $activePhone = preg_replace('/\D+/', '', (string)($sourceLead->countrycode2 . $sourceLead->mobile2));
+                    if ($sourceUser && ! empty($sourceUser->mobile_no)) {
+                        $activePhone = preg_replace('/\D+/', '', (string) ($sourceUser->countrycode.$sourceUser->mobile_no));
+                    } elseif ($sourceUser && ! empty($sourceUser->mobile_no2)) {
+                        $activePhone = preg_replace('/\D+/', '', (string) ($sourceUser->countrycode2.$sourceUser->mobile_no2));
+                    } elseif ($sourceLead && ! empty($sourceLead->mobile)) {
+                        $activePhone = preg_replace('/\D+/', '', (string) ($sourceLead->countrycode.$sourceLead->mobile));
+                    } elseif ($sourceLead && ! empty($sourceLead->mobile2)) {
+                        $activePhone = preg_replace('/\D+/', '', (string) ($sourceLead->countrycode2.$sourceLead->mobile2));
                     }
                 }
             }
@@ -124,13 +290,17 @@ class WhatsappController extends Controller
             }
         }
 
+        $__lap('start');
+
         if ($activePhone) {
             $this->markPhoneMessagesRead($activePhone);
         }
+        $__lap('markRead');
 
         $contactData = $this->getContactsPaginated($activePhone, 25, 1);
         $contacts = $contactData['contacts'];
         $selectedContact = collect($contacts)->firstWhere('active', true);
+        $__lap('contacts');
 
         // If activePhone was given but not in top 25 recent, fetch it directly
         if ($activePhone && ! $selectedContact) {
@@ -141,6 +311,7 @@ class WhatsappController extends Controller
                 array_unshift($contacts, $selectedContact);
             }
         }
+        $__lap('single_contact');
 
         $selectedPhone = $selectedContact['phone'] ?? $activePhone;
 
@@ -150,40 +321,39 @@ class WhatsappController extends Controller
         $selectedPanel = in_array($selectedPanel, $enabledPanelKeys, true) ? $selectedPanel : null;
         $panelRows = $selectedPanel ? $this->panelRows($selectedPanel) : collect();
         $labels = WhatsappChatLabel::query()->forWhatsapp()->ordered()->get();
-        $selectedContactLabels = $selectedPhone
-            ? WhatsappChatContactLabel::query()
-                ->where('phone', $selectedPhone)
-                ->whereHas('label', fn($q) => $q->where('is_whatsapp', true))
-                ->pluck('label_id')
-                ->all()
-            : [];
+        $__lap('panels_labels');
 
-        // Load contact-label assignments for loaded sidebar contacts
-        $allPhones = collect($contacts)->pluck('phone')->filter()->values()->all();
+        // mk 5 10 26 - Batch load contact-label assignments for loaded sidebar contacts & selected phone in 1 query
+        $allPhones = collect($contacts)->pluck('phone')->concat([$selectedPhone])->filter()->unique()->values()->all();
         $allContactVariants = [];
         foreach ($allPhones as $p) {
             foreach ($this->getPhoneVariants($p) as $v) {
                 $allContactVariants[$v] = $p;
             }
         }
-        $allContactLabelMap = !empty($allContactVariants)
+        $allContactLabelMap = ! empty($allContactVariants)
             ? WhatsappChatContactLabel::query()
                 ->whereIn('phone', array_keys($allContactVariants))
-                ->whereHas('label', fn($q) => $q->where('is_whatsapp', true))
+                ->whereHas('label', fn ($q) => $q->where('is_whatsapp', true))
                 ->get()
                 ->groupBy(function ($item) use ($allContactVariants) {
                     return $allContactVariants[$item->phone] ?? $item->phone;
                 })
-                ->map(fn($rows) => $rows->pluck('label_id')->unique()->values()->all())
+                ->map(fn ($rows) => $rows->pluck('label_id')->unique()->values()->all())
             : collect();
 
+        $selectedContactLabels = $selectedPhone ? ($allContactLabelMap->get($selectedPhone) ?? []) : [];
+        $__lap('contact_label_map');
+
+        // mk 5 10 26 - Fast sargable indexed query for chat messages
         $selectedPhoneVariants = $selectedPhone ? $this->getPhoneVariants($selectedPhone) : [];
-        $messages = !empty($selectedPhoneVariants)
+        $messages = ! empty($selectedPhoneVariants)
             ? WhatsappMessage::query()
                 ->whereIn('phone', $selectedPhoneVariants)
                 ->where(function ($query) {
-                    $query->whereRaw("TRIM(COALESCE(message, '')) != ''")
-                        ->orWhereNotNull('media_url');
+                    $query->where(function ($q) {
+                        $q->whereNotNull('message')->where('message', '!=', '');
+                    })->orWhereNotNull('media_url');
                 })
                 ->orderByDesc('id')
                 ->take(30)
@@ -191,27 +361,38 @@ class WhatsappController extends Controller
                 ->reverse()
                 ->values()
             : collect();
+        $__lap('messages');
 
         $firstMsgId = optional($messages->first())->id ?? 0;
-        $hasMoreOlderMessages = (!empty($selectedPhoneVariants) && $firstMsgId > 0)
+        $hasMoreOlderMessages = (! empty($selectedPhoneVariants) && $firstMsgId > 0)
             ? WhatsappMessage::query()
                 ->whereIn('phone', $selectedPhoneVariants)
                 ->where('id', '<', $firstMsgId)
                 ->where(function ($query) {
-                    $query->whereRaw("TRIM(COALESCE(message, '')) != ''")
-                        ->orWhereNotNull('media_url');
+                    $query->where(function ($q) {
+                        $q->whereNotNull('message')->where('message', '!=', '');
+                    })->orWhereNotNull('media_url');
                 })
                 ->exists()
             : false;
+        $__lap('older_check');
 
         $customerSummary = $selectedPhone ? $this->getCustomerSummary($selectedPhone) : null;
         $existingLead = $customerSummary['lead_model'] ?? null;
         $existingUser = $customerSummary['user_model'] ?? null;
+        $__lap('customerSummary');
 
-        $servicesList = Services::all();
-        $papersList = Paper::all();
-        $sourcesList = Source::all();
-        $whatsappTemplates = $this->getAvailableTemplates();
+        // mk 5 10 26 - Cached master lists for fast page load speed
+        $servicesList = Cache::remember('wab_services_list', 3600, fn () => Services::all());
+        $papersList = Cache::remember('wab_papers_list', 3600, fn () => Paper::all());
+        $sourcesList = Cache::remember('wab_sources_list', 3600, fn () => Source::all());
+        $__lap('lists');
+
+        // $whatsappTemplates = $this->getAvailableTemplates();
+        // mk for page load fast 2 10 26
+        $whatsappTemplates = collect();
+
+        $__lap('rest');
 
         return view('back-end.whatsapp.chat', [
             'contacts' => $contacts,
@@ -272,7 +453,7 @@ class WhatsappController extends Controller
         ];
 
         foreach ($candidates as [$countryCode, $mobile]) {
-            if (!empty($mobile) && strtoupper(trim((string)$mobile)) !== 'NA') {
+            if (! empty($mobile) && strtoupper(trim((string) $mobile)) !== 'NA') {
                 session(['wab_active_phone' => $this->normalizeChatPhone($countryCode, $mobile)]);
                 break;
             }
@@ -294,7 +475,7 @@ class WhatsappController extends Controller
         ];
 
         foreach ($candidates as [$countryCode, $mobile]) {
-            if (!empty($mobile) && strtoupper(trim((string)$mobile)) !== 'NA') {
+            if (! empty($mobile) && strtoupper(trim((string) $mobile)) !== 'NA') {
                 return $this->normalizeChatPhone($countryCode, $mobile);
             }
         }
@@ -304,8 +485,8 @@ class WhatsappController extends Controller
 
     private function normalizeChatPhone($countryCode, $mobile): string
     {
-        $countryCode = preg_replace('/\D+/', '', (string)$countryCode);
-        $mobile = preg_replace('/\D+/', '', (string)$mobile);
+        $countryCode = preg_replace('/\D+/', '', (string) $countryCode);
+        $mobile = preg_replace('/\D+/', '', (string) $mobile);
 
         if ($countryCode === '') {
             return $mobile;
@@ -316,7 +497,8 @@ class WhatsappController extends Controller
 
         // Remove a national trunk zero before adding the international code.
         $mobile = preg_replace('/^0/', '', $mobile);
-        return $countryCode . $mobile;
+
+        return $countryCode.$mobile;
     }
 
     public function closeChatSession(): JsonResponse
@@ -350,17 +532,17 @@ class WhatsappController extends Controller
         $rawMobile = (string) ($request->input('mobile_real') ?: $request->input('mobile'));
         $mobile = preg_replace('/\D+/', '', $rawMobile);
         $countrycode = $request->input('countrycode');
-        $fullPhone = $countrycode . $mobile;
+        $fullPhone = $countrycode.$mobile;
 
         // User lookup or creation
         $user = null;
         if ($request->filled('id')) {
             $user = User::where('id', $request->input('id'))->first();
         }
-        if (!$user && !empty($mobile)) {
+        if (! $user && ! empty($mobile)) {
             $user = User::where('mobile_no', $mobile)
                 ->orWhere('mobile_no', $fullPhone)
-                ->orWhere('mobile_no', '+' . $fullPhone)
+                ->orWhere('mobile_no', '+'.$fullPhone)
                 ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile_no, '')) = ?", [$mobile])
                 ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile_no, '')) = ?", [$fullPhone])
                 ->first();
@@ -371,7 +553,7 @@ class WhatsappController extends Controller
         // Auto-heal email if masked string with '*' was received
         if (str_contains($rawEmail, '*') || empty($rawEmail)) {
             $returnPhone = (string) $request->input('return_phone');
-            if (!empty($returnPhone)) {
+            if (! empty($returnPhone)) {
                 $recentMsg = WhatsappMessage::whereIn('phone', $this->getPhoneVariants($returnPhone))
                     ->whereRaw("message REGEXP '[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}'")
                     ->latest('id')
@@ -382,9 +564,9 @@ class WhatsappController extends Controller
             }
         }
 
-        $hasRealEmail = !empty($rawEmail) && strpos($rawEmail, '*') === false && filter_var($rawEmail, FILTER_VALIDATE_EMAIL);
+        $hasRealEmail = ! empty($rawEmail) && strpos($rawEmail, '*') === false && filter_var($rawEmail, FILTER_VALIDATE_EMAIL);
 
-        if (!$user) {
+        if (! $user) {
             if ($hasRealEmail) {
                 $existingUser = User::where('email', $rawEmail)->first();
                 if ($existingUser) {
@@ -396,11 +578,11 @@ class WhatsappController extends Controller
                 }
             }
 
-            if (!$user) {
-                $user = new User();
-                $user->email = $hasRealEmail ? $rawEmail : ('user' . $mobile . '@gmail.com');
+            if (! $user) {
+                $user = new User;
+                $user->email = $hasRealEmail ? $rawEmail : ('user'.$mobile.'@gmail.com');
                 $user->mobile_no = $mobile;
-                $user->name = $request->input('user_name') ?: ('WhatsApp User ' . $mobile);
+                $user->name = $request->input('user_name') ?: ('WhatsApp User '.$mobile);
                 $user->countrycode = $countrycode ?: '44';
                 $user->password = Hash::make('user@123');
                 $user->role_id = 2;
@@ -414,7 +596,7 @@ class WhatsappController extends Controller
             if ($request->filled('user_name')) {
                 $user->name = $request->input('user_name');
             }
-            if (!empty($countrycode)) {
+            if (! empty($countrycode)) {
                 $user->countrycode = $countrycode;
             }
             $user->save();
@@ -426,12 +608,12 @@ class WhatsappController extends Controller
         $latestOrder = Order::orderByDesc('id')->first();
         $newOrderNumber = $latestOrder ? intval(substr($latestOrder->order_id, 3)) : 0;
         $newOrderNumber++;
-        $newOrderId = 'UKS' . $newOrderNumber;
+        $newOrderId = 'UKS'.$newOrderNumber;
 
         $creatorId = Auth::id() ?: 1;
 
         // Create Lead
-        $lead = new Leads();
+        $lead = new Leads;
         $lead->order_id = $newOrderId;
         $lead->emp_id = $userId;
         $lead->user_name = $user->name;
@@ -458,7 +640,7 @@ class WhatsappController extends Controller
         $lead->save();
 
         // Create Order
-        $order = new Order();
+        $order = new Order;
         $order->uid = $userId;
         $order->order_id = $newOrderId;
         $order->lead_id = $lead->id;
@@ -513,7 +695,7 @@ class WhatsappController extends Controller
         ]);
 
         $phone = $validated['phone'];
-        if (!empty($phone)) {
+        if (! empty($phone)) {
             session(['wab_active_phone' => $phone]);
         }
         $variants = $this->getPhoneVariants($phone);
@@ -605,66 +787,108 @@ class WhatsappController extends Controller
         $cleanPhone = preg_replace('/\D+/', '', $phone);
         $last10 = strlen($cleanPhone) >= 10 ? substr($cleanPhone, -10) : $cleanPhone;
 
-        $users = User::query()
-            ->where(function ($q) use ($variants, $cleanPhone, $last10) {
-                $q->whereIn('mobile_no', $variants)
-                  ->orWhereIn('mobile_no2', $variants);
-                if (!empty($cleanPhone)) {
-                    $q->orWhere('mobile_no', 'like', "%{$cleanPhone}%")
-                      ->orWhere('mobile_no2', 'like', "%{$cleanPhone}%")
-                      ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile_no, '')) LIKE ?", ["%{$cleanPhone}%"])
-                      ->orWhereRaw("CONCAT(IFNULL(countrycode2, ''), IFNULL(mobile_no2, '')) LIKE ?", ["%{$cleanPhone}%"]);
-                }
-                if (!empty($last10)) {
-                    $q->orWhere('mobile_no', 'like', "%{$last10}")
-                      ->orWhere('mobile_no2', 'like', "%{$last10}")
-                      ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile_no, '')) LIKE ?", ["%{$last10}"])
-                      ->orWhereRaw("CONCAT(IFNULL(countrycode2, ''), IFNULL(mobile_no2, '')) LIKE ?", ["%{$last10}"]);
-                }
-            })
-            ->get(['id', 'email', 'name', 'mobile_no', 'mobile_no2', 'countrycode', 'countrycode2']);
+        $userFields = ['id', 'email', 'name', 'mobile_no', 'mobile_no2', 'countrycode', 'countrycode2'];
+
+        // mk 5 10 26 - Fast-Path: B-Tree Indexed lookup on mobile_no / mobile_no2 (< 2ms)
+        $users = ! empty($variants)
+            ? User::query()
+                ->where(function ($q) use ($variants) {
+                    $q->whereIn('mobile_no', $variants)
+                        ->orWhereIn('mobile_no2', $variants);
+                })
+                ->get($userFields)
+            : collect();
+
+        // Safe Fallback: Only if fast-path found nothing, run fuzzy/concat search
+        if ($users->isEmpty() && (! empty($cleanPhone) || ! empty($last10))) {
+            $users = User::query()
+                ->where(function ($q) use ($variants, $cleanPhone, $last10) {
+                    $q->whereIn('mobile_no', $variants)
+                        ->orWhereIn('mobile_no2', $variants);
+                    if (! empty($cleanPhone)) {
+                        $q->orWhere('mobile_no', 'like', "%{$cleanPhone}%")
+                            ->orWhere('mobile_no2', 'like', "%{$cleanPhone}%")
+                            ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile_no, '')) LIKE ?", ["%{$cleanPhone}%"])
+                            ->orWhereRaw("CONCAT(IFNULL(countrycode2, ''), IFNULL(mobile_no2, '')) LIKE ?", ["%{$cleanPhone}%"]);
+                    }
+                    if (! empty($last10)) {
+                        $q->orWhere('mobile_no', 'like', "%{$last10}")
+                            ->orWhere('mobile_no2', 'like', "%{$last10}")
+                            ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile_no, '')) LIKE ?", ["%{$last10}"])
+                            ->orWhereRaw("CONCAT(IFNULL(countrycode2, ''), IFNULL(mobile_no2, '')) LIKE ?", ["%{$last10}"]);
+                    }
+                })
+                ->get($userFields);
+        }
 
         $resolvedUser = $users->first(function ($user) use ($cleanPhone) {
-            $primary = preg_replace('/\D+/', '', (string)$user->countrycode . (string)$user->mobile_no);
-            $secondary = preg_replace('/\D+/', '', (string)$user->countrycode2 . (string)$user->mobile_no2);
+            $primary = preg_replace('/\D+/', '', (string) $user->countrycode.(string) $user->mobile_no);
+            $secondary = preg_replace('/\D+/', '', (string) $user->countrycode2.(string) $user->mobile_no2);
+
             return $cleanPhone !== '' && ($primary === $cleanPhone || $secondary === $cleanPhone);
         }) ?: $users->first();
         $userIds = $resolvedUser ? [$resolvedUser->id] : [];
-        $userEmails = $resolvedUser && !empty($resolvedUser->email) ? [$resolvedUser->email] : [];
+        $userEmails = $resolvedUser && ! empty($resolvedUser->email) ? [$resolvedUser->email] : [];
 
+        // mk 5 10 26 - Fast-Path: Try direct indexed match first for leads
         $query = Leads::query()
-            ->where(function ($q) use ($phone, $cleanPhone, $last10, $variants, $userIds, $userEmails) {
-                $q->whereIn('mobile', $variants)
-                  ->orWhere('mobile', $phone)
-                  ->orWhere('mobile', $cleanPhone);
-                if (!empty($last10)) {
-                    $q->orWhere('mobile', 'like', "%{$last10}")
-                      ->orWhere('mobile2', 'like', "%{$last10}")
-                      ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile, '')) LIKE ?", ["%{$last10}"])
-                      ->orWhereRaw("CONCAT(IFNULL(countrycode2, ''), IFNULL(mobile2, '')) LIKE ?", ["%{$last10}"]);
+            ->where(function ($q) use ($phone, $cleanPhone, $variants, $userIds, $userEmails) {
+                if (! empty($variants)) {
+                    $q->whereIn('mobile', $variants)
+                        ->orWhereIn('mobile2', $variants);
                 }
-                if (!empty($variants)) {
-                    $q->orWhereIn('mobile2', $variants);
+                if ($phone) {
+                    $q->orWhere('mobile', $phone);
                 }
-                if (!empty($userIds)) {
+                if ($cleanPhone) {
+                    $q->orWhere('mobile', $cleanPhone);
+                }
+                if (! empty($userIds)) {
                     $q->orWhereIn('emp_id', $userIds);
                 }
-                if (!empty($userEmails)) {
+                if (! empty($userEmails)) {
                     $q->orWhereIn('email', $userEmails);
                 }
             })
             ->where(function ($q) {
                 $q->where('is_converted', 0)
-                  ->orWhereNull('is_converted');
-            })
-            ->orderByDesc('id');
+                    ->orWhereNull('is_converted');
+            });
+
+        // Safe Fallback: If no leads matched by indexed match, include fuzzy search
+        if ($query->count() === 0 && (! empty($last10) || ! empty($cleanPhone))) {
+            $query = Leads::query()
+                ->where(function ($q) use ($phone, $cleanPhone, $last10, $variants, $userIds) {
+                    $q->whereIn('mobile', $variants)
+                        ->orWhere('mobile', $phone)
+                        ->orWhere('mobile', $cleanPhone);
+                    if (! empty($last10)) {
+                        $q->orWhere('mobile', 'like', "%{$last10}")
+                            ->orWhere('mobile2', 'like', "%{$last10}")
+                            ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile, '')) LIKE ?", ["%{$last10}"])
+                            ->orWhereRaw("CONCAT(IFNULL(countrycode2, ''), IFNULL(mobile2, '')) LIKE ?", ["%{$last10}"]);
+                    }
+                    if (! empty($variants)) {
+                        $q->orWhereIn('mobile2', $variants);
+                    }
+                    if (! empty($userIds)) {
+                        $q->orWhereIn('emp_id', $userIds);
+                    }
+                })
+                ->where(function ($q) {
+                    $q->where('is_converted', 0)
+                        ->orWhereNull('is_converted');
+                });
+        }
+
+        $query->orderByDesc('id');
 
         $total = $query->count();
         $leads = $query->skip(($page - 1) * $limit)->take($limit)->get();
 
         $formatted = $leads->map(function ($lead) {
-            $isCancelled = (int)$lead->status === 1 || in_array(strtolower($lead->l_status ?? ''), ['cancel', 'cancelled', 'canceled']);
-            $isConverted = (int)$lead->is_converted === 1 || strtolower($lead->l_status ?? '') === 'converted';
+            $isCancelled = (int) $lead->status === 1 || in_array(strtolower($lead->l_status ?? ''), ['cancel', 'cancelled', 'canceled']);
+            $isConverted = (int) $lead->is_converted === 1 || strtolower($lead->l_status ?? '') === 'converted';
 
             if ($isCancelled) {
                 $displayStatus = 'Cancelled';
@@ -674,7 +898,7 @@ class WhatsappController extends Controller
                 $statusClass = 'badge-success';
             } else {
                 $displayStatus = $lead->l_status ?: 'Waiting';
-                $statusClass = match(strtolower($lead->l_status ?? '')) {
+                $statusClass = match (strtolower($lead->l_status ?? '')) {
                     'waiting' => 'badge-warning',
                     'quote' => 'badge-info',
                     'confirmation' => 'badge-primary',
@@ -682,9 +906,9 @@ class WhatsappController extends Controller
                 };
             }
 
-            $createDateStr = !empty($lead->create_date) && strtotime($lead->create_date)
+            $createDateStr = ! empty($lead->create_date) && strtotime($lead->create_date)
                 ? date('d M Y', strtotime($lead->create_date))
-                : (!empty($lead->create_at) && strtotime($lead->create_at) ? date('d M Y', strtotime($lead->create_at)) : (!empty($lead->created_at) ? $lead->created_at->format('d M Y') : '—'));
+                : (! empty($lead->create_at) && strtotime($lead->create_at) ? date('d M Y', strtotime($lead->create_at)) : (! empty($lead->created_at) ? $lead->created_at->format('d M Y') : '—'));
 
             return [
                 'id' => $lead->id,
@@ -692,15 +916,15 @@ class WhatsappController extends Controller
                 'project_title' => $lead->project_title ?: 'N/A',
                 'service_type' => $lead->service_type ?: 'General',
                 'pages' => $lead->pages ? number_format($lead->pages) : '—',
-                'price' => is_numeric($lead->price) ? (float)$lead->price : 0,
-                'price_formatted' => number_format((float)($lead->price ?: 0), 2),
+                'price' => is_numeric($lead->price) ? (float) $lead->price : 0,
+                'price_formatted' => number_format((float) ($lead->price ?: 0), 2),
                 'status' => $displayStatus,
                 'status_class' => $statusClass,
                 'is_cancelled' => $isCancelled ? 1 : 0,
                 'is_converted' => $isConverted ? 1 : 0,
                 'cancel_reason' => $lead->cancel_reason ?: ($lead->reason ?: ''),
                 'create_date' => $createDateStr,
-                'deadline' => !empty($lead->deadline) && strtotime($lead->deadline) ? date('d M Y', strtotime($lead->deadline)) : '—',
+                'deadline' => ! empty($lead->deadline) && strtotime($lead->deadline) ? date('d M Y', strtotime($lead->deadline)) : '—',
                 'delivery_time' => $lead->delivery_time ?: '',
                 'edit_url' => route('lead.edit', $lead->id),
             ];
@@ -712,7 +936,9 @@ class WhatsappController extends Controller
             'total' => $total,
             'has_more' => ($page * $limit) < $total,
             'page' => $page,
-            'all_leads_url' => route('leads') . '?search=' . urlencode($cleanPhone),
+            // 'all_leads_url' => route('leads') . '?search=' . urlencode($cleanPhone),
+            // mk
+            'all_leads_url' => route('lead.index').'?search='.urlencode($cleanPhone),
         ]);
     }
 
@@ -723,7 +949,7 @@ class WhatsappController extends Controller
         $page = max(1, (int) $request->input('page', 1));
         $limit = max(1, min(50, (int) $request->input('limit', 10)));
 
-        if (!$phone && !$customerId) {
+        if (! $phone && ! $customerId) {
             return response()->json(['success' => false, 'orders' => [], 'total' => 0, 'has_more' => false]);
         }
 
@@ -738,41 +964,42 @@ class WhatsappController extends Controller
             $users = User::query()
                 ->where(function ($q) use ($variants, $cleanPhone, $last10) {
                     $q->whereIn('mobile_no', $variants)->orWhereIn('mobile_no2', $variants);
-                    if (!empty($cleanPhone)) {
+                    if (! empty($cleanPhone)) {
                         $q->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile_no, '')) = ?", [$cleanPhone])
-                          ->orWhereRaw("CONCAT(IFNULL(countrycode2, ''), IFNULL(mobile_no2, '')) = ?", [$cleanPhone]);
+                            ->orWhereRaw("CONCAT(IFNULL(countrycode2, ''), IFNULL(mobile_no2, '')) = ?", [$cleanPhone]);
                     }
-                    if (!empty($last10)) {
+                    if (! empty($last10)) {
                         $q->orWhere('mobile_no', 'like', "%{$last10}")
-                          ->orWhere('mobile_no2', 'like', "%{$last10}");
+                            ->orWhere('mobile_no2', 'like', "%{$last10}");
                     }
                 })
                 ->get(['id', 'email', 'name', 'mobile_no', 'mobile_no2', 'countrycode', 'countrycode2']);
         }
 
         $resolvedUser = $users->first(function ($user) use ($cleanPhone) {
-            $primary = preg_replace('/\D+/', '', (string)$user->countrycode . (string)$user->mobile_no);
-            $secondary = preg_replace('/\D+/', '', (string)$user->countrycode2 . (string)$user->mobile_no2);
+            $primary = preg_replace('/\D+/', '', (string) $user->countrycode.(string) $user->mobile_no);
+            $secondary = preg_replace('/\D+/', '', (string) $user->countrycode2.(string) $user->mobile_no2);
+
             return $cleanPhone !== '' && ($primary === $cleanPhone || $secondary === $cleanPhone);
         }) ?: $users->first();
         $userIds = $resolvedUser ? [$resolvedUser->id] : [];
-        $userEmails = $resolvedUser && !empty($resolvedUser->email) ? [$resolvedUser->email] : [];
+        $userEmails = $resolvedUser && ! empty($resolvedUser->email) ? [$resolvedUser->email] : [];
 
         $matchingLeads = Leads::query()
             ->where(function ($q) use ($phone, $cleanPhone, $last10, $variants, $userIds, $userEmails) {
                 $q->whereIn('mobile', $variants)
-                  ->orWhere('mobile', $phone)
-                  ->orWhere('mobile', $cleanPhone);
-                if (!empty($last10)) {
+                    ->orWhere('mobile', $phone)
+                    ->orWhere('mobile', $cleanPhone);
+                if (! empty($last10)) {
                     $q->orWhere('mobile', 'like', "%{$last10}");
                 }
-                if (!empty($variants)) {
+                if (! empty($variants)) {
                     $q->orWhereIn('mobile2', $variants);
                 }
-                if (!empty($userIds)) {
+                if (! empty($userIds)) {
                     $q->orWhereIn('emp_id', $userIds);
                 }
-                if (!empty($userEmails)) {
+                if (! empty($userEmails)) {
                     $q->orWhereIn('email', $userEmails);
                 }
             })
@@ -784,16 +1011,16 @@ class WhatsappController extends Controller
         $query = Order::query()
             ->with(['team', 'lead', 'frontendLead', 'user']);
 
-        if (!empty($userIds)) {
+        if (! empty($userIds)) {
             // A resolved CRM user is authoritative. Mixing all of that user's
             // lead records here double-counts/introduces unrelated orders.
             $query->whereIn('orders.uid', $userIds);
         } else {
             $query->where(function ($q) use ($convertedLeadIds, $convertedLeadOrderIds) {
-                if (!empty($convertedLeadIds)) {
+                if (! empty($convertedLeadIds)) {
                     $q->whereIn('orders.lead_id', $convertedLeadIds);
                 }
-                if (!empty($convertedLeadOrderIds)) {
+                if (! empty($convertedLeadOrderIds)) {
                     $q->orWhereIn('orders.order_id', $convertedLeadOrderIds);
                 }
             });
@@ -802,12 +1029,12 @@ class WhatsappController extends Controller
         $query
             ->orderByDesc('id');
 
-        $hasMatchCriteria = !empty($userIds) || !empty($convertedLeadIds) || !empty($convertedLeadOrderIds);
+        $hasMatchCriteria = ! empty($userIds) || ! empty($convertedLeadIds) || ! empty($convertedLeadOrderIds);
         $total = $hasMatchCriteria ? $query->count() : 0;
         $orders = $hasMatchCriteria ? $query->skip(($page - 1) * $limit)->take($limit)->get() : collect();
 
         $formatted = $orders->map(function ($ord) {
-            $statusClass = match(strtolower($ord->projectstatus ?? '')) {
+            $statusClass = match (strtolower($ord->projectstatus ?? '')) {
                 'completed', 'delivered' => 'badge-success',
                 'working', 'in progress' => 'badge-warning',
                 'failed', 'cancelled' => 'badge-danger',
@@ -823,15 +1050,15 @@ class WhatsappController extends Controller
             $effectiveSemester = $ord->semester ?: (optional($ord->lead)->semester ?: optional($ord->frontendLead)->semester);
             $effectiveServices = $ord->services ?: (optional($ord->lead)->service_type ?: optional($ord->frontendLead)->service_type);
 
-            $basePriceAmt = is_numeric($effectiveAmount) ? (float)$effectiveAmount : 0;
-            $recvPriceAmt = is_numeric($ord->received_amount) ? (float)$ord->received_amount : 0;
+            $basePriceAmt = is_numeric($effectiveAmount) ? (float) $effectiveAmount : 0;
+            $recvPriceAmt = is_numeric($ord->received_amount) ? (float) $ord->received_amount : 0;
             $calcDueAmt = max(0, $basePriceAmt - $recvPriceAmt);
 
             $deadlineDate = null;
-            if (!empty($effectiveDeliveryDate)) {
+            if (! empty($effectiveDeliveryDate)) {
                 $dateTimeString = $effectiveDeliveryDate;
-                if (!empty($effectiveDeliveryTime)) {
-                    $dateTimeString .= ' ' . $effectiveDeliveryTime;
+                if (! empty($effectiveDeliveryTime)) {
+                    $dateTimeString .= ' '.$effectiveDeliveryTime;
                 }
                 try {
                     $deadlineDate = Carbon::parse($dateTimeString);
@@ -839,25 +1066,25 @@ class WhatsappController extends Controller
                     $deadlineDate = null;
                 }
             }
-            $isOverdue = $deadlineDate && $deadlineDate->isPast() && !in_array(strtolower($ord->projectstatus ?? ''), ['delivered', 'completed']);
+            $isOverdue = $deadlineDate && $deadlineDate->isPast() && ! in_array(strtolower($ord->projectstatus ?? ''), ['delivered', 'completed']);
 
-            $orderDateStr = !empty($effectiveOrderDate) && strtotime((string)$effectiveOrderDate)
+            $orderDateStr = ! empty($effectiveOrderDate) && strtotime((string) $effectiveOrderDate)
                 ? Carbon::parse($effectiveOrderDate)->format('d M Y')
-                : (!empty($ord->created_at) ? $ord->created_at->format('d M Y') : '—');
+                : (! empty($ord->created_at) ? $ord->created_at->format('d M Y') : '—');
 
-            $writerDeadlineStr = !empty($ord->writer_deadline) && strtotime($ord->writer_deadline)
+            $writerDeadlineStr = ! empty($ord->writer_deadline) && strtotime($ord->writer_deadline)
                 ? Carbon::parse($ord->writer_deadline)->format('d M Y')
                 : null;
 
             $draftDateStr = null;
-            if ($ord->draftrequired == 'Y' || !empty($ord->draft_date)) {
-                if (!empty($ord->draft_date) && strtotime($ord->draft_date)) {
+            if ($ord->draftrequired == 'Y' || ! empty($ord->draft_date)) {
+                if (! empty($ord->draft_date) && strtotime($ord->draft_date)) {
                     $draftDateStr = Carbon::parse($ord->draft_date)->format('d M Y');
-                    if (!empty($ord->draft_time)) {
+                    if (! empty($ord->draft_time)) {
                         try {
-                            $draftDateStr .= ' (' . Carbon::parse($ord->draft_time)->format('H:i') . ')';
+                            $draftDateStr .= ' ('.Carbon::parse($ord->draft_time)->format('H:i').')';
                         } catch (\Exception $e) {
-                            $draftDateStr .= ' (' . $ord->draft_time . ')';
+                            $draftDateStr .= ' ('.$ord->draft_time.')';
                         }
                     }
                 }
@@ -866,45 +1093,45 @@ class WhatsappController extends Controller
             $deliveryDateFormatted = '—';
             if ($deadlineDate) {
                 $deliveryDateFormatted = $deadlineDate->format('d M Y');
-                if (!empty($effectiveDeliveryTime)) {
+                if (! empty($effectiveDeliveryTime)) {
                     try {
-                        $deliveryDateFormatted .= ' (' . Carbon::parse($effectiveDeliveryTime)->format('H:i') . ')';
+                        $deliveryDateFormatted .= ' ('.Carbon::parse($effectiveDeliveryTime)->format('H:i').')';
                     } catch (\Exception $e) {
-                        $deliveryDateFormatted .= ' (' . $effectiveDeliveryTime . ')';
+                        $deliveryDateFormatted .= ' ('.$effectiveDeliveryTime.')';
                     }
                 }
-            } elseif (!empty($effectiveDeliveryDate) && strtotime((string)$effectiveDeliveryDate)) {
-                $deliveryDateFormatted = date('d M Y', strtotime((string)$effectiveDeliveryDate));
+            } elseif (! empty($effectiveDeliveryDate) && strtotime((string) $effectiveDeliveryDate)) {
+                $deliveryDateFormatted = date('d M Y', strtotime((string) $effectiveDeliveryDate));
             }
 
-            $feedbackDateStr = !empty($ord->f_delivery_date) && strtotime($ord->f_delivery_date)
+            $feedbackDateStr = ! empty($ord->f_delivery_date) && strtotime($ord->f_delivery_date)
                 ? Carbon::parse($ord->f_delivery_date)->format('d M Y')
                 : null;
 
-            $failedDateStr = !empty($ord->failed_at) && strtotime($ord->failed_at)
+            $failedDateStr = ! empty($ord->failed_at) && strtotime($ord->failed_at)
                 ? Carbon::parse($ord->failed_at)->format('d M Y H:i A')
                 : null;
 
             $convertedBy = $ord->l_converted_by ?: (optional($ord->lead)->l_converted_by ?: optional($ord->frontendLead)->l_converted_by);
-            $isConverted = !empty($convertedBy);
+            $isConverted = ! empty($convertedBy);
 
             $orderCustomerEmail = $ord->user?->email ?: (optional($ord->lead)->email ?: (optional($ord->frontendLead)->email ?: ''));
-            $orderCode = trim((string)($ord->order_id ?: $ord->id));
+            $orderCode = trim((string) ($ord->order_id ?: $ord->id));
 
-            $clientEmailUrl = !empty($orderCode)
+            $clientEmailUrl = ! empty($orderCode)
                 ? route('emails.index', ['account_id' => 2, 'search' => $orderCode])
-                : (!empty($orderCustomerEmail) ? route('emails.index', ['account_id' => 2, 'search' => $orderCustomerEmail]) : route('emails.index', ['account_id' => 2]));
+                : (! empty($orderCustomerEmail) ? route('emails.index', ['account_id' => 2, 'search' => $orderCustomerEmail]) : route('emails.index', ['account_id' => 2]));
 
-            $writerEmailUrl = !empty($orderCode)
+            $writerEmailUrl = ! empty($orderCode)
                 ? route('emails.index', ['account_id' => 1, 'search' => $orderCode])
-                : (!empty($orderCustomerEmail) ? route('emails.index', ['account_id' => 1, 'search' => $orderCustomerEmail]) : route('emails.index', ['account_id' => 1]));
+                : (! empty($orderCustomerEmail) ? route('emails.index', ['account_id' => 1, 'search' => $orderCustomerEmail]) : route('emails.index', ['account_id' => 1]));
 
             return [
                 'id' => $ord->id,
                 'order_id' => $ord->order_id ?: (string) $ord->id,
                 'title' => $effectiveTitle,
                 'service_type' => $effectiveServices ?: ($ord->service_type ?: 'General'),
-                'pages' => $effectivePages ? number_format((float)$effectivePages) : '—',
+                'pages' => $effectivePages ? number_format((float) $effectivePages) : '—',
                 'total_amount' => $basePriceAmt,
                 'total_amount_formatted' => number_format($basePriceAmt, 2),
                 'received_amount' => $recvPriceAmt,
@@ -940,9 +1167,9 @@ class WhatsappController extends Controller
             ];
         });
 
-        $customerPrimaryEmail = !empty($userEmails[0]) ? trim((string)$userEmails[0]) : '';
+        $customerPrimaryEmail = ! empty($userEmails[0]) ? trim((string) $userEmails[0]) : '';
         $firstOrder = $orders->first();
-        $firstOrderCode = $firstOrder ? trim((string)($firstOrder->order_id ?: $firstOrder->id)) : '';
+        $firstOrderCode = $firstOrder ? trim((string) ($firstOrder->order_id ?: $firstOrder->id)) : '';
 
         return response()->json([
             'success' => true,
@@ -951,8 +1178,8 @@ class WhatsappController extends Controller
             'has_more' => ($page * $limit) < $total,
             'page' => $page,
             'customer_email' => $customerPrimaryEmail,
-            'client_email_url' => !empty($firstOrderCode) ? route('emails.index', ['account_id' => crm_email_account_id('client'), 'search' => $firstOrderCode]) : null,
-            'writer_email_url' => !empty($firstOrderCode) ? route('emails.index', ['account_id' => crm_email_account_id('writer'), 'search' => $firstOrderCode]) : null,
+            'client_email_url' => ! empty($firstOrderCode) ? route('emails.index', ['account_id' => crm_email_account_id('client'), 'search' => $firstOrderCode]) : null,
+            'writer_email_url' => ! empty($firstOrderCode) ? route('emails.index', ['account_id' => crm_email_account_id('writer'), 'search' => $firstOrderCode]) : null,
             'all_orders_url' => $resolvedUser
                 ? route('orders.index', ['uid' => $resolvedUser->id, 'user' => $resolvedUser->name])
                 : route('orders.index'),
@@ -1155,7 +1382,7 @@ class WhatsappController extends Controller
         $phone = $validated['phone'] ?? null;
         $email = $validated['email'] ?? null;
 
-        $user = app(\App\Services\LabelSyncService::class)->resolveUser($userId ? (int) $userId : null, $phone, $email);
+        $user = app(LabelSyncService::class)->resolveUser($userId ? (int) $userId : null, $phone, $email);
         if ($user) {
             $userId = $user->id;
             $phone = $phone ?: $user->mobile_no;
@@ -1175,29 +1402,29 @@ class WhatsappController extends Controller
 
         if ($user) {
             try {
-                app(\App\Services\LabelSyncService::class)->syncUserLabelsAcrossAllChannels((int) $user->id, $labelIds, Auth::id());
+                app(LabelSyncService::class)->syncUserLabelsAcrossAllChannels((int) $user->id, $labelIds, Auth::id());
             } catch (\Throwable $e) {
-                \Log::warning('Failed to sync user labels across all channels: ' . $e->getMessage());
+                \Log::warning('Failed to sync user labels across all channels: '.$e->getMessage());
             }
         } else {
-            if (!empty($phone)) {
+            if (! empty($phone)) {
                 try {
-                    app(\App\Services\LabelSyncService::class)->syncWhatsAppToEmail($phone, $labelIds, Auth::id());
+                    app(LabelSyncService::class)->syncWhatsAppToEmail($phone, $labelIds, Auth::id());
                 } catch (\Throwable $e) {
-                    \Log::warning('Failed to sync WhatsApp labels: ' . $e->getMessage());
+                    \Log::warning('Failed to sync WhatsApp labels: '.$e->getMessage());
                 }
-            } elseif (!empty($email)) {
+            } elseif (! empty($email)) {
                 try {
-                    app(\App\Services\LabelSyncService::class)->syncEmailToWhatsApp($email, null, $labelIds, Auth::id());
+                    app(LabelSyncService::class)->syncEmailToWhatsApp($email, null, $labelIds, Auth::id());
                 } catch (\Throwable $e) {
-                    \Log::warning('Failed to sync Email labels: ' . $e->getMessage());
+                    \Log::warning('Failed to sync Email labels: '.$e->getMessage());
                 }
             }
         }
 
         if ($request->expectsJson() || $request->ajax() || $request->wantsJson()) {
             $assignedLabelsQuery = WhatsappChatLabel::query()->whereIn('id', $labelIds)->ordered();
-            if ($request->filled('user_id') && !$request->has('from_whatsapp')) {
+            if ($request->filled('user_id') && ! $request->has('from_whatsapp')) {
                 $assignedLabelsQuery->where('is_crm', true);
             } else {
                 $assignedLabelsQuery->where('is_whatsapp', true);
@@ -1250,7 +1477,7 @@ class WhatsappController extends Controller
         return redirect()->route('whatsapp.chat', ['phone' => $phone]);
     }
 
-    public function sendMessage(Request $request): RedirectResponse|\Illuminate\Http\JsonResponse
+    public function sendMessage(Request $request): RedirectResponse|JsonResponse
     {
         $validated = $request->validate([
             'phone' => ['required', 'string', 'max:30'],
@@ -1323,7 +1550,7 @@ class WhatsappController extends Controller
 
         // Fetch live approved templates directly from AiSensy Project API (auto-syncs on approval)
         try {
-            $cacheKey = 'aisensy_wa_templates_' . $projectId;
+            $cacheKey = 'aisensy_wa_templates_'.$projectId;
             $apiTemplates = Cache::remember($cacheKey, 60, function () use ($projectId, $apiKey) {
                 $url = "https://apis.aisensy.com/project-apis/v1/project/{$projectId}/wa_template/";
                 $res = Http::withHeaders([
@@ -1333,6 +1560,7 @@ class WhatsappController extends Controller
 
                 if ($res->successful()) {
                     $rawList = $res->json()['template'] ?? [];
+
                     return collect($rawList)
                         ->where('status', 'APPROVED')
                         ->map(function ($t) {
@@ -1340,23 +1568,23 @@ class WhatsappController extends Controller
                             // Strip button annotations like | [Buy NOW,...] from body preview
                             $cleanBody = trim(preg_replace('/\|\s*\[[^\]]+\]/', '', $rawText));
                             $langStr = $t['language'] ?? 'English (UK)';
-                            $langCode = (stripos($langStr, 'UK') !== false || stripos($langStr, 'GB') !== false) 
-                                ? 'en_GB' 
+                            $langCode = (stripos($langStr, 'UK') !== false || stripos($langStr, 'GB') !== false)
+                                ? 'en_GB'
                                 : ((stripos($langStr, 'US') !== false) ? 'en_US' : 'en_GB');
 
                             $buttons = [];
-                            if (!empty($t['quick_replies']) && is_array($t['quick_replies'])) {
+                            if (! empty($t['quick_replies']) && is_array($t['quick_replies'])) {
                                 $buttons = array_values($t['quick_replies']);
-                            } elseif (!empty($t['buttons']) && is_array($t['buttons'])) {
-                                $buttons = array_map(fn($b) => is_array($b) ? ($b['text'] ?? $b['title'] ?? '') : (string)$b, $t['buttons']);
+                            } elseif (! empty($t['buttons']) && is_array($t['buttons'])) {
+                                $buttons = array_map(fn ($b) => is_array($b) ? ($b['text'] ?? $b['title'] ?? '') : (string) $b, $t['buttons']);
                             } elseif (preg_match_all('/\|\s*\[([^\]]+)\]/', $rawText, $btnMatches)) {
-                                $buttons = array_map(fn($b) => explode(',', $b)[0], $btnMatches[1]);
+                                $buttons = array_map(fn ($b) => explode(',', $b)[0], $btnMatches[1]);
                             }
 
                             $variables = [];
                             if (preg_match_all('/\{\{(\d+)\}\}/', $cleanBody, $vMatches)) {
                                 foreach (array_unique($vMatches[1]) as $varNum) {
-                                    $variables[$varNum] = 'Variable ' . $varNum;
+                                    $variables[$varNum] = 'Variable '.$varNum;
                                 }
                             }
 
@@ -1377,14 +1605,15 @@ class WhatsappController extends Controller
                         ->values()
                         ->all();
                 }
+
                 return [];
             });
 
-            if (!empty($apiTemplates) && is_array($apiTemplates)) {
-                return collect($apiTemplates)->map(fn($t) => (object) $t);
+            if (! empty($apiTemplates) && is_array($apiTemplates)) {
+                return collect($apiTemplates)->map(fn ($t) => (object) $t);
             }
         } catch (\Throwable $e) {
-            Log::warning('AiSensy wa_template fetch error: ' . $e->getMessage());
+            Log::warning('AiSensy wa_template fetch error: '.$e->getMessage());
         }
 
         return collect();
@@ -1395,7 +1624,7 @@ class WhatsappController extends Controller
         if ($request->query('refresh')) {
             try {
                 $aisensy = $this->activeAiSensyConfiguration();
-                Cache::forget('aisensy_wa_templates_' . $aisensy['project_id']);
+                Cache::forget('aisensy_wa_templates_'.$aisensy['project_id']);
             } catch (\RuntimeException $exception) {
                 return response()->json([
                     'success' => false,
@@ -1451,11 +1680,12 @@ class WhatsappController extends Controller
         $template = $this->getAvailableTemplates()->first(function ($t) use ($validated) {
             $tId = is_object($t) ? $t->id : ($t['id'] ?? null);
             $tName = is_object($t) ? $t->name : ($t['name'] ?? null);
-            return (!empty($validated['template_id']) && (string)$tId === (string)$validated['template_id'])
-                || (!empty($validated['template_name']) && (string)$tName === (string)$validated['template_name']);
+
+            return (! empty($validated['template_id']) && (string) $tId === (string) $validated['template_id'])
+                || (! empty($validated['template_name']) && (string) $tName === (string) $validated['template_name']);
         });
 
-        if (!$template) {
+        if (! $template) {
             return response()->json([
                 'success' => false,
                 'message' => 'Selected WhatsApp template not found.',
@@ -1468,7 +1698,7 @@ class WhatsappController extends Controller
 
         foreach ($params as $idx => $val) {
             $num = $idx + 1;
-            $valStr = trim((string)$val);
+            $valStr = trim((string) $val);
             if ($valStr !== '') {
                 $paramValues[] = $valStr;
                 $renderedBody = str_replace("{{{$num}}}", $valStr, $renderedBody);
@@ -1482,8 +1712,8 @@ class WhatsappController extends Controller
             ? 'en_GB'
             : ((stripos($rawLang, 'US') !== false) ? 'en_US' : 'en_GB');
 
-        if (!empty($footerText)) {
-            $fullMessageText = $renderedBody . "\n\n— " . $footerText;
+        if (! empty($footerText)) {
+            $fullMessageText = $renderedBody."\n\n— ".$footerText;
         } else {
             $fullMessageText = $renderedBody;
         }
@@ -1495,7 +1725,7 @@ class WhatsappController extends Controller
             'message' => $fullMessageText,
             'direction' => 'outbound',
             'status' => 'pending',
-            'wa_message_id' => 'tpl_' . (string) Str::uuid(),
+            'wa_message_id' => 'tpl_'.(string) Str::uuid(),
         ]);
 
         $apiKey = $aisensy['api_key'];
@@ -1504,66 +1734,66 @@ class WhatsappController extends Controller
         $sendSuccess = false;
         $sendError = null;
         $cleanPhone = ltrim(preg_replace('/\D+/', '', $phone), '+');
-            $payload = [
-                'to' => $cleanPhone,
-                'type' => 'template',
-                'recipient_type' => 'individual',
-                'template' => [
-                    'name' => $templateName,
-                    'language' => [
-                        'code' => $templateLang,
-                        'policy' => 'deterministic',
-                    ],
+        $payload = [
+            'to' => $cleanPhone,
+            'type' => 'template',
+            'recipient_type' => 'individual',
+            'template' => [
+                'name' => $templateName,
+                'language' => [
+                    'code' => $templateLang,
+                    'policy' => 'deterministic',
+                ],
+            ],
+        ];
+
+        $rawTemplateBody = is_object($template) ? $template->body : ($template['body'] ?? '');
+        $hasVariables = (bool) preg_match('/\{\{\d+\}\}/', (string) $rawTemplateBody);
+
+        if ($hasVariables && ! empty($paramValues)) {
+            $payload['template']['components'] = [
+                [
+                    'type' => 'body',
+                    'parameters' => array_map(fn ($v) => ['type' => 'text', 'text' => (string) $v], $paramValues),
                 ],
             ];
+        }
 
-            $rawTemplateBody = is_object($template) ? $template->body : ($template['body'] ?? '');
-            $hasVariables = (bool) preg_match('/\{\{\d+\}\}/', (string)$rawTemplateBody);
+        try {
+            $response = Http::withHeaders([
+                'Accept' => 'application/json',
+                'Content-Type' => 'application/json',
+                'X-AiSensy-Project-API-Pwd' => $apiKey,
+            ])->timeout(25)->post($apiUrl, $payload);
 
-            if ($hasVariables && !empty($paramValues)) {
-                $payload['template']['components'] = [
-                    [
-                        'type' => 'body',
-                        'parameters' => array_map(fn($v) => ['type' => 'text', 'text' => (string)$v], $paramValues),
-                    ],
-                ];
-            }
+            if ($response->successful()) {
+                $resData = $response->json();
+                $waMsgId = $resData['messages'][0]['id']
+                    ?? $resData['messageId']
+                    ?? $resData['id']
+                    ?? $resData['data']['messageId']
+                    ?? null;
 
-            try {
-                $response = Http::withHeaders([
-                    'Accept' => 'application/json',
-                    'Content-Type' => 'application/json',
-                    'X-AiSensy-Project-API-Pwd' => $apiKey,
-                ])->timeout(25)->post($apiUrl, $payload);
-
-                if ($response->successful()) {
-                    $resData = $response->json();
-                    $waMsgId = $resData['messages'][0]['id'] 
-                        ?? $resData['messageId'] 
-                        ?? $resData['id'] 
-                        ?? $resData['data']['messageId'] 
-                        ?? null;
-
-                    $message->update([
-                        'wa_message_id' => $waMsgId ?: $message->wa_message_id,
-                        'status' => 'sent',
-                    ]);
-                    $sendSuccess = true;
-                } else {
-                    $resData = $response->json() ?: [];
-                    $errText = $resData['message'] ?? $resData['error']['message'] ?? ('AiSensy HTTP error ' . $response->status());
-                    Log::error('AiSensy template send error response', [
-                        'status' => $response->status(),
-                        'response' => $resData,
-                        'payload' => $payload,
-                    ]);
-                    $message->update(['status' => 'failed']);
-                    $sendError = $errText;
-                }
-            } catch (\Throwable $e) {
-                Log::error('AiSensy template exception', ['error' => $e->getMessage()]);
+                $message->update([
+                    'wa_message_id' => $waMsgId ?: $message->wa_message_id,
+                    'status' => 'sent',
+                ]);
+                $sendSuccess = true;
+            } else {
+                $resData = $response->json() ?: [];
+                $errText = $resData['message'] ?? $resData['error']['message'] ?? ('AiSensy HTTP error '.$response->status());
+                Log::error('AiSensy template send error response', [
+                    'status' => $response->status(),
+                    'response' => $resData,
+                    'payload' => $payload,
+                ]);
                 $message->update(['status' => 'failed']);
-                $sendError = $e->getMessage();
+                $sendError = $errText;
+            }
+        } catch (\Throwable $e) {
+            Log::error('AiSensy template exception', ['error' => $e->getMessage()]);
+            $message->update(['status' => 'failed']);
+            $sendError = $e->getMessage();
         }
 
         $message->refresh();
@@ -1617,21 +1847,23 @@ class WhatsappController extends Controller
 
     private function getPhoneVariants(?string $phone): array
     {
-        if (!$phone) return [];
+        if (! $phone) {
+            return [];
+        }
         $raw = trim($phone);
         $clean = preg_replace('/\D+/', '', $raw);
         $last10 = strlen($clean) >= 10 ? substr($clean, -10) : $clean;
 
         return array_values(array_unique(array_filter([
             $raw,
-            '+' . ltrim($raw, '+'),
+            '+'.ltrim($raw, '+'),
             $clean,
             $last10,
-            '+91' . $last10,
-            '91' . $last10,
-            '0' . $last10,
-            '+44' . $last10,
-            '44' . $last10,
+            '+91'.$last10,
+            '91'.$last10,
+            '0'.$last10,
+            '+44'.$last10,
+            '44'.$last10,
         ])));
     }
 
@@ -1658,7 +1890,7 @@ class WhatsappController extends Controller
 
             // Resolve users: utilize find_user_ids_by_search_term (handles masked phone/email/name)
             $matchedUserIds = find_user_ids_by_search_term($search);
-            if (!empty($matchedUserIds)) {
+            if (! empty($matchedUserIds)) {
                 $matchedUsers = User::query()
                     ->whereIn('id', $matchedUserIds)
                     ->get(['id', 'name', 'mobile_no', 'email']);
@@ -1674,13 +1906,13 @@ class WhatsappController extends Controller
                         if (strpos($search, '@') !== false) {
                             $q->orWhere('email', 'like', preg_replace('/\*+/', '%', $search));
                         }
-                        if (!empty($cleanPattern) && preg_match('/\d/', $cleanPattern)) {
+                        if (! empty($cleanPattern) && preg_match('/\d/', $cleanPattern)) {
                             $q->orWhere('mobile', 'like', "%{$cleanPattern}%")
-                              ->orWhere('mobile2', 'like', "%{$cleanPattern}%")
-                              ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile, '')) LIKE ?", ["%{$cleanPattern}%"]);
+                                ->orWhere('mobile2', 'like', "%{$cleanPattern}%")
+                                ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile, '')) LIKE ?", ["%{$cleanPattern}%"]);
                             if ($rawPattern !== $cleanPattern) {
                                 $q->orWhere('mobile', 'like', "%{$rawPattern}%")
-                                  ->orWhere('mobile2', 'like', "%{$rawPattern}%");
+                                    ->orWhere('mobile2', 'like', "%{$rawPattern}%");
                             }
                         }
                     })
@@ -1689,7 +1921,7 @@ class WhatsappController extends Controller
                 $matchedLeads = Leads::query()
                     ->where(function ($q) use ($search, $cleanSearch, $clean10) {
                         $q->where('user_name', 'like', "%{$search}%")
-                          ->orWhere('email', 'like', "%{$search}%");
+                            ->orWhere('email', 'like', "%{$search}%");
                         if ($cleanSearch !== '') {
                             $q->orWhere('mobile', 'like', "%{$cleanSearch}%");
                         }
@@ -1710,15 +1942,15 @@ class WhatsappController extends Controller
 
             $query->where(function ($q) use ($search, $cleanSearch, $clean10, $searchPhoneKeys, $hasAsterisk) {
                 $q->where('latest.name', 'like', "%{$search}%")
-                  ->orWhere('latest.message', 'like', "%{$search}%");
+                    ->orWhere('latest.message', 'like', "%{$search}%");
 
                 if ($hasAsterisk) {
                     $rawMsgPattern = preg_replace('/\*+/', '%', preg_replace('/[^0-9*]/', '', $search));
                     $cleanMsgPattern = ltrim($rawMsgPattern, '0');
-                    if (!empty($cleanMsgPattern) && preg_match('/\d/', $cleanMsgPattern)) {
+                    if (! empty($cleanMsgPattern) && preg_match('/\d/', $cleanMsgPattern)) {
                         $q->orWhere('latest.phone', 'like', "%{$cleanMsgPattern}%");
                     }
-                    if ($rawMsgPattern !== $cleanMsgPattern && !empty($rawMsgPattern)) {
+                    if ($rawMsgPattern !== $cleanMsgPattern && ! empty($rawMsgPattern)) {
                         $q->orWhere('latest.phone', 'like', "%{$rawMsgPattern}%");
                     }
                 } else {
@@ -1731,7 +1963,7 @@ class WhatsappController extends Controller
                     }
                 }
 
-                if (!empty($searchPhoneKeys)) {
+                if (! empty($searchPhoneKeys)) {
                     $q->orWhereIn('latest.phone', $searchPhoneKeys);
                 }
             });
@@ -1792,7 +2024,7 @@ class WhatsappController extends Controller
             }
         } else {
             // In All / Unread / Groups tabs, exclude archived chats unless searching
-            if (!empty($archivedPhoneKeys) && ($search === null || $search === '')) {
+            if (! empty($archivedPhoneKeys) && ($search === null || $search === '')) {
                 $query->whereNotIn('latest.phone', $archivedPhoneKeys);
             }
 
@@ -1835,8 +2067,8 @@ class WhatsappController extends Controller
             } elseif ($tab === 'groups') {
                 $query->where(function ($q) {
                     $q->where('latest.phone', 'like', '%@g.us%')
-                      ->orWhere('latest.phone', 'like', '%-%')
-                      ->orWhere('latest.name', 'like', '%group%');
+                        ->orWhere('latest.phone', 'like', '%-%')
+                        ->orWhere('latest.name', 'like', '%group%');
                 });
             } elseif ($tab === 'history' || $tab === 'closed') {
                 $activeInboundPhones = WhatsappMessage::query()
@@ -1846,7 +2078,7 @@ class WhatsappController extends Controller
                     ->filter()
                     ->all();
 
-                if (!empty($activeInboundPhones)) {
+                if (! empty($activeInboundPhones)) {
                     $activeVariants = [];
                     foreach ($activeInboundPhones as $activePhone) {
                         foreach ($this->getPhoneVariants($activePhone) as $variant) {
@@ -1881,32 +2113,32 @@ class WhatsappController extends Controller
             }
         }
 
-        $users = !empty($allVariants)
+        $users = ! empty($allVariants)
             ? User::query()->whereIn('mobile_no', array_keys($allVariants))->get(['id', 'name', 'mobile_no'])
             : collect();
 
         $userMap = [];
         foreach ($users as $u) {
             $matchedPhone = $allVariants[$u->mobile_no] ?? null;
-            if ($matchedPhone && !isset($userMap[$matchedPhone])) {
+            if ($matchedPhone && ! isset($userMap[$matchedPhone])) {
                 $userMap[$matchedPhone] = $u;
             }
         }
 
-        $leads = !empty($allVariants)
+        $leads = ! empty($allVariants)
             ? Leads::query()->whereIn('mobile', array_keys($allVariants))->get(['id', 'user_name', 'mobile'])
             : collect();
 
         $leadMap = [];
         foreach ($leads as $l) {
             $matchedPhone = $allVariants[$l->mobile] ?? null;
-            if ($matchedPhone && !isset($leadMap[$matchedPhone])) {
+            if ($matchedPhone && ! isset($leadMap[$matchedPhone])) {
                 $leadMap[$matchedPhone] = $l;
             }
         }
 
         // 1 Single Grouped Query for unread counts (Eliminates N+1)
-        $unreadCounts = !empty($phones)
+        $unreadCounts = ! empty($phones)
             ? WhatsappMessage::query()
                 ->whereIn('phone', $phones)
                 ->where('direction', 'inbound')
@@ -1919,31 +2151,32 @@ class WhatsappController extends Controller
                 ->all()
             : [];
 
+        // mk 5 10 26 - Memoized table existence check to avoid hitting information_schema on every request
         // Check active 24-hour window for returned contacts to determine closed status
-        $conversationStates = Schema::hasTable('whatsapp_chat_states') && !empty($allVariants)
+        $conversationStates = $this->hasChatStatesTable() && ! empty($allVariants)
             ? WhatsappChatState::query()
                 ->whereIn('phone', array_keys($allVariants))
                 ->get(['phone', 'conversation_status'])
-                ->mapWithKeys(fn($state) => [
+                ->mapWithKeys(fn ($state) => [
                     $allVariants[$state->phone] ?? $state->phone => strtolower($state->conversation_status),
                 ])
                 ->all()
             : [];
 
-        $recentInboundPhones = !empty($allVariants)
+        $recentInboundPhones = ! empty($allVariants)
             ? WhatsappMessage::query()
                 ->whereIn('phone', array_keys($allVariants))
                 ->where('direction', 'inbound')
                 ->where('created_at', '>=', now()->subHours(24))
                 ->pluck('phone')
-                ->map(fn($phone) => $allVariants[$phone] ?? $phone)
+                ->map(fn ($phone) => $allVariants[$phone] ?? $phone)
                 ->unique()
                 ->all()
             : [];
         $recentInboundSet = array_flip($recentInboundPhones);
 
         // Also fetch latest inbound name for contacts whose latest message name is 'System' or empty or missing user name
-        $inboundNames = !empty($phones)
+        $inboundNames = ! empty($phones)
             ? WhatsappMessage::query()
                 ->whereIn('phone', $phones)
                 ->where('direction', 'inbound')
@@ -1954,47 +2187,47 @@ class WhatsappController extends Controller
                 ->orderByDesc('id')
                 ->get()
                 ->groupBy('phone')
-                ->map(fn($rows) => $rows->first()->name)
+                ->map(fn ($rows) => $rows->first()->name)
                 ->all()
             : [];
 
         // Fetch labels for these contacts
-        $labelsMap = !empty($allVariants)
+        $labelsMap = ! empty($allVariants)
             ? WhatsappChatContactLabel::query()
                 ->whereIn('phone', array_keys($allVariants))
                 ->get()
                 ->groupBy(function ($item) use ($allVariants) {
                     return $allVariants[$item->phone] ?? $item->phone;
                 })
-                ->map(fn($rows) => $rows->pluck('label_id')->unique()->values()->all())
+                ->map(fn ($rows) => $rows->pluck('label_id')->unique()->values()->all())
                 ->all()
             : [];
 
         $allLabels = WhatsappChatLabel::query()->ordered()->get()->keyBy('id');
 
         $contacts = $latestMessages->map(function ($contact, int $index) use ($userMap, $leadMap, $inboundNames, $activePhone, $unreadCounts, $labelsMap, $allLabels, $archivedVariants, $pinnedVariants, $conversationStates, $recentInboundSet, $page, $limit) {
-            $cleanP = preg_replace('/\D+/', '', (string)$contact->phone);
+            $cleanP = preg_replace('/\D+/', '', (string) $contact->phone);
             $cleanP10 = strlen($cleanP) >= 10 ? substr($cleanP, -10) : $cleanP;
             $user = $userMap[$contact->phone] ?? null;
-            $userName = ($user && $user->name && $user->name !== 'System' && !str_starts_with(strtolower($user->name), 'user') && strlen(preg_replace('/\D+/', '', (string)$user->name)) < 10 && preg_replace('/\D+/', '', (string)$user->name) !== $cleanP && preg_replace('/\D+/', '', (string)$user->name) !== $cleanP10) ? $user->name : null;
+            $userName = ($user && $user->name && $user->name !== 'System' && ! str_starts_with(strtolower($user->name), 'user') && strlen(preg_replace('/\D+/', '', (string) $user->name)) < 10 && preg_replace('/\D+/', '', (string) $user->name) !== $cleanP && preg_replace('/\D+/', '', (string) $user->name) !== $cleanP10) ? $user->name : null;
             $lead = $leadMap[$contact->phone] ?? null;
-            $leadName = ($lead && $lead->user_name && $lead->user_name !== 'System' && strlen(preg_replace('/\D+/', '', (string)$lead->user_name)) < 10 && preg_replace('/\D+/', '', (string)$lead->user_name) !== $cleanP && preg_replace('/\D+/', '', (string)$lead->user_name) !== $cleanP10) ? $lead->user_name : null;
+            $leadName = ($lead && $lead->user_name && $lead->user_name !== 'System' && strlen(preg_replace('/\D+/', '', (string) $lead->user_name)) < 10 && preg_replace('/\D+/', '', (string) $lead->user_name) !== $cleanP && preg_replace('/\D+/', '', (string) $lead->user_name) !== $cleanP10) ? $lead->user_name : null;
             $inboundName = $inboundNames[$contact->phone] ?? null;
-            if ($inboundName && (preg_replace('/\D+/', '', (string)$inboundName) === $cleanP || preg_replace('/\D+/', '', (string)$inboundName) === $cleanP10 || strlen(preg_replace('/\D+/', '', (string)$inboundName)) >= 10 || $inboundName === 'System')) {
+            if ($inboundName && (preg_replace('/\D+/', '', (string) $inboundName) === $cleanP || preg_replace('/\D+/', '', (string) $inboundName) === $cleanP10 || strlen(preg_replace('/\D+/', '', (string) $inboundName)) >= 10 || $inboundName === 'System')) {
                 $inboundName = null;
             }
-            $contactName = ($contact->name && $contact->name !== 'System' && strlen(preg_replace('/\D+/', '', (string)$contact->name)) < 10 && preg_replace('/\D+/', '', (string)$contact->name) !== $cleanP && preg_replace('/\D+/', '', (string)$contact->name) !== $cleanP10) ? $contact->name : null;
+            $contactName = ($contact->name && $contact->name !== 'System' && strlen(preg_replace('/\D+/', '', (string) $contact->name)) < 10 && preg_replace('/\D+/', '', (string) $contact->name) !== $cleanP && preg_replace('/\D+/', '', (string) $contact->name) !== $cleanP10) ? $contact->name : null;
 
             $maskedPhone = mask_phone_for_display('', $contact->phone);
             $name = $userName ?: ($leadName ?: ($inboundName ?: ($contactName ?: null)));
-            if (!$name || trim($name) === '' || $name === 'Unknown User' || $name === 'System' || strlen(preg_replace('/\D+/', '', (string)$name)) >= 10) {
+            if (! $name || trim($name) === '' || $name === 'Unknown User' || $name === 'System' || strlen(preg_replace('/\D+/', '', (string) $name)) >= 10) {
                 $name = $maskedPhone;
             }
             $unreadCount = (int) ($unreadCounts[$contact->phone] ?? 0);
             $globalIndex = (($page - 1) * $limit) + $index;
             $contactLabelIds = $labelsMap[$contact->phone] ?? [];
-            $contactLabels = collect($contactLabelIds)->map(fn($id) => $allLabels->get($id))->filter()->values();
-            $isPinned = !empty($pinnedVariants[$contact->phone]) || (!empty($cleanP) && !empty($pinnedVariants[$cleanP]));
+            $contactLabels = collect($contactLabelIds)->map(fn ($id) => $allLabels->get($id))->filter()->values();
+            $isPinned = ! empty($pinnedVariants[$contact->phone]) || (! empty($cleanP) && ! empty($pinnedVariants[$cleanP]));
             $conversationStatus = $conversationStates[$contact->phone] ?? null;
             $isClosed = $conversationStatus === 'closed';
 
@@ -2004,9 +2237,9 @@ class WhatsappController extends Controller
                 'phone_display' => mask_phone_for_display('', $contact->phone),
                 'name' => $name,
                 'msg' => $this->contactPreview($contact),
-                'time' => optional($contact->created_at ? \Carbon\Carbon::parse($contact->created_at) : null)->isToday()
-                    ? \Carbon\Carbon::parse($contact->created_at)->format('H:i')
-                    : optional($contact->created_at ? \Carbon\Carbon::parse($contact->created_at) : null)->format('D'),
+                'time' => optional($contact->created_at ? Carbon::parse($contact->created_at) : null)->isToday()
+                    ? Carbon::parse($contact->created_at)->format('H:i')
+                    : optional($contact->created_at ? Carbon::parse($contact->created_at) : null)->format('D'),
                 'active' => $contact->phone === $activePhone,
                 'badge' => $unreadCount,
                 'color' => $this->avatarColor($globalIndex),
@@ -2017,12 +2250,12 @@ class WhatsappController extends Controller
                 'is_pinned' => $isPinned,
                 'is_closed' => $isClosed,
                 'conversation_status' => $conversationStatus,
-                'template_required' => !isset($recentInboundSet[$contact->phone]),
+                'template_required' => ! isset($recentInboundSet[$contact->phone]),
             ];
         })->values()->toArray();
 
         // On page 1, ensure all pinned contacts are included even if not in latest 25 messages
-        if ($page == 1 && !empty($pinnedPhones)) {
+        if ($page == 1 && ! empty($pinnedPhones)) {
             $existingLoadedPhones = collect($contacts)->pluck('phone')->all();
             $existingLoadedVariants = [];
             foreach ($existingLoadedPhones as $ep) {
@@ -2032,24 +2265,24 @@ class WhatsappController extends Controller
             }
 
             foreach ($pinnedPhones as $pp) {
-                if (!isset($existingLoadedVariants[$pp])) {
+                if (! isset($existingLoadedVariants[$pp])) {
                     $ppVariants = $this->getPhoneVariants($pp);
                     $lastMsg = WhatsappMessage::query()->whereIn('phone', $ppVariants)->latest('id')->first();
                     if ($lastMsg) {
-                        $cleanPP = preg_replace('/\D+/', '', (string)$pp);
+                        $cleanPP = preg_replace('/\D+/', '', (string) $pp);
                         $u = User::query()->whereIn('mobile_no', $ppVariants)->first(['id', 'name']);
                         $l = Leads::query()->whereIn('mobile', $ppVariants)->first(['id', 'user_name']);
-                        $cName = ($u && $u->name && $u->name !== 'System' && strlen(preg_replace('/\D+/', '', (string)$u->name)) < 10 && preg_replace('/\D+/', '', (string)$u->name) !== $cleanPP)
+                        $cName = ($u && $u->name && $u->name !== 'System' && strlen(preg_replace('/\D+/', '', (string) $u->name)) < 10 && preg_replace('/\D+/', '', (string) $u->name) !== $cleanPP)
                             ? $u->name
-                            : (($l && $l->user_name && $l->user_name !== 'System' && strlen(preg_replace('/\D+/', '', (string)$l->user_name)) < 10 && preg_replace('/\D+/', '', (string)$l->user_name) !== $cleanPP)
+                            : (($l && $l->user_name && $l->user_name !== 'System' && strlen(preg_replace('/\D+/', '', (string) $l->user_name)) < 10 && preg_replace('/\D+/', '', (string) $l->user_name) !== $cleanPP)
                                 ? $l->user_name
-                                : ($lastMsg->name && $lastMsg->name !== 'System' && strlen(preg_replace('/\D+/', '', (string)$lastMsg->name)) < 10 && preg_replace('/\D+/', '', (string)$lastMsg->name) !== $cleanPP ? $lastMsg->name : null));
+                                : ($lastMsg->name && $lastMsg->name !== 'System' && strlen(preg_replace('/\D+/', '', (string) $lastMsg->name)) < 10 && preg_replace('/\D+/', '', (string) $lastMsg->name) !== $cleanPP ? $lastMsg->name : null));
                         $maskedPP = mask_phone_for_display('', $pp);
-                        if (!$cName || trim($cName) === '' || preg_replace('/\D+/', '', (string)$cName) === $cleanPP || strlen(preg_replace('/\D+/', '', (string)$cName)) >= 10 || $cName === 'System' || $cName === 'Unknown User') {
+                        if (! $cName || trim($cName) === '' || preg_replace('/\D+/', '', (string) $cName) === $cleanPP || strlen(preg_replace('/\D+/', '', (string) $cName)) >= 10 || $cName === 'System' || $cName === 'Unknown User') {
                             $cName = $maskedPP;
                         }
                         $cLabelIds = $labelsMap[$pp] ?? [];
-                        $cLabels = collect($cLabelIds)->map(fn($id) => $allLabels->get($id))->filter()->values();
+                        $cLabels = collect($cLabelIds)->map(fn ($id) => $allLabels->get($id))->filter()->values();
 
                         $contacts[] = [
                             'id' => $lastMsg->id,
@@ -2057,9 +2290,9 @@ class WhatsappController extends Controller
                             'phone_display' => mask_phone_for_display('', $pp),
                             'name' => $cName,
                             'msg' => $this->contactPreview($lastMsg),
-                            'time' => optional($lastMsg->created_at ? \Carbon\Carbon::parse($lastMsg->created_at) : null)->isToday()
-                                ? \Carbon\Carbon::parse($lastMsg->created_at)->format('H:i')
-                                : optional($lastMsg->created_at ? \Carbon\Carbon::parse($lastMsg->created_at) : null)->format('D'),
+                            'time' => optional($lastMsg->created_at ? Carbon::parse($lastMsg->created_at) : null)->isToday()
+                                ? Carbon::parse($lastMsg->created_at)->format('H:i')
+                                : optional($lastMsg->created_at ? Carbon::parse($lastMsg->created_at) : null)->format('D'),
                             'active' => $pp === $activePhone,
                             'badge' => (int) ($unreadCounts[$pp] ?? 0),
                             'color' => $this->avatarColor(0),
@@ -2070,7 +2303,7 @@ class WhatsappController extends Controller
                             'is_pinned' => true,
                             'is_closed' => ($conversationStates[$pp] ?? null) === 'closed',
                             'conversation_status' => $conversationStates[$pp] ?? null,
-                            'template_required' => !isset($recentInboundSet[$pp]),
+                            'template_required' => ! isset($recentInboundSet[$pp]),
                         ];
 
                         foreach ($ppVariants as $v) {
@@ -2083,11 +2316,12 @@ class WhatsappController extends Controller
 
         // Sort: Pinned chats always stay on top
         usort($contacts, function ($a, $b) {
-            $aPinned = !empty($a['is_pinned']) ? 1 : 0;
-            $bPinned = !empty($b['is_pinned']) ? 1 : 0;
+            $aPinned = ! empty($a['is_pinned']) ? 1 : 0;
+            $bPinned = ! empty($b['is_pinned']) ? 1 : 0;
             if ($aPinned !== $bPinned) {
                 return $bPinned - $aPinned;
             }
+
             return 0;
         });
 
@@ -2102,16 +2336,16 @@ class WhatsappController extends Controller
             }
 
             foreach ($matchedUsers as $mu) {
-                if ($mu->mobile_no && !isset($existingVariants[$mu->mobile_no])) {
+                if ($mu->mobile_no && ! isset($existingVariants[$mu->mobile_no])) {
                     foreach ($this->getPhoneVariants($mu->mobile_no) as $v) {
                         $existingVariants[$v] = true;
                     }
                     $contacts[] = [
-                        'id' => 'u_' . $mu->id,
+                        'id' => 'u_'.$mu->id,
                         'phone' => $mu->mobile_no,
                         'phone_display' => mask_phone_for_display('', $mu->mobile_no),
                         'name' => $mu->name ?: mask_phone_for_display('', $mu->mobile_no),
-                        'msg' => 'CRM User (' . ($mu->email ?: mask_phone_for_display('', $mu->mobile_no)) . ')',
+                        'msg' => 'CRM User ('.($mu->email ?: mask_phone_for_display('', $mu->mobile_no)).')',
                         'time' => 'User',
                         'active' => $mu->mobile_no === $activePhone,
                         'badge' => 0,
@@ -2125,16 +2359,16 @@ class WhatsappController extends Controller
             }
 
             foreach ($matchedLeads as $ml) {
-                if ($ml->mobile && !isset($existingVariants[$ml->mobile])) {
+                if ($ml->mobile && ! isset($existingVariants[$ml->mobile])) {
                     foreach ($this->getPhoneVariants($ml->mobile) as $v) {
                         $existingVariants[$v] = true;
                     }
                     $contacts[] = [
-                        'id' => 'l_' . $ml->id,
+                        'id' => 'l_'.$ml->id,
                         'phone' => $ml->mobile,
                         'phone_display' => mask_phone_for_display('', $ml->mobile),
                         'name' => $ml->user_name ?: mask_phone_for_display('', $ml->mobile),
-                        'msg' => 'CRM Lead (' . ($ml->email ?: mask_phone_for_display('', $ml->mobile)) . ')',
+                        'msg' => 'CRM Lead ('.($ml->email ?: mask_phone_for_display('', $ml->mobile)).')',
                         'time' => 'Lead',
                         'active' => $ml->mobile === $activePhone,
                         'badge' => 0,
@@ -2158,11 +2392,23 @@ class WhatsappController extends Controller
     public function customerData(Request $request): JsonResponse
     {
         $phone = $request->query('phone', '');
-        if (!$phone) {
+        if (! $phone) {
             return response()->json(['success' => false, 'message' => 'Phone required']);
         }
         $summary = $this->getCustomerSummary($phone);
+
         return response()->json(array_merge(['success' => true], $summary));
+    }
+
+    // mk 5 10 26 - Memoized helper to check whatsapp_chat_states table existence
+    private function hasChatStatesTable(): bool
+    {
+        static $hasTable = null;
+        if ($hasTable === null) {
+            $hasTable = Schema::hasTable('whatsapp_chat_states');
+        }
+
+        return $hasTable;
     }
 
     private function getCustomerSummary(string $phone): array
@@ -2171,65 +2417,108 @@ class WhatsappController extends Controller
         $cleanPhone = preg_replace('/\D+/', '', $phone);
         $last10 = strlen($cleanPhone) >= 10 ? substr($cleanPhone, -10) : $cleanPhone;
 
-        $users = User::query()
-            ->where(function ($q) use ($variants, $cleanPhone, $last10) {
-                $q->whereIn('mobile_no', $variants)
-                  ->orWhereIn('mobile_no2', $variants);
-                if (!empty($cleanPhone)) {
-                    $q->orWhere('mobile_no', 'like', "%{$cleanPhone}%")
-                      ->orWhere('mobile_no2', 'like', "%{$cleanPhone}%")
-                      ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile_no, '')) LIKE ?", ["%{$cleanPhone}%"])
-                      ->orWhereRaw("CONCAT(IFNULL(countrycode2, ''), IFNULL(mobile_no2, '')) LIKE ?", ["%{$cleanPhone}%"]);
-                }
-                if (!empty($last10)) {
-                    $q->orWhere('mobile_no', 'like', "%{$last10}")
-                      ->orWhere('mobile_no2', 'like', "%{$last10}")
-                      ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile_no, '')) LIKE ?", ["%{$last10}"])
-                      ->orWhereRaw("CONCAT(IFNULL(countrycode2, ''), IFNULL(mobile_no2, '')) LIKE ?", ["%{$last10}"]);
-                }
-            })
-            ->get(['id', 'email', 'name', 'mobile_no', 'mobile_no2', 'countrycode', 'countrycode2', 'refer_id']);
+        $userFields = ['id', 'email', 'name', 'mobile_no', 'mobile_no2', 'countrycode', 'countrycode2', 'refer_id'];
+
+        // mk 5 10 26 - Fast-Path: B-Tree Indexed lookup on mobile_no / mobile_no2 (< 2ms)
+        $users = ! empty($variants)
+            ? User::query()
+                ->where(function ($q) use ($variants) {
+                    $q->whereIn('mobile_no', $variants)
+                        ->orWhereIn('mobile_no2', $variants);
+                })
+                ->get($userFields)
+            : collect();
+
+        // Safe Fallback: Only if fast-path found nothing, run fuzzy/concat search
+        if ($users->isEmpty() && (! empty($cleanPhone) || ! empty($last10))) {
+            $users = User::query()
+                ->where(function ($q) use ($variants, $cleanPhone, $last10) {
+                    $q->whereIn('mobile_no', $variants)
+                        ->orWhereIn('mobile_no2', $variants);
+                    if (! empty($cleanPhone)) {
+                        $q->orWhere('mobile_no', 'like', "%{$cleanPhone}%")
+                            ->orWhere('mobile_no2', 'like', "%{$cleanPhone}%")
+                            ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile_no, '')) LIKE ?", ["%{$cleanPhone}%"])
+                            ->orWhereRaw("CONCAT(IFNULL(countrycode2, ''), IFNULL(mobile_no2, '')) LIKE ?", ["%{$cleanPhone}%"]);
+                    }
+                    if (! empty($last10)) {
+                        $q->orWhere('mobile_no', 'like', "%{$last10}")
+                            ->orWhere('mobile_no2', 'like', "%{$last10}")
+                            ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile_no, '')) LIKE ?", ["%{$last10}"])
+                            ->orWhereRaw("CONCAT(IFNULL(countrycode2, ''), IFNULL(mobile_no2, '')) LIKE ?", ["%{$last10}"]);
+                    }
+                })
+                ->get($userFields);
+        }
 
         $existingUser = $users->first(function ($user) use ($cleanPhone) {
-            $primary = preg_replace('/\D+/', '', (string)$user->countrycode . (string)$user->mobile_no);
-            $secondary = preg_replace('/\D+/', '', (string)$user->countrycode2 . (string)$user->mobile_no2);
+            $primary = preg_replace('/\D+/', '', (string) $user->countrycode.(string) $user->mobile_no);
+            $secondary = preg_replace('/\D+/', '', (string) $user->countrycode2.(string) $user->mobile_no2);
+
             return $cleanPhone !== '' && ($primary === $cleanPhone || $secondary === $cleanPhone);
         }) ?: $users->first();
         $userIds = $existingUser ? [$existingUser->id] : [];
-        $userEmails = $existingUser && !empty($existingUser->email) ? [$existingUser->email] : [];
+        $userEmails = $existingUser && ! empty($existingUser->email) ? [$existingUser->email] : [];
 
+        $leadFields = ['id', 'order_id', 'emp_id', 'is_converted', 'user_name', 'email', 'countrycode', 'mobile', 'l_status'];
+
+        // mk 5 10 26 - Fast-Path: B-Tree Indexed lookup on leads.mobile / mobile2 / emp_id (< 2ms)
         $matchingLeads = Leads::query()
-            ->where(function ($q) use ($phone, $cleanPhone, $last10, $variants, $userIds, $userEmails) {
-                $q->whereIn('mobile', $variants)
-                  ->orWhere('mobile', $phone)
-                  ->orWhere('mobile', $cleanPhone);
-                if (!empty($last10)) {
-                    $q->orWhere('mobile', 'like', "%{$last10}")
-                      ->orWhere('mobile2', 'like', "%{$last10}")
-                      ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile, '')) LIKE ?", ["%{$last10}"])
-                      ->orWhereRaw("CONCAT(IFNULL(countrycode2, ''), IFNULL(mobile2, '')) LIKE ?", ["%{$last10}"]);
+            ->where(function ($q) use ($phone, $cleanPhone, $variants, $userIds, $userEmails) {
+                if (! empty($variants)) {
+                    $q->whereIn('mobile', $variants)
+                        ->orWhereIn('mobile2', $variants);
                 }
-                if (!empty($variants)) {
-                    $q->orWhereIn('mobile2', $variants);
+                if ($phone) {
+                    $q->orWhere('mobile', $phone);
                 }
-                if (!empty($userIds)) {
+                if ($cleanPhone) {
+                    $q->orWhere('mobile', $cleanPhone);
+                }
+                if (! empty($userIds)) {
                     $q->orWhereIn('emp_id', $userIds);
                 }
-                if (!empty($userEmails)) {
+                if (! empty($userEmails)) {
                     $q->orWhereIn('email', $userEmails);
                 }
             })
-            ->get(['id', 'order_id', 'emp_id', 'is_converted', 'user_name', 'email', 'countrycode', 'mobile', 'l_status']);
+            ->get($leadFields);
+
+        // Safe Fallback: Only if fast-path found nothing, run fuzzy/concat search
+        if ($matchingLeads->isEmpty() && (! empty($last10) || ! empty($cleanPhone))) {
+            $matchingLeads = Leads::query()
+                ->where(function ($q) use ($phone, $cleanPhone, $last10, $variants, $userIds, $userEmails) {
+                    $q->whereIn('mobile', $variants)
+                        ->orWhere('mobile', $phone)
+                        ->orWhere('mobile', $cleanPhone);
+                    if (! empty($last10)) {
+                        $q->orWhere('mobile', 'like', "%{$last10}")
+                            ->orWhere('mobile2', 'like', "%{$last10}")
+                            ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile, '')) LIKE ?", ["%{$last10}"])
+                            ->orWhereRaw("CONCAT(IFNULL(countrycode2, ''), IFNULL(mobile2, '')) LIKE ?", ["%{$last10}"]);
+                    }
+                    if (! empty($variants)) {
+                        $q->orWhereIn('mobile2', $variants);
+                    }
+                    if (! empty($userIds)) {
+                        $q->orWhereIn('emp_id', $userIds);
+                    }
+                    if (! empty($userEmails)) {
+                        $q->orWhereIn('email', $userEmails);
+                    }
+                })
+                ->get($leadFields);
+        }
 
         $existingLead = $matchingLeads->sortByDesc('id')->first();
 
         // If user was not found directly by mobile, check if lead has linked emp_id
-        if (!$existingUser && $existingLead && !empty($existingLead->emp_id)) {
+        if (! $existingUser && $existingLead && ! empty($existingLead->emp_id)) {
             $existingUser = User::query()->where('id', $existingLead->emp_id)->first(['id', 'email', 'name', 'mobile_no', 'countrycode', 'refer_id']);
             if ($existingUser) {
                 $userIds[] = $existingUser->id;
                 $userIds = array_values(array_unique($userIds));
-                if (!empty($existingUser->email)) {
+                if (! empty($existingUser->email)) {
                     $userEmails[] = $existingUser->email;
                     $userEmails = array_values(array_unique($userEmails));
                 }
@@ -2238,7 +2527,7 @@ class WhatsappController extends Controller
 
         // Fetch refer user if customer has refer_id
         $referUser = null;
-        if ($existingUser && !empty($existingUser->refer_id)) {
+        if ($existingUser && ! empty($existingUser->refer_id)) {
             $referUser = User::query()->where('id', $existingUser->refer_id)->first(['id', 'name', 'email', 'mobile_no', 'countrycode']);
         }
 
@@ -2249,17 +2538,17 @@ class WhatsappController extends Controller
 
         $ordersCount = 0;
         $ordersQuery = null;
-        if (!empty($userIds) || !empty($convertedLeadIds) || !empty($convertedLeadOrderIds)) {
+        if (! empty($userIds) || ! empty($convertedLeadIds) || ! empty($convertedLeadOrderIds)) {
             $ordersQuery = Order::query();
 
-            if (!empty($userIds)) {
+            if (! empty($userIds)) {
                 $ordersQuery->whereIn('orders.uid', $userIds);
             } else {
                 $ordersQuery->where(function ($q) use ($convertedLeadIds, $convertedLeadOrderIds) {
-                    if (!empty($convertedLeadIds)) {
+                    if (! empty($convertedLeadIds)) {
                         $q->whereIn('orders.lead_id', $convertedLeadIds);
                     }
-                    if (!empty($convertedLeadOrderIds)) {
+                    if (! empty($convertedLeadOrderIds)) {
                         $q->orWhereIn('orders.order_id', $convertedLeadOrderIds);
                     }
                 });
@@ -2274,7 +2563,7 @@ class WhatsappController extends Controller
             ->unique()
             ->all();
 
-        $labels = !empty($labelIds)
+        $labels = ! empty($labelIds)
             ? WhatsappChatLabel::query()->whereIn('id', $labelIds)->ordered()->get(['id', 'name', 'color'])
             : collect();
 
@@ -2288,19 +2577,20 @@ class WhatsappController extends Controller
             ->first(['name']);
 
         $resolvedName = null;
-        $cleanPhoneP = preg_replace('/\D+/', '', (string)$phone);
+        $cleanPhoneP = preg_replace('/\D+/', '', (string) $phone);
         $cleanPhoneP10 = strlen($cleanPhoneP) >= 10 ? substr($cleanPhoneP, -10) : $cleanPhoneP;
-        if ($existingUser && $existingUser->name && $existingUser->name !== 'System' && !str_starts_with(strtolower($existingUser->name), 'user') && strlen(preg_replace('/\D+/', '', (string)$existingUser->name)) < 10 && preg_replace('/\D+/', '', (string)$existingUser->name) !== $cleanPhoneP && preg_replace('/\D+/', '', (string)$existingUser->name) !== $cleanPhoneP10) {
+        if ($existingUser && $existingUser->name && $existingUser->name !== 'System' && ! str_starts_with(strtolower($existingUser->name), 'user') && strlen(preg_replace('/\D+/', '', (string) $existingUser->name)) < 10 && preg_replace('/\D+/', '', (string) $existingUser->name) !== $cleanPhoneP && preg_replace('/\D+/', '', (string) $existingUser->name) !== $cleanPhoneP10) {
             $resolvedName = $existingUser->name;
-        } elseif ($existingLead && $existingLead->user_name && $existingLead->user_name !== 'System' && strlen(preg_replace('/\D+/', '', (string)$existingLead->user_name)) < 10 && preg_replace('/\D+/', '', (string)$existingLead->user_name) !== $cleanPhoneP && preg_replace('/\D+/', '', (string)$existingLead->user_name) !== $cleanPhoneP10) {
+        } elseif ($existingLead && $existingLead->user_name && $existingLead->user_name !== 'System' && strlen(preg_replace('/\D+/', '', (string) $existingLead->user_name)) < 10 && preg_replace('/\D+/', '', (string) $existingLead->user_name) !== $cleanPhoneP && preg_replace('/\D+/', '', (string) $existingLead->user_name) !== $cleanPhoneP10) {
             $resolvedName = $existingLead->user_name;
-        } elseif ($latestInbound && $latestInbound->name && $latestInbound->name !== 'System' && strlen(preg_replace('/\D+/', '', (string)$latestInbound->name)) < 10 && preg_replace('/\D+/', '', (string)$latestInbound->name) !== $cleanPhoneP && preg_replace('/\D+/', '', (string)$latestInbound->name) !== $cleanPhoneP10) {
+        } elseif ($latestInbound && $latestInbound->name && $latestInbound->name !== 'System' && strlen(preg_replace('/\D+/', '', (string) $latestInbound->name)) < 10 && preg_replace('/\D+/', '', (string) $latestInbound->name) !== $cleanPhoneP && preg_replace('/\D+/', '', (string) $latestInbound->name) !== $cleanPhoneP10) {
             $resolvedName = $latestInbound->name;
         } else {
             $resolvedName = mask_phone_for_display('', $phone);
         }
 
-        $conversationStatus = Schema::hasTable('whatsapp_chat_states')
+        // mk 5 10 26 - Memoized chat states table check
+        $conversationStatus = $this->hasChatStatesTable()
             ? WhatsappChatState::query()
                 ->whereIn('phone', $variants)
                 ->value('conversation_status')
@@ -2313,26 +2603,26 @@ class WhatsappController extends Controller
 
         // Linked user email (strictly from users table associated with this customer)
         $linkedUserEmail = null;
-        if ($existingUser && !empty(trim((string)$existingUser->email))) {
-            $linkedUserEmail = trim((string)$existingUser->email);
-        } elseif (!empty($userEmails)) {
-            $firstEmail = trim((string)$userEmails[0]);
-            if (!empty($firstEmail)) {
+        if ($existingUser && ! empty(trim((string) $existingUser->email))) {
+            $linkedUserEmail = trim((string) $existingUser->email);
+        } elseif (! empty($userEmails)) {
+            $firstEmail = trim((string) $userEmails[0]);
+            if (! empty($firstEmail)) {
                 $linkedUserEmail = $firstEmail;
             }
         }
 
         $customerResolvedEmail = $linkedUserEmail ?: ($existingLead?->email ?: null);
         $latestOrder = $ordersQuery ? (clone $ordersQuery)->latest('id')->first(['id', 'order_id']) : null;
-        $latestOrderCode = $latestOrder ? trim((string)($latestOrder->order_id ?: $latestOrder->id)) : '';
+        $latestOrderCode = $latestOrder ? trim((string) ($latestOrder->order_id ?: $latestOrder->id)) : '';
 
         // Header Client Email follows the active WhatsApp customer's resolved
         // email. Order-row mailbox shortcuts below continue to use order code.
-        $clientEmailUrl = !empty($customerResolvedEmail)
+        $clientEmailUrl = ! empty($customerResolvedEmail)
             ? route('emails.index', ['account_id' => crm_email_account_id('client'), 'search' => $customerResolvedEmail])
             : null;
 
-        $writerEmailUrl = !empty($latestOrderCode)
+        $writerEmailUrl = ! empty($latestOrderCode)
             ? route('emails.index', ['account_id' => crm_email_account_id('writer'), 'search' => $latestOrderCode])
             : null;
 
@@ -2347,7 +2637,7 @@ class WhatsappController extends Controller
             'orders_count' => $ordersCount,
             'is_closed' => strtolower((string) $conversationStatus) === 'closed',
             'conversation_status' => $conversationStatus,
-            'template_required' => !$hasRecentInbound,
+            'template_required' => ! $hasRecentInbound,
             'lead' => $existingLead ? [
                 'id' => $existingLead->id,
                 'order_id' => $existingLead->order_id ?? (string) $existingLead->id,
@@ -2416,15 +2706,15 @@ class WhatsappController extends Controller
     private function messagePayload(WhatsappMessage $message): array
     {
         return [
-            'id'         => $message->id,
-            'phone'      => $message->phone,
-            'name'       => $message->name,
-            'message'    => $message->message,
-            'direction'  => $message->direction,
-            'status'     => $message->status,
-            'time'       => optional($message->created_at)->format('H:i'),
+            'id' => $message->id,
+            'phone' => $message->phone,
+            'name' => $message->name,
+            'message' => $message->message,
+            'direction' => $message->direction,
+            'status' => $message->status,
+            'time' => optional($message->created_at)->format('H:i'),
             'created_at' => optional($message->created_at)->toDateTimeString(),
-            'media_url'  => $this->mediaDisplayUrl($message->media_url),
+            'media_url' => $this->mediaDisplayUrl($message->media_url),
             'media_type' => $this->displayMediaType($message->media_type, $message->media_name, $message->media_url),
             'media_name' => $message->media_name,
             'media_size' => $message->media_size,
@@ -2452,13 +2742,13 @@ class WhatsappController extends Controller
 
     private function typingCacheKey(string $phone): string
     {
-        return 'whatsapp_typing:' . preg_replace('/[^0-9+]/', '', $phone);
+        return 'whatsapp_typing:'.preg_replace('/[^0-9+]/', '', $phone);
     }
 
     private function storeOutboundMessage(string $phone, string $text): WhatsappMessage
     {
         return WhatsappMessage::query()->create([
-            'wa_message_id' => 'wa_' . (string) Str::uuid(),
+            'wa_message_id' => 'wa_'.(string) Str::uuid(),
             'phone' => $phone,
             'name' => Auth::user()?->name ?? 'Admin',
             'message' => $text,
@@ -2551,13 +2841,13 @@ class WhatsappController extends Controller
 
                 if ($response->successful()) {
                     $resData = $response->json();
-                    $waMsgId = $resData['messages'][0]['id'] 
-                        ?? $resData['messageId'] 
-                        ?? $resData['id'] 
-                        ?? $resData['data']['messageId'] 
-                        ?? $resData['data']['id'] 
-                        ?? $resData['data']['messages'][0]['id'] 
-                        ?? $resData['message_id'] 
+                    $waMsgId = $resData['messages'][0]['id']
+                        ?? $resData['messageId']
+                        ?? $resData['id']
+                        ?? $resData['data']['messageId']
+                        ?? $resData['data']['id']
+                        ?? $resData['data']['messages'][0]['id']
+                        ?? $resData['message_id']
                         ?? null;
 
                     $message->update([
@@ -2584,7 +2874,7 @@ class WhatsappController extends Controller
 
                 return [
                     'success' => false,
-                    'error' => 'AiSensy WhatsApp send error: ' . $exception->getMessage(),
+                    'error' => 'AiSensy WhatsApp send error: '.$exception->getMessage(),
                 ];
             }
         }
@@ -2608,8 +2898,8 @@ class WhatsappController extends Controller
 
             try {
                 $payload = [
-                    'From' => str_starts_with($from, 'whatsapp:') ? $from : 'whatsapp:' . $from,
-                    'To' => str_starts_with($message->phone, 'whatsapp:') ? $message->phone : 'whatsapp:' . $message->phone,
+                    'From' => str_starts_with($from, 'whatsapp:') ? $from : 'whatsapp:'.$from,
+                    'To' => str_starts_with($message->phone, 'whatsapp:') ? $message->phone : 'whatsapp:'.$message->phone,
                 ];
 
                 $statusCallback = $this->providerWebhookUrl($config);
@@ -2663,7 +2953,7 @@ class WhatsappController extends Controller
 
                 return [
                     'success' => false,
-                    'error' => 'WhatsApp send failed: ' . $exception->getMessage(),
+                    'error' => 'WhatsApp send failed: '.$exception->getMessage(),
                 ];
             }
         }
@@ -2672,7 +2962,7 @@ class WhatsappController extends Controller
 
         return [
             'success' => false,
-            'error' => ucfirst($setting->provider) . ' sending is not supported yet.',
+            'error' => ucfirst($setting->provider).' sending is not supported yet.',
         ];
     }
 
@@ -2686,7 +2976,7 @@ class WhatsappController extends Controller
 
     private function normalizePhone(string $countryCode, string $mobile): string
     {
-        return '+' . ltrim(preg_replace('/\D+/', '', $countryCode . $mobile), '+');
+        return '+'.ltrim(preg_replace('/\D+/', '', $countryCode.$mobile), '+');
     }
 
     private function avatarColor(int $index): string
@@ -2756,25 +3046,26 @@ class WhatsappController extends Controller
     public function importContacts(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'contacts'          => ['required', 'array', 'min:1', 'max:100'],
-            'contacts.*.name'   => ['required', 'string', 'max:200'],
-            'contacts.*.phone'  => ['required', 'string', 'max:30'],
+            'contacts' => ['required', 'array', 'min:1', 'max:100'],
+            'contacts.*.name' => ['required', 'string', 'max:200'],
+            'contacts.*.phone' => ['required', 'string', 'max:30'],
         ]);
 
         $imported = 0;
-        $failed   = 0;
+        $failed = 0;
 
         foreach ($validated['contacts'] as $contact) {
             try {
                 $phone = trim($contact['phone']);
-                $name  = trim($contact['name']);
+                $name = trim($contact['name']);
 
-                if (!str_starts_with($phone, '+')) {
-                    $phone = '+' . ltrim(preg_replace('/\D+/', '', $phone), '+');
+                if (! str_starts_with($phone, '+')) {
+                    $phone = '+'.ltrim(preg_replace('/\D+/', '', $phone), '+');
                 }
 
                 if (strlen($phone) < 8) {
                     $failed++;
+
                     continue;
                 }
 
@@ -2791,10 +3082,10 @@ class WhatsappController extends Controller
         }
 
         return response()->json([
-            'success'  => true,
+            'success' => true,
             'imported' => $imported,
-            'failed'   => $failed,
-            'message'  => "{$imported} contact(s) imported.",
+            'failed' => $failed,
+            'message' => "{$imported} contact(s) imported.",
         ]);
     }
 
@@ -2802,14 +3093,14 @@ class WhatsappController extends Controller
     {
         $validated = $request->validate([
             'phone' => ['required', 'string', 'max:30'],
-            'file'  => ['nullable', 'file', 'max:51200'],
+            'file' => ['nullable', 'file', 'max:51200'],
             'files' => ['nullable', 'array', 'max:20'],
             'files.*' => ['file', 'max:51200'],
             'caption' => ['nullable', 'string', 'max:1000'],
         ]);
 
-        $phone    = $validated['phone'];
-        $caption  = $validated['caption'] ?? '';
+        $phone = $validated['phone'];
+        $caption = $validated['caption'] ?? '';
 
         $files = collect($request->file('files', []));
         if ($request->hasFile('file')) {
@@ -2841,17 +3132,17 @@ class WhatsappController extends Controller
 
             $origName = $file->getClientOriginalName();
             $mimeType = $file->getMimeType() ?: $file->getClientMimeType();
-            $size     = $file->getSize();
+            $size = $file->getSize();
 
             $mediaType = match (true) {
                 $this->isVoiceNote($origName, $extension) => 'audio',
                 str_starts_with((string) $mimeType, 'image/') => 'image',
                 str_starts_with((string) $mimeType, 'video/') => 'video',
                 str_starts_with((string) $mimeType, 'audio/') => 'audio',
-                default                                      => 'document',
+                default => 'document',
             };
 
-            $fileName = uniqid('wa_', true) . '.' . $extension;
+            $fileName = uniqid('wa_', true).'.'.$extension;
             $destinationPath = base_path('assets/media/whatsapp');
 
             if (! file_exists($destinationPath)) {
@@ -2859,7 +3150,7 @@ class WhatsappController extends Controller
             }
 
             $file->move($destinationPath, $fileName);
-            $relativePath = 'assets/media/whatsapp/' . $fileName;
+            $relativePath = 'assets/media/whatsapp/'.$fileName;
 
             if ($this->isVoiceNote($origName, $extension)) {
                 $converted = $this->convertVoiceNoteToOgg($destinationPath, $fileName, $origName);
@@ -2871,7 +3162,7 @@ class WhatsappController extends Controller
                     $size = $converted['size'];
                     $extension = 'ogg';
                 } elseif ($extension === 'webm') {
-                    @unlink($destinationPath . DIRECTORY_SEPARATOR . $fileName);
+                    @unlink($destinationPath.DIRECTORY_SEPARATOR.$fileName);
 
                     return response()->json([
                         'success' => false,
@@ -2881,13 +3172,13 @@ class WhatsappController extends Controller
             }
 
             $message = WhatsappMessage::query()->create([
-                'wa_message_id' => 'wa_' . (string) Str::uuid(),
-                'phone'      => $phone,
-                'name'       => Auth::user()?->name ?? 'Admin',
-                'message'    => $index === 0 ? $caption : '',
-                'direction'  => 'outbound',
-                'status'     => 'queued',
-                'media_url'  => $relativePath,
+                'wa_message_id' => 'wa_'.(string) Str::uuid(),
+                'phone' => $phone,
+                'name' => Auth::user()?->name ?? 'Admin',
+                'message' => $index === 0 ? $caption : '',
+                'direction' => 'outbound',
+                'status' => 'queued',
+                'media_url' => $relativePath,
                 'media_type' => $mediaType,
                 'media_name' => $origName,
                 'media_size' => $size,
@@ -2903,8 +3194,8 @@ class WhatsappController extends Controller
         }
 
         $payload = [
-            'success'  => empty($sendErrors),
-            'message'  => $this->messagePayload($messages->first()),
+            'success' => empty($sendErrors),
+            'message' => $this->messagePayload($messages->first()),
             'messages' => $messages->map(fn (WhatsappMessage $message) => $this->messagePayload($message))->values(),
             'contacts' => $this->getContacts($phone),
         ];
@@ -2926,7 +3217,7 @@ class WhatsappController extends Controller
 
         $publicBaseUrl = $this->providerPublicBaseUrl($config) ?: rtrim(url('/'), '/');
 
-        return $publicBaseUrl . '/' . ltrim($mediaUrl, '/');
+        return $publicBaseUrl.'/'.ltrim($mediaUrl, '/');
     }
 
     private function mediaDisplayUrl(?string $mediaUrl): ?string
@@ -2971,9 +3262,9 @@ class WhatsappController extends Controller
             return null;
         }
 
-        $sourcePath = $destinationPath . DIRECTORY_SEPARATOR . $fileName;
-        $convertedName = pathinfo($fileName, PATHINFO_FILENAME) . '.ogg';
-        $convertedPath = $destinationPath . DIRECTORY_SEPARATOR . $convertedName;
+        $sourcePath = $destinationPath.DIRECTORY_SEPARATOR.$fileName;
+        $convertedName = pathinfo($fileName, PATHINFO_FILENAME).'.ogg';
+        $convertedPath = $destinationPath.DIRECTORY_SEPARATOR.$convertedName;
 
         $command = sprintf(
             '%s -y -i %s -vn -c:a libopus -b:a 32k -ar 48000 -ac 1 -f ogg %s 2>&1',
@@ -3002,7 +3293,7 @@ class WhatsappController extends Controller
 
         return [
             'file_name' => $convertedName,
-            'relative_path' => 'assets/media/whatsapp/' . $convertedName,
+            'relative_path' => 'assets/media/whatsapp/'.$convertedName,
             'media_name' => preg_replace('/\.webm$/i', '.ogg', $originalName) ?: $convertedName,
             'size' => filesize($convertedPath),
         ];
@@ -3012,8 +3303,8 @@ class WhatsappController extends Controller
     {
         foreach (['ffmpeg', '/usr/bin/ffmpeg', '/usr/local/bin/ffmpeg'] as $candidate) {
             $command = stripos(PHP_OS_FAMILY, 'Windows') === 0
-                ? 'where ' . escapeshellarg($candidate) . ' 2>NUL'
-                : 'command -v ' . escapeshellarg($candidate) . ' 2>/dev/null';
+                ? 'where '.escapeshellarg($candidate).' 2>NUL'
+                : 'command -v '.escapeshellarg($candidate).' 2>/dev/null';
 
             exec($command, $output, $exitCode);
 

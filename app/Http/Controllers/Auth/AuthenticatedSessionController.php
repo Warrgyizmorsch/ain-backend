@@ -23,12 +23,60 @@ class AuthenticatedSessionController extends Controller
         return view('auth.login');
     }
 
-    public function store(LoginRequest $request): RedirectResponse
+    // public function store(LoginRequest $request): RedirectResponse
+    // {
+    //     $bypassEmails = ['admin@gmail.com', 'marketing@gmail.com'];
+    //     $isBypass = in_array(strtolower((string) $request->input('email')), $bypassEmails);
+
+    //     if ($isBypass) {
+    //         $user = $request->authenticate();
+
+    //         Auth::login($user, true);
+    //         $request->session()->regenerate();
+
+    //         return $this->redirectAfterLogin($user);
+    //     }
+
+    //     $user = $request->authenticate();
+
+    //     if ($ban = $this->activeAccountBan($user->id)) {
+    //         return redirect()->route('login')
+    //             ->with('warning', $this->accountBanMessage($ban));
+    //     }
+
+    //     if ((int) $user->role_id === 1) {
+    //         try {
+    //             $this->createAdminEmailOtpNotification($request, $user);
+    //         } catch (\Throwable $e) {
+    //             \Log::error('Admin OTP email failed: '.$e->getMessage());
+
+    //             return redirect()->route('login')
+    //                 ->with('warning', 'Admin OTP email could not be sent. SMTP username/password is incorrect.');
+    //         }
+
+    //         return redirect()->route('login.otp')
+    //             ->with('warning', 'Admin OTP has been sent to singhmahipal23@gmail.com.');
+    //     }
+
+    //     if ((int) $user->role_id !== 1) {
+    //         $this->createPendingOtpNotification($request, $user);
+
+    //         return redirect()->route('login.otp')
+    //             ->with('warning', 'Admin OTP approval is required before login.');
+    //     }
+
+    //     return redirect()->route('login')
+    //         ->with('warning', 'Please log in to access this page.');
+    // }
+
+    // mk 10 1 26 dummy store method for local login otp bypass
+        public function store(LoginRequest $request): RedirectResponse
     {
         $bypassEmails = ['admin@gmail.com', 'marketing@gmail.com'];
         $isBypass = in_array(strtolower((string) $request->input('email')), $bypassEmails);
 
-        if ($isBypass) {
+        // LOCAL ONLY: OTP bypass. Production par (APP_ENV != local) OTP chalta rahega.
+        if ($isBypass || app()->environment('local')) {
             $user = $request->authenticate();
 
             Auth::login($user, true);
@@ -39,18 +87,10 @@ class AuthenticatedSessionController extends Controller
 
         $user = $request->authenticate();
 
-        if ($ban = $this->activeAccountBan($user->id)) {
-            return redirect()->route('login')
-                ->with('warning', $this->accountBanMessage($ban));
-        }
-
-        // Bypass OTP for Admin on UAT environment (https://uat-ain.londonstreetstore.com)
-        if ((int) $user->role_id === 1 && $this->isUatLondonStreetEnvironment($request)) {
-            Auth::login($user, true);
-            $request->session()->regenerate();
-
-            return $this->redirectAfterLogin($user);
-        }
+            if ($ban = $this->activeAccountBan($user->id)) {
+                return redirect()->route('login')
+                    ->with('warning', $this->accountBanMessage($ban));
+            }
 
         if ((int) $user->role_id === 1) {
             try {
@@ -93,7 +133,7 @@ class AuthenticatedSessionController extends Controller
         $userId = session('takeover_user_id');
         $credentials = session('takeover_credentials');
 
-        if (!$userId || !$credentials) {
+        if (! $userId || ! $credentials) {
             return redirect()->route('login')
                 ->with('warning', 'Takeover session expired.');
         }
@@ -102,7 +142,7 @@ class AuthenticatedSessionController extends Controller
 
         $user = User::find($userId);
 
-        if (!$user || !Auth::validate($credentials)) {
+        if (! $user || ! Auth::validate($credentials)) {
             Session::forget(['takeover_user_id', 'takeover_credentials']);
 
             return redirect()->route('login')
@@ -134,7 +174,7 @@ class AuthenticatedSessionController extends Controller
         try {
             $this->createAdminEmailOtpNotification($request, $user);
         } catch (\Throwable $e) {
-            \Log::error('Admin OTP email failed: ' . $e->getMessage());
+            \Log::error('Admin OTP email failed: '.$e->getMessage());
 
             return redirect()->route('login')
                 ->with('warning', 'Admin OTP email could not be sent. SMTP username/password is incorrect.');
@@ -150,11 +190,10 @@ class AuthenticatedSessionController extends Controller
     {
         $notification = $this->pendingOtpNotification();
 
-        if (!$notification) {
+        if (! $notification) {
             return redirect()->route('login')
                 ->with('warning', 'Please login again to request admin OTP approval.');
         }
-
 
         if ($ban = $this->activeAccountBan($notification->user_id)) {
             Session::forget(['pending_login_otp_id', 'pending_login_remember']);
@@ -174,7 +213,7 @@ class AuthenticatedSessionController extends Controller
 
         $notification = $this->pendingOtpNotification();
 
-        if (!$notification) {
+        if (! $notification) {
             return redirect()->route('login')
                 ->with('warning', 'OTP request expired. Please login again.');
         }
@@ -186,7 +225,7 @@ class AuthenticatedSessionController extends Controller
                 ->with('warning', $this->accountBanMessage($ban));
         }
 
-        if (!hash_equals($notification->otp_code, (string) $request->otp_code)) {
+        if (! hash_equals($notification->otp_code, (string) $request->otp_code)) {
             $failedAttempts = $notification->failed_attempts + 1;
 
             $notification->update([
@@ -211,7 +250,7 @@ class AuthenticatedSessionController extends Controller
             $remainingAttempts = max(0, 3 - $failedAttempts);
 
             return back()->withErrors([
-                'otp_code' => 'Invalid OTP. Remaining attempts: ' . $remainingAttempts,
+                'otp_code' => 'Invalid OTP. Remaining attempts: '.$remainingAttempts,
             ]);
         }
 
@@ -386,7 +425,7 @@ class AuthenticatedSessionController extends Controller
 
     private function activeAccountBan(?int $userId): ?LoginOtpSystemBan
     {
-        if (!$userId) {
+        if (! $userId) {
             return null;
         }
 
@@ -402,7 +441,7 @@ class AuthenticatedSessionController extends Controller
 
     private function banAccount(?int $userId, ?string $ipAddress, bool $isManual, string $reason): ?LoginOtpSystemBan
     {
-        if (!$userId) {
+        if (! $userId) {
             return null;
         }
 
@@ -433,21 +472,22 @@ class AuthenticatedSessionController extends Controller
             ? $ban->banned_until->format('d M Y h:i A')
             : 'further notice';
 
-        return 'This account is banned for OTP login until ' . $until . '. Please contact admin.';
+        return 'This account is banned for OTP login until '.$until.'. Please contact admin.';
     }
 
     private function pendingOtpNotification(): ?LoginOtpNotification
     {
         $notificationId = session('pending_login_otp_id');
 
-        if (!$notificationId) {
+        if (! $notificationId) {
             return null;
         }
 
         $notification = LoginOtpNotification::with('user')->find($notificationId);
 
-        if (!$notification || !$notification->isUsable()) {
+        if (! $notification || ! $notification->isUsable()) {
             Session::forget(['pending_login_otp_id', 'pending_login_remember']);
+
             return null;
         }
 
@@ -456,7 +496,7 @@ class AuthenticatedSessionController extends Controller
 
     private function redirectAfterLogin(User $user): RedirectResponse
     {
-        $message = 'Welcome back, ' . $user->name . '.';
+        $message = 'Welcome back, '.$user->name.'.';
 
         if ($user->role_id == 4 || $user->role_id == 9) {
             return redirect()->intended(RouteServiceProvider::HOME)

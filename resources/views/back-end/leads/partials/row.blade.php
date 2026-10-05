@@ -445,12 +445,15 @@
     </td>
     <td class="text-center">
         @php
-            $orderRecord = $lead->attached_order_record ?? \App\Models\Order::where(function($q) use ($lead) {
-                $q->where('lead_id', $lead->id);
-                if (!empty($lead->order_id)) {
-                    $q->orWhere('order_id', (string)$lead->order_id);
-                }
-            })->first();
+            // mk 5 10 26 - Avoid running individual DB query inside loop when attached_order_record is set
+            $orderRecord = isset($lead->attached_order_record)
+                ? ($lead->attached_order_record ?: null)
+                : \App\Models\Order::where(function($q) use ($lead) {
+                    $q->where('lead_id', $lead->id);
+                    if (!empty($lead->order_id)) {
+                        $q->orWhere('order_id', (string)$lead->order_id);
+                    }
+                })->first();
 
             $basePriceAmt = $orderRecord && is_numeric($orderRecord->amount) 
                 ? (float)$orderRecord->amount 

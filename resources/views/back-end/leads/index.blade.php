@@ -98,7 +98,8 @@
                     <div class="col-md-3 fv-row">
                         <select id="lead_group_id" class="form-select form-select-solid">
                             <option value="">All User Groups</option>
-                            @foreach(\App\Models\GroupMaster::where('status',1)->orderBy('name')->get(['id','name']) as $group)
+                            {{-- mk 5 10 26 - Use cached $groupMasters instead of querying DB in blade --}}
+                            @foreach($groupMasters ?? \Illuminate\Support\Facades\Cache::remember('leads_active_group_masters', 120, fn() => \App\Models\GroupMaster::where('status', 1)->orderBy('name')->get(['id','name'])) as $group)
                             <option value="{{ $group->id }}">{{ $group->name }}</option>
                             @endforeach
                         </select>

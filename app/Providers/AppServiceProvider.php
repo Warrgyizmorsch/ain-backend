@@ -2,13 +2,14 @@
 
 namespace App\Providers;
 
-use Illuminate\Support\ServiceProvider;
+use App\Models\LoginOtpNotification;
 use App\Models\menu;
+use App\Models\Payment;
+use Illuminate\Pagination\Paginator;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Pagination\Paginator;
-
-
+use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -28,12 +29,21 @@ class AppServiceProvider extends ServiceProvider
         Schema::defaultStringLength(191);
         Paginator::useBootstrapFive();
 
-        if (!app()->runningInConsole()) {
+        // mk
+        // TEMP: slow query logging (test ke baad hata dena)
+        \DB::listen(function ($q) {
+            if ($q->time > 100) {
+                \Log::info('SLOWQ '.round($q->time).'ms: '.substr($q->sql, 0, 200));
+            }
+        });
+        // mmk
+
+        if (! app()->runningInConsole()) {
             try {
-                $menus = \Illuminate\Support\Facades\Cache::remember('global_portal_menus_tree', 1800, function () {
+                $menus = Cache::remember('global_portal_menus_tree', 1800, function () {
                     return menu::with(['children.submenus', 'submenus'])->get();
                 });
-                $premission = \Illuminate\Support\Facades\Cache::remember('global_portal_permissions', 1800, function () {
+                $premission = Cache::remember('global_portal_permissions', 1800, function () {
                     return DB::table('permission')->get();
                 });
                 view()->share('menus', $menus);
@@ -48,8 +58,8 @@ class AppServiceProvider extends ServiceProvider
             $myRevokeCount = 0;
 
             try {
-                $revokeCount = \Illuminate\Support\Facades\Cache::remember('global_revoke_count', 60, function () {
-                    return \App\Models\Payment::where('is_revoked', 1)
+                $revokeCount = Cache::remember('global_revoke_count', 60, function () {
+                    return Payment::where('is_revoked', 1)
                         ->where('revoke_resolved', 0)
                         ->whereHas('order', function ($q) {
                             $q->where('uid', '!=', 0);
@@ -62,14 +72,14 @@ class AppServiceProvider extends ServiceProvider
                     $roleId = auth()->user()->role_id;
                     $userName = auth()->user()->name;
 
-                    $myRevokeCount = \Illuminate\Support\Facades\Cache::remember("my_revoke_count_{$userId}", 60, function () use ($roleId, $userName) {
-                        $myRevokeQuery = \App\Models\Payment::where('is_revoked', 1)
+                    $myRevokeCount = Cache::remember("my_revoke_count_{$userId}", 60, function () use ($roleId, $userName) {
+                        $myRevokeQuery = Payment::where('is_revoked', 1)
                             ->where('revoke_resolved', 0)
                             ->whereHas('order', function ($q) {
                                 $q->where('uid', '!=', 0);
                             });
 
-                        if (!in_array($roleId, [1, 9])) {
+                        if (! in_array($roleId, [1, 9])) {
                             if ($roleId == 4) {
                                 $myRevokeQuery->where('payment_update_by', $userName);
                             } else {
@@ -95,8 +105,8 @@ class AppServiceProvider extends ServiceProvider
             $loginOtpNotifications = collect();
 
             try {
-                $loginOtpCount = \Illuminate\Support\Facades\Cache::remember('global_login_otp_count', 30, function () {
-                    return \App\Models\LoginOtpNotification::where('status', 'pending')
+                $loginOtpCount = Cache::remember('global_login_otp_count', 30, function () {
+                    return LoginOtpNotification::where('status', 'pending')
                         ->where('purpose', 'user_admin_approval')
                         ->where(function ($query) {
                             $query->whereNull('expires_at')
@@ -105,8 +115,8 @@ class AppServiceProvider extends ServiceProvider
                         ->count();
                 });
 
-                $loginOtpNotifications = \Illuminate\Support\Facades\Cache::remember('global_login_otp_notifications', 30, function () {
-                    return \App\Models\LoginOtpNotification::with('user')
+                $loginOtpNotifications = Cache::remember('global_login_otp_notifications', 30, function () {
+                    return LoginOtpNotification::with('user')
                         ->where('purpose', 'user_admin_approval')
                         ->latest()
                         ->limit(5)

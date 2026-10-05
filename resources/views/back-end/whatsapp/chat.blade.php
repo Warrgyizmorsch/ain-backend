@@ -1260,7 +1260,10 @@
                     <div class="text-white opacity-75 fs-8">Customer: <strong>{{ $selectedContact['name'] ?? 'User' }}</strong> ({{ $selectedPhone ? mask_phone_for_display('', $selectedPhone) : '' }})</div>
                 </div>
                 <div class="ms-auto d-flex align-items-center gap-2">
-                    <a href="{{ route('leads') }}" target="_blank" id="waLeadsModalViewAllBtn" class="btn btn-sm btn-light py-1 px-3 fs-8 fw-bold" title="Open Leads page for this customer">
+                    {{-- <a href="{{ route('leads') }}" target="_blank" id="waLeadsModalViewAllBtn"  --}}
+{{-- mk --}}
+                    <a href="{{ route('lead.index') }}" target="_blank" id="waLeadsModalViewAllBtn"
+                    class="btn btn-sm btn-light py-1 px-3 fs-8 fw-bold" title="Open Leads page for this customer">
                         <i class="fa fa-external-link me-1"></i>View All Leads
                     </a>
                     <button type="button" class="btn btn-sm btn-success py-1 px-3 fs-8 fw-bold" data-bs-dismiss="modal" data-bs-toggle="modal" data-bs-target="#kt_modal_create_appaa_newLeads">

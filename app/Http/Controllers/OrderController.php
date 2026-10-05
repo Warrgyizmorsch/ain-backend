@@ -3865,8 +3865,8 @@ class OrderController extends Controller
               ->orWhereNotNull('orders.lead_id');
         });
 
-        // ─── Lead Filtering & Exact Order Code Matching ──────────────────────────────
-        $unconvertedOrderCodes = Cache::remember('unconverted_order_codes_in_orders', 60, function () {
+        // mk 5 10 26 - Cache unconverted order codes for 300s to avoid heavy 60,000 order join spikes
+        $unconvertedOrderCodes = Cache::remember('unconverted_order_codes_in_orders', 300, function () {
             return DB::table('orders')
                 ->join('leads', 'orders.order_id', '=', 'leads.order_id')
                 ->where('leads.is_converted', 0)
@@ -4250,15 +4250,18 @@ class OrderController extends Controller
 
     public function indexOrder(Request $request)
     {
-        $data = [
-            'Team' => Writer::select('id', 'writer_name')->get(),
-            'Status' => Status::select('id', 'status')->get(),
-            'paper' => Paper::select('id', 'paper_type')->get(),
-            'college' => College::select('id', 'college_name')->get(),
-            'writerTL' => User::where('role_id', 6)->where('flag', 0)->select('id', 'name')->get(),
-            'SubWriter' => User::where('role_id', 7)->where('flag', 0)->select('id', 'name', 'tl_id')->get(),
-            'projectStatusCounts' => collect(),
-        ];
+        // mk 5 10 26 - Cache static lookup dropdown tables (180s) to avoid 7 redundant queries on every request
+        $data = Cache::remember('orders_index_dropdown_data', 180, function () {
+            return [
+                'Team' => Writer::select('id', 'writer_name')->get(),
+                'Status' => Status::select('id', 'status')->get(),
+                'paper' => Paper::select('id', 'paper_type')->get(),
+                'college' => College::select('id', 'college_name')->get(),
+                'writerTL' => User::where('role_id', 6)->where('flag', 0)->select('id', 'name')->get(),
+                'SubWriter' => User::where('role_id', 7)->where('flag', 0)->select('id', 'name', 'tl_id')->get(),
+            ];
+        });
+        $data['projectStatusCounts'] = collect();
 
         // Show orders with the latest order date first using unified query builder.
         $orders = $this->buildOrderFilterQuery($request)
@@ -4291,29 +4294,33 @@ class OrderController extends Controller
             }),
         ];
 
-        $now = now();
-        $overdueQuery = DB::table('orders')
-            ->whereNotNull('uid')
-            ->whereNotIn('projectstatus', ['Delivered', 'Completed', 'Cancelled', 'Feedback', 'Feedback Delivered'])
-            ->whereNotNull('delivery_date')
-            ->where(function ($q) use ($now) {
-                $q->where('delivery_date', '<', $now->toDateString())
-                    ->orWhere(function ($q2) use ($now) {
-                        $q2->where('delivery_date', '=', $now->toDateString())
-                            ->whereNotNull('delivery_time')
-                            ->where('delivery_time', '<', $now->toTimeString());
-                    });
-            });
+        // mk 5 10 26 - Short-cache overdue count (30s) to eliminate 60,000 row table scan on every request
+        $currUser = auth()->user();
+        $overdueCacheKey = 'orders_overdue_count_' . ($currUser && $currUser->role_id == 9 ? ($currUser->team_id ?? 'none') : 'all');
+        $overdueCount = Cache::remember($overdueCacheKey, 30, function () use ($currUser) {
+            $now = now();
+            $overdueQuery = DB::table('orders')
+                ->whereNotNull('uid')
+                ->whereNotIn('projectstatus', ['Delivered', 'Completed', 'Cancelled', 'Feedback', 'Feedback Delivered'])
+                ->whereNotNull('delivery_date')
+                ->where(function ($q) use ($now) {
+                    $q->where('delivery_date', '<', $now->toDateString())
+                        ->orWhere(function ($q2) use ($now) {
+                            $q2->where('delivery_date', '=', $now->toDateString())
+                                ->whereNotNull('delivery_time')
+                                ->where('delivery_time', '<', $now->toTimeString());
+                        });
+                });
 
-        if (auth()->check()) {
-            $currUser = auth()->user();
-            if ($currUser->role_id == 9 && !empty($currUser->team_id)) {
+            if ($currUser && $currUser->role_id == 9 && !empty($currUser->team_id)) {
                 $overdueQuery->where('team_id', $currUser->team_id);
             }
-        }
-        $overdueCount = $overdueQuery->count();
 
-        $teamCounts = Cache::remember('order_team_counts', 60, function () {
+            return $overdueQuery->count();
+        });
+
+        // mk 5 10 26 - Cache order team counts for 180s to avoid full table scans every minute
+        $teamCounts = Cache::remember('order_team_counts', 180, function () {
             return DB::table('orders')
                 ->whereNotNull('uid')
                 ->whereNotNull('team_id')
@@ -4324,7 +4331,10 @@ class OrderController extends Controller
         $alphaCount = $teamCounts[1] ?? 0;
         $gigaCount  = $teamCounts[2] ?? 0;
 
-        $teams = Team::where('is_delete', 0)->orderBy('priority', 'asc')->get();
+        // mk 5 10 26 - Cache active teams list (180s)
+        $teams = Cache::remember('active_teams_list', 180, function () {
+            return Team::where('is_delete', 0)->orderBy('priority', 'asc')->get();
+        });
         return view('back-end.order.index', compact('orders', 'totals', 'overdueCount', 'data', 'alphaCount', 'gigaCount', 'teams', 'teamCounts'));
     }
 

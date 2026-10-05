@@ -28,7 +28,10 @@
                     </div>
 
                     @php
-                        $crmAllLabels = \App\Models\WhatsappChatLabel::forCrm()->ordered()->get();
+                        // mk 5 10 26 - Cache CRM labels list (180s) to avoid querying on every order page load
+                        $crmAllLabels = \Illuminate\Support\Facades\Cache::remember('crm_all_labels_list', 180, function () {
+                            return \App\Models\WhatsappChatLabel::forCrm()->ordered()->get();
+                        });
                     @endphp
 
                     <div class="d-flex flex-column gap-2" id="crmUserLabelListContainer">

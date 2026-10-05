@@ -731,7 +731,9 @@ class EmailService
             if (str_starts_with($line, "{$searchTag} ")) break;
         }
 
-        $pendingUids = array_slice($uids, 0, 50);
+        // mk 5 10 26 - Batch limit 10 emails per sync burst with 5s socket timeout to avoid 120s script timeout
+        stream_set_timeout($socket, 5);
+        $pendingUids = array_slice($uids, 0, 10);
         foreach ($pendingUids as $uid) {
             $fetchTag = $tagSeq . "F{$uid}";
             fputs($socket, "{$fetchTag} UID FETCH {$uid} (RFC822)\r\n");

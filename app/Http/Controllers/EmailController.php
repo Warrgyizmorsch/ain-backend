@@ -562,111 +562,63 @@ class EmailController extends Controller
             ]);
         }
 
-        // Calculate accurate count stats for sidebar badges in a single fast query
-        $countsQuery = EmailMessage::query();
-        if ($selectedAccount && !empty($selectedAccount->email_address)) {
-            $countsQuery->where('email_configuration_id', $selectedAccount->id);
-        }
+        // mk 5 10 26 - Short-cache sidebar folder badge counts (15s) for instant response
+        $accKey = $selectedAccount?->id ?: 'all';
+        $counts = Cache::remember("email_folder_counts_{$accKey}", 15, function () use ($selectedAccount) {
+            $countsQuery = EmailMessage::query();
+            if ($selectedAccount && !empty($selectedAccount->email_address)) {
+                $countsQuery->where('email_configuration_id', $selectedAccount->id);
+            }
 
-        $stats = $countsQuery->selectRaw("
-            COUNT(CASE WHEN folder != 'trash' THEN 1 END) as all_count,
-            COUNT(CASE WHEN direction = 'inbound' AND folder != 'trash' AND is_read = 0 THEN 1 END) as inbox_count,
-            COUNT(CASE WHEN (folder = 'sent' OR direction = 'outbound') AND is_draft = 0 AND folder != 'trash' THEN 1 END) as sent_count,
-            COUNT(CASE WHEN (folder = 'drafts' OR is_draft = 1) AND folder != 'trash' THEN 1 END) as drafts_count,
-            COUNT(CASE WHEN is_starred = 1 AND folder != 'trash' THEN 1 END) as starred_count,
-            COUNT(CASE WHEN folder = 'trash' THEN 1 END) as trash_count
-        ")->first();
+            $stats = $countsQuery->selectRaw("
+                COUNT(CASE WHEN folder != 'trash' THEN 1 END) as all_count,
+                COUNT(CASE WHEN direction = 'inbound' AND folder != 'trash' AND is_read = 0 THEN 1 END) as inbox_count,
+                COUNT(CASE WHEN (folder = 'sent' OR direction = 'outbound') AND is_draft = 0 AND folder != 'trash' THEN 1 END) as sent_count,
+                COUNT(CASE WHEN (folder = 'drafts' OR is_draft = 1) AND folder != 'trash' THEN 1 END) as drafts_count,
+                COUNT(CASE WHEN is_starred = 1 AND folder != 'trash' THEN 1 END) as starred_count,
+                COUNT(CASE WHEN folder = 'trash' THEN 1 END) as trash_count
+            ")->first();
 
-        $counts = [
-            'all' => (int) ($stats->all_count ?? 0),
-            'inbox' => (int) ($stats->inbox_count ?? 0),
-            'sent' => (int) ($stats->sent_count ?? 0),
-            'drafts' => (int) ($stats->drafts_count ?? 0),
-            'starred' => (int) ($stats->starred_count ?? 0),
-            'trash' => (int) ($stats->trash_count ?? 0),
-        ];
+            return [
+                'all' => (int) ($stats->all_count ?? 0),
+                'inbox' => (int) ($stats->inbox_count ?? 0),
+                'sent' => (int) ($stats->sent_count ?? 0),
+                'drafts' => (int) ($stats->drafts_count ?? 0),
+                'starred' => (int) ($stats->starred_count ?? 0),
+                'trash' => (int) ($stats->trash_count ?? 0),
+            ];
+        });
 
         // Thread details are loaded on demand by openEmailThread(); do not pull large
         // message bodies into the initial inbox response.
         $activeThread = null;
         $activeMessages = collect();
 
-        $configurations = EmailConfiguration::where('is_active', true)->get();
+        // mk 5 10 26 - Reuse already fetched $configurations instead of duplicate DB query
         $currentAccount = $selectedAccount;
 
         // If no account is explicitly selected and configurations exist, default to the first active account or selected
         $unreadCount = $counts['inbox'] ?? 0;
         $emails = $threads;
 
-        // Only pre-render folder cache on fresh default inbox loads (skip on search / order filters to make opening emails instant)
         $isWriterEmail = $selectedAccount && ($selectedAccount->id == 1 || stripos($selectedAccount->name, 'writer') !== false);
         $folderHtmlCache = [];
         $isFiltered = !empty($search) || !empty($filterOrderCode) || !empty($deadlineType);
+
+        // mk 5 10 26 - Eliminate expensive 6-folder loop & 4 extra DB queries on initial load.
+        // Render only current active folder's rows using already-loaded $threads; other folders load on-demand via AJAX.
         if (!$isFiltered) {
-            $cacheSource = EmailMessage::select([
-                    'id', 'thread_id', 'from_email', 'from_name', 'to_email', 'to_name',
-                    'subject', 'body_plain', 'folder', 'direction', 'status',
-                    'is_read', 'is_starred', 'is_draft', 'has_attachments', 'received_at', 'created_at'
-                ])
-                ->when($selectedAccount, fn ($q) => $q->where('email_configuration_id', $selectedAccount->id))
-                ->orderByDesc('id')
-                ->limit(100)
-                ->get();
-
-            $cacheThreadIds = $cacheSource->pluck('thread_id')->filter()->unique()->all();
-            $cacheThreadLabelsMap = !empty($cacheThreadIds)
-                ? \App\Models\EmailThreadLabel::with('label')
-                    ->whereIn('thread_id', $cacheThreadIds)
-                    ->get()
-                    ->groupBy('thread_id')
-                : collect();
-
-            $cacheClientContacts = $this->clientContactsForEmails(
-                $cacheSource->concat($threadsCollection)
-            );
-
-            $cacheCodes = [];
-            foreach ($cacheSource as $m) {
-                if (!empty($m->subject) && preg_match_all('/\b([A-Za-z]{2,5}\d{3,7})\b/', $m->subject, $matches)) {
-                    foreach ($matches[1] as $c) {
-                        $cacheCodes[strtoupper($c)] = true;
-                    }
-                }
-            }
-            $cacheOrdersMap = !empty($cacheCodes)
-                ? \App\Models\Order::query()
-                    ->whereIn('order_id', array_keys($cacheCodes))
-                    ->select(['id', 'order_id', 'uid', 'order_date', 'delivery_date', 'deadline', 'writer_deadline', 'created_at', 'status', 'projectstatus'])
-                    ->get()
-                    ->keyBy(fn($o) => strtoupper($o->order_id))
-                : collect();
-
-            foreach (['inbox', 'all', 'sent', 'drafts', 'starred', 'trash'] as $cacheFolder) {
-                $folderMessages = $cacheSource->filter(function ($message) use ($cacheFolder) {
-                    return match ($cacheFolder) {
-                        'all' => $message->folder !== 'trash',
-                        'sent' => ($message->folder === 'sent' || $message->direction === 'outbound')
-                            && !$message->is_draft && $message->folder !== 'trash',
-                        'drafts' => ($message->folder === 'drafts' || $message->is_draft)
-                            && $message->folder !== 'trash',
-                        'starred' => $message->is_starred && $message->folder !== 'trash',
-                        'trash' => $message->folder === 'trash',
-                        default => ($message->folder === 'inbox' || $message->direction === 'inbound')
-                            && !$message->is_draft && $message->folder !== 'trash',
-                    };
-                })->unique('thread_id')->take(20)->values();
-
-                $folderHtmlCache[$cacheFolder] = view('emails._rows', [
-                    'emails' => $folderMessages,
-                    'isAppend' => false,
-                    'emailClientContacts' => $cacheClientContacts,
-                    'threadLabelsMap' => $cacheThreadLabelsMap,
-                    'allLabels' => $allLabels,
-                    'ordersMap' => $cacheOrdersMap,
-                    'isWriterEmail' => $isWriterEmail,
-                    'currentAccount' => $selectedAccount,
-                ])->render();
-            }
+            $activeFolderKey = $folder ?: 'inbox';
+            $folderHtmlCache[$activeFolderKey] = view('emails._rows', [
+                'emails' => $threads,
+                'isAppend' => false,
+                'emailClientContacts' => $emailClientContacts,
+                'threadLabelsMap' => $threadLabelsMap,
+                'allLabels' => $allLabels,
+                'ordersMap' => $ordersMap,
+                'isWriterEmail' => $isWriterEmail,
+                'currentAccount' => $selectedAccount,
+            ])->render();
         }
 
         $recentOrderCodes = Cache::remember('emails_recent_order_codes_list', 180, function () {

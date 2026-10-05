@@ -324,9 +324,10 @@ class User extends Authenticatable
      * - Beginner Customer: 1 order
      * - New Customer: 0 orders
      */
+    // mk 5 10 26 - Optimize customer_type: reuse loaded orders_count & eliminate query on 1 order
     public function getCustomerTypeAttribute()
     {
-        $ordersCount = $this->orders()->count();
+        $ordersCount = isset($this->orders_count) ? (int) $this->orders_count : $this->orders()->count();
         if ($ordersCount === 0) {
             return 'New Customer';
         }
@@ -334,6 +335,11 @@ class User extends Authenticatable
         // 1. Loyal Customer (> 10 Orders)
         if ($ordersCount > 10) {
             return 'Loyal Customer';
+        }
+
+        // 4. Beginner Customer (Exactly 1 order cannot be Retainer or Repeated since they require > 1)
+        if ($ordersCount === 1) {
+            return 'Beginner Customer';
         }
 
         $firstOrder = $this->orders()->oldest('created_at')->first();
@@ -345,16 +351,15 @@ class User extends Authenticatable
         $monthsSinceFirstOrder = $firstOrderDate->diffInMonths(now());
 
         // 2. Retainer Customer (First order placed 9+ months ago AND has repeated purchases)
-        if ($monthsSinceFirstOrder >= 9 && $ordersCount > 1) {
+        if ($monthsSinceFirstOrder >= 9) {
             return 'Retainer Customer';
         }
 
         // 3. Repeated Customer (> 1 orders & placed orders within 3 months)
-        if ($ordersCount > 1 && $monthsSinceFirstOrder <= 3) {
+        if ($monthsSinceFirstOrder <= 3) {
             return 'Repeated Customer';
         }
 
-        // 4. Beginner Customer (1 order or default)
         return 'Beginner Customer';
     }
 }

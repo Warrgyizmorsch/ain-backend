@@ -99,7 +99,8 @@
                     <!-- Hidden field to store the selected value -->
                     <input type="hidden" id="selectedValue" name="uid">
                 </div>
-                <div class="col-md-3 fv-row"><select id="group_id" name="group_id" class="form-select form-select-solid" data-control="select2" data-placeholder="User Group"><option value="">All Groups</option>@foreach(\App\Models\GroupMaster::where('status',1)->orderBy('name')->get(['id','name']) as $group)<option value="{{ $group->id }}">{{ $group->name }}</option>@endforeach</select></div>
+                {{-- mk 5 10 26 - Cache group masters list for 180s --}}
+                <div class="col-md-3 fv-row"><select id="group_id" name="group_id" class="form-select form-select-solid" data-control="select2" data-placeholder="User Group"><option value="">All Groups</option>@foreach(\Illuminate\Support\Facades\Cache::remember('leads_active_group_masters', 180, fn() => \App\Models\GroupMaster::where('status',1)->orderBy('name')->get(['id','name'])) as $group)<option value="{{ $group->id }}">{{ $group->name }}</option>@endforeach</select></div>
 
                 <script>
                     $(document).ready(function() {
