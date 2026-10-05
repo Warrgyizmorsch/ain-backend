@@ -187,7 +187,8 @@ class UserController extends Controller
         $orderFilter = $request->input('order_category');
         $collegeName = $request->input('college_name');
         $groupId = $request->input('group_id');
-        $perPage = 10;
+        // mk 5 10 26 - Changed perPage from 10 to 20 for infinite scroll
+        $perPage = 20;
 
         // 1. MASTER LIST (Duniya ki sari badi countries)
         $globalCountries = [
@@ -374,8 +375,40 @@ class UserController extends Controller
             });
         }
 
-        // Tab counts respect the filters above, while the selected tab controls
-        // only the result list.
+        // mk 5 10 26 - Tab counts respect filters above, while selected tab controls result list.
+        $isScroll = $request->ajax() || $request->has('scroll') || $request->wantsJson();
+
+        $tab = $request->get('tab', 'all');
+        $tabFilteredQuery = clone $query;
+        if ($tab === 'confirmed') {
+            $tabFilteredQuery->whereHas('orders');
+        } elseif ($tab === 'not_confirmed') {
+            $tabFilteredQuery->whereHas('leads')->whereDoesntHave('orders');
+        }
+
+        $data['users'] = $tabFilteredQuery->orderBy('id', 'desc')->paginate($perPage);
+        $data['role'] = Role::all();
+        $data['teams'] = Team::where('is_delete', false)->orderBy('priority', 'asc')->get();
+        $data['bank'] = Bank::all();
+
+        // mk 5 10 26 - Return JSON partials for infinite scroll requests
+        if ($isScroll) {
+            $html = view('user.partials.rows', [
+                'users' => $data['users'],
+                'codeToCountry' => $codeToCountry,
+                'data' => $data
+            ])->render();
+
+            return response()->json([
+                'html' => $html,
+                'has_more' => $data['users']->hasMorePages(),
+                'next_page' => $data['users']->currentPage() + 1,
+                'current_page' => $data['users']->currentPage(),
+                'total' => $data['users']->total(),
+                'per_page' => $data['users']->perPage(),
+            ]);
+        }
+
         $countAll = (clone $query)->count();
         $countConfirmed = (clone $query)->whereHas('orders')->count();
         $countNotConfirmed = (clone $query)
@@ -383,25 +416,16 @@ class UserController extends Controller
             ->whereDoesntHave('orders')
             ->count();
 
-        $tab = $request->get('tab', 'all');
-        if ($tab === 'confirmed') {
-            $query->whereHas('orders');
-        } elseif ($tab === 'not_confirmed') {
-            $query->whereHas('leads')->whereDoesntHave('orders');
-        }
-
-        $data['users'] = $query->orderBy('id', 'desc')->paginate($perPage);
-
         // Do not load every user into the filter dropdown. The Select2 field
         // searches remotely and only the currently selected user is needed.
         $data['selected_user'] = $searchUserId
             ? User::select('id', 'name', 'email', 'mobile_no', 'mobile_no2')->find($searchUserId)
             : null;
-        $data['role'] = Role::all();
-        $data['teams'] = Team::where('is_delete', false)->orderBy('priority', 'asc')->get();
-        $data['bank'] = Bank::all();
         $data['countryList'] = array_keys($globalCountries);
-        $data['collegeList'] = Order::whereNotNull('college_name')->where('college_name', '!=', '')->distinct()->orderBy('college_name')->pluck('college_name');
+        // mk 5 10 26 - Short-cache college list for 300s to avoid expensive query on every load
+        $data['collegeList'] = \Illuminate\Support\Facades\Cache::remember('user_filter_college_list', 300, function () {
+            return Order::whereNotNull('college_name')->where('college_name', '!=', '')->distinct()->orderBy('college_name')->pluck('college_name');
+        });
         $data['groups'] = GroupMaster::where('status', 1)->orderBy('name')->get(['id','name']);
 
         // Compacting tab variables for user_view

@@ -2,21 +2,26 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\EmailMessage;
 use App\Models\EmailAttachment;
 use App\Models\EmailConfiguration;
-use App\Models\User;
+use App\Models\EmailMessage;
+use App\Models\EmailThreadLabel;
 use App\Models\Leads;
 use App\Models\Order;
-use App\Services\EmailService;
+use App\Models\User;
+use App\Models\WhatsappChatLabel;
 use App\Services\EmailHtmlSanitizer;
+use App\Services\EmailService;
+use App\Services\LabelSyncService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-use Carbon\Carbon;
 
 class EmailController extends Controller
 {
@@ -52,14 +57,14 @@ class EmailController extends Controller
             case 'sent':
                 $query->where(function ($q) {
                     $q->where('folder', 'sent')
-                      ->orWhere('direction', 'outbound');
+                        ->orWhere('direction', 'outbound');
                 })->where('is_draft', false)->where('folder', '!=', 'trash');
                 break;
             case 'draft':
             case 'drafts':
                 $query->where(function ($q) {
                     $q->where('folder', 'drafts')
-                      ->orWhere('is_draft', true);
+                        ->orWhere('is_draft', true);
                 })->where('folder', '!=', 'trash');
                 break;
             case 'starred':
@@ -70,12 +75,12 @@ class EmailController extends Controller
                 break;
             case 'inbox':
             default:
-                if (!empty($search)) {
+                if (! empty($search)) {
                     $query->where('folder', '!=', 'trash');
                 } else {
                     $query->where(function ($q) {
                         $q->where('folder', 'inbox')
-                          ->orWhere('direction', 'inbound');
+                            ->orWhere('direction', 'inbound');
                     })->where('is_draft', false)->where('folder', '!=', 'trash');
                 }
                 break;
@@ -90,7 +95,7 @@ class EmailController extends Controller
             $sessAccountId = session('active_email_account_id');
             $selectedAccount = $configurations->firstWhere('id', (int) $sessAccountId) ?: EmailConfiguration::find($sessAccountId);
         }
-        if (!$selectedAccount && $configurations->isNotEmpty()) {
+        if (! $selectedAccount && $configurations->isNotEmpty()) {
             $selectedAccount = $configurations->firstWhere('is_default', true)
                 ?: $configurations->firstWhere('name', 'Client')
                 ?: $configurations->first();
@@ -107,20 +112,20 @@ class EmailController extends Controller
         $clientConfigId = function_exists('crm_email_account_id') ? crm_email_account_id('client') : 2;
 
         $isClientEmail = $selectedAccount && (
-            (int)$selectedAccount->id === (int)$clientConfigId
+            (int) $selectedAccount->id === (int) $clientConfigId
             || stripos($selectedAccount->name ?? '', 'client') !== false
             || stripos($selectedAccount->email_address ?? '', 'order@assignnmentinneed.com') !== false
         );
 
-        $isWriterEmail = !$isClientEmail && (
-            !$selectedAccount
-            || (int)$selectedAccount->id === (int)$writerConfigId
+        $isWriterEmail = ! $isClientEmail && (
+            ! $selectedAccount
+            || (int) $selectedAccount->id === (int) $writerConfigId
             || stripos($selectedAccount->name ?? '', 'writer') !== false
             || stripos($selectedAccount->email_address ?? '', 'assignmentinneedhelp') !== false
-            || (int)$selectedAccount->id === 1
+            || (int) $selectedAccount->id === 1
         );
 
-        if (!empty($search)) {
+        if (! empty($search)) {
             $cleanSearch = trim($search);
             $terms = collect(preg_split('/\s+/', $cleanSearch))->filter()->values();
             $matchingContactEmails = [];
@@ -145,7 +150,7 @@ class EmailController extends Controller
             } elseif (filter_var($cleanSearch, FILTER_VALIDATE_EMAIL)) {
                 // Only search users table if query is an email address or customer name, not an alphanumeric order code like UKS60312
                 $matchingContactEmails = User::query()->where('email', $cleanSearch)->limit(5)->pluck('email')->all();
-            } elseif (!preg_match('/^[a-zA-Z]{1,5}\d+$/', $cleanSearch) && strlen($cleanSearch) >= 3) {
+            } elseif (! preg_match('/^[a-zA-Z]{1,5}\d+$/', $cleanSearch) && strlen($cleanSearch) >= 3) {
                 $matchingContactEmails = User::query()
                     ->where(function ($userQuery) use ($cleanSearch) {
                         $userQuery->where('name', 'like', "%{$cleanSearch}%")
@@ -160,15 +165,15 @@ class EmailController extends Controller
             }
 
             // Also resolve customer email if search query is an order code (e.g. UKS60312 or numeric ID)
-            $orderCustomerEmails = \App\Models\Order::query()
+            $orderCustomerEmails = Order::query()
                 ->where('order_id', $cleanSearch)
-                ->orWhere('id', is_numeric($cleanSearch) ? (int)$cleanSearch : 0)
+                ->orWhere('id', is_numeric($cleanSearch) ? (int) $cleanSearch : 0)
                 ->with('user:id,email')
                 ->get()
                 ->pluck('user.email')
                 ->filter()
                 ->all();
-            if (!empty($orderCustomerEmails)) {
+            if (! empty($orderCustomerEmails)) {
                 $matchingContactEmails = array_values(array_unique(array_merge($matchingContactEmails, $orderCustomerEmails)));
             }
 
@@ -186,7 +191,7 @@ class EmailController extends Controller
                             ->orWhere('body_plain', 'like', $like)
                             ->orWhere('body_html', 'like', $like);
 
-                        if (!empty($matchingContactEmails)) {
+                        if (! empty($matchingContactEmails)) {
                             $fieldQuery->orWhereIn('from_email', $matchingContactEmails)
                                 ->orWhereIn('to_email', $matchingContactEmails);
                         }
@@ -209,9 +214,9 @@ class EmailController extends Controller
         // ── Quick & Advanced Filters ──────────────────────────────────────
         // 1. Has Attachment
         if ($request->boolean('has_attachment') || $request->input('has_attachment') === '1') {
-            $query->where(function($q) {
+            $query->where(function ($q) {
                 $q->where('has_attachments', true)
-                  ->orWhereHas('attachments');
+                    ->orWhereHas('attachments');
             });
         }
 
@@ -219,8 +224,8 @@ class EmailController extends Controller
         if ($request->boolean('from_me') || $request->input('from_me') === '1') {
             $query->where(function ($q) use ($selectedAccount) {
                 $q->where('direction', 'outbound')
-                  ->orWhere('folder', 'sent');
-                if ($selectedAccount && !empty($selectedAccount->email_address)) {
+                    ->orWhere('folder', 'sent');
+                if ($selectedAccount && ! empty($selectedAccount->email_address)) {
                     $q->orWhere('from_email', $selectedAccount->email_address);
                 }
             });
@@ -241,17 +246,17 @@ class EmailController extends Controller
         if ($dateRange === 'last_7_days') {
             $query->where(function ($q) {
                 $q->where('received_at', '>=', now()->subDays(7))
-                  ->orWhere('created_at', '>=', now()->subDays(7));
+                    ->orWhere('created_at', '>=', now()->subDays(7));
             });
         } elseif ($dateRange === 'last_30_days') {
             $query->where(function ($q) {
                 $q->where('received_at', '>=', now()->subDays(30))
-                  ->orWhere('created_at', '>=', now()->subDays(30));
+                    ->orWhere('created_at', '>=', now()->subDays(30));
             });
         } elseif ($dateRange === 'last_year') {
             $query->where(function ($q) {
                 $q->where('received_at', '>=', now()->subYear())
-                  ->orWhere('created_at', '>=', now()->subYear());
+                    ->orWhere('created_at', '>=', now()->subYear());
             });
         }
 
@@ -259,18 +264,18 @@ class EmailController extends Controller
         if ($request->filled('filter_from')) {
             $fromTerm = trim($request->input('filter_from'));
             $fromLike = (strpos($fromTerm, '*') !== false) ? preg_replace('/\*+/', '%', $fromTerm) : "%{$fromTerm}%";
-            $query->where(function($q) use ($fromLike) {
+            $query->where(function ($q) use ($fromLike) {
                 $q->where('from_email', 'like', $fromLike)
-                  ->orWhere('from_name', 'like', $fromLike);
+                    ->orWhere('from_name', 'like', $fromLike);
             });
         }
 
         if ($request->filled('filter_to')) {
             $toTerm = trim($request->input('filter_to'));
             $toLike = (strpos($toTerm, '*') !== false) ? preg_replace('/\*+/', '%', $toTerm) : "%{$toTerm}%";
-            $query->where(function($q) use ($toLike) {
+            $query->where(function ($q) use ($toLike) {
                 $q->where('to_email', 'like', $toLike)
-                  ->orWhere('to_name', 'like', $toLike);
+                    ->orWhere('to_name', 'like', $toLike);
             });
         }
 
@@ -281,23 +286,23 @@ class EmailController extends Controller
 
         if ($request->filled('filter_words')) {
             $wordsTerm = trim($request->input('filter_words'));
-            $query->where(function($q) use ($wordsTerm) {
+            $query->where(function ($q) use ($wordsTerm) {
                 $q->where('subject', 'like', "%{$wordsTerm}%")
-                  ->orWhere('body_plain', 'like', "%{$wordsTerm}%")
-                  ->orWhere('body_html', 'like', "%{$wordsTerm}%");
+                    ->orWhere('body_plain', 'like', "%{$wordsTerm}%")
+                    ->orWhere('body_html', 'like', "%{$wordsTerm}%");
             });
         }
 
         if ($request->filled('filter_doesnt_have')) {
             $notTerm = trim($request->input('filter_doesnt_have'));
             $query->where('subject', 'not like', "%{$notTerm}%")
-                  ->where('body_plain', 'not like', "%{$notTerm}%");
+                ->where('body_plain', 'not like', "%{$notTerm}%");
         }
 
         if ($request->filled('filter_date_within')) {
             $dateWithin = $request->input('filter_date_within'); // 1d, 3d, 7d, 14d, 1m, 2m, 6m, 1y
-            $refDate = $request->filled('filter_date_ref') ? \Carbon\Carbon::parse($request->input('filter_date_ref')) : now();
-            $days = match($dateWithin) {
+            $refDate = $request->filled('filter_date_ref') ? Carbon::parse($request->input('filter_date_ref')) : now();
+            $days = match ($dateWithin) {
                 '1d' => 1,
                 '3d' => 3,
                 '7d' => 7,
@@ -312,16 +317,16 @@ class EmailController extends Controller
         }
 
         // 6. Deadline Type Filter (< 2 Days, 3-5 Days, 6-15 Days, 15 Days & Above) & Order Code Filter (Only for Writer Email)
-        $deadlineType = trim((string)($request->input('deadline_type') ?? ''));
+        $deadlineType = trim((string) ($request->input('deadline_type') ?? ''));
         if ($isClientEmail) {
             $deadlineType = '';
         }
-        $filterOrderCode = trim((string)($request->input('order_code') ?? $request->input('filter_order_code') ?? ''));
+        $filterOrderCode = trim((string) ($request->input('order_code') ?? $request->input('filter_order_code') ?? ''));
 
-        if (!empty($deadlineType) || !empty($filterOrderCode)) {
+        if (! empty($deadlineType) || ! empty($filterOrderCode)) {
             $matchingCodes = [];
 
-            if (!empty($deadlineType)) {
+            if (! empty($deadlineType)) {
                 // Match duration difference between delivery_date / writer_deadline / deadline and order_date / created_at
                 $gapSql = "CASE 
                     WHEN deadline IS NOT NULL AND deadline != '' AND deadline REGEXP '^[0-9]+$' 
@@ -363,7 +368,7 @@ class EmailController extends Controller
 
                 // A. Extract candidate order codes from recent emails in this mailbox so no email with an order code is ever missed
                 $recentMailQuery = EmailMessage::query()->where('folder', '!=', 'trash');
-                if ($selectedAccount && !empty($selectedAccount->id)) {
+                if ($selectedAccount && ! empty($selectedAccount->id)) {
                     $recentMailQuery->where('email_configuration_id', $selectedAccount->id);
                 }
                 $recentMailSamples = $recentMailQuery->orderByDesc('id')->limit(2000)->get(['subject', 'body_plain', 'body_html']);
@@ -371,10 +376,10 @@ class EmailController extends Controller
                 $candidateCodes = [];
                 foreach ($recentMailSamples as $m) {
                     $textToScan = ($m->subject ?? '');
-                    if (!empty($m->body_plain)) {
-                        $textToScan .= ' ' . substr($m->body_plain, 0, 2000);
-                    } elseif (!empty($m->body_html)) {
-                        $textToScan .= ' ' . substr(strip_tags($m->body_html), 0, 2000);
+                    if (! empty($m->body_plain)) {
+                        $textToScan .= ' '.substr($m->body_plain, 0, 2000);
+                    } elseif (! empty($m->body_html)) {
+                        $textToScan .= ' '.substr(strip_tags($m->body_html), 0, 2000);
                     }
 
                     if (preg_match_all('/\b([A-Za-z]{1,6}[-_ ]?\d{2,8})\b/', $textToScan, $matches)) {
@@ -390,23 +395,23 @@ class EmailController extends Controller
                 }
                 $candidateCodes = array_keys($candidateCodes);
 
-                if (!empty($filterOrderCode)) {
+                if (! empty($filterOrderCode)) {
                     $candidateCodes[] = strtoupper($filterOrderCode);
                     $candidateCodes = array_values(array_unique($candidateCodes));
                 }
 
                 // B. Query matching candidate orders against the deadline gap condition
                 $matchedCandidateCodes = [];
-                if (!empty($candidateCodes) && $gapCondition) {
+                if (! empty($candidateCodes) && $gapCondition) {
                     $orderCandidateQuery = Order::query()
                         ->where(function ($oq) use ($candidateCodes) {
                             $oq->whereIn('order_id', $candidateCodes);
-                            $cleanCodes = array_map(fn($c) => str_replace(['-', '_', ' '], '', $c), $candidateCodes);
+                            $cleanCodes = array_map(fn ($c) => str_replace(['-', '_', ' '], '', $c), $candidateCodes);
                             $oq->orWhereIn('order_id', $cleanCodes);
                         })
                         ->whereRaw($gapCondition);
 
-                    if (!empty($filterOrderCode)) {
+                    if (! empty($filterOrderCode)) {
                         $orderCandidateQuery->where('order_id', 'like', "%{$filterOrderCode}%");
                     }
 
@@ -415,7 +420,7 @@ class EmailController extends Controller
                         ->whereIn(DB::raw("LOWER(TRIM(COALESCE(projectstatus, '')))"), ['initiated', 'other'])
                         ->pluck('order_id')->filter()->unique()->values()->all();
 
-                    if (!empty($matchedWithStatus)) {
+                    if (! empty($matchedWithStatus)) {
                         $matchedCandidateCodes = $matchedWithStatus;
                     } else {
                         $matchedCandidateCodes = $orderCandidateQuery->pluck('order_id')->filter()->unique()->values()->all();
@@ -428,7 +433,7 @@ class EmailController extends Controller
                     ->where('order_id', '!=', '')
                     ->whereRaw($gapCondition);
 
-                if (!empty($filterOrderCode)) {
+                if (! empty($filterOrderCode)) {
                     $recentOrdersQuery->where('order_id', 'like', "%{$filterOrderCode}%");
                 }
 
@@ -448,24 +453,24 @@ class EmailController extends Controller
                 $matchingCodes = array_values(array_unique(array_merge($matchedCandidateCodes, $recentMatchingCodes)));
 
                 if (empty($matchingCodes)) {
-                    if (!empty($filterOrderCode)) {
+                    if (! empty($filterOrderCode)) {
                         $matchingCodes = [$filterOrderCode];
                     } else {
                         $query->whereRaw('0 = 1');
                     }
                 }
-            } elseif (!empty($filterOrderCode)) {
+            } elseif (! empty($filterOrderCode)) {
                 $matchingCodes = [$filterOrderCode];
             }
 
-            if (!empty($matchingCodes)) {
+            if (! empty($matchingCodes)) {
                 $searchCodes = array_slice($matchingCodes, 0, 80);
                 $query->where(function ($eq) use ($searchCodes) {
                     foreach ($searchCodes as $code) {
-                        $clean = trim((string)$code);
+                        $clean = trim((string) $code);
                         if (strlen($clean) >= 3) {
                             $eq->orWhere('subject', 'like', "%{$clean}%")
-                               ->orWhere('body_plain', 'like', "%{$clean}%");
+                                ->orWhere('body_plain', 'like', "%{$clean}%");
                         }
                     }
                 });
@@ -478,7 +483,7 @@ class EmailController extends Controller
             ->groupBy('thread_id')
             ->pluck('id')
             ->filter()
-            ->map(fn($v) => (int)$v)
+            ->map(fn ($v) => (int) $v)
             ->values()
             ->all();
 
@@ -489,18 +494,18 @@ class EmailController extends Controller
         $perPage = 20;
         $pageIds = array_slice($latestMessageIds, ($page - 1) * $perPage, $perPage);
 
-        $threadsCollection = !empty($pageIds)
+        $threadsCollection = ! empty($pageIds)
             ? EmailMessage::select([
-                    'id', 'thread_id', 'from_email', 'from_name', 'to_email', 'to_name',
-                    'subject', 'body_plain', 'folder', 'direction', 'status',
-                    'is_read', 'is_starred', 'is_draft', 'has_attachments', 'received_at', 'created_at'
-                ])
+                'id', 'thread_id', 'from_email', 'from_name', 'to_email', 'to_name',
+                'subject', 'body_plain', 'folder', 'direction', 'status',
+                'is_read', 'is_starred', 'is_draft', 'has_attachments', 'received_at', 'created_at',
+            ])
                 ->whereIn('id', $pageIds)
                 ->orderByDesc('id')
                 ->get()
             : collect();
 
-        $threads = new \Illuminate\Pagination\LengthAwarePaginator(
+        $threads = new LengthAwarePaginator(
             $threadsCollection,
             $totalThreads,
             $perPage,
@@ -508,10 +513,10 @@ class EmailController extends Controller
             ['path' => $request->url(), 'query' => $request->query()]
         );
 
-        $allLabels = \App\Models\WhatsappChatLabel::forEmailAccount($selectedAccount)->ordered()->get();
+        $allLabels = WhatsappChatLabel::forEmailAccount($selectedAccount)->ordered()->get();
         $threadIds = $threadsCollection->pluck('thread_id')->filter()->unique()->all();
-        $threadLabelsMap = !empty($threadIds)
-            ? \App\Models\EmailThreadLabel::with('label')
+        $threadLabelsMap = ! empty($threadIds)
+            ? EmailThreadLabel::with('label')
                 ->whereIn('thread_id', $threadIds)
                 ->get()
                 ->groupBy('thread_id')
@@ -523,8 +528,8 @@ class EmailController extends Controller
         $displayedCodes = [];
         foreach ($threadsCollection as $m) {
             $scanText = ($m->subject ?? '');
-            if (!empty($m->body_plain)) {
-                $scanText .= ' ' . substr($m->body_plain, 0, 500);
+            if (! empty($m->body_plain)) {
+                $scanText .= ' '.substr($m->body_plain, 0, 500);
             }
             if (preg_match_all('/\b([A-Za-z]{1,6}[-_ ]?\d{2,8})\b/', $scanText, $matches)) {
                 foreach ($matches[1] as $c) {
@@ -535,12 +540,12 @@ class EmailController extends Controller
                 }
             }
         }
-        $ordersMap = !empty($displayedCodes)
-            ? \App\Models\Order::query()
+        $ordersMap = ! empty($displayedCodes)
+            ? Order::query()
                 ->whereIn('order_id', array_keys($displayedCodes))
                 ->select(['id', 'order_id', 'uid', 'order_date', 'delivery_date', 'deadline', 'writer_deadline', 'created_at', 'status', 'projectstatus'])
                 ->get()
-                ->keyBy(fn($o) => strtoupper($o->order_id))
+                ->keyBy(fn ($o) => strtoupper($o->order_id))
             : collect();
 
         if ($request->ajax() && $request->boolean('partial')) {
@@ -566,7 +571,7 @@ class EmailController extends Controller
         $accKey = $selectedAccount?->id ?: 'all';
         $counts = Cache::remember("email_folder_counts_{$accKey}", 15, function () use ($selectedAccount) {
             $countsQuery = EmailMessage::query();
-            if ($selectedAccount && !empty($selectedAccount->email_address)) {
+            if ($selectedAccount && ! empty($selectedAccount->email_address)) {
                 $countsQuery->where('email_configuration_id', $selectedAccount->id);
             }
 
@@ -603,11 +608,11 @@ class EmailController extends Controller
 
         $isWriterEmail = $selectedAccount && ($selectedAccount->id == 1 || stripos($selectedAccount->name, 'writer') !== false);
         $folderHtmlCache = [];
-        $isFiltered = !empty($search) || !empty($filterOrderCode) || !empty($deadlineType);
+        $isFiltered = ! empty($search) || ! empty($filterOrderCode) || ! empty($deadlineType);
 
         // mk 5 10 26 - Eliminate expensive 6-folder loop & 4 extra DB queries on initial load.
         // Render only current active folder's rows using already-loaded $threads; other folders load on-demand via AJAX.
-        if (!$isFiltered) {
+        if (! $isFiltered) {
             $activeFolderKey = $folder ?: 'inbox';
             $folderHtmlCache[$activeFolderKey] = view('emails._rows', [
                 'emails' => $threads,
@@ -622,7 +627,7 @@ class EmailController extends Controller
         }
 
         $recentOrderCodes = Cache::remember('emails_recent_order_codes_list', 180, function () {
-            return \App\Models\Order::query()
+            return Order::query()
                 ->whereNotNull('order_id')
                 ->where('order_id', '!=', '')
                 ->orderByDesc('id')
@@ -665,21 +670,26 @@ class EmailController extends Controller
      */
     public static function formatWhatsAppPhone(?string $countryCode, ?string $mobile): ?string
     {
-        if (empty($mobile)) return null;
+        if (empty($mobile)) {
+            return null;
+        }
         $mob = preg_replace('/\D+/', '', (string) $mobile);
-        if (empty($mob)) return null;
+        if (empty($mob)) {
+            return null;
+        }
         $cc = preg_replace('/\D+/', '', (string) $countryCode);
 
         // Strip leading zeros if countrycode is present (e.g. 07490902601 with CC 44 -> 7490902601)
-        if (!empty($cc) && str_starts_with($mob, '0')) {
+        if (! empty($cc) && str_starts_with($mob, '0')) {
             $mob = ltrim($mob, '0');
         }
 
-        if (!empty($cc)) {
+        if (! empty($cc)) {
             if (str_starts_with($mob, $cc)) {
                 return $mob;
             }
-            return $cc . $mob;
+
+            return $cc.$mob;
         }
 
         return $mob;
@@ -690,13 +700,14 @@ class EmailController extends Controller
      * Searches users table first, then falls back to leads table to ensure WhatsApp
      * phone number is resolved for all clients.
      */
-    private function clientContactsForEmails($emails): \Illuminate\Support\Collection
+    private function clientContactsForEmails($emails): Collection
     {
         $addresses = collect($emails)
             ->map(function ($email) {
                 if ($email instanceof EmailMessage) {
                     return $email->customer_email ?: ($email->from_email ?: $email->to_email);
                 }
+
                 return is_string($email) ? $email : null;
             })
             ->filter()
@@ -713,7 +724,7 @@ class EmailController extends Controller
             ->whereIn('email', $addresses->all())
             ->whereNotNull('mobile_no')
             ->where('mobile_no', '!=', '')
-            ->orderByRaw("CASE WHEN role_id = 2 THEN 0 ELSE 1 END")
+            ->orderByRaw('CASE WHEN role_id = 2 THEN 0 ELSE 1 END')
             ->get(['id', 'email', 'name', 'countrycode', 'mobile_no'])
             ->keyBy(fn (User $user) => strtolower(trim($user->email)));
     }
@@ -729,9 +740,9 @@ class EmailController extends Controller
         }
 
         $latest = (clone $query)->select([
-                'id', 'thread_id', 'from_name', 'from_email', 'to_name', 'to_email',
-                'subject', 'body_plain', 'folder', 'direction', 'is_read', 'created_at'
-            ])
+            'id', 'thread_id', 'from_name', 'from_email', 'to_name', 'to_email',
+            'subject', 'body_plain', 'folder', 'direction', 'is_read', 'created_at',
+        ])
             ->orderByDesc('id')
             ->first();
 
@@ -777,23 +788,24 @@ class EmailController extends Controller
     public function show($id, Request $request)
     {
         $email = EmailMessage::with('attachments')->find($id);
-        if (!$email) {
+        if (! $email) {
             if ($request->ajax() || $request->wantsJson()) {
                 return response()->json(['success' => false, 'error' => 'Email not found'], 404);
             }
+
             return redirect()->route('emails.index')->with('error', 'Email not found');
         }
 
         // Mark this email and thread as read immediately
-        if (!$email->is_read) {
+        if (! $email->is_read) {
             $email->update(['is_read' => true]);
-            if (!empty($email->thread_id)) {
+            if (! empty($email->thread_id)) {
                 EmailMessage::where('thread_id', $email->thread_id)->update(['is_read' => true]);
             }
         }
 
         // Fetch all messages in this conversation thread safely
-        if (!empty($email->thread_id)) {
+        if (! empty($email->thread_id)) {
             $threadMessages = EmailMessage::with('attachments')
                 ->where('thread_id', $email->thread_id)
                 ->orderBy('created_at', 'asc')
@@ -810,44 +822,47 @@ class EmailController extends Controller
         $clientContact = $contacts->get(strtolower((string) $customerEmail))
             ?: ($email->from_email ? $contacts->get(strtolower((string) $email->from_email)) : null);
         $emailOrder = null;
-        if (!empty($email->subject) && preg_match('/\b([A-Za-z]{2,5}\d{3,7})\b/', $email->subject, $orderMatch)) {
-            $emailOrder = \App\Models\Order::query()
+        if (! empty($email->subject) && preg_match('/\b([A-Za-z]{2,5}\d{3,7})\b/', $email->subject, $orderMatch)) {
+            $emailOrder = Order::query()
                 ->where('order_id', strtoupper($orderMatch[1]))
                 ->first(['id', 'order_id']);
         }
         $whatsAppPhone = null;
-        if ($clientContact && !empty($clientContact->mobile_no)) {
+        if ($clientContact && ! empty($clientContact->mobile_no)) {
             $whatsAppPhone = self::formatWhatsAppPhone($clientContact->countrycode ?? '', $clientContact->mobile_no);
         }
 
-        $threadLabelIds = \App\Models\EmailThreadLabel::where('thread_id', $email->thread_id)
-            ->when(empty($email->thread_id) && !empty($customerEmail), function($q) use ($customerEmail) {
+        $threadLabelIds = EmailThreadLabel::where('thread_id', $email->thread_id)
+            ->when(empty($email->thread_id) && ! empty($customerEmail), function ($q) use ($customerEmail) {
                 $q->orWhere('email', $customerEmail);
             })
             ->pluck('label_id')
             ->unique()
             ->all();
 
-        $threadLabels = \App\Models\WhatsappChatLabel::whereIn('id', $threadLabelIds)
+        $threadLabels = WhatsappChatLabel::whereIn('id', $threadLabelIds)
             ->ordered()
             ->get(['id', 'name', 'color']);
 
         $threadAccount = null;
-        if (!empty($email->email_configuration_id)) {
+        if (! empty($email->email_configuration_id)) {
             $threadAccount = EmailConfiguration::find($email->email_configuration_id);
         }
-        if (!$threadAccount && session()->has('active_email_account_id')) {
+        if (! $threadAccount && session()->has('active_email_account_id')) {
             $threadAccount = EmailConfiguration::find(session('active_email_account_id'));
         }
-        $allLabels = \App\Models\WhatsappChatLabel::forEmailAccount($threadAccount)->ordered()->get();
+        $allLabels = WhatsappChatLabel::forEmailAccount($threadAccount)->ordered()->get();
 
         if ($request->ajax() || $request->wantsJson()) {
-            $maskEmail = fn(?string $val) => $isSuperAdmin ? (string)$val : mask_email_for_display($val);
-            $maskName = function(?string $name, ?string $fallbackEmail) use ($isSuperAdmin) {
-                if ($isSuperAdmin) return $name ?: $fallbackEmail;
-                if (!empty($name) && filter_var($name, FILTER_VALIDATE_EMAIL)) {
+            $maskEmail = fn (?string $val) => $isSuperAdmin ? (string) $val : mask_email_for_display($val);
+            $maskName = function (?string $name, ?string $fallbackEmail) use ($isSuperAdmin) {
+                if ($isSuperAdmin) {
+                    return $name ?: $fallbackEmail;
+                }
+                if (! empty($name) && filter_var($name, FILTER_VALIDATE_EMAIL)) {
                     return mask_email_for_display($name);
                 }
+
                 return $name ?: mask_email_for_display($fallbackEmail);
             };
 
@@ -887,6 +902,7 @@ class EmailController extends Controller
                     'attachments' => $email->attachments->map(function ($att) {
                         $cleanName = iconv_mime_decode($att->filename, 0, 'UTF-8') ?: $att->filename;
                         $cleanName = trim(preg_replace('/[\r\n\t]+/', ' ', $cleanName));
+
                         return [
                             'id' => $att->id,
                             'filename' => $cleanName,
@@ -923,6 +939,7 @@ class EmailController extends Controller
                         'attachments' => $msg->attachments->map(function ($att) {
                             $cleanName = iconv_mime_decode($att->filename, 0, 'UTF-8') ?: $att->filename;
                             $cleanName = trim(preg_replace('/[\r\n\t]+/', ' ', $cleanName));
+
                             return [
                                 'id' => $att->id,
                                 'filename' => $cleanName,
@@ -942,13 +959,13 @@ class EmailController extends Controller
         $currentAccount = null;
         if ($accountId) {
             $currentAccount = EmailConfiguration::find($accountId);
-        } elseif (!empty($email->email_configuration_id)) {
+        } elseif (! empty($email->email_configuration_id)) {
             $currentAccount = EmailConfiguration::find($email->email_configuration_id);
         } elseif (session()->has('active_email_account_id')) {
             $currentAccount = EmailConfiguration::find(session('active_email_account_id'));
         }
 
-        $allLabels = \App\Models\WhatsappChatLabel::forEmailAccount($currentAccount)->ordered()->get();
+        $allLabels = WhatsappChatLabel::forEmailAccount($currentAccount)->ordered()->get();
 
         $stats = EmailMessage::selectRaw("
             COUNT(CASE WHEN direction = 'inbound' AND folder != 'trash' AND is_read = 0 THEN 1 END) as inbox_count,
@@ -988,10 +1005,10 @@ class EmailController extends Controller
     public function toggleStarById($id)
     {
         $msg = EmailMessage::find($id);
-        if (!$msg) {
+        if (! $msg) {
             return response()->json(['success' => false, 'error' => 'Message not found'], 404);
         }
-        $msg->is_starred = !$msg->is_starred;
+        $msg->is_starred = ! $msg->is_starred;
         $msg->save();
 
         return response()->json(['success' => true, 'is_starred' => $msg->is_starred]);
@@ -1006,6 +1023,7 @@ class EmailController extends Controller
         if ($msg) {
             $msg->update(['folder' => 'trash']);
         }
+
         return response()->json(['success' => true, 'message' => 'Email moved to Trash']);
     }
 
@@ -1015,7 +1033,7 @@ class EmailController extends Controller
     public function replyToMessage(Request $request, $id)
     {
         $parent = EmailMessage::find($id);
-        if (!$parent) {
+        if (! $parent) {
             return response()->json(['success' => false, 'message' => 'Message not found'], 404);
         }
 
@@ -1026,7 +1044,7 @@ class EmailController extends Controller
 
         // Determine recipient & subject
         $to = $parent->from_email;
-        $subject = 'Re: ' . preg_replace('/^(Re:\s*)+/i', '', $parent->subject ?? '(No Subject)');
+        $subject = 'Re: '.preg_replace('/^(Re:\s*)+/i', '', $parent->subject ?? '(No Subject)');
 
         try {
             $files = $request->file('attachments', $request->file('files', []));
@@ -1047,6 +1065,7 @@ class EmailController extends Controller
             return response()->json(['success' => true, 'message' => 'Reply delivered successfully!']);
         } catch (\Exception $e) {
             \Log::error('Email reply failed.', ['error' => $e->getMessage()]);
+
             return response()->json(['success' => false, 'message' => 'Reply delivery failed. Check the account connection.'], 500);
         }
     }
@@ -1060,7 +1079,9 @@ class EmailController extends Controller
         $validated = $request->validate([
             'to' => ['required', 'string', 'max:2000', function ($attribute, $value, $fail) {
                 foreach (array_filter(array_map('trim', explode(',', $value))) as $email) {
-                    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) $fail("Invalid recipient: {$email}");
+                    if (! filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                        $fail("Invalid recipient: {$email}");
+                    }
                 }
             }],
             'cc' => 'nullable|string|max:2000',
@@ -1106,10 +1127,11 @@ class EmailController extends Controller
                 'message_id' => $emailMsg->id,
             ]);
         } catch (\Exception $e) {
-            \Log::error('Send Email Controller Error: ' . $e->getMessage());
+            \Log::error('Send Email Controller Error: '.$e->getMessage());
+
             return response()->json([
                 'success' => false,
-                'error' => 'Email delivery failed: ' . $e->getMessage(),
+                'error' => 'Email delivery failed: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -1138,8 +1160,8 @@ class EmailController extends Controller
             $draftsCount = EmailMessage::where(function ($q) {
                 $q->where('folder', 'drafts')->orWhere('is_draft', true);
             })->where('folder', '!=', 'trash')
-              ->when($accountId, fn ($q) => $q->where('email_configuration_id', (int) $accountId))
-              ->count();
+                ->when($accountId, fn ($q) => $q->where('email_configuration_id', (int) $accountId))
+                ->count();
 
             return response()->json([
                 'success' => true,
@@ -1150,9 +1172,10 @@ class EmailController extends Controller
             ]);
         } catch (\Exception $e) {
             \Log::error('Email draft save failed.', ['error' => $e->getMessage()]);
+
             return response()->json([
                 'success' => false,
-                'error' => 'Could not save the draft: ' . $e->getMessage(),
+                'error' => 'Could not save the draft: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -1165,11 +1188,11 @@ class EmailController extends Controller
         $id = $request->input('id');
         $msg = EmailMessage::find($id);
 
-        if (!$msg) {
+        if (! $msg) {
             return response()->json(['success' => false, 'error' => 'Message not found'], 404);
         }
 
-        $msg->is_starred = !$msg->is_starred;
+        $msg->is_starred = ! $msg->is_starred;
         $msg->save();
 
         return response()->json([
@@ -1188,7 +1211,7 @@ class EmailController extends Controller
         $ids = $request->input('ids');
         $isRead = $request->boolean('is_read', true);
 
-        if (!empty($ids) && is_array($ids)) {
+        if (! empty($ids) && is_array($ids)) {
             EmailMessage::whereIn('id', $ids)->update(['is_read' => $isRead]);
         } elseif ($threadId) {
             EmailMessage::where('thread_id', $threadId)->update(['is_read' => $isRead]);
@@ -1209,7 +1232,7 @@ class EmailController extends Controller
         $threadId = $request->input('thread_id');
         $permanent = $request->input('permanent', false);
 
-        if (!empty($ids) && is_array($ids)) {
+        if (! empty($ids) && is_array($ids)) {
             if ($permanent) {
                 $msgs = EmailMessage::whereIn('id', $ids)->with('attachments')->get();
                 foreach ($msgs as $m) {
@@ -1256,9 +1279,10 @@ class EmailController extends Controller
     public function archive(Request $request)
     {
         $ids = $request->input('ids', $request->input('id') ? [$request->input('id')] : []);
-        if (!empty($ids)) {
-            EmailMessage::whereIn('id', (array)$ids)->update(['folder' => 'archive']);
+        if (! empty($ids)) {
+            EmailMessage::whereIn('id', (array) $ids)->update(['folder' => 'archive']);
         }
+
         return response()->json(['success' => true, 'message' => 'Conversation archived']);
     }
 
@@ -1269,10 +1293,11 @@ class EmailController extends Controller
     {
         $ids = $request->input('ids', $request->input('id') ? [$request->input('id')] : []);
         $folder = $request->input('folder', 'inbox');
-        if (!empty($ids)) {
-            EmailMessage::whereIn('id', (array)$ids)->update(['folder' => $folder]);
+        if (! empty($ids)) {
+            EmailMessage::whereIn('id', (array) $ids)->update(['folder' => $folder]);
         }
-        return response()->json(['success' => true, 'message' => 'Conversation moved to ' . ucfirst($folder)]);
+
+        return response()->json(['success' => true, 'message' => 'Conversation moved to '.ucfirst($folder)]);
     }
 
     /**
@@ -1282,9 +1307,10 @@ class EmailController extends Controller
     {
         $ids = $request->input('ids', []);
         $restoreFolder = $request->input('folder', 'inbox');
-        if (!empty($ids)) {
-            EmailMessage::whereIn('id', (array)$ids)->update(['folder' => $restoreFolder]);
+        if (! empty($ids)) {
+            EmailMessage::whereIn('id', (array) $ids)->update(['folder' => $restoreFolder]);
         }
+
         return response()->json(['success' => true, 'message' => 'Action undone']);
     }
 
@@ -1297,16 +1323,16 @@ class EmailController extends Controller
         $labelId = $request->input('label_id');
         $action = $request->input('action', 'add'); // 'add' or 'remove'
 
-        if (!empty($ids) && $labelId) {
+        if (! empty($ids) && $labelId) {
             $emails = EmailMessage::whereIn('id', $ids)->get();
             $handledCustomers = [];
             foreach ($emails as $email) {
                 $targetEmail = $email->customer_email ?: $email->from_email;
                 $cleanTargetEmail = EmailMessage::extractCleanEmail($targetEmail);
-                $threadId = $email->thread_id ?: ('legacy_' . $email->id);
+                $threadId = $email->thread_id ?: ('legacy_'.$email->id);
 
                 if ($action === 'add') {
-                    \App\Models\EmailThreadLabel::firstOrCreate([
+                    EmailThreadLabel::firstOrCreate([
                         'thread_id' => $threadId,
                         'label_id' => (int) $labelId,
                         'email' => $cleanTargetEmail,
@@ -1314,8 +1340,8 @@ class EmailController extends Controller
                         'assigned_by' => auth()->id(),
                     ]);
                 } else {
-                    \App\Models\EmailThreadLabel::where('label_id', $labelId)
-                        ->where(function($q) use ($threadId, $cleanTargetEmail) {
+                    EmailThreadLabel::where('label_id', $labelId)
+                        ->where(function ($q) use ($threadId, $cleanTargetEmail) {
                             $q->where('thread_id', $threadId);
                             if ($cleanTargetEmail) {
                                 $q->orWhere('email', $cleanTargetEmail);
@@ -1324,21 +1350,22 @@ class EmailController extends Controller
                 }
 
                 // Cross-sync if we have customer email and haven't already processed it in this bulk operation
-                if ($cleanTargetEmail && !in_array($cleanTargetEmail, $handledCustomers)) {
+                if ($cleanTargetEmail && ! in_array($cleanTargetEmail, $handledCustomers)) {
                     $handledCustomers[] = $cleanTargetEmail;
-                    $currentLabels = \App\Models\EmailThreadLabel::where(function($q) use ($threadId, $cleanTargetEmail) {
+                    $currentLabels = EmailThreadLabel::where(function ($q) use ($threadId, $cleanTargetEmail) {
                         $q->where('thread_id', $threadId)
-                          ->orWhere('email', $cleanTargetEmail);
+                            ->orWhere('email', $cleanTargetEmail);
                     })->pluck('label_id')->unique()->all();
 
                     try {
-                        app(\App\Services\LabelSyncService::class)->syncEmailToWhatsApp($cleanTargetEmail, $threadId, $currentLabels, auth()->id());
+                        app(LabelSyncService::class)->syncEmailToWhatsApp($cleanTargetEmail, $threadId, $currentLabels, auth()->id());
                     } catch (\Throwable $e) {
-                        \Log::warning('Bulk label cross-sync failed: ' . $e->getMessage());
+                        \Log::warning('Bulk label cross-sync failed: '.$e->getMessage());
                     }
                 }
             }
         }
+
         return response()->json(['success' => true, 'message' => 'Labels updated']);
     }
 
@@ -1353,7 +1380,8 @@ class EmailController extends Controller
         if (empty($clean)) {
             $clean = trim(preg_replace('/\s+/', ' ', strip_tags($msg->body_plain ?: $msg->body_html)));
         }
-        return \Illuminate\Support\Str::limit($clean, $limit);
+
+        return Str::limit($clean, $limit);
     }
 
     /**
@@ -1368,7 +1396,9 @@ class EmailController extends Controller
     protected function formatIsolatedBodyHtml($html, $plain = null)
     {
         $str = $html ?: ($plain ? nl2br(e($plain)) : '');
-        if (empty($str)) return '';
+        if (empty($str)) {
+            return '';
+        }
 
         // 1. Strip IMAP protocol line artifacts at start and end
         $str = preg_replace('/^\s*\*\s*\d+\s+FETCH\s*\([^\r\n]*\r?\n?/i', '', $str);
@@ -1382,7 +1412,7 @@ class EmailController extends Controller
         }
 
         // 3. Fix residual corrupted Quoted-Printable artifacts
-        $str = str_replace(["=3D", "3D\"", "'3D\"", "3D%22"], ["=", "\"", "\"", ""], $str);
+        $str = str_replace(['=3D', '3D"', "'3D\"", '3D%22'], ['=', '"', '"', ''], $str);
         $str = preg_replace('/%22(?=\s|>|"|\')/', '', $str);
 
         // 4. Fix broken attribute quotes and split words from raw fetch
@@ -1437,11 +1467,12 @@ class EmailController extends Controller
         $str = preg_replace('/([a-zA-Z0-9_-]+)=[\'"]+"([^\'"]+)"[\'"]+/i', '$1="$2"', $str);
 
         // 7. Decode escaped HTML tags like &lt;b&gt;, &lt;/b&gt;, &lt;/tr&gt;, &lt;/html&gt;
-        $str = preg_replace_callback('/&lt;(\/?[a-zA-Z0-9_-]+(?:[\s\S]*?)?)&gt;/i', function($m) {
+        $str = preg_replace_callback('/&lt;(\/?[a-zA-Z0-9_-]+(?:[\s\S]*?)?)&gt;/i', function ($m) {
             $inner = $m[1];
             if (preg_match('/^\/?(html|body|head|table|tbody|thead|tr|td|th|p|div|span|b|strong|i|em|u|br|hr|img|a)(?:\s+[^>]*)?$/i', $inner)) {
-                return '<' . $inner . '>';
+                return '<'.$inner.'>';
             }
+
             return $m[0];
         }, $str);
 
@@ -1461,8 +1492,8 @@ class EmailController extends Controller
         if (stripos($str, 'gmail_quote') === false) {
             $pattern = '/(?=(?:<div[^>]*>|<p[^>]*>|<br\s*\/?>|\n|^)\s*(?:On\s+[\s\S]*?wrote:|-----Original Message-----|From:\s+[\s\S]*?Sent:))/iu';
             $parts = preg_split($pattern, $str, 2);
-            if (is_array($parts) && count($parts) === 2 && !empty(trim(strip_tags($parts[0])))) {
-                $str = $parts[0] . '<div class="gmail_quote">' . $parts[1] . '</div>';
+            if (is_array($parts) && count($parts) === 2 && ! empty(trim(strip_tags($parts[0])))) {
+                $str = $parts[0].'<div class="gmail_quote">'.$parts[1].'</div>';
             }
         }
 
@@ -1484,7 +1515,7 @@ class EmailController extends Controller
         $accountId = $account?->id;
         $dispatchKey = 'email-sync-lock-'.($accountId ?: 'all');
 
-        if (!Cache::add($dispatchKey, true, now()->addSeconds(6))) {
+        if (! Cache::add($dispatchKey, true, now()->addSeconds(6))) {
             return response()->json([
                 'status' => 'busy',
                 'message' => 'Sync already in progress.',
@@ -1519,7 +1550,8 @@ class EmailController extends Controller
                 'writer_unread' => $writerUnread,
             ]);
         } catch (\Throwable $e) {
-            \Log::error('Email sync error: ' . $e->getMessage());
+            \Log::error('Email sync error: '.$e->getMessage());
+
             return response()->json([
                 'status' => 'error',
                 'message' => $e->getMessage(),
@@ -1540,6 +1572,7 @@ class EmailController extends Controller
             $command = 'start /B "" "'.str_replace('"', '""', $php).'" "'
                 .str_replace('"', '""', $artisan).'" email:sync'.$accountOption.' >NUL 2>&1';
             @pclose(@popen($command, 'r'));
+
             return;
         }
 
@@ -1558,7 +1591,7 @@ class EmailController extends Controller
             return $path;
         }
 
-        $legacyPath = storage_path('app/public/' . $attachment->file_path);
+        $legacyPath = storage_path('app/public/'.$attachment->file_path);
         if (file_exists($legacyPath)) {
             return $legacyPath;
         }
@@ -1580,8 +1613,8 @@ class EmailController extends Controller
             $textColor = imagecolorallocate($im, 60, 64, 67);
             $subColor = imagecolorallocate($im, 128, 134, 139);
             imagestring($im, 5, 20, 120, $cleanFilename, $textColor);
-            imagestring($im, 4, 20, 150, "Size: " . ($attachment->formatted_size ?: 'Image'), $subColor);
-            imagestring($im, 3, 20, 180, "Assignment In Need - Attachment", $subColor);
+            imagestring($im, 4, 20, 150, 'Size: '.($attachment->formatted_size ?: 'Image'), $subColor);
+            imagestring($im, 3, 20, 180, 'Assignment In Need - Attachment', $subColor);
             imagepng($im, $path);
             imagedestroy($im);
         } else {
@@ -1621,7 +1654,7 @@ class EmailController extends Controller
 
         return response()->file($path, [
             'Content-Type' => $mime,
-            'Content-Disposition' => 'inline; filename="' . addslashes($cleanFilename) . '"',
+            'Content-Disposition' => 'inline; filename="'.addslashes($cleanFilename).'"',
         ]);
     }
 
@@ -1632,9 +1665,9 @@ class EmailController extends Controller
     {
         $attachment = EmailAttachment::findOrFail($id);
         $path = Storage::disk('local')->path($attachment->file_path);
-        if (!file_exists($path)) {
-            $legacyPath = storage_path('app/public/' . $attachment->file_path);
-            if (!file_exists($legacyPath)) {
+        if (! file_exists($path)) {
+            $legacyPath = storage_path('app/public/'.$attachment->file_path);
+            if (! file_exists($legacyPath)) {
                 return response()->json(['success' => false, 'message' => 'Attachment file not found on disk'], 404);
             }
             $path = $legacyPath;
@@ -1657,12 +1690,12 @@ class EmailController extends Controller
                 if ($raw !== false) {
                     $enc = mb_detect_encoding($raw, 'UTF-8, ISO-8859-1, Windows-1252', true) ?: 'UTF-8';
                     $encoded = mb_convert_encoding($raw, 'UTF-8', $enc);
-                    $html = '<pre style="white-space: pre-wrap; font-family: monospace; font-size: 13px; color: #202124;">' . htmlspecialchars($encoded) . '</pre>';
+                    $html = '<pre style="white-space: pre-wrap; font-family: monospace; font-size: 13px; color: #202124;">'.htmlspecialchars($encoded).'</pre>';
                 }
             } else {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Direct text preview not supported for .' . $ext . ' files.',
+                    'message' => 'Direct text preview not supported for .'.$ext.' files.',
                 ]);
             }
 
@@ -1672,17 +1705,18 @@ class EmailController extends Controller
                 'html' => $html,
             ]);
         } catch (\Exception $e) {
-            \Log::error('previewAttachmentHtml error: ' . $e->getMessage());
+            \Log::error('previewAttachmentHtml error: '.$e->getMessage());
+
             return response()->json([
                 'success' => false,
-                'message' => 'Error generating document preview: ' . $e->getMessage(),
+                'message' => 'Error generating document preview: '.$e->getMessage(),
             ], 500);
         }
     }
 
     private function extractDocxHtml(string $filePath): string
     {
-        $zip = new \ZipArchive();
+        $zip = new \ZipArchive;
         if ($zip->open($filePath) !== true) {
             return '<p class="text-muted">Unable to open Word archive.</p>';
         }
@@ -1690,15 +1724,17 @@ class EmailController extends Controller
         $xmlContent = $zip->getFromName('word/document.xml');
         $zip->close();
 
-        if (!$xmlContent) {
+        if (! $xmlContent) {
             return '<p class="text-muted">Empty or unreadable Word document.</p>';
         }
 
-        $dom = new \DOMDocument();
+        $dom = new \DOMDocument;
         @$dom->loadXML($xmlContent, LIBXML_NOENT | LIBXML_XINCLUDE | LIBXML_NOERROR | LIBXML_NOWARNING);
 
         $body = $dom->getElementsByTagName('body')->item(0);
-        if (!$body) return '<p class="text-muted">No document body content found.</p>';
+        if (! $body) {
+            return '<p class="text-muted">No document body content found.</p>';
+        }
 
         $html = '';
         foreach ($body->childNodes as $node) {
@@ -1716,9 +1752,9 @@ class EmailController extends Controller
                 $trimmed = trim($pText);
                 if ($trimmed !== '') {
                     if ($isHeading) {
-                        $html .= '<h3 style="margin: 20px 0 10px; color: #1a73e8; font-weight: 700;">' . $pText . '</h3>';
+                        $html .= '<h3 style="margin: 20px 0 10px; color: #1a73e8; font-weight: 700;">'.$pText.'</h3>';
                     } else {
-                        $html .= '<p style="margin-bottom: 12px; line-height: 1.65; color: #202124;">' . $pText . '</p>';
+                        $html .= '<p style="margin-bottom: 12px; line-height: 1.65; color: #202124;">'.$pText.'</p>';
                     }
                 }
             } elseif ($node->nodeName === 'w:tbl') {
@@ -1728,9 +1764,9 @@ class EmailController extends Controller
                     foreach ($tr->getElementsByTagName('tc') as $tc) {
                         $tcText = '';
                         foreach ($tc->getElementsByTagName('t') as $t) {
-                            $tcText .= htmlspecialchars($t->nodeValue) . ' ';
+                            $tcText .= htmlspecialchars($t->nodeValue).' ';
                         }
-                        $html .= '<td style="border: 1px solid #dee2e6; padding: 8px 12px; vertical-align: top;">' . trim($tcText) . '</td>';
+                        $html .= '<td style="border: 1px solid #dee2e6; padding: 8px 12px; vertical-align: top;">'.trim($tcText).'</td>';
                     }
                     $html .= '</tr>';
                 }
@@ -1743,43 +1779,52 @@ class EmailController extends Controller
 
     private function extractOdtHtml(string $filePath): string
     {
-        $zip = new \ZipArchive();
-        if ($zip->open($filePath) !== true) return '<p class="text-muted">Unable to open ODT archive.</p>';
+        $zip = new \ZipArchive;
+        if ($zip->open($filePath) !== true) {
+            return '<p class="text-muted">Unable to open ODT archive.</p>';
+        }
         $xmlContent = $zip->getFromName('content.xml');
         $zip->close();
-        if (!$xmlContent) return '<p class="text-muted">Empty ODT document.</p>';
+        if (! $xmlContent) {
+            return '<p class="text-muted">Empty ODT document.</p>';
+        }
 
-        $dom = new \DOMDocument();
+        $dom = new \DOMDocument;
         @$dom->loadXML($xmlContent, LIBXML_NOENT | LIBXML_NOERROR | LIBXML_NOWARNING);
 
         $html = '';
         foreach ($dom->getElementsByTagName('p') as $p) {
             $text = htmlspecialchars(trim($p->nodeValue));
             if ($text !== '') {
-                $html .= '<p style="margin-bottom: 12px; line-height: 1.65; color: #202124;">' . $text . '</p>';
+                $html .= '<p style="margin-bottom: 12px; line-height: 1.65; color: #202124;">'.$text.'</p>';
             }
         }
+
         return $html ?: '<p class="text-muted">No text found in ODT file.</p>';
     }
 
     private function extractDocHtml(string $filePath): string
     {
         $content = @file_get_contents($filePath);
-        if (!$content) return '<p class="text-muted">Empty file.</p>';
+        if (! $content) {
+            return '<p class="text-muted">Empty file.</p>';
+        }
 
         $lines = [];
         if (preg_match_all('/(?:[\x20-\x7E]\x00){4,}/s', $content, $matches)) {
             foreach ($matches[0] as $match) {
                 $decoded = mb_convert_encoding($match, 'UTF-8', 'UTF-16LE');
                 $clean = trim($decoded);
-                if (strlen($clean) > 3) $lines[] = htmlspecialchars($clean);
+                if (strlen($clean) > 3) {
+                    $lines[] = htmlspecialchars($clean);
+                }
             }
         }
         if (empty($lines)) {
             if (preg_match_all('/[\x20-\x7E\t\r\n]{4,}/', $content, $matches)) {
                 foreach ($matches[0] as $match) {
                     $clean = trim($match);
-                    if (strlen($clean) > 3 && !preg_match('/^[^\w\s]+$/', $clean)) {
+                    if (strlen($clean) > 3 && ! preg_match('/^[^\w\s]+$/', $clean)) {
                         $lines[] = htmlspecialchars($clean);
                     }
                 }
@@ -1788,7 +1833,8 @@ class EmailController extends Controller
         if (empty($lines)) {
             return '<p class="text-muted">Unable to extract readable text from binary .doc format. Please click Download to view in Microsoft Word.</p>';
         }
-        return '<p style="margin-bottom: 12px; line-height: 1.65; color: #202124;">' . implode('</p><p style="margin-bottom: 12px; line-height: 1.65; color: #202124;">', $lines) . '</p>';
+
+        return '<p style="margin-bottom: 12px; line-height: 1.65; color: #202124;">'.implode('</p><p style="margin-bottom: 12px; line-height: 1.65; color: #202124;">', $lines).'</p>';
     }
 
     /**
@@ -1798,7 +1844,7 @@ class EmailController extends Controller
     {
         $secret = (string) config('mail.inbound_webhook_secret');
         $provided = (string) ($request->header('X-Email-Webhook-Secret') ?: $request->input('webhook_secret'));
-        if ($secret === '' || !hash_equals($secret, $provided)) {
+        if ($secret === '' || ! hash_equals($secret, $provided)) {
             abort(401, 'Invalid inbound email webhook signature.');
         }
         $payload = $request->all();
@@ -1955,13 +2001,13 @@ class EmailController extends Controller
             'from_name' => $validated['from_name'] ?? $validated['name'],
             'driver' => $validated['driver'],
             'host' => $validated['host'] ?? null,
-            'port' => (int)($validated['port'] ?? 587),
+            'port' => (int) ($validated['port'] ?? 587),
             'encryption' => $validated['encryption'] ?? 'tls',
             'username' => $validated['username'] ?? null,
             'password' => $validated['password'] ?? null,
             'incoming_protocol' => $validated['incoming_protocol'] ?? 'imap',
             'incoming_host' => $validated['incoming_host'] ?? null,
-            'incoming_port' => (int)($validated['incoming_port'] ?? 993),
+            'incoming_port' => (int) ($validated['incoming_port'] ?? 993),
             'incoming_encryption' => $validated['incoming_encryption'] ?? 'ssl',
             'incoming_username' => $validated['incoming_username'] ?? null,
             'incoming_password' => $validated['incoming_password'] ?? null,
@@ -1982,7 +2028,7 @@ class EmailController extends Controller
     {
         $source = EmailConfiguration::findOrFail($id);
 
-        $copyName = $request->input('name') ?: ($source->name . ' (Copy)');
+        $copyName = $request->input('name') ?: ($source->name.' (Copy)');
         $copyEmail = $request->input('email_address') ?: $source->email_address;
 
         $cloned = EmailConfiguration::create([
@@ -2049,22 +2095,22 @@ class EmailController extends Controller
             'from_name' => $validated['from_name'] ?? $validated['name'],
             'driver' => $validated['driver'],
             'host' => $validated['host'] ?? null,
-            'port' => (int)($validated['port'] ?? 587),
+            'port' => (int) ($validated['port'] ?? 587),
             'encryption' => $validated['encryption'] ?? 'tls',
             'username' => $validated['username'] ?? null,
             'incoming_protocol' => $validated['incoming_protocol'] ?? 'imap',
             'incoming_host' => $validated['incoming_host'] ?? null,
-            'incoming_port' => (int)($validated['incoming_port'] ?? 993),
+            'incoming_port' => (int) ($validated['incoming_port'] ?? 993),
             'incoming_encryption' => $validated['incoming_encryption'] ?? 'ssl',
             'incoming_username' => $validated['incoming_username'] ?? null,
             'is_default' => $request->boolean('is_default'),
             'is_active' => $request->boolean('is_active'),
         ];
 
-        if (!empty($validated['password'])) {
+        if (! empty($validated['password'])) {
             $updateData['password'] = $validated['password'];
         }
-        if (!empty($validated['incoming_password'])) {
+        if (! empty($validated['incoming_password'])) {
             $updateData['incoming_password'] = $validated['incoming_password'];
         }
 
@@ -2101,12 +2147,14 @@ class EmailController extends Controller
 
         try {
             $this->emailService->testConnections($config);
+
             return response()->json([
                 'success' => true,
                 'message' => "SMTP and IMAP authentication succeeded for '{$config->name}'.",
             ]);
         } catch (\Throwable $e) {
             \Log::warning('Email connection test failed.', ['configuration_id' => $config->id, 'error' => $e->getMessage()]);
+
             return response()->json([
                 'success' => false,
                 'message' => 'SMTP or IMAP authentication failed. Verify the server, port, encryption and credentials.',
@@ -2135,13 +2183,13 @@ class EmailController extends Controller
             $emailMsg = EmailMessage::where('thread_id', $threadId)->first();
         }
 
-        if (!$customerEmail && $emailMsg) {
+        if (! $customerEmail && $emailMsg) {
             $customerEmail = $emailMsg->customer_email;
         }
 
         // Make sure customerEmail is NOT one of our configured system email accounts
         $configuredEmails = EmailConfiguration::pluck('email_address')
-            ->map(fn($e) => strtolower(trim($e)))
+            ->map(fn ($e) => strtolower(trim($e)))
             ->filter()
             ->all();
 
@@ -2168,12 +2216,12 @@ class EmailController extends Controller
         // Cross-channel sync: update email labels and mirror to WhatsApp
         $syncedPhones = [];
         try {
-            $syncedPhones = app(\App\Services\LabelSyncService::class)->syncEmailToWhatsApp($customerEmail ?: '', $threadId ?: null, $labelIds, auth()->id());
+            $syncedPhones = app(LabelSyncService::class)->syncEmailToWhatsApp($customerEmail ?: '', $threadId ?: null, $labelIds, auth()->id());
         } catch (\Throwable $e) {
-            \Log::warning('Failed to sync Email labels to WhatsApp: ' . $e->getMessage());
+            \Log::warning('Failed to sync Email labels to WhatsApp: '.$e->getMessage());
         }
 
-        $activeLabels = \App\Models\WhatsappChatLabel::forEmail()->whereIn('id', $labelIds)->ordered()->get(['id', 'name', 'color']);
+        $activeLabels = WhatsappChatLabel::forEmail()->whereIn('id', $labelIds)->ordered()->get(['id', 'name', 'color']);
 
         return response()->json([
             'success' => true,
@@ -2193,11 +2241,11 @@ class EmailController extends Controller
             return response()->json(['users' => []]);
         }
 
-        $users = \App\Models\User::query()
+        $users = User::query()
             ->where(function ($q) use ($query) {
                 $q->where('name', 'like', "%{$query}%")
-                  ->orWhere('email', 'like', "%{$query}%")
-                  ->orWhere('mobile_no', 'like', "%{$query}%");
+                    ->orWhere('email', 'like', "%{$query}%")
+                    ->orWhere('mobile_no', 'like', "%{$query}%");
             })
             ->whereNotNull('email')
             ->where('email', '!=', '')
@@ -2205,11 +2253,11 @@ class EmailController extends Controller
             ->limit(10)
             ->get();
 
-        $leadEmails = \App\Models\Leads::query()
+        $leadEmails = Leads::query()
             ->where(function ($q) use ($query) {
                 $q->where('user_name', 'like', "%{$query}%")
-                  ->orWhere('email', 'like', "%{$query}%")
-                  ->orWhere('mobile', 'like', "%{$query}%");
+                    ->orWhere('email', 'like', "%{$query}%")
+                    ->orWhere('mobile', 'like', "%{$query}%");
             })
             ->whereNotNull('email')
             ->where('email', '!=', '')
@@ -2225,10 +2273,11 @@ class EmailController extends Controller
             ->map(function ($item) use ($isSuperAdmin) {
                 $realEmail = $item->email;
                 $item->display_email = $isSuperAdmin ? $realEmail : mask_email_for_display($realEmail);
-                if (!$isSuperAdmin) {
+                if (! $isSuperAdmin) {
                     $item->mobile_no = $item->mobile_no ? mask_mobile_only(null, $item->mobile_no) : '';
                 }
                 $item->email = $realEmail;
+
                 return $item;
             })
             ->values();
@@ -2266,7 +2315,7 @@ class EmailController extends Controller
         }
 
         if ($request->boolean('from_me') || $request->input('from_me') === '1') {
-            $emailQuery->where(function($q) {
+            $emailQuery->where(function ($q) {
                 $q->where('direction', 'outbound')->orWhere('folder', 'sent');
             });
         }
@@ -2274,7 +2323,7 @@ class EmailController extends Controller
         if ($request->input('date_range') === 'last_7_days') {
             $emailQuery->where(function ($q) {
                 $q->where('received_at', '>=', now()->subDays(7))
-                  ->orWhere('created_at', '>=', now()->subDays(7));
+                    ->orWhere('created_at', '>=', now()->subDays(7));
             });
         }
 
@@ -2304,7 +2353,7 @@ class EmailController extends Controller
                             ->orWhere('mobile_no', 'like', "%{$query}%");
                         foreach ($terms as $t) {
                             $userQuery->orWhere('name', 'like', "%{$t}%")
-                                      ->orWhere('email', 'like', "%{$t}%");
+                                ->orWhere('email', 'like', "%{$t}%");
                         }
                     })
                     ->whereNotNull('email')
@@ -2325,9 +2374,9 @@ class EmailController extends Controller
                     ->orWhere('cc', 'like', $like)
                     ->orWhere('bcc', 'like', $like);
 
-                if (!empty($matchingContactEmails)) {
+                if (! empty($matchingContactEmails)) {
                     $deepQuery->orWhereIn('from_email', $matchingContactEmails)
-                              ->orWhereIn('to_email', $matchingContactEmails);
+                        ->orWhereIn('to_email', $matchingContactEmails);
                 }
 
                 if ($terms->count() > 1) {
@@ -2336,12 +2385,12 @@ class EmailController extends Controller
                             $termLike = (strpos($term, '*') !== false) ? preg_replace('/\*+/', '%', $term) : "%{$term}%";
                             $subQ->where(function ($fq) use ($termLike) {
                                 $fq->where('subject', 'like', $termLike)
-                                   ->orWhere('from_name', 'like', $termLike)
-                                   ->orWhere('from_email', 'like', $termLike)
-                                   ->orWhere('to_name', 'like', $termLike)
-                                   ->orWhere('to_email', 'like', $termLike)
-                                   ->orWhere('cc', 'like', $termLike)
-                                   ->orWhere('bcc', 'like', $termLike);
+                                    ->orWhere('from_name', 'like', $termLike)
+                                    ->orWhere('from_email', 'like', $termLike)
+                                    ->orWhere('to_name', 'like', $termLike)
+                                    ->orWhere('to_email', 'like', $termLike)
+                                    ->orWhere('cc', 'like', $termLike)
+                                    ->orWhere('bcc', 'like', $termLike);
                             });
                         }
                     });
@@ -2357,7 +2406,7 @@ class EmailController extends Controller
         $messages = $emailQuery->orderByDesc('id')
             ->select([
                 'id', 'thread_id', 'subject', 'from_name', 'from_email', 'to_name', 'to_email',
-                'direction', 'has_attachments', 'received_at', 'created_at', 'is_read', 'email_configuration_id'
+                'direction', 'has_attachments', 'received_at', 'created_at', 'is_read', 'email_configuration_id',
             ])
             ->take(30)
             ->get()
@@ -2378,7 +2427,7 @@ class EmailController extends Controller
             $fallbackMessages = $fallbackQuery->orderByDesc('id')
                 ->select([
                     'id', 'thread_id', 'subject', 'from_name', 'from_email', 'to_name', 'to_email',
-                    'direction', 'has_attachments', 'received_at', 'created_at', 'is_read', 'email_configuration_id'
+                    'direction', 'has_attachments', 'received_at', 'created_at', 'is_read', 'email_configuration_id',
                 ])
                 ->take(10)
                 ->get()
@@ -2393,7 +2442,7 @@ class EmailController extends Controller
             return response()->json([
                 'success' => true,
                 'query' => $query,
-                'results' => []
+                'results' => [],
             ]);
         }
 
@@ -2415,17 +2464,17 @@ class EmailController extends Controller
             // Participant display: like Gmail "Kriti Hinger, me" (masked for non-admin)
             $displayFromEmail = $isSuperAdmin ? $msg->from_email : mask_email_for_display($msg->from_email);
             $fromPart = $msg->from_name ?: explode('@', (string) $displayFromEmail)[0];
-            if (!$isSuperAdmin && filter_var($msg->from_name, FILTER_VALIDATE_EMAIL)) {
+            if (! $isSuperAdmin && filter_var($msg->from_name, FILTER_VALIDATE_EMAIL)) {
                 $fromPart = mask_email_for_display($msg->from_name);
             }
             $participants = $fromPart;
             if ($msg->direction === 'outbound') {
                 $displayToEmail = $isSuperAdmin ? $msg->to_email : mask_email_for_display($msg->to_email);
                 $toPart = $msg->to_name ?: explode('@', (string) $displayToEmail)[0];
-                if (!$isSuperAdmin && filter_var($msg->to_name, FILTER_VALIDATE_EMAIL)) {
+                if (! $isSuperAdmin && filter_var($msg->to_name, FILTER_VALIDATE_EMAIL)) {
                     $toPart = mask_email_for_display($msg->to_name);
                 }
-                $participants = "me, " . ($toPart ?: 'recipient');
+                $participants = 'me, '.($toPart ?: 'recipient');
             }
 
             return [
