@@ -683,7 +683,8 @@
             if (result.isConfirmed) {
                 $.ajax({
                     type: 'POST',
-                    url: 'update_status',
+                    // mk 6/10/2026: Use named route to avoid 404 errors on subpaths/trailing slashes
+                    url: '{{ route('update_status') }}',
                     data: {
                         orderId: orderId,
                         status: result.value.status, // Directly sending status string
@@ -723,6 +724,14 @@
             }
         });
     }
+
+    // mk 6/10/2026: Auto-refresh orders list when returning from payment tab
+    window.addEventListener('focus', function() {
+        if (localStorage.getItem('order_payment_synced')) {
+            localStorage.removeItem('order_payment_synced');
+            location.reload();
+        }
+    });
 </script>
 <script>
     function updateDeliveryDate(orderId) {

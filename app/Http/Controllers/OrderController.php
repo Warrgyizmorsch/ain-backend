@@ -25,10 +25,11 @@ use App\Models\Ordercall;
 use App\Models\ProjectStatusCount;
 use App\Models\FollowUpComment;
 use Illuminate\Pagination\Paginator;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use App\Mail\OrderComplete;
-use Mail;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\Support\Str;
@@ -38,6 +39,7 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use App\Jobs\ExportOrdersJob;
 use Illuminate\Support\Facades\Log;
+
 use Illuminate\Pagination\LengthAwarePaginator;
 
 
@@ -229,6 +231,7 @@ class OrderController extends Controller
         }
     }
 
+    // FIX: Calculate remaining due accurately with live payments fallback
     private function dueAmount(Order $order): float
     {
         $extraPrice = 0.0;
@@ -241,8 +244,29 @@ class OrderController extends Controller
                 ->sum('additional_price');
         }
 
+        $receivedAmount = 0.0;
+        if ($order->relationLoaded('payment') && $order->payment && $order->payment->count() > 0) {
+            $receivedAmount = (float) $order->received_amount;
+        } else {
+            // Check live sum from payment_details table to prevent stale received_amount column issues
+            $livePaid = (float) DB::table('payment_details')
+                ->where(function ($q) use ($order) {
+                    $q->where('order_id', (string) $order->id)
+                      ->orWhere('order_id', (string) $order->order_id);
+                })
+                ->where(function ($q) {
+                    $q->where('is_revoked', 0)->orWhereNull('is_revoked');
+                })
+                ->sum('paid_amount');
+            $receivedAmount = max((float) $order->received_amount, $livePaid);
+            if ($livePaid > (float) $order->received_amount) {
+                $order->received_amount = $livePaid;
+                $order->saveQuietly();
+            }
+        }
+
         $totalAmount = (float) $order->amount + $extraPrice;
-        return round(max(0, $totalAmount - (float) $order->received_amount), 2);
+        return round(max(0, $totalAmount - $receivedAmount), 2);
     }
 
 
@@ -323,8 +347,8 @@ class OrderController extends Controller
         $filePath = $exportStatus['file_path'] ?? null;
         abort_unless($filePath && Storage::disk('public')->exists($filePath), 404, 'Export file has expired.');
 
-        return Storage::disk('public')->download(
-            $filePath,
+        return response()->download(
+            storage_path('app/public/' . $filePath),
             basename($filePath),
             ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']
         );
@@ -3369,11 +3393,17 @@ class OrderController extends Controller
                 return response()->json(['error' => 'Status category not found in database']);
             }
 
+            // FIX: Separate Order and User validation with clear, distinct error messages
             try {
                 $order = Order::findOrFail($orderId);
-                $userDetails = User::findOrFail($order->uid);
             } catch (ModelNotFoundException $e) {
-                return response()->json(['error' => 'Order or User not found']);
+                return response()->json(['error' => 'Order not found']);
+            }
+
+            // FIX: If user is not linked or found, return 'No user'
+            $userDetails = !empty($order->uid) ? User::find($order->uid) : null;
+            if (!$userDetails) {
+                return response()->json(['error' => 'No user']);
             }
 
             // 1. Delivered status validation (Payment check)
@@ -3387,7 +3417,7 @@ class OrderController extends Controller
             }
             $order->projectstatus = $statusName->status;
             $order->status_date = Carbon::now('Asia/Kolkata');
-            $order->status_by = auth()->user()->name;
+            $order->status_by = auth()->user() ? auth()->user()->name : 'System';
             if (trim(Str::lower($statusName->status)) === 'writer query') {
                 $order->writerstatus_date = Carbon::now('Asia/Kolkata');
             }
@@ -3411,13 +3441,12 @@ class OrderController extends Controller
             $feedback->action_comment = $finalComment; // Ye aapki Ticket Sheet mein dikhega
 
             $feedback->status = $statusName->status;
-            $feedback->created_by = auth()->user()->id;
+            $feedback->created_by = auth()->user() ? auth()->user()->id : null;
             $feedback->save();
             $mailSent = null;
             $mailError = null;
 
             if ($statusName->status == 'Completed') {
-
                 $orderData = [
                     'name' => $userDetails->name,
                     'email' => $userDetails->email,
@@ -4687,11 +4716,11 @@ class OrderController extends Controller
             return Redirect::back()->with('error', 'Order not found.');
         }
 
-        // Remaining amount
+        // FIX: Remaining amount calculation with round(..., 2) to prevent floating-point precision discrepancies
         $extraPrice = $order->additionals ? $order->additionals->sum('additional_price') : 0;
-        $remainingAmount = ($order->amount + $extraPrice) - $order->received_amount;
+        $remainingAmount = round((float)($order->amount + $extraPrice) - (float)$order->received_amount, 2);
 
-        $paidAmount       = (float) $request->input('amount');
+        $paidAmount       = round((float) $request->input('amount'), 2);
         $companyAccount   = $request->input('company_accounts');
         $referenceMessage = $request->input('message');
 

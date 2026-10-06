@@ -1085,7 +1085,8 @@
 
                     return $.ajax({
                         type: 'POST',
-                        url: 'update_status',
+                        // mk 6/10/2026: Use named route to avoid 404 errors on subpaths/trailing slashes
+                        url: '{{ route('update_status') }}',
                         data: {
                             orderId: orderId,
                             status: selectedStatus,

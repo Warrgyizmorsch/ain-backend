@@ -193,6 +193,14 @@
         });
     });
 </script>
+{{-- mk 6/10/2026: Set sync flag on payment success so orders tab auto-refreshes with updated paid/due amount --}}
+@if(session('success'))
+<script>
+    try {
+        localStorage.setItem('order_payment_synced', Date.now().toString());
+    } catch(e) {}
+</script>
+@endif
 <style>
     .dark-bordered-table th,
     .dark-bordered-table td,
