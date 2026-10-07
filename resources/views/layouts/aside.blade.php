@@ -1,30 +1,49 @@
-<div id="kt_aside" class="aside aside-dark aside-hoverable" data-kt-drawer="true" data-kt-drawer-name="aside" data-kt-drawer-activate="{default: true, lg: false}" data-kt-drawer-overlay="true" data-kt-drawer-width="{default:'200px', '300px': '250px'}" data-kt-drawer-direction="start" data-kt-drawer-toggle="#kt_aside_mobile_toggle">
+<div id="kt_aside" class="aside aside-dark aside-hoverable" data-kt-drawer="true" data-kt-drawer-name="aside"
+    data-kt-drawer-activate="{default: true, lg: false}" data-kt-drawer-overlay="true"
+    data-kt-drawer-width="{default:'200px', '300px': '250px'}" data-kt-drawer-direction="start"
+    data-kt-drawer-toggle="#kt_aside_mobile_toggle">
 
     <div class="aside-logo flex-column-auto" id="kt_aside_logo">
         <a href="/dashboard">
-            <img alt="Logo" src="{{ asset('assets/media/avatars/logo-white_11zon.png')}}" class="h-60px logo" />
+            <img alt="Logo" src="{{ asset('assets/media/avatars/logo-white_11zon.png') }}" class="h-60px logo" />
         </a>
 
-        <div id="kt_aside_toggle" class="btn btn-icon w-auto px-0 btn-active-color-primary aside-toggle" data-kt-toggle="true" data-kt-toggle-state="active" data-kt-toggle-target="body" data-kt-toggle-name="aside-minimize">
+        <div id="kt_aside_toggle" class="btn btn-icon w-auto px-0 btn-active-color-primary aside-toggle"
+            data-kt-toggle="true" data-kt-toggle-state="active" data-kt-toggle-target="body"
+            data-kt-toggle-name="aside-minimize">
             <span class="svg-icon svg-icon-1 rotate-180">
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none">
-                    <path opacity="0.5" d="M14.2657 11.4343L18.45 7.25C18.8642 6.83579 18.8642 6.16421 18.45 5.75C18.0358 5.33579 17.3642 5.33579 16.95 5.75L11.4071 11.2929C11.0166 11.6834 11.0166 12.3166 11.4071 12.7071L16.95 18.25C17.3642 18.6642 18.0358 18.6642 18.45 18.25C18.8642 17.8358 18.8642 17.1642 18.45 16.75L14.2657 12.5657C13.9533 12.2533 13.9533 11.7467 14.2657 11.4343Z" fill="black" />
-                    <path d="M8.2657 11.4343L12.45 7.25C12.8642 6.83579 12.8642 6.16421 12.45 5.75C12.0358 5.33579 11.3642 5.33579 10.95 5.75L5.40712 11.2929C5.01659 11.6834 5.01659 12.3166 5.40712 12.7071L10.95 18.25C11.3642 18.6642 12.0358 18.6642 12.45 18.25C12.8642 17.8358 12.8642 17.1642 12.45 16.75L8.2657 12.5657C7.95328 12.2533 7.95328 11.7467 8.2657 11.4343Z" fill="black" />
+                    <path opacity="0.5"
+                        d="M14.2657 11.4343L18.45 7.25C18.8642 6.83579 18.8642 6.16421 18.45 5.75C18.0358 5.33579 17.3642 5.33579 16.95 5.75L11.4071 11.2929C11.0166 11.6834 11.0166 12.3166 11.4071 12.7071L16.95 18.25C17.3642 18.6642 18.0358 18.6642 18.45 18.25C18.8642 17.8358 18.8642 17.1642 18.45 16.75L14.2657 12.5657C13.9533 12.2533 13.9533 11.7467 14.2657 11.4343Z"
+                        fill="black" />
+                    <path
+                        d="M8.2657 11.4343L12.45 7.25C12.8642 6.83579 12.8642 6.16421 12.45 5.75C12.0358 5.33579 11.3642 5.33579 10.95 5.75L5.40712 11.2929C5.01659 11.6834 5.01659 12.3166 5.40712 12.7071L10.95 18.25C11.3642 18.6642 12.0358 18.6642 12.45 18.25C12.8642 17.8358 12.8642 17.1642 12.45 16.75L8.2657 12.5657C7.95328 12.2533 7.95328 11.7467 8.2657 11.4343Z"
+                        fill="black" />
                 </svg>
             </span>
         </div>
     </div>
 
     <div class="aside-menu flex-column-fluid">
-        <div class="hover-scroll-overlay-y my-5 my-lg-5" id="kt_aside_menu_wrapper" data-kt-scroll="true" data-kt-scroll-activate="{default: false, lg: true}" data-kt-scroll-height="auto" data-kt-scroll-dependencies="#kt_aside_logo, #kt_aside_footer" data-kt-scroll-wrappers="#kt_aside_menu" data-kt-scroll-offset="0">
+        <div class="hover-scroll-overlay-y my-5 my-lg-5" id="kt_aside_menu_wrapper" data-kt-scroll="true"
+            data-kt-scroll-activate="{default: false, lg: true}" data-kt-scroll-height="auto"
+            data-kt-scroll-dependencies="#kt_aside_logo, #kt_aside_footer" data-kt-scroll-wrappers="#kt_aside_menu"
+            data-kt-scroll-offset="0">
 
-            <div class="menu menu-column menu-title-gray-800 menu-state-title-primary menu-state-icon-primary menu-state-bullet-primary menu-arrow-gray-500" id="#kt_aside_menu" data-kt-menu="true">
+            <div class="menu menu-column menu-title-gray-800 menu-state-title-primary menu-state-icon-primary menu-state-bullet-primary menu-arrow-gray-500"
+                id="#kt_aside_menu" data-kt-menu="true">
 
                 @php
                     $menuIds = [];
                     $submenuIds = [];
-                    $menus = (isset($menus) && $menus->isNotEmpty()) ? $menus : \App\Models\menu::with(['children.submenus', 'submenus'])->get();
-                    $premission = (isset($premission) && $premission->isNotEmpty()) ? $premission : \Illuminate\Support\Facades\DB::table('permission')->get();
+                    $menus =
+                        isset($menus) && $menus->isNotEmpty()
+                            ? $menus
+                            : \App\Models\menu::with(['children.submenus', 'submenus'])->get();
+                    $premission =
+                        isset($premission) && $premission->isNotEmpty()
+                            ? $premission
+                            : \Illuminate\Support\Facades\DB::table('permission')->get();
                     $currentPath = trim(request()->path(), '/');
                     $currentRequestUri = trim(request()->getRequestUri(), '/');
                     $isActiveRoute = function ($route) use ($currentPath, $currentRequestUri) {
@@ -43,8 +62,8 @@
 
                     if (auth()->check()) {
                         $userRoleId = (int) auth()->user()->role_id;
-                        foreach($premission as $perm) {
-                            if ((int)$perm->role_id === $userRoleId) {
+                        foreach ($premission as $perm) {
+                            if ((int) $perm->role_id === $userRoleId) {
                                 $menuIds = json_decode($perm->menu_id, true) ?? [];
                                 $submenuIds = json_decode($perm->submenu_id, true) ?? [];
                             }
@@ -66,31 +85,39 @@
                 </div>
 
                 @foreach ($menus as $menu)
-                    @if ($menu->parent_id !== null && in_array((string)$menu->parent_id, $menuIdsStr))
+                    @if ($menu->parent_id !== null && in_array((string) $menu->parent_id, $menuIdsStr))
                         @continue
                     @endif
-                    @if ($menu->show_menu == 'Y' && in_array((string)$menu->id, $menuIdsStr))
+                    @if ($menu->show_menu == 'Y' && in_array((string) $menu->id, $menuIdsStr))
                         @if ($menu->children->count() > 0)
                             @php
                                 $isParentActive = false;
                                 $visibleGroups = [];
-                                
+
                                 foreach ($menu->children as $childMenu) {
-                                    if ($childMenu->show_menu == 'Y' && in_array((string)$childMenu->id, $menuIdsStr)) {
-                                        $visibleSubmenus = $childMenu->submenus->filter(function ($submenu) use ($submenuIdsStr) {
-                                            return $submenu->show == 'Y' && in_array((string)$submenu->id, $submenuIdsStr);
+                                    if (
+                                        $childMenu->show_menu == 'Y' &&
+                                        in_array((string) $childMenu->id, $menuIdsStr)
+                                    ) {
+                                        $visibleSubmenus = $childMenu->submenus->filter(function ($submenu) use (
+                                            $submenuIdsStr,
+                                        ) {
+                                            return $submenu->show == 'Y' &&
+                                                in_array((string) $submenu->id, $submenuIdsStr);
                                         });
                                         if ($visibleSubmenus->isNotEmpty() || !empty($childMenu->routes)) {
-                                            $hasActiveChild = $visibleSubmenus->contains(function ($submenu) use ($isActiveRoute) {
-                                                return $isActiveRoute($submenu->routes);
-                                            }) || (!empty($childMenu->routes) && $isActiveRoute($childMenu->routes));
+                                            $hasActiveChild =
+                                                $visibleSubmenus->contains(function ($submenu) use ($isActiveRoute) {
+                                                    return $isActiveRoute($submenu->routes);
+                                                }) ||
+                                                (!empty($childMenu->routes) && $isActiveRoute($childMenu->routes));
                                             if ($hasActiveChild) {
                                                 $isParentActive = true;
                                             }
                                             $visibleGroups[] = [
                                                 'menu' => $childMenu,
                                                 'submenus' => $visibleSubmenus,
-                                                'active' => $hasActiveChild
+                                                'active' => $hasActiveChild,
                                             ];
                                         }
                                     }
@@ -98,7 +125,8 @@
                             @endphp
 
                             @if (count($visibleGroups) > 0)
-                                <div data-kt-menu-trigger="click" class="menu-item menu-accordion {{ $isParentActive ? 'here show' : '' }}">
+                                <div data-kt-menu-trigger="click"
+                                    class="menu-item menu-accordion {{ $isParentActive ? 'here show' : '' }}">
                                     <span class="menu-link {{ $isParentActive ? 'active' : '' }}">
                                         <span class="menu-icon">
                                             <i class="{{ $menu['icon_class'] ?: 'fa fa-circle-o' }}"></i>
@@ -110,21 +138,27 @@
                                     <div class="menu-sub menu-sub-accordion menu-active-bg" style="padding-left: 15px;">
                                         @foreach ($visibleGroups as $group)
                                             @if ($group['submenus']->isNotEmpty())
-                                                <div data-kt-menu-trigger="click" class="menu-item menu-accordion {{ $group['active'] ? 'here show' : '' }}">
+                                                <div data-kt-menu-trigger="click"
+                                                    class="menu-item menu-accordion {{ $group['active'] ? 'here show' : '' }}">
                                                     <span class="menu-link {{ $group['active'] ? 'active' : '' }}">
                                                         <span class="menu-icon">
-                                                            <i class="{{ $group['menu']->icon_class ?: 'fa fa-circle-o' }}"></i>
+                                                            <i
+                                                                class="{{ $group['menu']->icon_class ?: 'fa fa-circle-o' }}"></i>
                                                         </span>
                                                         <span class="menu-title">{{ $group['menu']->menu_name }}</span>
                                                         <span class="menu-arrow"></span>
                                                     </span>
-                                                    <div class="menu-sub menu-sub-accordion menu-active-bg" style="padding-left: 15px;">
+                                                    <div class="menu-sub menu-sub-accordion menu-active-bg"
+                                                        style="padding-left: 15px;">
                                                         @foreach ($group['submenus'] as $submenu)
                                                             @php $isSubmenuActive = $isActiveRoute($submenu->routes); @endphp
                                                             <div class="menu-item">
-                                                                <a class="menu-link {{ $isSubmenuActive ? 'active' : '' }}" href="{{ url($submenu->routes) }}">
-                                                                    <span class="menu-bullet"><span class="bullet bullet-dot"></span></span>
-                                                                    <span class="menu-title">{{ $submenu->sub_menu_name }}</span>
+                                                                <a class="menu-link {{ $isSubmenuActive ? 'active' : '' }}"
+                                                                    href="{{ url($submenu->routes) }}">
+                                                                    <span class="menu-bullet"><span
+                                                                            class="bullet bullet-dot"></span></span>
+                                                                    <span
+                                                                        class="menu-title">{{ $submenu->sub_menu_name }}</span>
                                                                 </a>
                                                             </div>
                                                         @endforeach
@@ -132,9 +166,11 @@
                                                 </div>
                                             @else
                                                 <div class="menu-item">
-                                                    <a class="menu-link {{ $group['active'] ? 'active' : '' }}" href="{{ url($group['menu']->routes) }}">
+                                                    <a class="menu-link {{ $group['active'] ? 'active' : '' }}"
+                                                        href="{{ url($group['menu']->routes) }}">
                                                         <span class="menu-icon">
-                                                            <i class="{{ $group['menu']->icon_class ?: 'fa fa-circle-o' }}"></i>
+                                                            <i
+                                                                class="{{ $group['menu']->icon_class ?: 'fa fa-circle-o' }}"></i>
                                                         </span>
                                                         <span class="menu-title">{{ $group['menu']->menu_name }}</span>
                                                     </a>
@@ -147,14 +183,17 @@
                         @elseif ($menu->submenus->where('show', 'Y')->count() > 0)
                             @php
                                 $visibleSubmenus = $menu->submenus->filter(function ($submenu) use ($submenuIdsStr) {
-                                    if ($submenu->show != 'Y' || !in_array((string)$submenu->id, $submenuIdsStr)) {
+                                    if ($submenu->show != 'Y' || !in_array((string) $submenu->id, $submenuIdsStr)) {
                                         return false;
                                     }
                                     if (auth()->check() && auth()->user()->role_id == 9) {
                                         $subRoute = trim($submenu->routes, '/');
                                         $currentUserId = auth()->id();
                                         if ($currentUserId == 13715) {
-                                            if ($subRoute == 'my-break-time-report' || $subRoute == 'my-revoke-payments') {
+                                            if (
+                                                $subRoute == 'my-break-time-report' ||
+                                                $subRoute == 'my-revoke-payments'
+                                            ) {
                                                 return false;
                                             }
                                         } else {
@@ -170,16 +209,20 @@
                                     return $isActiveRoute($submenu->routes);
                                 });
 
-                                $isReportsPayeeActive = strtolower($menu['menu_name']) == 'reports'
-                                    && auth()->check()
-                                    && auth()->user()->role_id == 1
-                                    && $isActiveRoute('payee-report');
+                                $isReportsPayeeActive =
+                                    strtolower($menu['menu_name']) == 'reports' &&
+                                    auth()->check() &&
+                                    auth()->user()->role_id == 1 &&
+                                    $isActiveRoute('payee-report');
 
                                 $isParentActive = $hasActiveChild || $isReportsPayeeActive;
                             @endphp
 
-                            @if ($visibleSubmenus->isNotEmpty() || (strtolower($menu['menu_name']) == 'reports' && auth()->check() && auth()->user()->role_id == 1))
-                                <div data-kt-menu-trigger="click" class="menu-item menu-accordion {{ $isParentActive ? 'here show' : '' }}">
+                            @if (
+                                $visibleSubmenus->isNotEmpty() ||
+                                    (strtolower($menu['menu_name']) == 'reports' && auth()->check() && auth()->user()->role_id == 1))
+                                <div data-kt-menu-trigger="click"
+                                    class="menu-item menu-accordion {{ $isParentActive ? 'here show' : '' }}">
                                     <span class="menu-link {{ $isParentActive ? 'active' : '' }}">
                                         <span class="menu-icon">
                                             <i class="{{ $menu['icon_class'] ?: 'fa fa-circle-o' }}"></i>
@@ -203,75 +246,81 @@
                                             @php
                                                 $isSubmenuActive = $isActiveRoute($submenu->routes);
                                             @endphp
-                                                <div class="menu-item">
-                                                    <a class="menu-link {{ $isSubmenuActive ? 'active' : '' }}" href="{{ url($submenu->routes) }}">
-                                                        <span class="menu-bullet">
-                                                            <span class="bullet bullet-dot"></span>
-                                                        </span>
-                                                        <span class="menu-title">{{ $submenu->sub_menu_name }}</span>
-                                                        @if(trim($submenu->routes, '/') == 'revoke-payments')
-                                                            @if(isset($globalRevokeCount) && $globalRevokeCount > 0)
-                                                                <span class="menu-badge">
-                                                                    <span class="badge badge-circle badge-danger fw-bold fs-8">{{ $globalRevokeCount }}</span>
-                                                                </span>
-                                                            @endif
-                                                        @elseif(trim($submenu->routes, '/') == 'my-revoke-payments')
-                                                            @if(isset($globalMyRevokeCount) && $globalMyRevokeCount > 0)
-                                                                <span class="menu-badge">
-                                                                    <span class="badge badge-circle badge-danger fw-bold fs-8">{{ $globalMyRevokeCount }}</span>
-                                                                </span>
-                                                            @endif
-                                                        @endif
-                                                    </a>
-                                                </div>
-                                        @endforeach
-                                        @if(strtolower($menu['menu_name']) == 'reports' && auth()->check() && auth()->user()->role_id == 1)
                                             <div class="menu-item">
-                                                <a class="menu-link {{ $isReportsPayeeActive ? 'active' : '' }}" href="{{ url('payee-report') }}">
+                                                <a class="menu-link {{ $isSubmenuActive ? 'active' : '' }}"
+                                                    href="{{ url($submenu->routes) }}">
                                                     <span class="menu-bullet">
                                                         <span class="bullet bullet-dot"></span>
                                                     </span>
-                                                    <span class="menu-title">Paayment Report</span>
+                                                    <span class="menu-title">{{ $submenu->sub_menu_name }}</span>
+                                                    @if (trim($submenu->routes, '/') == 'revoke-payments')
+                                                        @if (isset($globalRevokeCount) && $globalRevokeCount > 0)
+                                                            <span class="menu-badge">
+                                                                <span
+                                                                    class="badge badge-circle badge-danger fw-bold fs-8">{{ $globalRevokeCount }}</span>
+                                                            </span>
+                                                        @endif
+                                                    @elseif(trim($submenu->routes, '/') == 'my-revoke-payments')
+                                                        @if (isset($globalMyRevokeCount) && $globalMyRevokeCount > 0)
+                                                            <span class="menu-badge">
+                                                                <span
+                                                                    class="badge badge-circle badge-danger fw-bold fs-8">{{ $globalMyRevokeCount }}</span>
+                                                            </span>
+                                                        @endif
+                                                    @endif
+                                                </a>
+                                            </div>
+                                        @endforeach
+                                        @if (strtolower($menu['menu_name']) == 'reports' && auth()->check() && auth()->user()->role_id == 1)
+                                            <div class="menu-item">
+                                                <a class="menu-link {{ $isReportsPayeeActive ? 'active' : '' }}"
+                                                    href="{{ url('payee-report') }}">
+                                                    <span class="menu-bullet">
+                                                        <span class="bullet bullet-dot"></span>
+                                                    </span>
+                                                    <span class="menu-title">Payment Report</span>
                                                 </a>
                                             </div>
                                         @endif
                                     </div>
                                 </div>
                             @endif
-
                         @else
                             @php
                                 $isMenuActive = $isActiveRoute($menu['routes']);
                             @endphp
 
                             <div class="menu-item">
-                                <a class="menu-link {{ $isMenuActive ? 'active' : '' }}" href="{{ url($menu['routes']) }}">
+                                <a class="menu-link {{ $isMenuActive ? 'active' : '' }}"
+                                    href="{{ url($menu['routes']) }}">
                                     <span class="menu-icon">
                                         <i class="{{ $menu['icon_class'] ?: 'fa fa-circle-o' }}"></i>
                                     </span>
                                     <span class="menu-title">{{ $menu['menu_name'] }}</span>
-                                    @if(trim($menu['routes'], '/') == 'revoke-payments')
-                                        @if(isset($globalRevokeCount) && $globalRevokeCount > 0)
+                                    @if (trim($menu['routes'], '/') == 'revoke-payments')
+                                        @if (isset($globalRevokeCount) && $globalRevokeCount > 0)
                                             <span class="menu-badge">
-                                                <span class="badge badge-circle badge-danger fw-bold fs-8">{{ $globalRevokeCount }}</span>
+                                                <span
+                                                    class="badge badge-circle badge-danger fw-bold fs-8">{{ $globalRevokeCount }}</span>
                                             </span>
                                         @endif
                                     @elseif(trim($menu['routes'], '/') == 'my-revoke-payments')
-                                        @if(isset($globalMyRevokeCount) && $globalMyRevokeCount > 0)
+                                        @if (isset($globalMyRevokeCount) && $globalMyRevokeCount > 0)
                                             <span class="menu-badge">
-                                                <span class="badge badge-circle badge-danger fw-bold fs-8">{{ $globalMyRevokeCount }}</span>
+                                                <span
+                                                    class="badge badge-circle badge-danger fw-bold fs-8">{{ $globalMyRevokeCount }}</span>
                                             </span>
                                         @endif
                                     @elseif(trim($menu['routes'], '/') == 'admin/login-otp-notifications')
-                                        @if(isset($globalLoginOtpCount) && $globalLoginOtpCount > 0)
+                                        @if (isset($globalLoginOtpCount) && $globalLoginOtpCount > 0)
                                             <span class="menu-badge">
-                                                <span class="badge badge-circle badge-danger fw-bold fs-8">{{ $globalLoginOtpCount }}</span>
+                                                <span
+                                                    class="badge badge-circle badge-danger fw-bold fs-8">{{ $globalLoginOtpCount }}</span>
                                             </span>
                                         @endif
                                     @endif
                                 </a>
                             </div>
-
                         @endif
                     @endif
                 @endforeach
@@ -281,23 +330,24 @@
     </div>
 
     <div class="aside-footer flex-column-auto pt-5 pb-7 px-5" id="kt_aside_footer">
-        <a href="" class="btn btn-custom btn-primary w-100" data-bs-toggle="tooltip" data-bs-trigger="hover" data-bs-dismiss-="click" title="200+ in-house components and 3rd-party plugins">
+        <a href="" class="btn btn-custom btn-primary w-100" data-bs-toggle="tooltip" data-bs-trigger="hover"
+            data-bs-dismiss-="click" title="200+ in-house components and 3rd-party plugins">
             <span class="btn-label">AIN Team </span>
         </a>
     </div>
 </div>
 
 <style>
-    #kt_aside .menu-item.here > .menu-link,
+    #kt_aside .menu-item.here>.menu-link,
     #kt_aside .menu-link.active {
         background-color: #1b84ff !important;
         color: #ffffff !important;
         border-radius: 8px;
     }
 
-    #kt_aside .menu-item.here > .menu-link .menu-title,
-    #kt_aside .menu-item.here > .menu-link .menu-icon,
-    #kt_aside .menu-item.here > .menu-link .menu-arrow,
+    #kt_aside .menu-item.here>.menu-link .menu-title,
+    #kt_aside .menu-item.here>.menu-link .menu-icon,
+    #kt_aside .menu-item.here>.menu-link .menu-arrow,
     #kt_aside .menu-link.active .menu-title,
     #kt_aside .menu-link.active .menu-icon,
     #kt_aside .menu-link.active .menu-bullet,

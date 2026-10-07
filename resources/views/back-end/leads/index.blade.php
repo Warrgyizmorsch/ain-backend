@@ -2,6 +2,8 @@
 
 @section('content')
 @include('back-end.group-master.user-modal')
+{{-- mk 7 10 26 - Include changeTeamModal for manual team assignment popup in leads --}}
+@include('back-end.order.partials.team-modals')
 <div class="margin-top-on-desktop" id="kt_content">
     <script>
         if (localStorage.getItem('lead_filters')) {
@@ -772,6 +774,28 @@
         .margin-top-on-desktop {
             margin-top: 0px;
         }
+    }
+
+    /* mk 7 10 26 - Lead star rating styling, active amber/gold color and interactive hover */
+    .star-rating {
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        vertical-align: middle;
+        user-select: none;
+    }
+    .star-rating .star {
+        font-size: 14px;
+        color: #cbd5e1;
+        cursor: pointer;
+        transition: color 0.15s ease, transform 0.1s ease;
+    }
+    .star-rating .star:hover {
+        color: #ffad0f;
+        transform: scale(1.2);
+    }
+    .star-rating .star.active {
+        color: #ffad0f !important;
     }
 </style>
 

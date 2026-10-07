@@ -1124,10 +1124,11 @@ class OrderController extends Controller
         // Save order changes
         $order->save();
 
-        if (Str::lower($req->input('status')) === 'initiated') {
-            $order->assignTeamForInitiatedStatus();
-            event(new \App\Events\OrderStatusChanged($order));
-        }
+        // mk 7 10 26 - Prevent auto team allocation on order update
+        // if (Str::lower($req->input('status')) === 'initiated') {
+        //     $order->assignTeamForInitiatedStatus();
+        //     event(new \App\Events\OrderStatusChanged($order));
+        // }
 
         // Update or create a record in the ProjectStatusCount table
         $statusCount = ProjectStatusCount::where('order_Id', $order->id)
@@ -3426,9 +3427,10 @@ class OrderController extends Controller
             }
             $order->save();
 
-            if ($order->isInitiatedStatus()) {
-                $order->assignTeamForInitiatedStatus();
-            }
+            // mk 7 10 26 - Prevent auto team allocation when changing status on orders page (Initiated or other status)
+            // if ($order->isInitiatedStatus()) {
+            //     $order->assignTeamForInitiatedStatus();
+            // }
 
             // 3. Feedback Table Entry (Chat Box aur Sheet dono ke liye)
             $feedback = new Feedback();
@@ -4369,7 +4371,7 @@ class OrderController extends Controller
 
     public function changeTeam(Request $request)
     {
-        // Admin (role 1) or Subadmin (role 9)
+        // mk 7 10 26 - Team assignment is strictly restricted to Super Admin (role 1) and Sub Admin (role 9)
         if (!auth()->check() || !in_array((int) auth()->user()->role_id, [1, 9])) {
             abort(403);
         }

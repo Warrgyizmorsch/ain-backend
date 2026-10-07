@@ -226,6 +226,45 @@
             Created By: {{ $creatorDisplay }}
         </span>
         <br>
+        {{-- mk 7 10 26 - Manual team assignment popup modal (strictly for Super Admin role 1 and Sub Admin role 9) --}}
+        @php
+            $leadOrder = $lead->order ?? (!empty($lead->order_id) ? \App\Models\Order::where('order_id', $lead->order_id)->first() : null);
+            $orderDbId = $leadOrder ? $leadOrder->id : null;
+            $leadTeam = $leadOrder?->team;
+            $canAssignTeam = auth()->check() && in_array((int) auth()->user()->role_id, [1, 9]);
+        @endphp
+        @if($orderDbId && ($leadTeam?->team_name || $canAssignTeam))
+            <div class="d-inline-flex align-items-center justify-content-center gap-1 mt-1 order-team-badge-container-{{ $orderDbId }}">
+                @if($leadTeam?->team_name)
+                    @if($canAssignTeam)
+                        <span 
+                            class="badge badge-light-primary fs-7 fw-bold cursor-pointer"
+                            data-bs-toggle="modal"
+                            data-bs-target="#changeTeamModal"
+                            onclick="openTeamModal('{{ $orderDbId }}', '{{ $leadOrder->team_id }}')"
+                            title="Click to change team"
+                        >
+                            <i class="fas fa-users fs-9 me-1"></i>{{ $leadTeam->team_name }}
+                        </span>
+                    @else
+                        <span class="badge badge-light-primary fs-7 fw-bold" title="Assigned Team">
+                            <i class="fas fa-users fs-9 me-1"></i>{{ $leadTeam->team_name }}
+                        </span>
+                    @endif
+                @elseif($canAssignTeam)
+                    <span 
+                        class="badge badge-light-secondary text-muted fs-8 fw-bold cursor-pointer"
+                        data-bs-toggle="modal"
+                        data-bs-target="#changeTeamModal"
+                        onclick="openTeamModal('{{ $orderDbId }}', '')"
+                        title="Click to assign team"
+                    >
+                        <i class="fas fa-plus fs-9 me-1"></i> Assign Team
+                    </span>
+                @endif
+            </div>
+            <br>
+        @endif
         @if ($lead['resit'] == 'on')
         <span class="badge badge-light-danger fs-7 fw-bold">Resit Work</span>
         @endif
@@ -364,10 +403,18 @@
                 <span class="fw-bold fs-6">B</span>
             </button>
 
+            @php
+                // mk 7 10 26 - Pre-calculate active star count from lead_status so stars render colored immediately on server render
+                $leadStarCount = 0;
+                $currentLeadStatus = strtolower(trim((string)($lead->lead_status ?? '')));
+                if ($currentLeadStatus === 'cold') $leadStarCount = 1;
+                elseif ($currentLeadStatus === 'warm') $leadStarCount = 2;
+                elseif ($currentLeadStatus === 'hot') $leadStarCount = 3;
+            @endphp
             <div class="star-rating" data-id="{{ $lead->id }}" data-current="{{ e($lead->lead_status) }}">
-                <i class="fa fa-star star" data-value="1"></i>
-                <i class="fa fa-star star" data-value="2"></i>
-                <i class="fa fa-star star" data-value="3"></i>
+                <i class="fa fa-star star {{ $leadStarCount >= 1 ? 'active' : '' }}" data-value="1"></i>
+                <i class="fa fa-star star {{ $leadStarCount >= 2 ? 'active' : '' }}" data-value="2"></i>
+                <i class="fa fa-star star {{ $leadStarCount >= 3 ? 'active' : '' }}" data-value="3"></i>
             </div>
         </div>
         @endif

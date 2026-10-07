@@ -107,4 +107,10 @@ class Leads extends Model
     {
         return $this->belongsTo(User::class, 'created_by');
     }
+
+    // mk 7 10 26 - Relationship to Order to fetch team_id and order info without database changes
+    public function order()
+    {
+        return $this->hasOne(Order::class, 'order_id', 'order_id');
+    }
 }

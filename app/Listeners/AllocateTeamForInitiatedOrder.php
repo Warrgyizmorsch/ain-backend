@@ -12,6 +12,7 @@ class AllocateTeamForInitiatedOrder implements ShouldQueue
 
     public function handle(OrderStatusChanged $event)
     {
-        $event->order->assignTeamForInitiatedStatus();
+        // mk 7 10 26 - Prevent auto team allocation on order status change
+        // $event->order->assignTeamForInitiatedStatus();
     }
 }

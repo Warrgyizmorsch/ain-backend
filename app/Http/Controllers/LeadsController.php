@@ -82,6 +82,10 @@ class LeadsController extends Controller
             'source:id,source_name,source_icon',
             'latestCall.user:id,name',
             'latestCall.lead:id,order_id',
+            // mk 7 10 26 - Eager load order and team for manual team badge in leads
+            'order' => function ($q) {
+                $q->select('id', 'order_id', 'team_id')->with('team:id,team_name');
+            },
         ];
     }
 
@@ -2257,8 +2261,9 @@ class LeadsController extends Controller
         $searchUser = trim((string) ($request->input('user') ?? $request->input('searchInput') ?? ''));
         $generalSearch = trim((string) ($request->input('search') ?? ''));
 
+        // mk 7 10 26 - If customer is selected by UID, do not apply the formatted dropdown label as raw text search so matching leads are not blocked
         $searchTermsToApply = [];
-        if (! empty($generalSearch)) {
+        if (! empty($generalSearch) && (! $hasSelectedUser || $generalSearch !== $searchUser)) {
             $searchTermsToApply[] = $generalSearch;
         }
         if (! empty($searchOrder)) {
@@ -2633,7 +2638,8 @@ class LeadsController extends Controller
 
         // Step 5: Save order
         $order->save();
-        $order->assignTeamForInitiatedStatus(true);
+        // mk 7 10 26 - Prevent auto team allocation on lead conversion; maintain manual team if already set
+        // $order->assignTeamForInitiatedStatus(true);
 
         // Step 6: Update lead
 
