@@ -96,6 +96,21 @@
         }
     };
 
+    window.copyContactText = function(text, btn) {
+        if (!text) return;
+        window.crmCopyToClipboard(text, 'Copied: ' + text);
+        if (btn) {
+            var icon = btn.querySelector('i');
+            if (icon) {
+                var prevClass = icon.className;
+                icon.className = 'fa fa-check text-success fs-8';
+                setTimeout(function() {
+                    icon.className = prevClass;
+                }, 1500);
+            }
+        }
+    };
+
     function fallbackCopy(text, successMessage) {
         var textArea = document.createElement("textarea");
         textArea.value = text;

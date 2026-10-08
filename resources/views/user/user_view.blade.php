@@ -85,6 +85,21 @@
             background: #f9fbfd;
         }
 
+        .copy-contact-btn {
+            opacity: 0.65;
+            transition: opacity 0.2s ease, transform 0.15s ease;
+            cursor: pointer;
+        }
+
+        .copy-contact-btn:hover {
+            opacity: 1;
+            transform: scale(1.15);
+        }
+
+        .copy-contact-btn:hover i {
+            color: #009ef7 !important;
+        }
+
         .user-toolbar {
             background: #fff;
             width: 100%;

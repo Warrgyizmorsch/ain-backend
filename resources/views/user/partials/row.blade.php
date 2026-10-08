@@ -34,8 +34,52 @@
         </div>
     </td>
     <td>
-        <a href="#" class="text-dark fw-bolder text-hover-primary d-block fs-6">{{ mask_phone_for_display($user->countrycode, $user->mobile_no) }}</a>
-        <span class="text-muted fw-bold text-muted d-block fs-7">{{ mask_email_for_display($user->email) }}</span>
+        @php
+            $authUser = auth()->user();
+            $canCopyContact = $authUser && (
+                in_array((int) $authUser->role_id, [1, 9]) ||
+                (isset($authUser->role) && in_array(strtolower($authUser->role->role ?? ''), ['super admin', 'admin', 'sub admin']))
+            );
+            $cleanMobile = trim((string) $user->mobile_no);
+            $cleanCC = preg_replace('/\D+/', '', (string) $user->countrycode);
+            $copyMobileNumber = '';
+            if ($cleanMobile !== '') {
+                if (!empty($cleanCC) && !str_starts_with(preg_replace('/\D+/', '', $cleanMobile), $cleanCC)) {
+                    $copyMobileNumber = '+' . $cleanCC . ' ' . $cleanMobile;
+                } elseif (!empty($cleanCC) && !str_starts_with($cleanMobile, '+')) {
+                    $copyMobileNumber = '+' . $cleanMobile;
+                } else {
+                    $copyMobileNumber = $cleanMobile;
+                }
+            }
+            $copyEmail = trim((string) $user->email);
+        @endphp
+
+        <div class="d-flex align-items-center">
+            <a href="#" class="text-dark fw-bolder text-hover-primary fs-6">{{ mask_phone_for_display($user->countrycode, $user->mobile_no) }}</a>
+            @if($canCopyContact && !empty($copyMobileNumber))
+                <button type="button" 
+                        class="btn btn-icon btn-sm p-0 border-0 bg-transparent ms-2 copy-contact-btn" 
+                        title="Copy Mobile Number" 
+                        onclick="event.stopPropagation(); window.copyContactText ? window.copyContactText(@js($copyMobileNumber), this) : navigator.clipboard.writeText(@js($copyMobileNumber)); return false;" 
+                        style="width: 16px; height: 16px; line-height: 1; flex-shrink: 0;">
+                    <i class="fa fa-copy text-muted fs-8"></i>
+                </button>
+            @endif
+        </div>
+
+        <div class="d-flex align-items-center mt-1">
+            <span class="text-muted fw-bold text-muted fs-7 text-break">{{ mask_email_for_display($user->email) }}</span>
+            @if($canCopyContact && !empty($copyEmail) && strtolower($copyEmail) !== 'n/a')
+                <button type="button" 
+                        class="btn btn-icon btn-sm p-0 border-0 bg-transparent ms-2 copy-contact-btn" 
+                        title="Copy Email" 
+                        onclick="event.stopPropagation(); window.copyContactText ? window.copyContactText(@js($copyEmail), this) : navigator.clipboard.writeText(@js($copyEmail)); return false;" 
+                        style="width: 16px; height: 16px; line-height: 1; flex-shrink: 0;">
+                    <i class="fa fa-copy text-muted fs-8"></i>
+                </button>
+            @endif
+        </div>
     </td>
     <td data-user-group-badges="{{ $user->id }}">@forelse($user->groups as $group)<span class="badge badge-light-primary me-1 mb-1">{{ $group->name }}</span>@empty<span class="text-muted">-</span>@endforelse</td>
     <td>
