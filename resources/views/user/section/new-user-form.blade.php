@@ -75,6 +75,30 @@
 									<div class="fv-plugins-message-container invalid-feedback" id="team_error_msg"></div>
 								</div>
 							</div>
+
+							<!-- SIP fields for Next2Call softphone -->
+							<div class="row mb-6">
+								<label class="col-lg-4 col-form-label fw-bold fs-6">
+									<span>SIP ID / Extension</span>
+									<i class="fas fa-exclamation-circle ms-1 fs-7" data-bs-toggle="tooltip" title="Next2Call agent extension / SIP ID" aria-label="Next2Call agent extension / SIP ID"></i>
+								</label>
+								<div class="col-lg-8 fv-row fv-plugins-icon-container">
+									<input type="text" name="sip" class="form-control form-control-lg form-control-solid" placeholder="e.g. 10101" value="{{ old('sip') }}">
+									<div class="text-muted fs-8 mt-1">Agent SIP extension ID for Next2Call softphone calls.</div>
+								</div>
+							</div>
+
+							<div class="row mb-6">
+								<label class="col-lg-4 col-form-label fw-bold fs-6">
+									<span>SIP Password</span>
+									<i class="fas fa-exclamation-circle ms-1 fs-7" data-bs-toggle="tooltip" title="Next2Call agent SIP password (optional)" aria-label="Next2Call agent SIP password (optional)"></i>
+								</label>
+								<div class="col-lg-8 fv-row fv-plugins-icon-container">
+									<input type="password" name="sip_password" class="form-control form-control-lg form-control-solid" placeholder="Leave blank to use default admin SIP password" value="{{ old('sip_password') }}">
+									<div class="text-muted fs-8 mt-1">Optional. If empty, system automatically uses the Next2Call admin default password.</div>
+								</div>
+							</div>
+
 							<!-- Country Code input -->
 							<div class="row mb-6">
 								<label class="col-lg-4 col-form-label fw-bold fs-6">Primary Country Code</label>

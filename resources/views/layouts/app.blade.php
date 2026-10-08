@@ -1163,6 +1163,8 @@
     </script>
 
     @auth
+        {{-- Global Next2Call Softphone Dialer Widget & Global Script --}}
+        @include('order.section.softphone-call-script')
         {{-- Global Twilio Softphone Dialer Widget --}}
         @include('back-end.order.partials.twilio-softphone-widget')
         {{-- Global Twilio "Call" button trigger, shared by the call-button component across the app --}}

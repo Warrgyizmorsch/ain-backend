@@ -528,6 +528,8 @@ class UserController extends Controller
         $user->team_id = !empty($teamId) ? $teamId : null;
         $user->address = $request->input('address');
         $user->password = Hash::make('user@123');
+        $user->sip = $request->input('sip');
+        $user->sip_password = $request->input('sip_password');
 
         if ($request->hasFile('photo')) {
             // Handle file upload
