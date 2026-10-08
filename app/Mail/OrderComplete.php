@@ -38,7 +38,7 @@ class OrderComplete extends Mailable
     {
         return new Envelope(
             from: new \Illuminate\Mail\Mailables\Address('order@assignnmentinneed.com', 'Assignment In Need'),
-            subject: 'Your Assignment is Ready – ' . $this->OrderData['order_code'],
+            subject: 'Your Assignment is Ready - ' . $this->OrderData['order_code'],
         );
     }
 

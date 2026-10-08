@@ -6621,7 +6621,7 @@ public function myRevokePayments(Request $request)
         }
 
         $orderCode = $orderData['order_code'] ?? '';
-        $subject = 'Your Assignment is Ready – ' . $orderCode;
+        $subject = 'Your Assignment is Ready - ' . $orderCode;
 
         try {
             $bodyHtml = view('mailordercomplete', ['OrderData' => $orderData])->render();
