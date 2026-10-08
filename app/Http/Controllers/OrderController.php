@@ -384,15 +384,29 @@ class OrderController extends Controller
 
     private function handleRoleOne(Request $request)
     {
+        $unconverted = Cache::remember('unconverted_leads_filter_set', 300, function() {
+            $leadIds = DB::table('leads')
+                ->where('is_converted', '!=', 1)
+                ->pluck('id')
+                ->all();
+            $orderIds = DB::table('leads')
+                ->where('is_converted', '!=', 1)
+                ->whereNotNull('order_id')
+                ->where('order_id', '!=', '')
+                ->pluck('order_id')
+                ->all();
+            return ['lead_ids' => $leadIds, 'order_ids' => $orderIds];
+        });
+
         $ordersQuery = Order::with('user', 'payment', 'feedback', 'team')
-            ->whereNotNull('uid')->where('uid', '!=', 0)->where('uid', '!=', '0')
-            ->where(function ($q) {
-                $q->where(function ($noLead) {
-                    $noLead->whereDoesntHave('lead')->whereDoesntHave('frontendLead');
-                })
-                ->orWhereHas('lead', fn ($lq) => $lq->where('is_converted', 1))
-                ->orWhereHas('frontendLead', fn ($flq) => $flq->where('is_converted', 1));
-            });
+            ->whereNotNull('uid')->where('uid', '!=', 0)->where('uid', '!=', '0');
+
+        if (!empty($unconverted['lead_ids'])) {
+            $ordersQuery->whereNotIn('orders.lead_id', $unconverted['lead_ids']);
+        }
+        if (!empty($unconverted['order_ids'])) {
+            $ordersQuery->whereNotIn('orders.order_id', $unconverted['order_ids']);
+        }
 
         if (auth()->check()) {
             $authUser = auth()->user();
@@ -5187,29 +5201,27 @@ class OrderController extends Controller
         $now = now();
         $limit = $now->copy()->addMinutes(30);
 
-        $orders = Order::whereNotIn('projectstatus', ['Completed', 'Delivered', 'Cancelled', 'Feedback', 'Feedback Delivered'])
-            ->whereNotNull('delivery_date')
-            ->get()
-            ->filter(function ($order) use ($now, $limit) {
-
-                $dateTime = $order->delivery_date;
-
-                if ($order->delivery_time) {
-                    $dateTime .= ' ' . $order->delivery_time;
-                }
-
-                try {
-                    $deadline = \Carbon\Carbon::parse($dateTime, config('app.timezone'));
-                } catch (\Exception $e) {
-                    return false;
-                }
-
-                return $deadline->between($now, $limit);
-            })
-            ->sortBy(function ($order) {
-                return $order->delivery_date . ' ' . $order->delivery_time;
-            })
-            ->values();
+        $orders = Cache::remember('urgent_orders_list', 15, function () use ($now, $limit) {
+            return Order::whereNotIn('projectstatus', ['Completed', 'Delivered', 'Cancelled', 'Feedback', 'Feedback Delivered'])
+                ->whereBetween('delivery_date', [$now->toDateString(), $limit->toDateString()])
+                ->get()
+                ->filter(function ($order) use ($now, $limit) {
+                    $dateTime = $order->delivery_date;
+                    if ($order->delivery_time) {
+                        $dateTime .= ' ' . $order->delivery_time;
+                    }
+                    try {
+                        $deadline = \Carbon\Carbon::parse($dateTime, config('app.timezone'));
+                    } catch (\Exception $e) {
+                        return false;
+                    }
+                    return $deadline->between($now, $limit);
+                })
+                ->sortBy(function ($order) {
+                    return $order->delivery_date . ' ' . $order->delivery_time;
+                })
+                ->values();
+        });
 
         return response()->json($orders);
     }
