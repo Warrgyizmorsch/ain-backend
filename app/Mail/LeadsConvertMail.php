@@ -29,6 +29,7 @@ class LeadsConvertMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
+            from: new \Illuminate\Mail\Mailables\Address('order@assignnmentinneed.com', 'Assignment In Need'),
             subject: $this->mailData['order_code']
         );
     }

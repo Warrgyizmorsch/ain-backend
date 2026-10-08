@@ -35,12 +35,12 @@ class OrderComplete extends Mailable
     // }
 
     public function envelope(): Envelope
-{
-    return new Envelope(
-        // Yahan order code ki jagah apna pura subject line dalen
-        subject: 'Your Assignment is Ready – '. $this->OrderData['order_code'],
-    );
-}
+    {
+        return new Envelope(
+            from: new \Illuminate\Mail\Mailables\Address('order@assignnmentinneed.com', 'Assignment In Need'),
+            subject: 'Your Assignment is Ready – ' . $this->OrderData['order_code'],
+        );
+    }
 
     /**
      * Get the message content definition.

@@ -29,6 +29,7 @@ use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use App\Mail\OrderComplete;
+use App\Services\EmailService;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Redirect;
@@ -933,20 +934,19 @@ class OrderController extends Controller
                 $order->status_date = Carbon::now('Asia/Kolkata');
                 $order->status_by   = auth()->user()->name;
 
+                $resolvedEmail = (strpos($req->input('email', ''), '*') === false && $req->filled('email'))
+                    ? $req->input('email')
+                    : optional($order->user)->email;
+
                 $orderData = [
                     'name' => $req->input('user_name'),
-                    'email' => $req->input('email'),
+                    'email' => $resolvedEmail,
                     'title' => $req->input('title'),
                     'order_code' => $order->order_id,
                     'date'     => $order->delivery_date,
                     'due'     => $req->input('amount') - $req->input('r_amount'),
                 ];
-                try {
-                    Mail::to($orderData['email'])->cc('order@assignnmentinneed.com')->send(new OrderComplete($orderData));
-                } catch (\Throwable $e) {
-                    // Log the error but do not stop execution
-                    Log::error('Mail sending failed | Error: ' . $e->getMessage());
-                }
+                $this->sendOrderCompleteEmail($orderData);
             } elseif ($req->input('status') == 'Delivered') {
 
                 if ($this->dueAmount($order) > 0) {
@@ -1070,12 +1070,7 @@ class OrderController extends Controller
                     'date'     => $order->delivery_date,
                     'due'     => $req->input('amount') - $req->input('r_amount'),
                 ];
-                try {
-                    Mail::to($orderData['email'])->cc('order@assignnmentinneed.com')->send(new OrderComplete($orderData));
-                } catch (\Throwable $e) {
-                    // Log the error but do not stop execution
-                    Log::error('Mail sending failed | Error: ' . $e->getMessage());
-                }
+                $this->sendOrderCompleteEmail($orderData);
             } elseif ($req->input('status') == 'Delivered') {
                 if ($this->dueAmount($order) > 0) {
                     return redirect()->back()->with('warning', 'Order cannot be marked as Delivered if there is any due payment remaining.');
@@ -3473,34 +3468,22 @@ class OrderController extends Controller
             $mailError = null;
 
             if ($statusName->status == 'Completed') {
+                $resolvedEmail = (strpos($userDetails->email ?? '', '*') === false && !empty($userDetails->email))
+                    ? $userDetails->email
+                    : optional($order->user)->email;
+
                 $orderData = [
                     'name' => $userDetails->name,
-                    'email' => $userDetails->email,
+                    'email' => $resolvedEmail,
                     'title' => $order->title,
                     'order_code' => $order->order_id,
                     'date' => $order->delivery_date,
                     'due' => $this->dueAmount($order),
                 ];
 
-                if (!filter_var($orderData['email'], FILTER_VALIDATE_EMAIL)) {
-
-                    $mailSent = false;
-                    $mailError = 'Invalid email address';
-                } else {
-
-                    try {
-                        Mail::to($orderData['email'])
-                            ->cc('order@assignnmentinneed.com')
-                            ->bcc('yourmail@gmail.com')
-                            ->send(new OrderComplete($orderData));
-
-                        $mailSent = true;
-                    } catch (\Throwable $e) {
-                        $mailSent = false;
-                        $mailError = $e->getMessage();
-
-                        Log::error('Completed mail sending failed | Order: ' . $order->order_id . ' | Error: ' . $mailError);
-                    }
+                $mailSent = $this->sendOrderCompleteEmail($orderData);
+                if (!$mailSent) {
+                    $mailError = 'Failed to send completion email';
                 }
             }
 
@@ -6620,6 +6603,55 @@ public function myRevokePayments(Request $request)
             'grandTotalPayments', 
             'grandTotalPaidAmount'
         ));
+    }
+
+    /**
+     * Send order completion email via Client Email account (order@assignnmentinneed.com)
+     * so it is dispatched properly and preserved in the CRM Sent mail folder.
+     */
+    protected function sendOrderCompleteEmail(array $orderData): bool
+    {
+        $recipient = trim($orderData['email'] ?? '');
+        if (empty($recipient) || !filter_var($recipient, FILTER_VALIDATE_EMAIL)) {
+            Log::warning('OrderComplete mail skipped due to invalid recipient email', [
+                'order_code' => $orderData['order_code'] ?? null,
+                'email'      => $recipient,
+            ]);
+            return false;
+        }
+
+        $orderCode = $orderData['order_code'] ?? '';
+        $subject = 'Your Assignment is Ready – ' . $orderCode;
+
+        try {
+            $bodyHtml = view('mailordercomplete', ['OrderData' => $orderData])->render();
+            $clientAccountId = function_exists('crm_email_account_id') ? crm_email_account_id('client') : 2;
+
+            app(EmailService::class)->sendEmail([
+                'account_id' => $clientAccountId,
+                'to'         => $recipient,
+                'to_name'    => $orderData['name'] ?? null,
+                'cc'         => 'order@assignnmentinneed.com',
+                'subject'    => $subject,
+                'body_html'  => $bodyHtml,
+            ]);
+
+            Log::info("OrderComplete mail sent via EmailService for {$orderCode} to {$recipient}");
+            return true;
+        } catch (\Throwable $e) {
+            Log::error("OrderComplete mail via EmailService failed for {$orderCode}: " . $e->getMessage());
+
+            try {
+                Mail::to($recipient)
+                    ->cc('order@assignnmentinneed.com')
+                    ->send(new OrderComplete($orderData));
+                Log::info("OrderComplete mail sent via fallback Mail for {$orderCode}");
+                return true;
+            } catch (\Throwable $fallbackEx) {
+                Log::error("OrderComplete fallback mail also failed for {$orderCode}: " . $fallbackEx->getMessage());
+                return false;
+            }
+        }
     }
 }
 
