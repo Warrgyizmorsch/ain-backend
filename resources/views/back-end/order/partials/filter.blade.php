@@ -1571,23 +1571,28 @@ resetFilters();
             resetFilters();
         });
 
-        // Check URL parameters first (e.g. ?search=... or ?uid=... or ?phone=...)
+        // Check URL parameters (e.g. from WhatsApp, Leads, CRM: ?order_id=... ?user=... ?phone=... ?mobile=... ?uid=... ?user_id=...)
         const urlParams = new URLSearchParams(window.location.search);
-        const searchParam = urlParams.get('search') || urlParams.get('order') || urlParams.get('search_order') || urlParams.get('phone');
-        const uidParam = urlParams.get('uid');
-        const userParam = urlParams.get('user');
+        const searchParam = urlParams.get('search') || urlParams.get('order') || urlParams.get('order_id') || urlParams.get('order_code') || urlParams.get('search_order');
+        const userParam = urlParams.get('user') || urlParams.get('mobile') || urlParams.get('phone') || urlParams.get('number') || urlParams.get('mobile_no') || urlParams.get('email') || urlParams.get('username') || urlParams.get('user_name') || urlParams.get('client');
+        const uidParam = urlParams.get('uid') || urlParams.get('user_id');
         const statusParam = urlParams.get('status');
+        const teamParam = urlParams.get('team_id') || urlParams.get('team');
 
-        if (searchParam || uidParam || userParam || statusParam) {
-            localStorage.removeItem(filterStorageKey);
+        if (searchParam || uidParam || userParam || statusParam || teamParam) {
+            try {
+                localStorage.removeItem(filterStorageKey);
+            } catch (e) {}
 
             if (searchParam) $('#search').val(searchParam);
             if (uidParam) $('#selectedValue').val(uidParam);
             if (userParam) $('#searchInput').val(userParam);
-            if (statusParam) $('#status').val(statusParam).trigger('change');
+            if (statusParam) $('#status').val(statusParam).trigger('change.select2');
+            if (teamParam) $('#filter_team_id').val(teamParam);
 
             $('#filterBody').show();
             $('#toggleFilterBtn').text('Hide Filters').removeClass('btn-primary').addClass('btn-danger');
+            $('#topResetFiltersBtn, #resetFiltersBtn').show();
 
             applyFilters();
             return;
