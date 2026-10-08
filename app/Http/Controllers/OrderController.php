@@ -4023,12 +4023,11 @@ class OrderController extends Controller
                 $searchUserIds = array_unique($searchUserIds);
             }
 
-            if ($looksLikeOrderCode) {
-                // A complete order code is an exact lookup. Do not broaden it with
-                // title/customer/UID matches, even when that code does not exist.
-                // A missing exact code must return zero rows, never another
-                // order belonging to a loosely matched customer.
-                $query->whereRaw('UPPER(orders.order_id) = ?', [$upperSearch]);
+            if ($looksLikeOrderCode || !empty($exactMatchedOrderIds)) {
+                $query->where(function ($q) use ($possibleCodes, $upperSearch) {
+                    $q->whereIn('orders.order_id', $possibleCodes)
+                      ->orWhereRaw('UPPER(orders.order_id) = ?', [$upperSearch]);
+                });
             } elseif (!empty($matchedOrderIds)) {
                 $query->where(function ($q) use ($matchedOrderIds, $possibleCodes, $search, $searchUserIds) {
                     $q->whereIn('orders.order_id', $matchedOrderIds)

@@ -83,14 +83,12 @@
         @endif
     </div>
     <div class="card-body py-3" id="filterBody" style="display:none;">
-        <form action="" onsubmit="event.preventDefault(); applyFilters(); return false;">
+        <form id="orderFilterForm" action="javascript:void(0);" onsubmit="event.preventDefault(); if (typeof window.applyFilters === 'function') { window.applyFilters(); } return false;">
             <div class="row mb-3">
                 <div class="col-md-3 fv-row">
                     <input type="search" name="search" id="search" class="form-control form-control-solid"
-                        placeholder="OrderCode or Title">
+                        placeholder="OrderCode or Title" autocomplete="off">
                 </div>
-
-                <script src="{{ asset('js/jquery.js') }}"></script>
 
                 <div class="col-md-3 fv-row position-relative">
                     <input type="text" id="searchInput" name="user"
@@ -107,11 +105,21 @@
                     $(document).ready(function() {
                         let searchTimeout = null;
 
-                        $('#search, #searchInput').on('keypress', function(e) {
+                        $('#search, #searchInput').on('keydown keypress', function(e) {
                             if (e.which === 13 || e.keyCode === 13) {
                                 e.preventDefault();
+                                e.stopPropagation();
                                 $('#searchResultss').hide();
-                                applyFilters();
+                                if (typeof window.applyFilters === 'function') {
+                                    window.applyFilters();
+                                }
+                                return false;
+                            }
+                        });
+
+                        $('#search').on('search', function() {
+                            if (typeof window.applyFilters === 'function') {
+                                window.applyFilters();
                             }
                         });
 
@@ -396,8 +404,7 @@
             <div class="col-lg-12 fv-row fv-plugins-icon-container" style="display: flex; justify-content: space-between; align-items: center;">
                 <!-- <button type='submit' class="btn btn-sm btn-primary" >Search</button> -->
                 <div>
-
-                    <a onclick="applyFilters()" class="btn btn-sm btn-primary">Search</a>
+                    <button type="button" onclick="window.applyFilters()" class="btn btn-sm btn-primary" id="applyFilterBtn">Search</button>
                     <button type="button" id="resetFiltersBtn" class="btn btn-sm btn-danger" style="display: none;">Reset</button>
                     <button type="button" id="showMoreFilters" class="btn btn-sm btn-success">Show More Filters</button>
                     @if(empty($hideOrderQuickFilters))
@@ -1386,6 +1393,9 @@ resetFilters();
         // NAYI LINE: Reset hone ke baad button wapas hide kar do
         $('#resetFiltersBtn').hide();
     }
+
+    window.applyFilters = applyFilters;
+    window.resetFilters = resetFilters;
 
     function enableScrollHandler() {
         $('#scroll-order-table').off('scroll').on('scroll', function() {
