@@ -32,63 +32,7 @@
                     <span class="highlight">Special Offer – Save on Your Current Order :</span><br>
                     You can now avail an instant 20% discount on your current due amount by referring a friend to our services. Once your referred contact confirms an order with us, the discount will be applied immediately.<br><br>
                     <span class="highlight">Terms & Conditions:</span><br>
-                    The discount is 20% of the current due amount, capped at a maximum of £20.<br><br>
-
-                    <span class="highlight" style="font-size: 16px;">Make Payment - Updated Bank Details:</span><br><br>
-
-                    <table style="width: 100%; border-collapse: collapse; margin-bottom: 15px;">
-                        <tr>
-                            <td colspan="2" style="background-color: #a797ff; color: #ffffff; padding: 10px 15px; font-weight: bold; font-size: 14px; border: 1px solid #ddd;">UK Bank Account</td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 8px 15px; border: 1px solid #ddd; font-weight: bold; width: 40%;">Account Holder</td>
-                            <td style="padding: 8px 15px; border: 1px solid #ddd;"><b>Creative and Innovative Service provider</b></td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 8px 15px; border: 1px solid #ddd; font-weight: bold;">Account Number</td>
-                            <td style="padding: 8px 15px; border: 1px solid #ddd;"><b>88281166</b></td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 8px 15px; border: 1px solid #ddd; font-weight: bold;">Sort Code</td>
-                            <td style="padding: 8px 15px; border: 1px solid #ddd;"><b>23-14-70</b></td>
-                        </tr>
-                    </table>
-
-                    <table style="width: 100%; border-collapse: collapse; margin-bottom: 15px;">
-                        <tr>
-                            <td colspan="2" style="background-color: #a797ff; color: #ffffff; padding: 10px 15px; font-weight: bold; font-size: 14px; border: 1px solid #ddd;">Germany Bank Account</td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 8px 15px; border: 1px solid #ddd; font-weight: bold; width: 40%;">Account Holder</td>
-                            <td style="padding: 8px 15px; border: 1px solid #ddd;"><b>Creative and Innovative Service provider</b></td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 8px 15px; border: 1px solid #ddd; font-weight: bold;">IBAN</td>
-                            <td style="padding: 8px 15px; border: 1px solid #ddd;"><b>BE44967106911645</b></td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 8px 15px; border: 1px solid #ddd; font-weight: bold;">BIC / SWIFT</td>
-                            <td style="padding: 8px 15px; border: 1px solid #ddd;"><b>TRWIBEB1XXX</b></td>
-                        </tr>
-                    </table>
-
-                    <table style="width: 100%; border-collapse: collapse; margin-bottom: 10px;">
-                        <tr>
-                            <td colspan="2" style="background-color: #a797ff; color: #ffffff; padding: 10px 15px; font-weight: bold; font-size: 14px; border: 1px solid #ddd;">Australian Bank Account</td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 8px 15px; border: 1px solid #ddd; font-weight: bold; width: 40%;">Account Holder</td>
-                            <td style="padding: 8px 15px; border: 1px solid #ddd;"><b>Creative and Innovative Service provider</b></td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 8px 15px; border: 1px solid #ddd; font-weight: bold;">Account Number</td>
-                            <td style="padding: 8px 15px; border: 1px solid #ddd;"><b>216428728</b></td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 8px 15px; border: 1px solid #ddd; font-weight: bold;">BSB Code</td>
-                            <td style="padding: 8px 15px; border: 1px solid #ddd;"><b>802-985</b></td>
-                        </tr>
-                    </table>
+                    The discount is 20% of the current due amount, capped at a maximum of £20.
                 </td>
             </tr>
 
