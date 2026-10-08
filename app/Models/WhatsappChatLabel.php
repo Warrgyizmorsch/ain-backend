@@ -71,7 +71,9 @@ class WhatsappChatLabel extends Model
         if (!static::hasAccountColumns()) {
             return $query->where('is_email', true);
         }
-        return $query->where('is_client_email', true);
+        return $query->where(function ($q) {
+            $q->where('is_client_email', true)->orWhere('is_email', true);
+        });
     }
 
     /**
@@ -82,13 +84,15 @@ class WhatsappChatLabel extends Model
         if (!static::hasAccountColumns()) {
             return $query->where('is_email', true);
         }
-        return $query->where('is_writer_email', true);
+        return $query->where(function ($q) {
+            $q->where('is_writer_email', true)->orWhere('is_email', true);
+        });
     }
 
     /**
      * Scope for specific Email Account (Client vs Writer)
-     * If account is Writer: only is_writer_email
-     * If account is Client: only is_client_email
+     * If account is Writer: is_writer_email or is_email
+     * If account is Client: is_client_email or is_email
      * Fallback: any email channel
      */
     public function scopeForEmailAccount($query, $account = null)
@@ -102,11 +106,15 @@ class WhatsappChatLabel extends Model
             $id = is_object($account) ? ($account->id ?? 0) : (is_numeric($account) ? (int) $account : 0);
 
             if ((int) $id === 1 || stripos($name, 'writer') !== false) {
-                return $query->where('is_writer_email', true);
+                return $query->where(function ($q) {
+                    $q->where('is_writer_email', true)->orWhere('is_email', true);
+                });
             }
 
             if ((int) $id === 2 || stripos($name, 'client') !== false) {
-                return $query->where('is_client_email', true);
+                return $query->where(function ($q) {
+                    $q->where('is_client_email', true)->orWhere('is_email', true);
+                });
             }
         }
 

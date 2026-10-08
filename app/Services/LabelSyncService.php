@@ -240,13 +240,17 @@ class LabelSyncService
 
         if ($hasAccountCols && $isWriterThread) {
             $emailEligibleLabelIds = WhatsappChatLabel::whereIn('id', $labelIds)
-                ->where('is_writer_email', true)
+                ->where(function ($q) {
+                    $q->where('is_writer_email', true)->orWhere('is_email', true);
+                })
                 ->pluck('id')
                 ->map(fn($id) => (int) $id)
                 ->all();
         } elseif ($hasAccountCols && $isClientThread) {
             $emailEligibleLabelIds = WhatsappChatLabel::whereIn('id', $labelIds)
-                ->where('is_client_email', true)
+                ->where(function ($q) {
+                    $q->where('is_client_email', true)->orWhere('is_email', true);
+                })
                 ->pluck('id')
                 ->map(fn($id) => (int) $id)
                 ->all();
@@ -395,7 +399,9 @@ class LabelSyncService
 
         $writerLabelIds = $hasAccountCols
             ? WhatsappChatLabel::whereIn('id', $labelIds)
-                ->where('is_writer_email', true)
+                ->where(function ($q) {
+                    $q->where('is_writer_email', true)->orWhere('is_email', true);
+                })
                 ->pluck('id')
                 ->map(fn($id) => (int) $id)
                 ->all()
@@ -403,7 +409,9 @@ class LabelSyncService
 
         $clientLabelIds = $hasAccountCols
             ? WhatsappChatLabel::whereIn('id', $labelIds)
-                ->where('is_client_email', true)
+                ->where(function ($q) {
+                    $q->where('is_client_email', true)->orWhere('is_email', true);
+                })
                 ->pluck('id')
                 ->map(fn($id) => (int) $id)
                 ->all()

@@ -2250,7 +2250,7 @@ class EmailController extends Controller
             \Log::warning('Failed to sync Email labels to WhatsApp: '.$e->getMessage());
         }
 
-        $activeLabels = WhatsappChatLabel::forEmail()->whereIn('id', $labelIds)->ordered()->get(['id', 'name', 'color']);
+        $activeLabels = WhatsappChatLabel::whereIn('id', $labelIds)->ordered()->get(['id', 'name', 'color']);
 
         return response()->json([
             'success' => true,

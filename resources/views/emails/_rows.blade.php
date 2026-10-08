@@ -45,6 +45,9 @@
             if ($rowLabels->isEmpty() && !empty($clientEmail)) {
                 $rowLabels = $threadLabelsMap->get($clientEmail) ?? collect();
             }
+            if ($rowLabels->isEmpty() && !empty($rawFromEmail)) {
+                $rowLabels = $threadLabelsMap->get(strtolower($rawFromEmail)) ?? collect();
+            }
         } else {
             $rowLabels = \App\Models\EmailThreadLabel::with('label')
                 ->where('thread_id', $email->thread_id)
@@ -52,7 +55,33 @@
                 ->get()
                 ->unique('label_id');
         }
-        $activeRowLabelIds = $rowLabels->pluck('label_id')->toArray();
+
+        // Fallback 1: If no direct thread label, check clientContact user labels
+        if ($rowLabels->isEmpty() && !empty($clientContact)) {
+            if (!empty($clientContact->user) && !empty($clientContact->user->labels) && $clientContact->user->labels->isNotEmpty()) {
+                $rowLabels = $clientContact->user->labels;
+            } elseif (!empty($clientContact->labels) && $clientContact->labels->isNotEmpty()) {
+                $rowLabels = $clientContact->labels;
+            }
+        }
+
+        // Fallback 2: If still empty and row has matched Order, check Order User's labels
+        if ($rowLabels->isEmpty() && !empty($rowOrder)) {
+            if (!empty($rowOrder->user) && !empty($rowOrder->user->labels) && $rowOrder->user->labels->isNotEmpty()) {
+                $rowLabels = $rowOrder->user->labels;
+            } elseif (!empty($rowOrder->uid)) {
+                static $orderUserLabelsMap = [];
+                if (!isset($orderUserLabelsMap[$rowOrder->uid])) {
+                    $uObj = \App\Models\User::find($rowOrder->uid);
+                    $orderUserLabelsMap[$rowOrder->uid] = $uObj ? $uObj->labels : collect();
+                }
+                $rowLabels = $orderUserLabelsMap[$rowOrder->uid] ?? collect();
+            }
+        }
+
+        $activeRowLabelIds = $rowLabels->map(function($l) {
+            return (int) ($l->label_id ?? $l->id ?? 0);
+        })->filter()->unique()->toArray();
 
         $senderDisplayName = $email->from_name ?: ($displayFromEmail ?: 'Unknown');
         if (!$isSuperAdmin && filter_var($email->from_name, FILTER_VALIDATE_EMAIL)) {
@@ -259,10 +288,15 @@
                 @if($rowLabels->count() > 0)
                     <span class="gmail-row-labels" id="row-labels-badges-{{ $email->id }}" onclick="event.stopPropagation();">
                         @foreach($rowLabels->take(3) as $rl)
-                            @if($rl->label)
-                                <span class="gmail-label-chip" style="--label-color: {{ $rl->label->color }};">
-                                    <span class="label-dot"></span>
-                                    {{ $rl->label->name }}
+                            @php
+                                $lblObj = $rl->label ?? $rl;
+                                $lblName = $lblObj->name ?? null;
+                                $lblColor = $lblObj->color ?? '#3454d1';
+                            @endphp
+                            @if($lblName)
+                                <span class="gmail-label-chip" style="--label-color: {{ $lblColor }};">
+                                    <span class="label-dot" style="background-color: {{ $lblColor }};"></span>
+                                    {{ $lblName }}
                                 </span>
                             @endif
                         @endforeach
