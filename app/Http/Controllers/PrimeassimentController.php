@@ -31,7 +31,7 @@ class PrimeassimentController extends Controller
 
         $query = DB::table('primeassiment')
                    ->whereNotIn('id', $processedLeadIds) // Processed leads hide hongi
-                   ->where('source_url', 'like', '%https://primeassignmenthelp.co.uk/%')
+                   ->where('source_url', 'like', '%primeassignmenthelp.co.uk%')
                    ->orderBy('id', 'desc');
 
         if ($request->filled('name')) $query->where('name', 'like', '%' . $request->name . '%');
@@ -46,7 +46,7 @@ class PrimeassimentController extends Controller
         $query = DB::table('primeassiment')
             ->join('convert_leads', 'primeassiment.id', '=', 'convert_leads.lead_id')
             ->where('convert_leads.action_type', 'order')
-            ->where('primeassiment.source_url', 'like', '%https://primeassignmenthelp.co.uk/%')
+            ->where('primeassiment.source_url', 'like', '%primeassignmenthelp.co.uk%')
             ->select('primeassiment.*', 'convert_leads.created_at as processed_at')
             ->orderBy('convert_leads.id', 'desc');
 
@@ -67,7 +67,7 @@ class PrimeassimentController extends Controller
         $leads = DB::table('primeassiment')
             ->join('convert_leads', 'primeassiment.id', '=', 'convert_leads.lead_id')
             ->where('convert_leads.action_type', 'cancel')
-            ->where('primeassiment.source_url', 'like', '%https://primeassignmenthelp.co.uk/%') // Sirf Prime ki URL
+            ->where('primeassiment.source_url', 'like', '%primeassignmenthelp.co.uk%') // Sirf Prime ki URL
             ->select('primeassiment.*', 'convert_leads.message as cancel_reason', 'convert_leads.created_at as processed_at')
             ->orderBy('convert_leads.id', 'desc')
             ->paginate(15);
