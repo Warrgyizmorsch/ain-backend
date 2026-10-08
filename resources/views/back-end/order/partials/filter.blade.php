@@ -423,7 +423,7 @@
                 <div>
                     <button type="button" onclick="window.applyFilters()" class="btn btn-sm btn-primary" id="applyFilterBtn">Search</button>
                     <button type="button" onclick="window.resetFilters()" id="resetFiltersBtn" class="btn btn-sm btn-danger" style="{{ $hasInitialFilters ? '' : 'display: none;' }}">Reset</button>
-                    <button type="button" id="showMoreFilters" class="btn btn-sm btn-success">Show More Filters</button>
+                    <button type="button" onclick="window.toggleMoreFilters()" id="showMoreFilters" class="btn btn-sm btn-success">Show More Filters</button>
                     @if(empty($hideOrderQuickFilters))
                     <a href="javascript:void(0)" id="overdueBtn" class="btn btn-sm btn-danger">
                         Overdue {{ $overdueCount }}
@@ -1503,7 +1503,20 @@ resetFilters();
         $('#filter-total').text('All Orders');
         $('#export-order-btn').hide();
         $('#resetFiltersBtn, #topResetFiltersBtn').hide();
+        $('.additional-filters').hide();
+        $('#showMoreFilters').text('Show More Filters');
     }
+
+    window.toggleMoreFilters = function() {
+        const additional = $('.additional-filters');
+        if (additional.is(':visible')) {
+            additional.slideUp(180);
+            $('#showMoreFilters').text('Show More Filters');
+        } else {
+            additional.slideDown(180);
+            $('#showMoreFilters').text('Hide More Filters');
+        }
+    };
 
     window.applyFilters = applyFilters;
     window.resetFilters = resetFilters;
@@ -1564,10 +1577,9 @@ resetFilters();
         }
 
         // Show/Hide more filters
-        $('#showMoreFilters').on('click', function() {
-            $('.additional-filters').toggle();
-            const isVisible = $('.additional-filters').is(':visible');
-            $(this).text(isVisible ? 'Hide More Filters' : 'Show More Filters');
+        $(document).on('click', '#showMoreFilters', function(e) {
+            e.preventDefault();
+            window.toggleMoreFilters();
         });
 
         // TL change triggers subwriter update
