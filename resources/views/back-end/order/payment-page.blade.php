@@ -118,7 +118,7 @@
                             <label class="form-label">Company Account</label>
                             <select name="company_accounts" class="select-form" required>
                                 <option disabled selected value="">Select a Company Account</option>
-                                @foreach(['HDFC', 'Native', 'PayPal', 'Skydo', 'Wallet','Other'] as $option)
+                                @foreach(['HDFC', 'Native', 'PayPal', 'Skydo', 'Banking Circle', 'Wallet', 'Other'] as $option)
                                     <option value="{{ $option }}"
                                             {{ isset($editPayment) && $editPayment->company_accounts == $option ? 'selected' : '' }}>
                                         {{ $option }}

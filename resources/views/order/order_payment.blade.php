@@ -216,6 +216,7 @@
                             <option value="Native" {{ old('company_accounts', $editOrder->company_accounts ?? '') == 'Native' ? 'selected' : '' }}>Native</option>
                             <option value="PayPal" {{ old('company_accounts', $editOrder->company_accounts ?? '') == 'PayPal' ? 'selected' : '' }}>PayPal</option>
                             <option value="Skydo" {{ old('company_accounts', $editOrder->company_accounts ?? '') == 'Skydo' ? 'selected' : '' }}>Skydo</option>
+                            <option value="Banking Circle" {{ old('company_accounts', $editOrder->company_accounts ?? '') == 'Banking Circle' ? 'selected' : '' }}>Banking Circle</option>
                             <option value="Other" {{ old('company_accounts', $editOrder->company_accounts ?? '') == 'Other' ? 'selected' : '' }}>Other</option>
                         </select>
                         <div class="fv-plugins-message-container invalid-feedback"></div>
