@@ -3999,16 +3999,7 @@ class OrderController extends Controller
                 $matchedOrderIds = array_values(array_unique(array_merge($matchedOrderIds, $userMatchedCodes)));
             }
         }
-
         // Enforce lead conversion (never display unconverted or cancelled leads as orders)
-        $query->where(function ($q) {
-            $q->where(function ($noLead) {
-                $noLead->whereDoesntHave('lead')->whereDoesntHave('frontendLead');
-            })
-            ->orWhereHas('lead', fn ($lq) => $lq->where('is_converted', 1))
-            ->orWhereHas('frontendLead', fn ($flq) => $flq->where('is_converted', 1));
-        });
-
         if (!empty($unconvertedOrderCodes)) {
             $query->whereNotIn('orders.order_id', $unconvertedOrderCodes);
         }
@@ -4401,14 +4392,29 @@ class OrderController extends Controller
             return $overdueQuery->count();
         });
 
-        // mk 5 10 26 - Cache order team counts for 180s to avoid full table scans every minute
-        $teamCounts = Cache::remember('order_team_counts', 180, function () {
+        // mk 5 10 26 - Cache order team counts for 180s using converted order criteria
+        $unconvertedOrderCodes = Cache::remember('unconverted_order_codes_in_orders', 300, function () {
             return DB::table('orders')
-                ->whereNotNull('uid')
-                ->whereNotNull('team_id')
-                ->groupBy('team_id')
-                ->select('team_id', DB::raw('COUNT(*) as total'))
-                ->pluck('total', 'team_id');
+                ->join('leads', 'orders.order_id', '=', 'leads.order_id')
+                ->where('leads.is_converted', 0)
+                ->pluck('orders.order_id')
+                ->filter()
+                ->values()
+                ->toArray();
+        });
+
+        $teamCounts = Cache::remember('order_team_counts_v2', 180, function () use ($unconvertedOrderCodes) {
+            $q = DB::table('orders')
+                ->where(function ($w) {
+                    $w->whereNotNull('orders.uid')->orWhereNotNull('orders.lead_id');
+                })
+                ->whereNotNull('orders.team_id');
+            if (!empty($unconvertedOrderCodes)) {
+                $q->whereNotIn('orders.order_id', $unconvertedOrderCodes);
+            }
+            return $q->groupBy('orders.team_id')
+                ->select('orders.team_id', DB::raw('COUNT(*) as total'))
+                ->pluck('total', 'orders.team_id');
         });
         $alphaCount = $teamCounts[1] ?? 0;
         $gigaCount  = $teamCounts[2] ?? 0;
@@ -4666,24 +4672,45 @@ class OrderController extends Controller
             ])->render();
         }
 
-        if ($offset === 0) {
-            $totalCount = $hasMore ? (clone $baseQuery)->count() : $orders->count();
-        } else {
-            $totalCount = (int) $request->get('total', $offset + $orders->count());
-        }
-
-        $teamCounts = Cache::remember('order_team_counts', 30, function () {
+        $unconvertedOrderCodes = Cache::remember('unconverted_order_codes_in_orders', 300, function () {
             return DB::table('orders')
-                ->whereNotNull('uid')
-                ->whereNotNull('team_id')
-                ->groupBy('team_id')
-                ->select('team_id', DB::raw('COUNT(*) as total'))
-                ->pluck('total', 'team_id');
+                ->join('leads', 'orders.order_id', '=', 'leads.order_id')
+                ->where('leads.is_converted', 0)
+                ->pluck('orders.order_id')
+                ->filter()
+                ->values()
+                ->toArray();
+        });
+
+        $teamCounts = Cache::remember('order_team_counts_v2', 180, function () use ($unconvertedOrderCodes) {
+            $q = DB::table('orders')
+                ->where(function ($w) {
+                    $w->whereNotNull('orders.uid')->orWhereNotNull('orders.lead_id');
+                })
+                ->whereNotNull('orders.team_id');
+            if (!empty($unconvertedOrderCodes)) {
+                $q->whereNotIn('orders.order_id', $unconvertedOrderCodes);
+            }
+            return $q->groupBy('orders.team_id')
+                ->select('orders.team_id', DB::raw('COUNT(*) as total'))
+                ->pluck('total', 'orders.team_id');
         });
 
         $alphaCount = $teamCounts[1] ?? 0;
         $gigaCount  = $teamCounts[2] ?? 0;
         $gammaCount = $teamCounts[3] ?? 0;
+
+        if ($offset === 0) {
+            $onlyTeamFilter = $request->filled('team_id') && empty($request->search) && empty($request->uid) && empty($request->user) && empty($request->group_id) && empty($request->status) && empty($request->writer) && empty($request->dateStatus) && empty($request->fromDate) && empty($request->toDate) && empty($request->from_date) && empty($request->to_date) && empty($request->WriterTL) && empty($request->SubWriter) && empty($request->college) && empty($request->extra) && empty($request->module_code) && empty($request->paper_type) && empty($request->semester) && empty($request->month) && empty($request->payment) && empty($request->deadline_status) && empty($request->offer) && empty($request->duec) && empty($request->marks_filter) && empty($request->today_deadline_filter) && empty($request->yesterday_deadline_filter) && empty($request->today_writer_deadline_filter) && empty($request->duration_gap);
+
+            if ($onlyTeamFilter && isset($teamCounts[$request->team_id])) {
+                $totalCount = (int) $teamCounts[$request->team_id];
+            } else {
+                $totalCount = $hasMore ? (clone $baseQuery)->count() : $orders->count();
+            }
+        } else {
+            $totalCount = (int) $request->get('total', $offset + $orders->count());
+        }
 
         return response()->json([
             'html' => $html,

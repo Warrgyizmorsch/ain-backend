@@ -1492,14 +1492,21 @@ resetFilters();
             const containerHeight = container.innerHeight();
             const scrollHeight = this.scrollHeight;
 
-            if (scrollTop + containerHeight >= scrollHeight - 50) {
+            if (scrollTop + containerHeight >= scrollHeight - 80) {
                 fetchData(true); // Load more and append
+            }
+        });
+
+        $(window).off('scroll.orderInfinite').on('scroll.orderInfinite', function() {
+            if ($(window).scrollTop() + $(window).height() >= $(document).height() - 150) {
+                fetchData(true);
             }
         });
     }
 
     function disableScrollHandler() {
         $('#scroll-order-table').off('scroll');
+        $(window).off('scroll.orderInfinite');
     }
 
     $(document).ready(function() {
