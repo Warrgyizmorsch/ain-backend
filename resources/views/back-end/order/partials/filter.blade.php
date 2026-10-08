@@ -415,7 +415,7 @@
                 <!-- <button type='submit' class="btn btn-sm btn-primary" >Search</button> -->
                 <div>
                     <button type="button" onclick="window.applyFilters()" class="btn btn-sm btn-primary" id="applyFilterBtn">Search</button>
-                    <button type="button" id="resetFiltersBtn" class="btn btn-sm btn-danger" style="display: none;">Reset</button>
+                    <button type="button" onclick="window.resetFilters()" id="resetFiltersBtn" class="btn btn-sm btn-danger" style="display: none;">Reset</button>
                     <button type="button" id="showMoreFilters" class="btn btn-sm btn-success">Show More Filters</button>
                     @if(empty($hideOrderQuickFilters))
                     <a href="javascript:void(0)" id="overdueBtn" class="btn btn-sm btn-danger">
@@ -1435,10 +1435,23 @@ resetFilters();
     }
 
     function resetFilters(hideDeadlineBar = true) {
-        localStorage.removeItem(filterStorageKey);
-        // Clear all input values
+        try {
+            localStorage.removeItem(filterStorageKey);
+        } catch (e) {}
+
+        // Clear URL search params without reload
+        if (window.history && window.history.replaceState) {
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }
+
+        // Clear all text and search inputs
         $('input[type=search], input[type=date], input[type=month], input[type=text]').val('');
-        $('#orderFilterForm input[type=hidden]').not('[name="_token"]').val('');
+        $('#search').val('');
+        $('#searchInput').val('');
+        $('#selectedValue').val('');
+        $('#searchResultss').hide().empty();
+
+        // Clear hidden inputs
         $('#filter_team_id').val('');
         $('#duration_gap_filter').val('');
         $('#today_deadline_filter').val('');
@@ -1446,27 +1459,29 @@ resetFilters();
         $('#today_writer_deadline_filter').val('');
         $('#deadline_status').val('');
         $('#holdBtn').val('');
-        $('#selectedValue').val('');
-        $('#search').val('');
-        $('#searchInput').val('');
-        $('#searchResultss').hide().empty();
-        $('select').val('').trigger('change');
+        $('#orderFilterForm input[type=hidden]').not('[name="_token"]').val('');
 
+        // Reset select dropdowns
+        $('select').each(function() {
+            $(this).val('').trigger('change.select2');
+        });
+
+        // Remove active highlights
         $('.deadline-gap-btn').removeClass('active');
         $('.deadline-gap-clear-btn').removeClass('is-visible');
+        $('.dynamic-team-btn, #teamAlphaBtn, #teamGigaBtn, #teamGammaBtn').removeClass('quick-filter-active');
+        $('#overdueBtn, #todayDeadlineBtn, #yesterdayDeadlineBtn, #todayWriterDeadlineBtn, #writerQueryBtn, #holdWorkBtn').removeClass('quick-filter-active');
 
         if (hideDeadlineBar) {
             $('#deadlineGapContainer').hide();
             $('#toggleDeadlineGapBtn').removeClass('active');
         }
 
-        // Reset state
+        // Reset pagination and state
         offset = 0;
-        hasMore = true;
+        hasMore = false;
         filters = {};
         disableScrollHandler();
-
-        highlightActiveQuickFilters();
 
         runningTotals = {
             total_amount: 0,
@@ -1477,7 +1492,7 @@ resetFilters();
         // 🔄 Hide AJAX data, show initial blade-rendered data
         $('#lead-rows').hide().empty();
         $('#initial-order-rows').show();
-        $('#filter-total').text(`All Orders`);
+        $('#filter-total').text('All Orders');
         $('#export-order-btn').hide();
         $('#resetFiltersBtn, #topResetFiltersBtn').hide();
     }
@@ -1578,73 +1593,10 @@ resetFilters();
             return;
         }
 
-        let savedFilters = localStorage.getItem(filterStorageKey);
-        if (savedFilters) {
-            try {
-                filters = JSON.parse(savedFilters);
-                const hasActiveFilters = Object.values(filters).some(val => val && String(val).trim() !== "");
-
-                if (hasActiveFilters) {
-                    $('#search').val(filters.search || '');
-                    $('#selectedValue').val(filters.uid || '');
-                    $('#searchInput').val(filters.user || '');
-                    $('#group_id').val(filters.group_id || '').trigger('change');
-                    $('#status').val(filters.status || '').trigger('change');
-                    $('#writer').val(filters.writer || '').trigger('change');
-                    $('#date_status').val(filters.dateStatus || '').trigger('change');
-                    $('#from_date').val(filters.fromDate || '');
-                    $('#to_date').val(filters.toDate || '');
-                    $('#writerTL').val(filters.WriterTL || '').trigger('change');
-                    $('#SubWriter').val(filters.SubWriter || '').trigger('change');
-                    $('#college').val(filters.college || '').trigger('change');
-                    $('#extra').val(filters.extra || '').trigger('change');
-                    $('#module_code').val(filters.module_code || '');
-                    $('#paper_type').val(filters.paper_type || '').trigger('change');
-                    $('#semester').val(filters.semester || '').trigger('change');
-                    $('#payment').val(filters.payment || '').trigger('change');
-                    $('#month').val(filters.month || '');
-                    $('#deadline_status').val(filters.deadline_status || '').trigger('change');
-                    $('#filter_team_id').val(filters.team_id || '');
-                    $('#offer').val(filters.offer || '').trigger('change');
-                    $('#duec').val(filters.duec || '').trigger('change');
-                    $('#marks_filter').val(filters.marks_filter || '').trigger('change');
-                    $('#today_deadline_filter').val(filters.today_deadline_filter || '');
-                    $('#yesterday_deadline_filter').val(filters.yesterday_deadline_filter || '');
-                    $('#today_writer_deadline_filter').val(filters.today_writer_deadline_filter || '');
-                    $('#duration_gap_filter').val(filters.duration_gap || '');
-
-                    if (filters.duration_gap) {
-                        $('#deadlineGapContainer').show();
-                        $('#toggleDeadlineGapBtn').addClass('active');
-                    }
-
-                    // Auto-open filter section so user can see restored active filters
-                    $('#filterBody').show();
-                    $('#toggleFilterBtn').text('Hide Filters').removeClass('btn-primary').addClass('btn-danger');
-
-                    const hasMoreFilterData = !!(filters.fromDate || filters.toDate || filters.dateStatus || filters.module_code || filters.paper_type || filters.semester || filters.payment || filters.month);
-                    if (hasMoreFilterData) {
-                        $('.additional-filters').show();
-                        $('#showMoreFilters').text('Hide More Filters');
-                    }
-
-                    offset = 0;
-                    hasMore = true;
-
-                    $('#initial-order-rows').hide();
-                    $('#lead-rows').show().empty();
-                    $('#resetFiltersBtn').show();
-
-                    highlightActiveQuickFilters();
-
-                    fetchData(false);
-                } else {
-                    localStorage.removeItem(filterStorageKey);
-                }
-            } catch (e) {
-                localStorage.removeItem(filterStorageKey);
-            }
-        }
+        // Clear old sticky localStorage if present so refresh is clean
+        try {
+            localStorage.removeItem(filterStorageKey);
+        } catch (e) {}
     });
 
     // Export handler
