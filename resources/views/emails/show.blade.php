@@ -1273,16 +1273,16 @@ function openAttachmentPreview(attId, filename, sizeStr, mimeType, viewUrl, down
             fetch(previewHtmlUrl)
                 .then(r => r.json())
                 .then(res => {
-                    if (res && res.success && res.html) {
+                    if (res && res.success && res.html && !res.html.includes('Unable to open') && !res.html.includes('Empty or unreadable')) {
                         if (contentBox) contentBox.innerHTML = res.html;
                         if (spinner) spinner.style.display = 'none';
                         if (scrollArea) scrollArea.style.display = 'block';
                     } else {
-                        showUnsupportedDocFallback(bodyWrap, filename, sizeStr, mimeType, downloadUrl || viewUrl, res?.message || 'Could not parse document.');
+                        showUnsupportedDocFallback(bodyWrap, filename, sizeStr, mimeType, downloadUrl || viewUrl);
                     }
                 })
                 .catch(err => {
-                    showUnsupportedDocFallback(bodyWrap, filename, sizeStr, mimeType, downloadUrl || viewUrl, err.message);
+                    showUnsupportedDocFallback(bodyWrap, filename, sizeStr, mimeType, downloadUrl || viewUrl);
                 });
         };
 
@@ -1301,8 +1301,12 @@ function openAttachmentPreview(attId, filename, sizeStr, mimeType, viewUrl, down
                         breakPages: true
                     })
                     .then(() => {
-                        if (spinner) spinner.style.display = 'none';
-                        if (scrollArea) scrollArea.style.display = 'block';
+                        if (contentBox.textContent.includes('Unable to open') || contentBox.innerHTML.trim() === '') {
+                            renderBackendHtmlFallback();
+                        } else {
+                            if (spinner) spinner.style.display = 'none';
+                            if (scrollArea) scrollArea.style.display = 'block';
+                        }
                     })
                     .catch(renderErr => {
                         console.warn('docx-preview failed, falling back to server-side parser:', renderErr);
@@ -1330,19 +1334,18 @@ function openAttachmentPreview(attId, filename, sizeStr, mimeType, viewUrl, down
 
 function showUnsupportedDocFallback(bodyWrap, filename, sizeStr, mimeType, downloadUrl, errorMsg) {
     bodyWrap.innerHTML = `
-        <div class="text-center p-8 d-flex flex-column align-items-center justify-content-center" style="min-height: 400px;">
+        <div class="text-center p-8 d-flex flex-column align-items-center justify-content-center" style="min-height: 480px; width: 100%;">
             <div class="mb-4" style="transform: scale(2.2); transform-origin: center;">
                 ${getAttachmentIconSvg(mimeType, filename)}
             </div>
-            <h4 class="text-white fw-bold mt-4 mb-2">${filename}</h4>
-            <p class="text-white-50 fs-7 mb-4">${sizeStr || ''} &bull; ${mimeType || 'Document'}</p>
-            ${errorMsg ? `<div class="alert alert-warning py-2 px-3 fs-8 mb-4" style="max-width: 500px;">${errorMsg}</div>` : ''}
+            <h4 class="text-white fw-bold mt-4 mb-2 text-truncate" style="max-width: 80vw;">${escapeHtml(filename)}</h4>
+            <p class="text-white-50 fs-7 mb-4">${escapeHtml(sizeStr || '')} &bull; ${escapeHtml(mimeType || 'Word Document')}</p>
             <div class="d-flex align-items-center gap-3">
-                <a href="${downloadUrl}" class="btn btn-primary px-6 py-3 fw-bold" download>
-                    <i class="fa fa-download me-2"></i> Download File
+                <a href="${downloadUrl}" class="btn btn-primary px-6 py-3 fw-bold rounded-pill shadow" download>
+                    <i class="fa fa-download me-2"></i> Download Document
                 </a>
             </div>
-            <p class="text-muted fs-8 mt-4 mb-0">Direct in-browser preview is not available for this specific format. Click download to open locally.</p>
+            <p class="text-muted fs-8 mt-4 mb-0" style="max-width: 480px;">In-browser rendering is not available for this specific file. Click Download above to open and edit directly in Microsoft Word.</p>
         </div>
     `;
 }

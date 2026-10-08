@@ -1033,16 +1033,14 @@ class EmailService
             $body = quoted_printable_decode($body);
         }
 
-        if (function_exists('iconv')) {
-            $body = @iconv('UTF-8', 'UTF-8//IGNORE', $body) ?: $body;
-        }
-
         $isAttachment = preg_match('/Content-Disposition:\s*attachment/i', $headers)
             || preg_match('/(?:filename|name)=["\']?([^"\'\r\n;]+)/i', $headers);
         if ($isAttachment) {
             if (preg_match('/(?:filename|name)=["\']?([^"\'\r\n;]+)/i', $headers, $filenameMatch)) {
-                $filename = basename(trim($filenameMatch[1]));
-                if ($filename !== '' && strlen($body) <= 20 * 1024 * 1024) {
+                $rawFilename = trim($filenameMatch[1]);
+                $filename = iconv_mime_decode($rawFilename, 0, 'UTF-8') ?: $rawFilename;
+                $filename = basename(trim(preg_replace('/[\r\n\t]+/', ' ', $filename)));
+                if ($filename !== '' && strlen($body) <= 25 * 1024 * 1024) {
                     preg_match('/Content-Type:\s*([^;\r\n]+)/i', $headers, $mimeMatch);
                     $attachments[] = [
                         'filename' => $filename,
@@ -1053,6 +1051,10 @@ class EmailService
             }
 
             return ['html' => '', 'plain' => ''];
+        }
+
+        if (function_exists('iconv')) {
+            $body = @iconv('UTF-8', 'UTF-8//IGNORE', $body) ?: $body;
         }
 
         if (preg_match('/Content-Type:\s*text\/html/i', $headers)) {

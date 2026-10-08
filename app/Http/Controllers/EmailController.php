@@ -1686,7 +1686,7 @@ class EmailController extends Controller
                 $html = $this->extractDocxHtml($path);
             } elseif ($ext === 'odt') {
                 $html = $this->extractOdtHtml($path);
-            } elseif ($ext === 'doc') {
+            } elseif ($ext === 'doc' || $ext === 'dot') {
                 $html = $this->extractDocHtml($path);
             } elseif (in_array($ext, ['txt', 'log', 'json', 'xml', 'csv'])) {
                 $raw = @file_get_contents($path);
@@ -1699,6 +1699,14 @@ class EmailController extends Controller
                 return response()->json([
                     'success' => false,
                     'message' => 'Direct text preview not supported for .'.$ext.' files.',
+                ]);
+            }
+
+            $plainText = trim(strip_tags($html));
+            if (empty($plainText) || stripos($plainText, 'Unable to open') !== false || stripos($plainText, 'Empty or unreadable') !== false) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Direct in-browser text preview not available for this document.',
                 ]);
             }
 
@@ -1719,16 +1727,34 @@ class EmailController extends Controller
 
     private function extractDocxHtml(string $filePath): string
     {
+        $xmlContent = null;
         $zip = new \ZipArchive;
-        if ($zip->open($filePath) !== true) {
-            return '<p class="text-muted">Unable to open Word archive.</p>';
+        if ($zip->open($filePath) === true) {
+            $xmlContent = $zip->getFromName('word/document.xml');
+            $zip->close();
         }
 
-        $xmlContent = $zip->getFromName('word/document.xml');
-        $zip->close();
+        if (! $xmlContent && function_exists('shell_exec')) {
+            $escaped = escapeshellarg($filePath);
+            $xmlContent = @shell_exec("unzip -p $escaped word/document.xml 2>/dev/null");
+        }
 
         if (! $xmlContent) {
-            return '<p class="text-muted">Empty or unreadable Word document.</p>';
+            $raw = @file_get_contents($filePath);
+            if ($raw && preg_match_all('/<w:t[^>]*>(.*?)<\/w:t>/is', $raw, $m) && ! empty($m[1])) {
+                $lines = [];
+                foreach ($m[1] as $t) {
+                    $clean = trim(html_entity_decode(strip_tags($t)));
+                    if (strlen($clean) > 0) {
+                        $lines[] = htmlspecialchars($clean);
+                    }
+                }
+                if (! empty($lines)) {
+                    return '<p style="margin-bottom: 12px; line-height: 1.65; color: #202124;">'.implode(' ', $lines).'</p>';
+                }
+            }
+
+            return $this->extractDocHtml($filePath);
         }
 
         $dom = new \DOMDocument;
@@ -1810,7 +1836,7 @@ class EmailController extends Controller
     {
         $content = @file_get_contents($filePath);
         if (! $content) {
-            return '<p class="text-muted">Empty file.</p>';
+            return '';
         }
 
         $lines = [];
@@ -1834,7 +1860,7 @@ class EmailController extends Controller
             }
         }
         if (empty($lines)) {
-            return '<p class="text-muted">Unable to extract readable text from binary .doc format. Please click Download to view in Microsoft Word.</p>';
+            return '';
         }
 
         return '<p style="margin-bottom: 12px; line-height: 1.65; color: #202124;">'.implode('</p><p style="margin-bottom: 12px; line-height: 1.65; color: #202124;">', $lines).'</p>';
