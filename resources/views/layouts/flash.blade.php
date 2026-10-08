@@ -17,11 +17,15 @@
 
 @if (isset($errors) && $errors->any())
     <div class="alert alert-danger alert-dismissible fade show" role="alert">
-        <strong>You are not authenticated. Please try again!</strong>
+        <ul class="mb-0 ps-3">
+            @foreach ($errors->all() as $error)
+                <li><strong>{{ $error }}</strong></li>
+            @endforeach
+        </ul>
     </div>
     <script>
         setTimeout(function () {
             $('.alert-danger').alert('close');
-        }, 5000);
+        }, 8000);
     </script>
 @endif

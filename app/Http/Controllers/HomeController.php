@@ -1437,22 +1437,36 @@ class HomeController extends Controller
     }
     
     private function cleanBlogContent($html)
-{
-    // span remove karo but andar ka content + h2/h3/p/ul/ol safe rahe
-    $html = preg_replace('/<span[^>]*>/is', '', $html);
-    $html = preg_replace('/<\/span>/is', '', $html);
+    {
+        // Protect CTA boxes before stripping classes/styles
+        $ctaPlaceholders = [];
+        $html = preg_replace_callback('/<div[^>]*data-cta-key=["\']([^"\']+)["\'][^>]*>.*?<\/div>/is', function ($matches) use (&$ctaPlaceholders) {
+            $key = $matches[1];
+            $token = '___CTA_TOKEN_' . count($ctaPlaceholders) . '___';
+            $ctaPlaceholders[$token] = '[' . $key . ']';
+            return $token;
+        }, $html);
 
-    // inline CSS remove karo, tag mat badlo
-    $html = preg_replace('/\sstyle=("|\')(.*?)("|\')/is', '', $html);
-    $html = preg_replace('/\sclass=("|\')(.*?)("|\')/is', '', $html);
-    $html = preg_replace('/\sdir=("|\')(.*?)("|\')/is', '', $html);
+        // span remove karo but andar ka content + h2/h3/p/ul/ol safe rahe
+        $html = preg_replace('/<span[^>]*>/is', '', $html);
+        $html = preg_replace('/<\/span>/is', '', $html);
 
-    $html = str_replace('&nbsp;', ' ', $html);
-    $html = preg_replace('/<p>\s*<\/p>/i', '', $html);
-    $html = preg_replace('/<p><br><\/p>/i', '', $html);
+        // inline CSS remove karo, tag mat badlo
+        $html = preg_replace('/\sstyle=("|\')(.*?)("|\')/is', '', $html);
+        $html = preg_replace('/\sclass=("|\')(.*?)("|\')/is', '', $html);
+        $html = preg_replace('/\sdir=("|\')(.*?)("|\')/is', '', $html);
 
-    return trim($html);
-}
+        $html = str_replace('&nbsp;', ' ', $html);
+        $html = preg_replace('/<p>\s*<\/p>/i', '', $html);
+        $html = preg_replace('/<p><br><\/p>/i', '', $html);
+
+        // Restore protected CTAs as clean token blocks
+        foreach ($ctaPlaceholders as $token => $val) {
+            $html = str_replace($token, $val, $html);
+        }
+
+        return trim($html);
+    }
 
     public function blog_store(Request $request)
     {

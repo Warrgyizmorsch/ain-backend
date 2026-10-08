@@ -597,3 +597,174 @@ if (!function_exists('get_order_duration_gap_badge')) {
         }
     }
 }
+
+if (!function_exists('get_blog_cta_definitions')) {
+    /**
+     * Master definitions for the 6 Blog CTAs.
+     */
+    function get_blog_cta_definitions(): array
+    {
+        return [
+            1 => [
+                'id' => 1,
+                'key' => 'CTA_ASSIGNMENT_HELP',
+                'title' => 'Expert Assignment Help Today',
+                'slug' => 'assignment-help-today',
+                'url' => 'https://www.assignmentinneed.co.uk/order',
+                'icon' => '🏴',
+                'fa_icon' => 'fa-flag',
+                'files' => ['cta-1.webp', 'cta-1.png', 'cta-1.jpg', 'cta-1-best-country-finder.png', 'cta-1-best-country-finder.webp', 'cta-1.svg'],
+            ],
+            2 => [
+                'id' => 2,
+                'key' => 'CTA_MEET_YOUR_DEADLINE',
+                'title' => 'Meet Your Deadline',
+                'slug' => 'meet-your-deadline',
+                'url' => 'https://www.assignmentinneed.co.uk/order',
+                'icon' => '🧮',
+                'fa_icon' => 'fa-calculator',
+                'files' => ['cta-2.webp', 'cta-2.png', 'cta-2.jpg', 'cta-2-calculate-loan-emi.png', 'cta-2-calculate-loan-emi.webp', 'cta-2.svg'],
+            ],
+            3 => [
+                'id' => 3,
+                'key' => 'CTA_BETTER_GRADE_LESS_STRESS',
+                'title' => 'Better Grade Less Stress',
+                'slug' => 'better-grade-less-stress',
+                'url' => 'https://www.assignmentinneed.co.uk/order',
+                'icon' => '🏛️',
+                'fa_icon' => 'fa-university',
+                'files' => ['cta-3.webp', 'cta-3.png', 'cta-3.jpg', 'cta-3-university-shortlist.png', 'cta-3-university-shortlist.webp', 'cta-3.svg'],
+            ],
+            4 => [
+                'id' => 4,
+                'key' => 'CTA_TRUSTED_BY_THOUSANDS',
+                'title' => 'Trusted By Thousands',
+                'slug' => 'trustd-by-thousands',
+                'url' => 'https://www.assignmentinneed.co.uk/order',
+                'icon' => '🎓',
+                'fa_icon' => 'fa-graduation-cap',
+                'files' => ['cta-4.webp', 'cta-4.png', 'cta-4.jpg', 'cta-4-scholarships.png', 'cta-4-scholarships.webp', 'cta-4.svg'],
+            ],
+            5 => [
+                'id' => 5,
+                'key' => 'CTA_YOU_LOVE_WE_SUPPORT',
+                'title' => 'You Love We Support',
+                'slug' => 'you-love-we-support',
+                'url' => 'https://www.assignmentinneed.co.uk/order',
+                'icon' => '💰',
+                'fa_icon' => 'fa-money-bill-wave',
+                'files' => ['cta-5.webp', 'cta-5.png', 'cta-5.jpg', 'cta-5-calculate-study-cost.png', 'cta-5-calculate-study-cost.webp', 'cta-5.svg'],
+            ],
+            6 => [
+                'id' => 6,
+                'key' => 'CTA_SUCCESS_IS_PRIORITY',
+                'title' => 'Your Success is our Priority',
+                'slug' => 'your-success-is-our-priority',
+                'url' => 'https://www.assignmentinneed.co.uk/order',
+                'icon' => '⚡',
+                'fa_icon' => 'fa-bolt',
+                'files' => ['cta-6.webp', 'cta-6.png', 'cta-6.jpg', 'cta-6-profile-evaluation.png', 'cta-6-profile-evaluation.webp', 'cta-6.svg'],
+            ],
+        ];
+    }
+}
+
+if (!function_exists('get_blog_cta_relative_path')) {
+    /**
+     * Resolve relative image path (e.g. /assets/media/blog-cta/1.png) for a given CTA ID.
+     */
+    function get_blog_cta_relative_path(int $ctaId): string
+    {
+        $defs = get_blog_cta_definitions();
+        if (!isset($defs[$ctaId])) {
+            return '';
+        }
+
+        $dir = public_path('assets/media/blog-cta');
+        $extensions = ['webp', 'png', 'jpg', 'jpeg', 'svg'];
+        $slug = $defs[$ctaId]['slug'] ?? ('cta-' . $ctaId);
+
+        // Check direct numeric {id} files (1.png, 2.png), custom named files, or cta-{id} files
+        foreach ([(string) $ctaId, 'cta-' . $ctaId, $slug] as $base) {
+            foreach ($extensions as $ext) {
+                if (file_exists($dir . DIRECTORY_SEPARATOR . $base . '.' . $ext)) {
+                    return '/assets/media/blog-cta/' . $base . '.' . $ext;
+                }
+            }
+        }
+
+        foreach ($defs[$ctaId]['files'] as $f) {
+            if (file_exists($dir . DIRECTORY_SEPARATOR . $f)) {
+                return '/assets/media/blog-cta/' . $f;
+            }
+        }
+
+        return '/assets/media/blog-cta/' . $defs[$ctaId]['files'][0];
+    }
+}
+
+if (!function_exists('get_blog_cta_image_url')) {
+    /**
+     * Resolve image URL for a given CTA ID. Checks uploaded PNG/WebP/JPG first, then fallback SVG.
+     * Supports relative paths, dynamic host detection, and APP_URL.
+     */
+    function get_blog_cta_image_url(int $ctaId, ?bool $relative = null): string
+    {
+        $relPath = get_blog_cta_relative_path($ctaId);
+        if (empty($relPath)) {
+            return '';
+        }
+
+        // 1. Explicit relative requested, or via query/header parameter (?relative_urls=1 or X-Relative-Urls: true)
+        if ($relative === true || (function_exists('request') && (request()->query('relative_urls') == '1' || request()->header('X-Relative-Urls') == 'true'))) {
+            return $relPath;
+        }
+
+        // 2. If APP_URL in .env/config is a production or UAT domain
+        $configAppUrl = rtrim((string) config('app.url', ''), '/');
+        if (!empty($configAppUrl) && !str_contains($configAppUrl, '127.0.0.1') && !str_contains($configAppUrl, 'localhost')) {
+            return $configAppUrl . $relPath;
+        }
+
+        // 3. Fallback to asset() which automatically binds to the active domain/host
+        return asset(ltrim($relPath, '/'));
+    }
+}
+
+if (!function_exists('render_blog_ctas')) {
+    /**
+     * Transforms blog content containing CTA tokens or placeholder blocks into responsive images for frontend display.
+     */
+    function render_blog_ctas(?string $content, ?bool $relativeUrls = null): string
+    {
+        if (empty($content)) {
+            return '';
+        }
+
+        $defs = get_blog_cta_definitions();
+
+        foreach ($defs as $ctaId => $cta) {
+            $key = $cta['key'];
+            $relPath = get_blog_cta_relative_path($ctaId);
+            $imgUrl = get_blog_cta_image_url($ctaId, $relativeUrls);
+            $title = htmlspecialchars($cta['title'], ENT_QUOTES, 'UTF-8');
+            $targetUrl = $cta['url'] ?? 'https://www.assignmentinneed.co.uk/order';
+
+            $bannerHtml = '<div class="blog-cta-wrapper blog-cta-' . $ctaId . '" data-cta-id="' . $ctaId . '" data-cta-key="' . $key . '" style="display: block; width: 100%; max-width: 100%; margin: 28px auto; text-align: center; clear: both;">'
+                . '<a href="' . $targetUrl . '" target="_blank" rel="noopener noreferrer" class="blog-cta-link" style="display: block; width: 100%; max-width: 100%; text-decoration: none; margin: 0 auto;">'
+                . '<img src="' . $imgUrl . '" data-relative-src="' . $relPath . '" alt="' . $title . '" class="img-fluid blog-cta-img" data-cta-id="' . $ctaId . '" data-cta-key="' . $key . '" style="display: block; width: 100%; max-width: 100%; height: auto; margin: 0 auto; cursor: pointer;" loading="lazy" />'
+                . '</a>'
+                . '</div>';
+
+            // 1. Replace outer placeholder div/p if present
+            $divPattern = '/<(?:div|p)[^>]*data-cta-key=["\'][^"\']*' . preg_quote($key, '/') . '[^"\']*["\'][^>]*>.*?<\/(?:div|p)>/is';
+            $content = preg_replace($divPattern, $bannerHtml, $content);
+
+            // 2. Replace standalone [CTA_KEY] token
+            $tokenPattern = '/\[' . preg_quote($key, '/') . '\]/is';
+            $content = preg_replace($tokenPattern, $bannerHtml, $content);
+        }
+
+        return $content;
+    }
+}
