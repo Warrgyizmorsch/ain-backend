@@ -111,7 +111,7 @@
                     <input type="text" id="searchInput" name="user" value="{{ $reqUser }}"
                         class="form-control form-control-solid" placeholder="User-Name,Number,Email" autocomplete="off">
                     <!-- Container to display custom search results dropdown -->
-                    <div id="searchResultss" class="dropdown-menu w-100 shadow-lg p-0 mt-1" style="display:none; max-height: 250px; overflow-y: auto; z-index: 1050; position: absolute;"></div>
+                    <div id="searchResultss" class="dropdown-menu shadow-lg p-0 mt-1" style="display:none; max-height: 280px; overflow-y: auto; z-index: 9999; position: absolute; left: 0; top: 100%; width: 100%; background: #ffffff !important; border: 1px solid #cbd5e1; border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.15);"></div>
                     <!-- Hidden field to store the selected value -->
                     <input type="hidden" id="selectedValue" name="uid" value="{{ $reqUid }}">
                 </div>
@@ -126,7 +126,7 @@
                             if (e.which === 13 || e.keyCode === 13) {
                                 e.preventDefault();
                                 e.stopPropagation();
-                                $('#searchResultss').hide();
+                                $('#searchResultss').removeClass('show').css('display', 'none');
                                 if (typeof window.applyFilters === 'function') {
                                     window.applyFilters();
                                 }
@@ -151,7 +151,7 @@
                                         '<div class="spinner-border spinner-border-sm text-primary" role="status"></div>' +
                                         '<span>Searching users & orders...</span>' +
                                     '</div>'
-                                ).show();
+                                ).addClass('show').css('display', 'block');
 
                                 searchTimeout = setTimeout(function() {
                                     $.ajax({
@@ -167,27 +167,28 @@
                                                     var mobileStr = value.mobile_no ? ' | 📞 ' + value.mobile_no : '';
                                                     var orderAttr = value.order_id ? ' data-order-id="' + value.order_id + '"' : '';
                                                     var idBadge = value.id ? '<span class="badge badge-light-primary fw-bolder fs-8 ms-2 px-2 py-0.5" style="border: 1px solid #bfdbfe;">ID: ' + value.id + '</span>' : '';
-                                                    resultsHtml += '<a href="javascript:void(0)" class="dropdown-item user-select-item p-3 border-bottom text-wrap" ' +
-                                                        'data-id="' + value.id + '" data-email="' + value.email + '" data-name="' + value.name + '"' + orderAttr + '>' +
+                                                    var displayName = value.display_name || value.name || ('User #' + value.id);
+                                                    resultsHtml += '<a href="javascript:void(0)" class="dropdown-item user-select-item p-3 border-bottom text-wrap" style="transition: background-color 0.15s ease;" ' +
+                                                        'data-id="' + value.id + '" data-email="' + (value.email || '') + '" data-name="' + displayName + '"' + orderAttr + '>' +
                                                         '<div class="d-flex align-items-center justify-content-between">' +
-                                                            '<span class="fw-bolder text-dark fs-6">' + value.name + '</span>' +
+                                                            '<span class="fw-bolder text-dark fs-6">' + displayName + '</span>' +
                                                             idBadge +
                                                         '</div>' +
-                                                        '<div class="text-muted fs-7 mt-1">' + value.email + mobileStr + '</div>' +
+                                                        '<div class="text-muted fs-7 mt-1">' + (value.email || '') + mobileStr + '</div>' +
                                                         '</a>';
                                                 });
                                             } else {
                                                 resultsHtml = '<div class="p-3 text-muted fs-7 text-center">No results found</div>';
                                             }
-                                            $('#searchResultss').html(resultsHtml).show();
+                                            $('#searchResultss').html(resultsHtml).addClass('show').css('display', 'block');
                                         },
                                         error: function() {
-                                            $('#searchResultss').html('<div class="p-3 text-danger fs-7 text-center">Error loading results</div>').show();
+                                            $('#searchResultss').html('<div class="p-3 text-danger fs-7 text-center">Error loading results</div>').addClass('show').css('display', 'block');
                                         }
                                     });
                                 }, 250);
                             } else {
-                                $('#searchResultss').hide().empty();
+                                $('#searchResultss').removeClass('show').css('display', 'none').empty();
                                 if (searchValue.length === 0) {
                                     $('#selectedValue').val('');
                                 }
@@ -198,7 +199,6 @@
                         $(document).on('click', '.user-select-item', function(e) {
                             e.preventDefault();
                             var selectedId = $(this).attr('data-id');
-                            var selectedEmail = $(this).attr('data-email');
                             var selectedName = $(this).attr('data-name');
                             var selectedOrderId = $(this).attr('data-order-id');
 
@@ -214,14 +214,14 @@
                                 $('#searchInput').val(displayName);
                                 $('#selectedValue').val(selectedId);
                             }
-                            $('#searchResultss').hide().empty();
+                            $('#searchResultss').removeClass('show').css('display', 'none').empty();
                             applyFilters();
                         });
 
                         // Close dropdown on clicking outside
                         $(document).on('click', function(e) {
                             if (!$(e.target).closest('#searchInput, #searchResultss').length) {
-                                $('#searchResultss').hide();
+                                $('#searchResultss').removeClass('show').css('display', 'none');
                             }
                         });
                     });
