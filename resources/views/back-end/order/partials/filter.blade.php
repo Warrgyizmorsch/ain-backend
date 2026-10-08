@@ -7,10 +7,10 @@
                 </span>
             </h3>
 
-            <button type="button" id="toggleFilterBtn" class="btn btn-sm btn-primary py-1.5 px-3 fs-8 fw-bold flex-shrink-0" style="border-radius: 6px;">
+            <button type="button" id="toggleFilterBtn" onclick="window.toggleOrderFilters()" class="btn btn-sm btn-primary py-1.5 px-3 fs-8 fw-bold flex-shrink-0" style="border-radius: 6px;">
                 Show Filters
             </button>
-            <button type="button" id="toggleDeadlineGapBtn" class="btn btn-sm flex-shrink-0">
+            <button type="button" id="toggleDeadlineGapBtn" onclick="window.toggleDeadlineGap()" class="btn btn-sm flex-shrink-0">
                 <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="me-1" style="vertical-align: -1px;">
                     <circle cx="12" cy="12" r="10"></circle>
                     <polyline points="12 6 12 12 16 14"></polyline>
@@ -21,19 +21,19 @@
             <!-- Inline sliding buttons between Deadline Type and Team-Alpha -->
             <div id="deadlineGapContainer" class="flex-shrink-0" style="display: none;">
                 <div class="d-inline-flex align-items-center gap-1 p-1 rounded-3 bg-white border border-gray-300 shadow-sm">
-                    <button type="button" class="btn btn-sm deadline-gap-btn deadline-gap-danger py-1 px-2.5 fs-8" data-gap="<2">
+                    <button type="button" class="btn btn-sm deadline-gap-btn deadline-gap-danger py-1 px-2.5 fs-8" data-gap="<2" onclick="window.toggleDeadlineGapItem(this)">
                         &lt; 2 Days
                     </button>
-                    <button type="button" class="btn btn-sm deadline-gap-btn deadline-gap-warning py-1 px-2.5 fs-8" data-gap="3-5">
+                    <button type="button" class="btn btn-sm deadline-gap-btn deadline-gap-warning py-1 px-2.5 fs-8" data-gap="3-5" onclick="window.toggleDeadlineGapItem(this)">
                         3-5 Days
                     </button>
-                    <button type="button" class="btn btn-sm deadline-gap-btn deadline-gap-primary py-1 px-2.5 fs-8" data-gap="6-15">
+                    <button type="button" class="btn btn-sm deadline-gap-btn deadline-gap-primary py-1 px-2.5 fs-8" data-gap="6-15" onclick="window.toggleDeadlineGapItem(this)">
                         6-15 Days
                     </button>
-                    <button type="button" class="btn btn-sm deadline-gap-btn deadline-gap-success py-1 px-2.5 fs-8" data-gap="15+">
+                    <button type="button" class="btn btn-sm deadline-gap-btn deadline-gap-success py-1 px-2.5 fs-8" data-gap="15+" onclick="window.toggleDeadlineGapItem(this)">
                         15 Days & Above
                     </button>
-                    <button type="button" class="btn deadline-gap-clear-btn" title="Clear Deadline Filter"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="2.5" y1="2.5" x2="9.5" y2="9.5"></line><line x1="9.5" y1="2.5" x2="2.5" y2="9.5"></line></svg></button>
+                    <button type="button" class="btn deadline-gap-clear-btn" onclick="window.clearDeadlineGap()" title="Clear Deadline Filter"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="2.5" y1="2.5" x2="9.5" y2="9.5"></line><line x1="9.5" y1="2.5" x2="2.5" y2="9.5"></line></svg></button>
                 </div>
             </div>
         </div>
@@ -73,6 +73,7 @@
                 <a href="javascript:void(0)" 
                    id="{{ $btnId }}" 
                    data-team-id="{{ $t->id }}" 
+                   onclick="window.toggleTeamFilter(this)"
                    class="team-quick-btn dynamic-team-btn {{ $btnClass }}"
                    style="background-color: {{ $colors['bg'] }}; border: 1px solid {{ $colors['border'] }}; color: {{ $colors['color'] }};">
                     <span>{{ $t->team_name }}</span>
@@ -84,6 +85,12 @@
     </div>
     <div class="card-body py-3" id="filterBody" style="display:none;">
         <form id="orderFilterForm" action="javascript:void(0);" onsubmit="event.preventDefault(); if (typeof window.applyFilters === 'function') { window.applyFilters(); } return false;">
+            <input type="hidden" id="filter_team_id" value="">
+            <input type="hidden" id="duration_gap_filter" value="">
+            <input type="hidden" id="today_deadline_filter" value="">
+            <input type="hidden" id="yesterday_deadline_filter" value="">
+            <input type="hidden" id="today_writer_deadline_filter" value="">
+            <input type="hidden" id="holdBtn" value="">
             <div class="row mb-3">
                 <div class="col-md-3 fv-row">
                     <input type="search" name="search" id="search" class="form-control form-control-solid"
@@ -1027,8 +1034,88 @@ resetFilters();
         total_due: 0
     };
 
+    window.toggleOrderFilters = function() {
+        const filterBody = $('#filterBody');
+        const isCurrentlyVisible = filterBody.is(':visible');
+        const btn = $('#toggleFilterBtn');
+
+        filterBody.slideToggle(250);
+
+        if (isCurrentlyVisible) {
+            btn.text('Show Filters')
+               .removeClass('btn-danger')
+               .addClass('btn-primary');
+        } else {
+            btn.text('Hide Filters')
+               .removeClass('btn-primary')
+               .addClass('btn-danger');
+        }
+    };
+
+    window.toggleDeadlineGap = function() {
+        const container = $('#deadlineGapContainer');
+        const btn = $('#toggleDeadlineGapBtn');
+        if (container.is(':visible')) {
+            container.fadeOut(150);
+            btn.removeClass('active');
+        } else {
+            container.css('display', 'inline-flex').hide().fadeIn(200);
+            btn.addClass('active');
+        }
+    };
+
+    window.toggleDeadlineGapItem = function(elem) {
+        const gap = $(elem).data('gap');
+        if ($('#duration_gap_filter').val() === String(gap)) {
+            // Toggle off
+            $('#duration_gap_filter').val('');
+            $('.deadline-gap-btn').removeClass('active');
+            $('.deadline-gap-clear-btn').removeClass('is-visible');
+        } else {
+            $('#duration_gap_filter').val(gap);
+            $('.deadline-gap-btn').removeClass('active');
+            $(elem).addClass('active');
+            $('.deadline-gap-clear-btn').addClass('is-visible');
+            $('#deadline_status').val('').trigger('change');
+            $('#today_deadline_filter').val('');
+            $('#yesterday_deadline_filter').val('');
+            $('#today_writer_deadline_filter').val('');
+            $('#status').val('').trigger('change');
+        }
+        window.applyFilters();
+    };
+
+    window.clearDeadlineGap = function() {
+        $('#duration_gap_filter').val('');
+        $('.deadline-gap-btn').removeClass('active');
+        $('.deadline-gap-clear-btn').removeClass('is-visible');
+        window.applyFilters();
+    };
+
+    window.toggleTeamFilter = function(elem) {
+        const $btn = $(elem);
+        const selectedTeamId = String($btn.data('team-id') || ($btn.attr('id') === 'teamAlphaBtn' ? '1' : ($btn.attr('id') === 'teamGigaBtn' ? '2' : ($btn.attr('id') === 'teamGammaBtn' ? '3' : ''))));
+        if (!selectedTeamId) return;
+
+        if ($('#filter_team_id').val() === selectedTeamId) {
+            // Toggle OFF
+            $('#filter_team_id').val('');
+        } else {
+            // Toggle ON
+            $('#deadline_status').val('').trigger('change');
+            $('#today_deadline_filter').val('');
+            $('#yesterday_deadline_filter').val('');
+            $('#today_writer_deadline_filter').val('');
+            $('#status').val('').trigger('change');
+            $('#from_date').val('');
+            $('#to_date').val('');
+            $('#filter_team_id').val(selectedTeamId);
+        }
+        window.applyFilters();
+    };
+
     function highlightActiveQuickFilters() {
-        $('#overdueBtn, #todayDeadlineBtn, #yesterdayDeadlineBtn, #todayWriterDeadlineBtn, #writerQueryBtn, #holdWorkBtn, .dynamic-team-btn, #teamAlphaBtn, #teamGigaBtn').removeClass('quick-filter-active');
+        $('#overdueBtn, #todayDeadlineBtn, #yesterdayDeadlineBtn, #todayWriterDeadlineBtn, #writerQueryBtn, #holdWorkBtn, .dynamic-team-btn, #teamAlphaBtn, #teamGigaBtn, #teamGammaBtn').removeClass('quick-filter-active');
 
         if ($('#deadline_status').val() === 'overdue') {
             $('#overdueBtn').addClass('quick-filter-active');
@@ -1049,16 +1136,17 @@ resetFilters();
             $('#holdWorkBtn').addClass('quick-filter-active');
         }
         
-        var currentTeam = $('#filter_team_id').val();
+        var currentTeam = String($('#filter_team_id').val() || '');
         if (currentTeam) {
             $('.dynamic-team-btn[data-team-id="' + currentTeam + '"]').addClass('quick-filter-active');
             if (currentTeam === '1') $('#teamAlphaBtn').addClass('quick-filter-active');
             if (currentTeam === '2') $('#teamGigaBtn').addClass('quick-filter-active');
+            if (currentTeam === '3') $('#teamGammaBtn').addClass('quick-filter-active');
         }
 
-        const activeGap = $('#duration_gap_filter').val();
+        const activeGap = String($('#duration_gap_filter').val() || '');
         $('.deadline-gap-btn').removeClass('active').each(function() {
-            const gap = $(this).data('gap');
+            const gap = String($(this).data('gap') || '');
             if (activeGap && activeGap === gap) {
                 $(this).addClass('active');
             }
@@ -1069,6 +1157,31 @@ resetFilters();
             $('.deadline-gap-clear-btn').removeClass('is-visible');
         }
     }
+
+    $(document).on('click', '#toggleFilterBtn', function(e) {
+        e.preventDefault();
+        window.toggleOrderFilters();
+    });
+
+    $(document).on('click', '#toggleDeadlineGapBtn', function(e) {
+        e.preventDefault();
+        window.toggleDeadlineGap();
+    });
+
+    $(document).on('click', '.deadline-gap-btn', function(e) {
+        e.preventDefault();
+        window.toggleDeadlineGapItem(this);
+    });
+
+    $(document).on('click', '.deadline-gap-clear-btn', function(e) {
+        e.preventDefault();
+        window.clearDeadlineGap();
+    });
+
+    $(document).on('click', '.dynamic-team-btn, #teamAlphaBtn, #teamGigaBtn, #teamGammaBtn', function(e) {
+        e.preventDefault();
+        window.toggleTeamFilter(this);
+    });
 
     $(document).on('click', '#overdueBtn', function(e) {
         e.preventDefault();
@@ -1162,26 +1275,6 @@ resetFilters();
             $('#from_date').val('');
             $('#to_date').val('');
             $('#status').val('Hold Work').trigger('change');
-        }
-        applyFilters();
-    });
-
-    $(document).on('click', '.dynamic-team-btn, #teamAlphaBtn, #teamGigaBtn, #teamGammaBtn', function(e) {
-        e.preventDefault();
-        const selectedTeamId = String($(this).data('team-id') || ($(this).attr('id') === 'teamAlphaBtn' ? '1' : ($(this).attr('id') === 'teamGigaBtn' ? '2' : ($(this).attr('id') === 'teamGammaBtn' ? '3' : ''))));
-        if (!selectedTeamId) return;
-
-        if ($('#filter_team_id').val() === selectedTeamId) {
-            $('#filter_team_id').val('');
-        } else {
-            $('#deadline_status').val('').trigger('change');
-            $('#today_deadline_filter').val('');
-            $('#yesterday_deadline_filter').val('');
-            $('#today_writer_deadline_filter').val('');
-            $('#status').val('').trigger('change');
-            $('#from_date').val('');
-            $('#to_date').val('');
-            $('#filter_team_id').val(selectedTeamId);
         }
         applyFilters();
     });
@@ -1292,14 +1385,13 @@ resetFilters();
         hasMore = true;
 
         runningTotals = {
-        total_amount: 0,
-        total_paid: 0,
-        total_due: 0
-    };
+            total_amount: 0,
+            total_paid: 0,
+            total_due: 0
+        };
 
         disableScrollHandler();
 
-        // NAYA UPDATE YAHAN HAI: deadline_status add kar diya gaya hai
         filters = {
             search: $('#search').val(),
             uid: $('#selectedValue').val(),
@@ -1319,7 +1411,7 @@ resetFilters();
             semester: $('#semester').val(),
             payment: $('#payment').val(),
             month: $('#month').val(),
-            deadline_status: $('#deadline_status').val(), // Naya field add kiya
+            deadline_status: $('#deadline_status').val(),
             team_id: $('#filter_team_id').val(),
             offer: $('#offer').val(),
             duec: $('#duec').val(),
@@ -1329,12 +1421,9 @@ resetFilters();
             yesterday_deadline_filter: $('#yesterday_deadline_filter').val(),
             today_writer_deadline_filter: $('#today_writer_deadline_filter').val(),
             duration_gap: $('#duration_gap_filter').val()
-            
         };
-        // localStorage.setItem('order_filters', JSON.stringify(filters));
+
         localStorage.setItem(filterStorageKey, JSON.stringify(filters));
-
-
 
         const allEmpty = Object.values(filters).every(val => !val || String(val).trim() === "");
 
@@ -1354,7 +1443,6 @@ resetFilters();
     }
 
     function resetFilters(hideDeadlineBar = true) {
-        // localStorage.removeItem('order_filters');
         localStorage.removeItem(filterStorageKey);
         // Clear filter values
         $('input[type=search], input[type=date], input[type=month], input[type=text], input[type=hidden]').val('');
@@ -1367,7 +1455,7 @@ resetFilters();
 
         if (hideDeadlineBar) {
             $('#deadlineGapContainer').hide();
-            $('#toggleDeadlineGapBtn').removeClass('btn-warning').addClass('btn-light-warning text-dark');
+            $('#toggleDeadlineGapBtn').removeClass('active');
         }
 
         // Reset state
@@ -1389,13 +1477,13 @@ resetFilters();
         $('#initial-order-rows').show();
         $('#filter-total').text(`All Orders`);
         $('#export-order-btn').hide();
-
-        // NAYI LINE: Reset hone ke baad button wapas hide kar do
         $('#resetFiltersBtn').hide();
     }
 
     window.applyFilters = applyFilters;
     window.resetFilters = resetFilters;
+    window.fetchData = fetchData;
+    window.highlightActiveQuickFilters = highlightActiveQuickFilters;
 
     function enableScrollHandler() {
         $('#scroll-order-table').off('scroll').on('scroll', function() {
@@ -1480,7 +1568,6 @@ resetFilters();
             return;
         }
 
-        // let savedFilters = localStorage.getItem('order_filters');
         let savedFilters = localStorage.getItem(filterStorageKey);
         if (savedFilters) {
             try {
@@ -1518,7 +1605,7 @@ resetFilters();
 
                     if (filters.duration_gap) {
                         $('#deadlineGapContainer').show();
-                        $('#toggleDeadlineGapBtn').removeClass('btn-light-warning text-dark').addClass('btn-warning text-dark');
+                        $('#toggleDeadlineGapBtn').addClass('active');
                     }
 
                     // Auto-open filter section so user can see restored active filters
@@ -1548,18 +1635,11 @@ resetFilters();
                 localStorage.removeItem(filterStorageKey);
             }
         }
-
-        // Optionally: load default base data via AJAX on first load (commented out)
-        // fetchData(false);
     });
-</script>
 
-<script>
-    // Document ready hone ke baad hi export ka button chalega
+    // Export handler
     $(document).ready(function() {
-        // Event delegation use kiya hai taaki agar button baad mein bhi load ho tab bhi click chal jaaye
         $(document).on("click", "#export-order-btn", function() {
-            // Button ko instantly hide kar do
             $(this).hide();
 
             Swal.fire({
@@ -1572,10 +1652,10 @@ resetFilters();
                 showCancelButton: true,
                 cancelButtonText: 'Cancel',
             }).then((result) => {
-                // jQuery se smoothly values get karna
-                const filters = {
+                const exportFilters = {
                     search: $('#search').val() || "",
-                    uid: $('#selectedValue').val() || "", group_id: $('#group_id').val() || "",
+                    uid: $('#selectedValue').val() || "",
+                    group_id: $('#group_id').val() || "",
                     status: $('#status').val() || "",
                     writer: $('#writer').val() || "",
                     dateStatus: $('#date_status').val() || "",
@@ -1597,11 +1677,12 @@ resetFilters();
                     marks_filter: $('#marks_filter').val() || "",
                     today_deadline_filter: $('#today_deadline_filter').val() || "",
                     yesterday_deadline_filter: $('#yesterday_deadline_filter').val() || "",
-                    today_writer_deadline_filter: $('#today_writer_deadline_filter').val() || ""
+                    today_writer_deadline_filter: $('#today_writer_deadline_filter').val() || "",
+                    duration_gap: $('#duration_gap_filter').val() || ""
                 };
 
                 if (result.isConfirmed) {
-                    sendExport(filters);
+                    sendExport(exportFilters);
                 } else if (result.isDenied) {
                     Swal.fire({
                         title: 'Select Columns to Export',
@@ -1627,7 +1708,6 @@ resetFilters();
                         confirmButtonText: 'Export Selected',
                         showCancelButton: true,
                         preConfirm: () => {
-                            // jQuery se checked values nikalna
                             const selected = $(".export-column:checked").map(function() {
                                 return $(this).val();
                             }).get();
@@ -1640,110 +1720,45 @@ resetFilters();
                     }).then((colRes) => {
                         if (colRes.isConfirmed) {
                             sendExport({
-                                ...filters,
+                                ...exportFilters,
                                 selected_columns: colRes.value
                             });
                         } else {
-                            // Agar custom popup cancel ho jaye toh wapas button dikha do
                             $('#export-order-btn').show();
                         }
                     });
                 } else {
-                    // Agar main popup cancel ho jaye toh wapas button dikha do
                     $('#export-order-btn').show();
                 }
             });
 
             function sendExport(payload) {
-                // Fetch API ka use kiya gaya hai jaisa tumne likha tha
                 fetch("/order/export", {
-                        method: "POST",
-                        headers: {
-                            "X-CSRF-TOKEN": document.querySelector('meta[name="csrf-token"]').content,
-                            "Content-Type": "application/json",
-                        },
-                        body: JSON.stringify(payload),
-                    })
-                    .then(async res => {
-                        const data = await res.json().catch(() => ({}));
-                        if (!res.ok) throw new Error(data.message || 'Export could not be started.');
-                        return data;
-                    })
-                    .then((data) => {
-                        sessionStorage.removeItem('orderExportProgressDismissed');
-                        localStorage.setItem("orderExportStatus", "pending");
-                        if (window.showExportProgress) {
-                            window.showExportProgress('order', data);
-                        }
-                    })
-                    .catch(error => {
-                        console.error("Export Error: ", error);
-                        $('#export-order-btn').show();
-                        Swal.fire('Export Failed', error.message || 'Please try again.', 'error');
-                    });
+                    method: "POST",
+                    headers: {
+                        "X-CSRF-TOKEN": document.querySelector('meta[name="csrf-token"]').content,
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify(payload),
+                })
+                .then(async res => {
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok) throw new Error(data.message || 'Export could not be started.');
+                    return data;
+                })
+                .then((data) => {
+                    sessionStorage.removeItem('orderExportProgressDismissed');
+                    localStorage.setItem("orderExportStatus", "pending");
+                    if (window.showExportProgress) {
+                        window.showExportProgress('order', data);
+                    }
+                })
+                .catch(error => {
+                    console.error("Export Error: ", error);
+                    $('#export-order-btn').show();
+                    Swal.fire('Export Failed', error.message || 'Please try again.', 'error');
+                });
             }
         });
     });
-</script>
-<script>
-    $(document).ready(function () {
-
-    $('#toggleFilterBtn').on('click', function () {
-        const isCurrentlyVisible = $('#filterBody').is(':visible');
-
-        $('#filterBody').slideToggle(300);
-
-        if (isCurrentlyVisible) {
-            $(this).text('Show Filters')
-                   .removeClass('btn-danger')
-                   .addClass('btn-primary');
-        } else {
-            $(this).text('Hide Filters')
-                   .removeClass('btn-primary')
-                   .addClass('btn-danger');
-        }
-    });
-
-    $('#toggleDeadlineGapBtn').on('click', function () {
-        const container = $('#deadlineGapContainer');
-        if (container.is(':visible')) {
-            container.fadeOut(150);
-            $(this).removeClass('active');
-        } else {
-            container.css('display', 'inline-flex').hide().fadeIn(200);
-            $(this).addClass('active');
-        }
-    });
-
-    $(document).on('click', '.deadline-gap-btn', function(e) {
-        e.preventDefault();
-        const gap = $(this).data('gap');
-        if ($('#duration_gap_filter').val() === gap) {
-            // Toggle off
-            $('#duration_gap_filter').val('');
-            $('.deadline-gap-btn').removeClass('active');
-            $('.deadline-gap-clear-btn').removeClass('is-visible');
-        } else {
-            $('#duration_gap_filter').val(gap);
-            $('.deadline-gap-btn').removeClass('active');
-            $(this).addClass('active');
-            $('.deadline-gap-clear-btn').addClass('is-visible');
-            $('#deadline_status').val('').trigger('change');
-            $('#today_deadline_filter').val('');
-            $('#yesterday_deadline_filter').val('');
-            $('#today_writer_deadline_filter').val('');
-            $('#status').val('').trigger('change');
-        }
-        applyFilters();
-    });
-
-    $(document).on('click', '.deadline-gap-clear-btn', function(e) {
-        e.preventDefault();
-        $('#duration_gap_filter').val('');
-        $('.deadline-gap-btn').removeClass('active');
-        $(this).removeClass('is-visible');
-        applyFilters();
-    });
-
-});
 </script>
