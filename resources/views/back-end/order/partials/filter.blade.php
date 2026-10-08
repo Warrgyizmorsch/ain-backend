@@ -10,6 +10,9 @@
             <button type="button" id="toggleFilterBtn" onclick="window.toggleOrderFilters()" class="btn btn-sm btn-primary py-1.5 px-3 fs-8 fw-bold flex-shrink-0" style="border-radius: 6px;">
                 Show Filters
             </button>
+            <button type="button" id="topResetFiltersBtn" onclick="window.resetFilters()" class="btn btn-sm btn-danger py-1.5 px-3 fs-8 fw-bold flex-shrink-0" style="border-radius: 6px; display: none;">
+                Reset
+            </button>
             <button type="button" id="toggleDeadlineGapBtn" onclick="window.toggleDeadlineGap()" class="btn btn-sm flex-shrink-0">
                 <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="me-1" style="vertical-align: -1px;">
                     <circle cx="12" cy="12" r="10"></circle>
@@ -432,23 +435,12 @@
                         Writer's Deadline
                     </a>
 
-                    <input type="hidden" id="today_deadline_filter" value="">
-                    <input type="hidden" id="yesterday_deadline_filter" value="">
-                    <input type="hidden" id="today_writer_deadline_filter" value="">
-                    <input type="hidden" id="duration_gap_filter" value="">
                     <a href="javascript:void(0)" id="writerQueryBtn" class="btn btn-sm btn-secondary">
                         Writer Query
                     </a>
                     <a href="javascript:void(0)" id="holdWorkBtn" class="btn btn-sm btn-warning">
                         Hold Work
                     </a>
-                    {{-- <a href="javascript:void(0)" id="teamAlphaBtn" class="btn btn-sm btn-info">
-                        Team-Alpha {{ $alphaCount ?? 0 }}
-                    </a>
-                    <a href="javascript:void(0)" id="teamGigaBtn" class="btn btn-sm btn-dark">
-                        Team-Giga {{ $gigaCount ?? 0 }}
-                    </a> --}}
-                    <input type="hidden" id="filter_team_id" value="">
                     @endif
                 </div>
                 @if( auth()->user()->role_id == 1)
@@ -1435,7 +1427,7 @@ resetFilters();
         // 🔄 Hide initial blade data, show AJAX target tbody
         $('#initial-order-rows').hide();
         $('#lead-rows').show().empty();
-        $('#resetFiltersBtn').show();
+        $('#resetFiltersBtn, #topResetFiltersBtn').show();
 
         highlightActiveQuickFilters();
 
@@ -1444,12 +1436,22 @@ resetFilters();
 
     function resetFilters(hideDeadlineBar = true) {
         localStorage.removeItem(filterStorageKey);
-        // Clear filter values
-        $('input[type=search], input[type=date], input[type=month], input[type=text], input[type=hidden]').val('');
-        $('#searchResultss').hide().empty();
-        $('select').val('').trigger('change');
+        // Clear all input values
+        $('input[type=search], input[type=date], input[type=month], input[type=text]').val('');
+        $('#orderFilterForm input[type=hidden]').not('[name="_token"]').val('');
         $('#filter_team_id').val('');
         $('#duration_gap_filter').val('');
+        $('#today_deadline_filter').val('');
+        $('#yesterday_deadline_filter').val('');
+        $('#today_writer_deadline_filter').val('');
+        $('#deadline_status').val('');
+        $('#holdBtn').val('');
+        $('#selectedValue').val('');
+        $('#search').val('');
+        $('#searchInput').val('');
+        $('#searchResultss').hide().empty();
+        $('select').val('').trigger('change');
+
         $('.deadline-gap-btn').removeClass('active');
         $('.deadline-gap-clear-btn').removeClass('is-visible');
 
@@ -1477,7 +1479,7 @@ resetFilters();
         $('#initial-order-rows').show();
         $('#filter-total').text(`All Orders`);
         $('#export-order-btn').hide();
-        $('#resetFiltersBtn').hide();
+        $('#resetFiltersBtn, #topResetFiltersBtn').hide();
     }
 
     window.applyFilters = applyFilters;
@@ -1549,7 +1551,8 @@ resetFilters();
         $(document).on('change', '#writerTL', populateSubwriters);
 
         // Reset filters and show original data
-        $('#resetFiltersBtn').on('click', function() {
+        $(document).on('click', '#resetFiltersBtn, #topResetFiltersBtn', function(e) {
+            e.preventDefault();
             resetFilters();
         });
 
