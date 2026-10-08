@@ -71,6 +71,10 @@ class BlogApiController extends Controller
             $blog->images = url($blog->images);
         }
 
+        if (!empty($blog->content)) {
+            $blog->content = render_blog_ctas($blog->content);
+        }
+
         return response()->json([
             'success' => true,
             'data' => $blog
