@@ -93,13 +93,28 @@ class SearchController extends Controller
                 ->get();
 
             foreach ($matchingOrders as $ord) {
+                $rawEmail = $ord->user->email ?? ('Order #' . $ord->order_id);
+                $rawMob = $ord->user->mobile_no ?? '';
+                $rawCC = $ord->user->countrycode ?? null;
+                if ((str_contains((string)$rawMob, '*') || str_contains((string)$rawEmail, '*')) && $ord->lead_id) {
+                    $ld = \App\Models\Leads::find($ord->lead_id);
+                    if ($ld) {
+                        if (str_contains((string)$rawMob, '*') && !empty($ld->mobile) && !str_contains((string)$ld->mobile, '*')) {
+                            $rawMob = $ld->mobile;
+                            $rawCC = $ld->countrycode ?: $rawCC;
+                        }
+                        if (str_contains((string)$rawEmail, '*') && !empty($ld->email) && !str_contains((string)$ld->email, '*')) {
+                            $rawEmail = $ld->email;
+                        }
+                    }
+                }
                 $userObj = (object)[
                     'id' => $ord->uid ?: $ord->id,
                     'name' => '[' . $ord->order_id . '] ' . ($ord->user->name ?? $ord->title ?? 'Order'),
-                    'email' => $ord->user->email ?? ('Order #' . $ord->order_id),
-                    'mobile_no' => $ord->user->mobile_no ?? '',
+                    'email' => $rawEmail,
+                    'mobile_no' => $rawMob,
                     'mobile_no2' => null,
-                    'countrycode' => $ord->user->countrycode ?? null,
+                    'countrycode' => $rawCC,
                     'order_id' => $ord->order_id,
                 ];
                 $orderMatches->push($userObj);
@@ -173,36 +188,57 @@ class SearchController extends Controller
         $results->transform(function ($user) {
             $isSuperAdmin = auth()->check() && (int) auth()->user()->role_id === 1;
 
-            if (isset($user->order_id)) {
-                $user->masked_mobile = mask_mobile_only($user->countrycode, $user->mobile_no);
-                $user->masked_email = mask_email_for_display($user->email);
-                $user->display_name = (string)$user->name;
-                if (!$isSuperAdmin) {
-                    $user->mobile_no = $user->masked_mobile;
-                    $user->email = $user->masked_email;
+            if ($isSuperAdmin) {
+                // For Super Admin: NEVER mask. Fallback to clean lead if DB row had asterisks
+                if ((str_contains((string)$user->mobile_no, '*') || str_contains((string)$user->email, '*')) && !empty($user->id)) {
+                    $cleanLead = \App\Models\Leads::where(function($lq) use ($user) {
+                        $lq->where('emp_id', $user->id)->orWhere('u_id', $user->id);
+                    })->where('mobile', 'not like', '%*%')
+                      ->where('email', 'not like', '%*%')
+                      ->whereNotNull('mobile')
+                      ->where('mobile', '!=', '')
+                      ->orderByDesc('id')
+                      ->first();
+
+                    if ($cleanLead) {
+                        if (str_contains((string)$user->mobile_no, '*') && !empty($cleanLead->mobile)) {
+                            $user->mobile_no = $cleanLead->mobile;
+                            $user->countrycode = $cleanLead->countrycode ?: $user->countrycode;
+                        }
+                        if (str_contains((string)$user->email, '*') && !empty($cleanLead->email)) {
+                            $user->email = $cleanLead->email;
+                        }
+                    }
                 }
+
+                $user->display_name = (string)$user->name;
                 $user->countrycode = null;
                 return $user;
             }
 
-            if (!$isSuperAdmin) {
+            if (isset($user->order_id)) {
                 $user->masked_mobile = mask_mobile_only($user->countrycode, $user->mobile_no);
                 $user->masked_email = mask_email_for_display($user->email);
-
-                $displayName = (string)$user->name;
-                if (preg_match('/^user\d{7,}$/i', $displayName)) {
-                    $user->display_name = 'user' . mask_mobile_only(null, substr($displayName, 4));
-                } else {
-                    $user->display_name = $displayName;
-                }
-
+                $user->display_name = (string)$user->name;
                 $user->mobile_no = $user->masked_mobile;
                 $user->email = $user->masked_email;
-                $user->name = $user->display_name;
-            } else {
-                $user->display_name = (string)$user->name;
+                $user->countrycode = null;
+                return $user;
             }
 
+            $user->masked_mobile = mask_mobile_only($user->countrycode, $user->mobile_no);
+            $user->masked_email = mask_email_for_display($user->email);
+
+            $displayName = (string)$user->name;
+            if (preg_match('/^user\d{7,}$/i', $displayName)) {
+                $user->display_name = 'user' . mask_mobile_only(null, substr($displayName, 4));
+            } else {
+                $user->display_name = $displayName;
+            }
+
+            $user->mobile_no = $user->masked_mobile;
+            $user->email = $user->masked_email;
+            $user->name = $user->display_name;
             $user->countrycode = null;
             return $user;
         });
@@ -271,8 +307,36 @@ class SearchController extends Controller
             ->get();
 
         $results->transform(function ($user) {
+            $isSuperAdmin = auth()->check() && (int) auth()->user()->role_id === 1;
             $cleanCC = preg_replace('/\D+/', '', (string)$user->countrycode);
             $cleanMob = preg_replace('/\D+/', '', (string)$user->mobile_no);
+
+            if ($isSuperAdmin) {
+                if ((str_contains((string)$user->mobile_no, '*') || str_contains((string)$user->email, '*')) && !empty($user->id)) {
+                    $cleanLead = \App\Models\Leads::where(function($lq) use ($user) {
+                        $lq->where('emp_id', $user->id)->orWhere('u_id', $user->id);
+                    })->where('mobile', 'not like', '%*%')
+                      ->where('email', 'not like', '%*%')
+                      ->whereNotNull('mobile')
+                      ->where('mobile', '!=', '')
+                      ->orderByDesc('id')
+                      ->first();
+
+                    if ($cleanLead) {
+                        if (str_contains((string)$user->mobile_no, '*') && !empty($cleanLead->mobile)) {
+                            $user->mobile_no = $cleanLead->mobile;
+                            $user->countrycode = $cleanLead->countrycode ?: $user->countrycode;
+                        }
+                        if (str_contains((string)$user->email, '*') && !empty($cleanLead->email)) {
+                            $user->email = $cleanLead->email;
+                        }
+                    }
+                }
+                $user->display_name = (string)$user->name;
+                $user->countrycode = !empty($cleanCC) ? ('+' . $cleanCC) : '+44';
+                $user->raw_mobile = preg_replace('/\D+/', '', (string)$user->mobile_no);
+                return $user;
+            }
 
             $user->masked_mobile = mask_mobile_only($user->countrycode, $user->mobile_no);
             $user->masked_mobile2 = mask_mobile_only(null, $user->mobile_no2);
@@ -289,12 +353,10 @@ class SearchController extends Controller
             $user->countrycode = !empty($cleanCC) ? ('+' . $cleanCC) : '+44';
             $user->raw_mobile = $cleanMob;
 
-            if (auth()->check() && auth()->user()->role_id != 1) {
-                $user->mobile_no = $user->masked_mobile;
-                $user->mobile_no2 = $user->masked_mobile2;
-                $user->email = $user->masked_email;
-                $user->name = $user->display_name;
-            }
+            $user->mobile_no = $user->masked_mobile;
+            $user->mobile_no2 = $user->masked_mobile2;
+            $user->email = $user->masked_email;
+            $user->name = $user->display_name;
 
             return $user;
         });

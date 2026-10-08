@@ -1120,27 +1120,29 @@ class OrderController extends Controller
                 $order->chapter = null;
             }
             $user = User::find($order->uid);
-            if ($req->filled('user_name')) {
-                $user->name = $req->input('user_name');
-            }
-            if ($req->filled('mobile')) {
-                $user->mobile_no = $req->input('mobile');
-            }
-            if ($req->filled('country_code')) {
-                $user->countrycode = $req->input('country_code');
-            }
-            if ($req->filled('mobile2')) {
-                $user->mobile_no2 = $req->input('mobile2');
-            }
-            if ($req->filled('country_code2')) {
-                $user->countrycode2 = $req->input('country_code2');
-            }
-            if ($req->filled('email')) {
-                $user->email = $req->input('email');
-            }
+            if ($user) {
+                if ($req->filled('user_name')) {
+                    $user->name = $req->input('user_name');
+                }
+                if ($req->filled('mobile') && !str_contains($req->input('mobile'), '*')) {
+                    $user->mobile_no = $req->input('mobile');
+                }
+                if ($req->filled('country_code') && !str_contains($req->input('country_code'), '*')) {
+                    $user->countrycode = $req->input('country_code');
+                }
+                if ($req->filled('mobile2') && !str_contains($req->input('mobile2'), '*')) {
+                    $user->mobile_no2 = $req->input('mobile2');
+                }
+                if ($req->filled('country_code2') && !str_contains($req->input('country_code2'), '*')) {
+                    $user->countrycode2 = $req->input('country_code2');
+                }
+                if ($req->filled('email') && !str_contains($req->input('email'), '*')) {
+                    $user->email = $req->input('email');
+                }
 
-            // Save user changes
-            $user->save();
+                // Save user changes
+                $user->save();
+            }
         }
 
 

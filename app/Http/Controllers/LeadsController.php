@@ -1048,12 +1048,24 @@ class LeadsController extends Controller
                         return response()->json(['error' => 'Email already registered with a different user', 'message' => 'Email is already registered with a different user. Please change your email.'], 400);
                     }
 
-                    $user->email = $request->input('email');
-                    $user->mobile_no = $request->input('mobile');
-                    $user->mobile_no2 = $request->input('mobile_no2');
-                    $user->countrycode = $request->input('countrycode');
-                    $user->countrycode2 = $request->input('countrycode2');
-                    $user->name = $request->input('user_name');
+                    if ($request->filled('email') && !str_contains($request->input('email'), '*')) {
+                        $user->email = $request->input('email');
+                    }
+                    if ($request->filled('mobile') && !str_contains($request->input('mobile'), '*')) {
+                        $user->mobile_no = $request->input('mobile');
+                    }
+                    if ($request->filled('mobile_no2') && !str_contains($request->input('mobile_no2'), '*')) {
+                        $user->mobile_no2 = $request->input('mobile_no2');
+                    }
+                    if ($request->filled('countrycode') && !str_contains($request->input('countrycode'), '*')) {
+                        $user->countrycode = $request->input('countrycode');
+                    }
+                    if ($request->filled('countrycode2') && !str_contains($request->input('countrycode2'), '*')) {
+                        $user->countrycode2 = $request->input('countrycode2');
+                    }
+                    if ($request->filled('user_name')) {
+                        $user->name = $request->input('user_name');
+                    }
                     $user->save();
                     // Define data for the email
                     $mailData = [

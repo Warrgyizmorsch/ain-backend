@@ -65,6 +65,39 @@ class User extends Authenticatable
         'role_id' => 2,
     ];
 
+    public function setEmailAttribute($value)
+    {
+        $valStr = (string) $value;
+        if (str_contains($valStr, '*')) {
+            if (!empty($this->attributes['email']) && !str_contains((string) $this->attributes['email'], '*')) {
+                return;
+            }
+        }
+        $this->attributes['email'] = $value;
+    }
+
+    public function setMobileNoAttribute($value)
+    {
+        $valStr = (string) $value;
+        if (str_contains($valStr, '*')) {
+            if (!empty($this->attributes['mobile_no']) && !str_contains((string) $this->attributes['mobile_no'], '*')) {
+                return;
+            }
+        }
+        $this->attributes['mobile_no'] = $value;
+    }
+
+    public function setMobileNo2Attribute($value)
+    {
+        $valStr = (string) $value;
+        if (str_contains($valStr, '*')) {
+            if (!empty($this->attributes['mobile_no2']) && !str_contains((string) $this->attributes['mobile_no2'], '*')) {
+                return;
+            }
+        }
+        $this->attributes['mobile_no2'] = $value;
+    }
+
     protected static function booted()
     {
         static::saved(function ($user) {
