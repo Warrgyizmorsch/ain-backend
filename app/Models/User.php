@@ -120,9 +120,20 @@ class User extends Authenticatable
 
         $labelIds = collect();
 
-        // 1. Direct CRM user labels by user_id
-        $crmIds = \App\Models\CrmUserLabel::where('user_id', $this->id)->pluck('label_id');
-        $labelIds = $labelIds->concat($crmIds);
+        static $hasCrmTable = null;
+        if ($hasCrmTable === null) {
+            try {
+                $hasCrmTable = \Illuminate\Support\Facades\Schema::hasTable('crm_user_labels');
+            } catch (\Throwable $e) {
+                $hasCrmTable = false;
+            }
+        }
+
+        if ($hasCrmTable) {
+            // 1. Direct CRM user labels by user_id
+            $crmIds = \App\Models\CrmUserLabel::where('user_id', $this->id)->pluck('label_id');
+            $labelIds = $labelIds->concat($crmIds);
+        }
 
         $phones = [];
         if (!empty($this->mobile_no)) {
@@ -137,12 +148,12 @@ class User extends Authenticatable
         }
 
         // 2. Fallback / supplementary matching by phone & email in crm_user_labels
-        if (!empty($phones)) {
+        if ($hasCrmTable && !empty($phones)) {
             $crmPhoneIds = \App\Models\CrmUserLabel::whereIn('phone', $phones)->pluck('label_id');
             $labelIds = $labelIds->concat($crmPhoneIds);
         }
 
-        if (!empty($this->email)) {
+        if ($hasCrmTable && !empty($this->email)) {
             $crmEmailIds = \App\Models\CrmUserLabel::where('email', $this->email)->pluck('label_id');
             $labelIds = $labelIds->concat($crmEmailIds);
         }
@@ -213,31 +224,42 @@ class User extends Authenticatable
             }
         }
 
-        // 1. Direct fetch from crm_user_labels by user_id
-        $crmUserLabels = \App\Models\CrmUserLabel::whereIn('user_id', $userIds)->get(['user_id', 'label_id']);
-        foreach ($crmUserLabels as $cul) {
-            $userLabelIds[$cul->user_id][] = (int) $cul->label_id;
-        }
-
-        // 2. Fetch by phone / email in crm_user_labels
-        if (!empty($allPhones)) {
-            $crmPhoneLabels = \App\Models\CrmUserLabel::whereIn('phone', array_unique($allPhones))->whereNull('user_id')->get(['phone', 'label_id']);
-            foreach ($crmPhoneLabels as $cl) {
-                if (isset($userPhoneMap[$cl->phone])) {
-                    foreach ($userPhoneMap[$cl->phone] as $uId) {
-                        $userLabelIds[$uId][] = (int) $cl->label_id;
-                    }
-                }
+        static $hasCrmTable = null;
+        if ($hasCrmTable === null) {
+            try {
+                $hasCrmTable = \Illuminate\Support\Facades\Schema::hasTable('crm_user_labels');
+            } catch (\Throwable $e) {
+                $hasCrmTable = false;
             }
         }
 
-        if (!empty($allEmails)) {
-            $crmEmailLabels = \App\Models\CrmUserLabel::whereIn('email', array_unique($allEmails))->whereNull('user_id')->get(['email', 'label_id']);
-            foreach ($crmEmailLabels as $el) {
-                $elEmail = strtolower(trim($el->email));
-                if (isset($userEmailMap[$elEmail])) {
-                    foreach ($userEmailMap[$elEmail] as $uId) {
-                        $userLabelIds[$uId][] = (int) $el->label_id;
+        if ($hasCrmTable) {
+            // 1. Direct fetch from crm_user_labels by user_id
+            $crmUserLabels = \App\Models\CrmUserLabel::whereIn('user_id', $userIds)->get(['user_id', 'label_id']);
+            foreach ($crmUserLabels as $cul) {
+                $userLabelIds[$cul->user_id][] = (int) $cul->label_id;
+            }
+
+            // 2. Fetch by phone / email in crm_user_labels
+            if (!empty($allPhones)) {
+                $crmPhoneLabels = \App\Models\CrmUserLabel::whereIn('phone', array_unique($allPhones))->whereNull('user_id')->get(['phone', 'label_id']);
+                foreach ($crmPhoneLabels as $cl) {
+                    if (isset($userPhoneMap[$cl->phone])) {
+                        foreach ($userPhoneMap[$cl->phone] as $uId) {
+                            $userLabelIds[$uId][] = (int) $cl->label_id;
+                        }
+                    }
+                }
+            }
+
+            if (!empty($allEmails)) {
+                $crmEmailLabels = \App\Models\CrmUserLabel::whereIn('email', array_unique($allEmails))->whereNull('user_id')->get(['email', 'label_id']);
+                foreach ($crmEmailLabels as $el) {
+                    $elEmail = strtolower(trim($el->email));
+                    if (isset($userEmailMap[$elEmail])) {
+                        foreach ($userEmailMap[$elEmail] as $uId) {
+                            $userLabelIds[$uId][] = (int) $el->label_id;
+                        }
                     }
                 }
             }

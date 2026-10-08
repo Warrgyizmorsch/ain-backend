@@ -1,0 +1,47 @@
+name: Deploy to Live Server
+
+on:
+  push:
+    branches:
+      - deployment
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy to Hostinger Live Server
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Execute Remote SSH Commands
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST || '82.29.191.71' }}
+          username: ${{ secrets.SSH_USER || 'u313739815' }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT || 65002 }}
+          script_stop: false
+          script: |
+            echo "🚀 Starting automated code deployment..."
+            cd /home/u313739815/domains/ain.warrgyizmorsch.com/laravel_app
+            
+            # Stash any untracked or local changes safely so pull never gets blocked
+            git stash --include-untracked || true
+            
+            # Fetch latest deployment branch from origin
+            git fetch origin deployment
+            
+            # Switch to deployment branch cleanly
+            git checkout -B deployment origin/deployment
+            
+            # Pull latest changes
+            git pull origin deployment
+            
+            # Clear caches safely (NO migrations, NO seeders)
+            php artisan optimize:clear
+            php artisan view:clear
+            php artisan cache:clear
+            php artisan config:clear
+            php artisan route:clear
+            
+            echo "✅ Deployment completed successfully!"

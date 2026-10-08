@@ -114,18 +114,20 @@ class LabelSyncService
             }
 
             // 2. CRM User Labels (stored by phone for future orders/registration)
-            CrmUserLabel::where(function($q) use ($variants) {
-                $q->whereIn('phone', $variants);
-            })->whereNull('user_id')->delete();
+            if (\Illuminate\Support\Facades\Schema::hasTable('crm_user_labels')) {
+                CrmUserLabel::where(function($q) use ($variants) {
+                    $q->whereIn('phone', $variants);
+                })->whereNull('user_id')->delete();
 
-            foreach ($crmEligibleLabelIds as $lId) {
-                CrmUserLabel::create([
-                    'user_id' => null,
-                    'phone' => $cleanPhone,
-                    'email' => null,
-                    'label_id' => (int) $lId,
-                    'assigned_by' => $userId,
-                ]);
+                foreach ($crmEligibleLabelIds as $lId) {
+                    CrmUserLabel::create([
+                        'user_id' => null,
+                        'phone' => $cleanPhone,
+                        'email' => null,
+                        'label_id' => (int) $lId,
+                        'assigned_by' => $userId,
+                    ]);
+                }
             }
         }
 
@@ -234,13 +236,15 @@ class LabelSyncService
         $isWriterThread = $targetConfig && ((int)$targetConfig->id === 1 || stripos($targetConfig->name, 'writer') !== false);
         $isClientThread = $targetConfig && ((int)$targetConfig->id === 2 || stripos($targetConfig->name, 'client') !== false);
 
-        if ($isWriterThread) {
+        $hasAccountCols = WhatsappChatLabel::hasAccountColumns();
+
+        if ($hasAccountCols && $isWriterThread) {
             $emailEligibleLabelIds = WhatsappChatLabel::whereIn('id', $labelIds)
                 ->where('is_writer_email', true)
                 ->pluck('id')
                 ->map(fn($id) => (int) $id)
                 ->all();
-        } elseif ($isClientThread) {
+        } elseif ($hasAccountCols && $isClientThread) {
             $emailEligibleLabelIds = WhatsappChatLabel::whereIn('id', $labelIds)
                 ->where('is_client_email', true)
                 ->pluck('id')
@@ -248,8 +252,12 @@ class LabelSyncService
                 ->all();
         } else {
             $emailEligibleLabelIds = WhatsappChatLabel::whereIn('id', $labelIds)
-                ->where(function ($q) {
-                    $q->where('is_client_email', true)->orWhere('is_writer_email', true)->orWhere('is_email', true);
+                ->where(function ($q) use ($hasAccountCols) {
+                    if ($hasAccountCols) {
+                        $q->where('is_client_email', true)->orWhere('is_writer_email', true)->orWhere('is_email', true);
+                    } else {
+                        $q->where('is_email', true);
+                    }
                 })
                 ->pluck('id')
                 ->map(fn($id) => (int) $id)
@@ -301,7 +309,7 @@ class LabelSyncService
         }
 
         // 2. CRM user labels by email
-        if (!empty($cleanEmail)) {
+        if (!empty($cleanEmail) && \Illuminate\Support\Facades\Schema::hasTable('crm_user_labels')) {
             CrmUserLabel::where('email', $cleanEmail)->whereNull('user_id')->delete();
             foreach ($crmEligibleLabelIds as $lId) {
                 CrmUserLabel::create([
@@ -383,21 +391,31 @@ class LabelSyncService
             ->map(fn($id) => (int) $id)
             ->all();
 
-        $writerLabelIds = WhatsappChatLabel::whereIn('id', $labelIds)
-            ->where('is_writer_email', true)
-            ->pluck('id')
-            ->map(fn($id) => (int) $id)
-            ->all();
+        $hasAccountCols = WhatsappChatLabel::hasAccountColumns();
 
-        $clientLabelIds = WhatsappChatLabel::whereIn('id', $labelIds)
-            ->where('is_client_email', true)
-            ->pluck('id')
-            ->map(fn($id) => (int) $id)
-            ->all();
+        $writerLabelIds = $hasAccountCols
+            ? WhatsappChatLabel::whereIn('id', $labelIds)
+                ->where('is_writer_email', true)
+                ->pluck('id')
+                ->map(fn($id) => (int) $id)
+                ->all()
+            : [];
+
+        $clientLabelIds = $hasAccountCols
+            ? WhatsappChatLabel::whereIn('id', $labelIds)
+                ->where('is_client_email', true)
+                ->pluck('id')
+                ->map(fn($id) => (int) $id)
+                ->all()
+            : [];
 
         $emailLabelIds = WhatsappChatLabel::whereIn('id', $labelIds)
-            ->where(function ($q) {
-                $q->where('is_client_email', true)->orWhere('is_writer_email', true)->orWhere('is_email', true);
+            ->where(function ($q) use ($hasAccountCols) {
+                if ($hasAccountCols) {
+                    $q->where('is_client_email', true)->orWhere('is_writer_email', true)->orWhere('is_email', true);
+                } else {
+                    $q->where('is_email', true);
+                }
             })
             ->pluck('id')
             ->map(fn($id) => (int) $id)
@@ -470,33 +488,35 @@ class LabelSyncService
             ->all();
 
         // ── 4. Fan-out: CRM Labels (crm_user_labels) ────────────────────────
-        CrmUserLabel::where('user_id', $user->id)->delete();
-        if (!empty($uniquePhones) || !empty($uniqueEmails)) {
-            CrmUserLabel::where(function ($q) use ($uniquePhones, $uniqueEmails) {
-                if (!empty($uniquePhones)) {
-                    $q->whereIn('phone', $uniquePhones);
-                }
-                if (!empty($uniqueEmails)) {
-                    $q->orWhereIn('email', $uniqueEmails);
-                }
-            })->whereNull('user_id')->delete();
-        }
+        if (\Illuminate\Support\Facades\Schema::hasTable('crm_user_labels')) {
+            CrmUserLabel::where('user_id', $user->id)->delete();
+            if (!empty($uniquePhones) || !empty($uniqueEmails)) {
+                CrmUserLabel::where(function ($q) use ($uniquePhones, $uniqueEmails) {
+                    if (!empty($uniquePhones)) {
+                        $q->whereIn('phone', $uniquePhones);
+                    }
+                    if (!empty($uniqueEmails)) {
+                        $q->orWhereIn('email', $uniqueEmails);
+                    }
+                })->whereNull('user_id')->delete();
+            }
 
-        $now = now();
-        $crmInserts = [];
-        foreach ($crmLabelIds as $lId) {
-            $crmInserts[] = [
-                'user_id'     => $user->id,
-                'phone'       => $user->mobile_no ?: ($uniquePhones[0] ?? null),
-                'email'       => $user->email ?: ($uniqueEmails[0] ?? null),
-                'label_id'    => (int) $lId,
-                'assigned_by' => $assignedBy,
-                'created_at'  => $now,
-                'updated_at'  => $now,
-            ];
-        }
-        if (!empty($crmInserts)) {
-            CrmUserLabel::insert($crmInserts);
+            $now = now();
+            $crmInserts = [];
+            foreach ($crmLabelIds as $lId) {
+                $crmInserts[] = [
+                    'user_id'     => $user->id,
+                    'phone'       => $user->mobile_no ?: ($uniquePhones[0] ?? null),
+                    'email'       => $user->email ?: ($uniqueEmails[0] ?? null),
+                    'label_id'    => (int) $lId,
+                    'assigned_by' => $assignedBy,
+                    'created_at'  => $now,
+                    'updated_at'  => $now,
+                ];
+            }
+            if (!empty($crmInserts)) {
+                CrmUserLabel::insert($crmInserts);
+            }
         }
 
         // ── 5. Fan-out: WhatsApp (whatsapp_chat_contact_labels) ──────────────
@@ -630,7 +650,7 @@ class LabelSyncService
         $collectedLabelIds = collect();
 
         // 1. Check existing CRM user labels
-        if ($user) {
+        if ($user && \Illuminate\Support\Facades\Schema::hasTable('crm_user_labels')) {
             $crmExisting = CrmUserLabel::where('user_id', $user->id)->pluck('label_id');
             $collectedLabelIds = $collectedLabelIds->concat($crmExisting);
         }

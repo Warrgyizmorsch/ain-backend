@@ -164,7 +164,7 @@
                     <label class="form-label fs-8 fw-bold text-gray-700 mb-1">Company Account <span class="text-danger">*</span></label>
                     <select name="company_accounts" class="form-select form-select-sm fs-8" required>
                         <option value="" disabled selected>-- Select Account --</option>
-                        @foreach(['HDFC', 'Native', 'PayPal', 'Skydo', 'Wallet', 'Other'] as $acc)
+                        @foreach(['HDFC', 'Native', 'PayPal', 'Skydo', 'Banking Circle', 'Wallet', 'Other'] as $acc)
                             <option value="{{ $acc }}">{{ $acc }}</option>
                         @endforeach
                     </select>

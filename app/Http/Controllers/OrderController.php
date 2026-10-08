@@ -384,15 +384,29 @@ class OrderController extends Controller
 
     private function handleRoleOne(Request $request)
     {
+        $unconverted = Cache::remember('unconverted_leads_filter_set', 300, function() {
+            $leadIds = DB::table('leads')
+                ->where('is_converted', '!=', 1)
+                ->pluck('id')
+                ->all();
+            $orderIds = DB::table('leads')
+                ->where('is_converted', '!=', 1)
+                ->whereNotNull('order_id')
+                ->where('order_id', '!=', '')
+                ->pluck('order_id')
+                ->all();
+            return ['lead_ids' => $leadIds, 'order_ids' => $orderIds];
+        });
+
         $ordersQuery = Order::with('user', 'payment', 'feedback', 'team')
-            ->whereNotNull('uid')->where('uid', '!=', 0)->where('uid', '!=', '0')
-            ->where(function ($q) {
-                $q->where(function ($noLead) {
-                    $noLead->whereDoesntHave('lead')->whereDoesntHave('frontendLead');
-                })
-                ->orWhereHas('lead', fn ($lq) => $lq->where('is_converted', 1))
-                ->orWhereHas('frontendLead', fn ($flq) => $flq->where('is_converted', 1));
-            });
+            ->whereNotNull('uid')->where('uid', '!=', 0)->where('uid', '!=', '0');
+
+        if (!empty($unconverted['lead_ids'])) {
+            $ordersQuery->whereNotIn('orders.lead_id', $unconverted['lead_ids']);
+        }
+        if (!empty($unconverted['order_ids'])) {
+            $ordersQuery->whereNotIn('orders.order_id', $unconverted['order_ids']);
+        }
 
         if (auth()->check()) {
             $authUser = auth()->user();
@@ -403,22 +417,32 @@ class OrderController extends Controller
             }
         }
         $data = [
-            'Team' => Writer::all(),
-            'Status' => Status::all(),
-            'formatting' => Formatting::all(),
-            'service' => Services::all(),
-            'Writting' => Writting::all(),
-            'paper' => Paper::all(),
-            'user' => User::all(),
-            'college' => College::all(),
-            'admin' => User::where('role_id', 8)->where('flag', 0)->get(),
-            'writerTL' => User::where('role_id', 6)->where('flag', 0)->get(),
-            'SubWriter' => User::where('role_id', 7)->where('flag', 0)->get(),
-            'projectStatusCounts' => ProjectStatusCount::all()
+            'Team' => Cache::remember('order_writer_teams', 600, fn () => Writer::all()),
+            'Status' => Cache::remember('order_status_list', 600, fn () => Status::all()),
+            'formatting' => Cache::remember('order_formatting_list', 600, fn () => Formatting::all()),
+            'service' => Cache::remember('order_services_list', 600, fn () => Services::all()),
+            'Writting' => Cache::remember('order_writing_list', 600, fn () => Writting::all()),
+            'paper' => Cache::remember('order_paper_list', 600, fn () => Paper::all()),
+            'user' => collect(),
+            'college' => Cache::remember('order_college_list', 600, fn () => College::all()),
+            'admin' => Cache::remember('order_admin_users', 600, fn () => User::where('role_id', 8)->where('flag', 0)->get()),
+            'writerTL' => Cache::remember('order_writerTL_users', 600, fn () => User::where('role_id', 6)->where('flag', 0)->get()),
+            'SubWriter' => Cache::remember('order_subwriter_users', 600, fn () => User::where('role_id', 7)->where('flag', 0)->get()),
+            'projectStatusCounts' => Cache::remember('order_proj_status_counts', 300, fn () => ProjectStatusCount::all())
         ];
-        $totalOrders = $ordersQuery->count();
-        $totalWordCount = (int) $ordersQuery->clone()->where('pages', 'REGEXP', '^[0-9]+$')->sum('pages');
-        if ($request->input('search') || $request->input('status') || $request->input('writer') || $request->input('writerTL') || $request->input('uid') || $request->input('user') || $request->input('date_status') || $request->input('from_date') || $request->input('to_date') || $request->input('SubWriter') || $request->input('college') || $request->input('extra') || $request->input('secondary_mobile') || $request->input('paper_type')) {
+
+        $isFiltered = (bool) ($request->input('search') || $request->input('status') || $request->input('writer') || $request->input('writerTL') || $request->input('uid') || $request->input('user') || $request->input('date_status') || $request->input('from_date') || $request->input('to_date') || $request->input('SubWriter') || $request->input('college') || $request->input('extra') || $request->input('secondary_mobile') || $request->input('paper_type'));
+
+        if (!$isFiltered) {
+            $cacheTeamKey = isset($authUser->team_id) && !empty($authUser->team_id) ? (string)$authUser->team_id : 'all';
+            $totalOrders = Cache::remember("orders_count_base_{$cacheTeamKey}", 60, fn () => $ordersQuery->count());
+            $totalWordCount = Cache::remember("orders_words_base_{$cacheTeamKey}", 60, fn () => (int) $ordersQuery->clone()->where('pages', 'REGEXP', '^[0-9]+$')->sum('pages'));
+        } else {
+            $totalOrders = $ordersQuery->count();
+            $totalWordCount = (int) $ordersQuery->clone()->where('pages', 'REGEXP', '^[0-9]+$')->sum('pages');
+        }
+
+        if ($isFiltered) {
             if ($request->input('uid')) {
                 $ordersQuery->where('uid', $request->input('uid'));
             } elseif ($request->input('user')) {
@@ -572,7 +596,7 @@ class OrderController extends Controller
             'service' => Services::all(),
             'Writting' => Writting::all(),
             'paper' => Paper::all(),
-            'user' => User::all(),
+            'user' => collect(),
             'college' => College::all(),
             'admin' => User::where('role_id', 8)->where('flag', 0)->get(),
             'writerTL' => User::where('role_id', 6)->where('flag', 0)->get(),
@@ -683,7 +707,7 @@ class OrderController extends Controller
             'service' => Services::all(),
             'Writting' => Writting::all(),
             'paper' => Paper::all(),
-            'user' => User::all(),
+            'user' => collect(),
             'college' => College::all(),
             'admin' => User::where('role_id', 8)->where('flag', 0)->get(),
             'writerTL' => User::where('role_id', 6)->where('flag', 0)->get(),
@@ -728,7 +752,7 @@ class OrderController extends Controller
             'service' => Services::all(),
             'Writting' => Writting::all(),
             'paper' => Paper::all(),
-            'user' => User::all(),
+            'user' => collect(),
             'college' => College::all(),
             'admin' => User::where('role_id', 8)->where('flag', 0)->get(),
             'writerTL' => User::where('role_id', 6)->where('flag', 0)->where('admin_id', auth()->user()->id)->get(),
@@ -1694,7 +1718,7 @@ class OrderController extends Controller
         $data['Writting'] = Writting::all();
         $data['paper'] = Paper::all();
         $data['college'] = College::all();
-        $data['user'] = User::all();
+        $data['user'] = collect();
 
         $userDetails = $order->user;
 
@@ -3233,7 +3257,7 @@ class OrderController extends Controller
             'service' => Services::all(),
             'Writting' => Writting::all(),
             'paper' => Paper::all(),
-            'user' => User::all(),
+            'user' => collect(),
             'college' => College::all(),
             'admin' => User::where('role_id', 8)->where('flag', 0)->get(),
             'writerTL' => User::where('role_id', 6)->where('flag', 0)->get(),
@@ -5177,29 +5201,27 @@ class OrderController extends Controller
         $now = now();
         $limit = $now->copy()->addMinutes(30);
 
-        $orders = Order::whereNotIn('projectstatus', ['Completed', 'Delivered', 'Cancelled', 'Feedback', 'Feedback Delivered'])
-            ->whereNotNull('delivery_date')
-            ->get()
-            ->filter(function ($order) use ($now, $limit) {
-
-                $dateTime = $order->delivery_date;
-
-                if ($order->delivery_time) {
-                    $dateTime .= ' ' . $order->delivery_time;
-                }
-
-                try {
-                    $deadline = \Carbon\Carbon::parse($dateTime, config('app.timezone'));
-                } catch (\Exception $e) {
-                    return false;
-                }
-
-                return $deadline->between($now, $limit);
-            })
-            ->sortBy(function ($order) {
-                return $order->delivery_date . ' ' . $order->delivery_time;
-            })
-            ->values();
+        $orders = Cache::remember('urgent_orders_list', 15, function () use ($now, $limit) {
+            return Order::whereNotIn('projectstatus', ['Completed', 'Delivered', 'Cancelled', 'Feedback', 'Feedback Delivered'])
+                ->whereBetween('delivery_date', [$now->toDateString(), $limit->toDateString()])
+                ->get()
+                ->filter(function ($order) use ($now, $limit) {
+                    $dateTime = $order->delivery_date;
+                    if ($order->delivery_time) {
+                        $dateTime .= ' ' . $order->delivery_time;
+                    }
+                    try {
+                        $deadline = \Carbon\Carbon::parse($dateTime, config('app.timezone'));
+                    } catch (\Exception $e) {
+                        return false;
+                    }
+                    return $deadline->between($now, $limit);
+                })
+                ->sortBy(function ($order) {
+                    return $order->delivery_date . ' ' . $order->delivery_time;
+                })
+                ->values();
+        });
 
         return response()->json($orders);
     }
@@ -6337,7 +6359,7 @@ public function myRevokePayments(Request $request)
         'service' => Services::all(),
         'Writting' => Writting::all(),
         'paper' => Paper::all(),
-        'user' => User::all(),
+        'user' => collect(),
         'college' => College::all(),
         'admin' => User::where('role_id', 8)->where('flag', 0)->get(),
         'writerTL' => User::where('role_id', 6)->where('flag', 0)->get(),

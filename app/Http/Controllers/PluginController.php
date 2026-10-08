@@ -377,6 +377,18 @@ class PluginController extends Controller
             return null;
         }
 
+        $cacheKey = "next2call_session_{$userId}";
+        $failKey  = "next2call_fail_{$userId}";
+
+        if (!$forceRefresh) {
+            if (Cache::has($cacheKey)) {
+                return Cache::get($cacheKey);
+            }
+            if (Cache::has($failKey)) {
+                return null;
+            }
+        }
+
         // 1. Check in DB: Check when last session was generated for this SIP user
         if (!$forceRefresh) {
             $dbSession = null;
@@ -408,7 +420,7 @@ class PluginController extends Controller
                 if (!$hasExpired) {
                     Log::info("[Next2Call DB] Reusing valid 12h session for SIP {$userId} from DB (generated {$hoursElapsed}h ago at " . ($generatedAt ? $generatedAt->toDateTimeString() : 'N/A') . ")");
 
-                    return [
+                    $sessionData = [
                         'token'             => $dbSession->token,
                         'token_type'        => 'Bearer',
                         'expires_in'        => '12h',
@@ -420,6 +432,8 @@ class PluginController extends Controller
                         'generated_at'      => $generatedAt ? $generatedAt->toDateTimeString() : now()->toDateTimeString(),
                         'from_db'           => true,
                     ];
+                    Cache::put($cacheKey, $sessionData, $expiresAt ?: now()->addHours(12));
+                    return $sessionData;
                 }
 
                 Log::info("[Next2Call DB] Session for SIP {$userId} in DB has expired (generated: " . ($generatedAt ? $generatedAt->toDateTimeString() : 'N/A') . ", elapsed: {$hoursElapsed}h). Generating new token...");
@@ -428,7 +442,7 @@ class PluginController extends Controller
 
         // 2. If >= 12h or not found in DB: Call Next2Call Webphone Login API to generate new token and iframe URLs
         try {
-            $response = Http::timeout(10)->post("{$apiBaseUrl}/mobileapi/api/webphone_login", [
+            $response = Http::timeout(2)->post("{$apiBaseUrl}/mobileapi/api/webphone_login", [
                 'user_id' => $userId,
                 'password' => $password,
             ]);
@@ -523,6 +537,7 @@ class PluginController extends Controller
                     'expires_at'   => $expiresAt->toDateTimeString(),
                 ]);
 
+                Cache::put($cacheKey, $session, $expiresAt);
                 return $session;
             }
 
@@ -531,8 +546,10 @@ class PluginController extends Controller
                 'status'   => $response->status(),
                 'response' => $data,
             ]);
+            Cache::put($failKey, true, now()->addMinutes(5));
         } catch (\Throwable $e) {
             Log::error('[Next2Call] Webphone login exception: ' . $e->getMessage(), ['user_id' => $userId]);
+            Cache::put($failKey, true, now()->addMinutes(5));
         }
 
         return null;

@@ -47,10 +47,30 @@ class WhatsappChatLabel extends Model
     }
 
     /**
+     * Check if account-specific columns exist in the database table
+     */
+    public static function hasAccountColumns(): bool
+    {
+        static $hasColumns = null;
+        if ($hasColumns === null) {
+            try {
+                $hasColumns = \Illuminate\Support\Facades\Schema::hasColumn('whatsapp_chat_labels', 'is_writer_email')
+                    && \Illuminate\Support\Facades\Schema::hasColumn('whatsapp_chat_labels', 'is_client_email');
+            } catch (\Throwable $e) {
+                $hasColumns = false;
+            }
+        }
+        return (bool) $hasColumns;
+    }
+
+    /**
      * Scope for Client Email channel labels
      */
     public function scopeForClientEmail($query)
     {
+        if (!static::hasAccountColumns()) {
+            return $query->where('is_email', true);
+        }
         return $query->where('is_client_email', true);
     }
 
@@ -59,6 +79,9 @@ class WhatsappChatLabel extends Model
      */
     public function scopeForWriterEmail($query)
     {
+        if (!static::hasAccountColumns()) {
+            return $query->where('is_email', true);
+        }
         return $query->where('is_writer_email', true);
     }
 
@@ -70,6 +93,10 @@ class WhatsappChatLabel extends Model
      */
     public function scopeForEmailAccount($query, $account = null)
     {
+        if (!static::hasAccountColumns()) {
+            return $query->where('is_email', true);
+        }
+
         if ($account) {
             $name = is_object($account) ? ($account->name ?? '') : (string) $account;
             $id = is_object($account) ? ($account->id ?? 0) : (is_numeric($account) ? (int) $account : 0);
@@ -95,6 +122,10 @@ class WhatsappChatLabel extends Model
      */
     public function scopeForEmail($query)
     {
+        if (!static::hasAccountColumns()) {
+            return $query->where('is_email', true);
+        }
+
         return $query->where(function ($q) {
             $q->where('is_email', true)
               ->orWhere('is_client_email', true)
