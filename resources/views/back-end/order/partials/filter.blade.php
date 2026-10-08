@@ -348,7 +348,7 @@
 
 
             </div>
-            <div class="row mb-1 additional-filters" style="display:none;">
+            <div class="row mb-1 additional-filters" id="additionalFiltersRow" style="display:none;">
                 <div class="col-md-3 fv-row mb-3">
                     <input type="date" name="from_date" id="from_date" class="form-control form-control-solid"
                         placeholder="Search By From Date">
@@ -423,7 +423,7 @@
                 <div>
                     <button type="button" onclick="window.applyFilters()" class="btn btn-sm btn-primary" id="applyFilterBtn">Search</button>
                     <button type="button" onclick="window.resetFilters()" id="resetFiltersBtn" class="btn btn-sm btn-danger" style="{{ $hasInitialFilters ? '' : 'display: none;' }}">Reset</button>
-                    <button type="button" onclick="window.toggleMoreFilters()" id="showMoreFilters" class="btn btn-sm btn-success">Show More Filters</button>
+                    <button type="button" onclick="window.toggleMoreFilters(event)" id="showMoreFilters" class="btn btn-sm btn-success">Show More Filters</button>
                     @if(empty($hideOrderQuickFilters))
                     <a href="javascript:void(0)" id="overdueBtn" class="btn btn-sm btn-danger">
                         Overdue {{ $overdueCount }}
@@ -1033,18 +1033,37 @@ resetFilters();
         total_due: 0
     };
 
+    window.toggleMoreFilters = function(e) {
+        if (e && e.stopPropagation) {
+            e.stopPropagation();
+        }
+        var el = document.getElementById('additionalFiltersRow') || document.querySelector('.additional-filters');
+        var btn = document.getElementById('showMoreFilters');
+        if (!el) return false;
+
+        var isHidden = (el.style.display === 'none' || window.getComputedStyle(el).display === 'none');
+        if (isHidden) {
+            el.style.setProperty('display', 'flex', 'important');
+            if (btn) btn.innerText = 'Hide More Filters';
+        } else {
+            el.style.setProperty('display', 'none', 'important');
+            if (btn) btn.innerText = 'Show More Filters';
+        }
+        return false;
+    };
+
     window.toggleOrderFilters = function() {
         const filterBody = $('#filterBody');
         const isCurrentlyVisible = filterBody.is(':visible');
         const btn = $('#toggleFilterBtn');
 
-        filterBody.slideToggle(250);
-
         if (isCurrentlyVisible) {
+            filterBody.hide();
             btn.text('Show Filters')
                .removeClass('btn-danger')
                .addClass('btn-primary');
         } else {
+            filterBody.show();
             btn.text('Hide Filters')
                .removeClass('btn-primary')
                .addClass('btn-danger');
@@ -1055,10 +1074,10 @@ resetFilters();
         const container = $('#deadlineGapContainer');
         const btn = $('#toggleDeadlineGapBtn');
         if (container.is(':visible')) {
-            container.fadeOut(150);
+            container.hide();
             btn.removeClass('active');
         } else {
-            container.css('display', 'inline-flex').hide().fadeIn(200);
+            container.css('display', 'inline-flex');
             btn.addClass('active');
         }
     };
@@ -1156,31 +1175,6 @@ resetFilters();
             $('.deadline-gap-clear-btn').removeClass('is-visible');
         }
     }
-
-    $(document).on('click', '#toggleFilterBtn', function(e) {
-        e.preventDefault();
-        window.toggleOrderFilters();
-    });
-
-    $(document).on('click', '#toggleDeadlineGapBtn', function(e) {
-        e.preventDefault();
-        window.toggleDeadlineGap();
-    });
-
-    $(document).on('click', '.deadline-gap-btn', function(e) {
-        e.preventDefault();
-        window.toggleDeadlineGapItem(this);
-    });
-
-    $(document).on('click', '.deadline-gap-clear-btn', function(e) {
-        e.preventDefault();
-        window.clearDeadlineGap();
-    });
-
-    $(document).on('click', '.dynamic-team-btn, #teamAlphaBtn, #teamGigaBtn, #teamGammaBtn', function(e) {
-        e.preventDefault();
-        window.toggleTeamFilter(this);
-    });
 
     $(document).on('click', '#overdueBtn', function(e) {
         e.preventDefault();
@@ -1503,20 +1497,11 @@ resetFilters();
         $('#filter-total').text('All Orders');
         $('#export-order-btn').hide();
         $('#resetFiltersBtn, #topResetFiltersBtn').hide();
+        var el = document.getElementById('additionalFiltersRow');
+        if (el) el.style.setProperty('display', 'none', 'important');
         $('.additional-filters').hide();
         $('#showMoreFilters').text('Show More Filters');
     }
-
-    window.toggleMoreFilters = function() {
-        const additional = $('.additional-filters');
-        if (additional.is(':visible')) {
-            additional.slideUp(180);
-            $('#showMoreFilters').text('Show More Filters');
-        } else {
-            additional.slideDown(180);
-            $('#showMoreFilters').text('Hide More Filters');
-        }
-    };
 
     window.applyFilters = applyFilters;
     window.resetFilters = resetFilters;
@@ -1576,20 +1561,8 @@ resetFilters();
             }
         }
 
-        // Show/Hide more filters
-        $(document).on('click', '#showMoreFilters', function(e) {
-            e.preventDefault();
-            window.toggleMoreFilters();
-        });
-
         // TL change triggers subwriter update
         $(document).on('change', '#writerTL', populateSubwriters);
-
-        // Reset filters and show original data
-        $(document).on('click', '#resetFiltersBtn, #topResetFiltersBtn', function(e) {
-            e.preventDefault();
-            resetFilters();
-        });
 
         // Check URL parameters (e.g. from WhatsApp, Leads, CRM: ?order_id=... ?user=... ?phone=... ?mobile=... ?uid=... ?user_id=...)
         const urlParams = new URLSearchParams(window.location.search);
