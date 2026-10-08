@@ -109,10 +109,30 @@
 												@php
 													$userAssignedLabels = optional($order->user)->labels ?? collect();
 													$userAssignedLabelIds = $userAssignedLabels->pluck('id')->all();
+													$isSuperAdmin = auth()->check() && (int) auth()->user()->role_id === 1;
 													$rawUserMobile = $order->user->mobile_no ?: '';
 													$rawUserEmail = $order->user->email ?: '';
-													$displayMobile = mask_phone_for_display($order->user->countrycode, $order->user->mobile_no);
-													$displayEmail  = mask_email_for_display($order->user->email);
+													$rawUserCC = $order->user->countrycode ?: '';
+
+													if ($isSuperAdmin && (str_contains($rawUserMobile, '*') || str_contains($rawUserEmail, '*'))) {
+														$cleanLead = $order->lead ?: $order->frontendLead;
+														if ($cleanLead) {
+															if (str_contains($rawUserMobile, '*') && !empty($cleanLead->mobile) && !str_contains($cleanLead->mobile, '*')) {
+																$rawUserMobile = $cleanLead->mobile;
+																$rawUserCC = $cleanLead->countrycode ?: $rawUserCC;
+															}
+															if (str_contains($rawUserEmail, '*') && !empty($cleanLead->email) && !str_contains($cleanLead->email, '*')) {
+																$rawUserEmail = $cleanLead->email;
+															}
+														}
+													}
+
+													$displayMobile = $isSuperAdmin 
+														? trim(($rawUserCC ? ('+' . preg_replace('/\D+/', '', (string)$rawUserCC) . ' ') : '') . $rawUserMobile)
+														: mask_phone_for_display($order->user->countrycode, $order->user->mobile_no);
+													$displayEmail  = $isSuperAdmin 
+														? $rawUserEmail 
+														: mask_email_for_display($order->user->email);
 												@endphp
 												<div class="d-flex align-items-center justify-content-center">
 													<span class="fw-bold">{{ $order->user->name }}</span>

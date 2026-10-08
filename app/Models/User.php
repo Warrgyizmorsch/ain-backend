@@ -67,6 +67,27 @@ class User extends Authenticatable
 
     protected static function booted()
     {
+        static::saving(function ($user) {
+            if (!empty($user->mobile_no) && str_contains((string)$user->mobile_no, '*')) {
+                $orig = $user->getOriginal('mobile_no');
+                if (!empty($orig) && !str_contains((string)$orig, '*')) {
+                    $user->mobile_no = $orig;
+                }
+            }
+            if (!empty($user->mobile_no2) && str_contains((string)$user->mobile_no2, '*')) {
+                $orig2 = $user->getOriginal('mobile_no2');
+                if (!empty($orig2) && !str_contains((string)$orig2, '*')) {
+                    $user->mobile_no2 = $orig2;
+                }
+            }
+            if (!empty($user->email) && str_contains((string)$user->email, '*')) {
+                $origEmail = $user->getOriginal('email');
+                if (!empty($origEmail) && !str_contains((string)$origEmail, '*')) {
+                    $user->email = $origEmail;
+                }
+            }
+        });
+
         static::saved(function ($user) {
             if (!empty($user->email) || !empty($user->mobile_no)) {
                 try {

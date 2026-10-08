@@ -61,11 +61,28 @@
                     @if($order->user)
                     @php
                         $isSuperAdmin = auth()->check() && (int)auth()->user()->role_id === 1;
-                        $displayEmail = $isSuperAdmin ? $order->user->email : mask_email_for_display($order->user->email);
+                        $rawUserEmail = $order->user->email ?? '';
+                        $rawUserMobile = $order->user->mobile_no ?? '';
+                        $rawUserMobile2 = $order->user->mobile_no2 ?? '';
                         $displayCountry = $order->user->countrycode ?? '';
-                        $displayMobile = mask_mobile_only($order->user->countrycode, $order->user->mobile_no);
                         $displayCountry2 = $order->user->countrycode2 ?? '';
-                        $displayMobile2 = mask_mobile_only($order->user->countrycode2, $order->user->mobile_no2);
+
+                        if ($isSuperAdmin && (str_contains($rawUserMobile, '*') || str_contains($rawUserEmail, '*'))) {
+                            $cleanLead = $order->lead ?: $order->frontendLead;
+                            if ($cleanLead) {
+                                if (str_contains($rawUserMobile, '*') && !empty($cleanLead->mobile) && !str_contains($cleanLead->mobile, '*')) {
+                                    $rawUserMobile = $cleanLead->mobile;
+                                    $displayCountry = $cleanLead->countrycode ?: $displayCountry;
+                                }
+                                if (str_contains($rawUserEmail, '*') && !empty($cleanLead->email) && !str_contains($cleanLead->email, '*')) {
+                                    $rawUserEmail = $cleanLead->email;
+                                }
+                            }
+                        }
+
+                        $displayEmail = $isSuperAdmin ? $rawUserEmail : mask_email_for_display($order->user->email);
+                        $displayMobile = $isSuperAdmin ? $rawUserMobile : mask_mobile_only($order->user->countrycode, $order->user->mobile_no);
+                        $displayMobile2 = $isSuperAdmin ? $rawUserMobile2 : mask_mobile_only($order->user->countrycode2, $order->user->mobile_no2);
                     @endphp
                     <div class="row g-9 mb-8 text-start">
                         <div class="col-md-6 fv-row">

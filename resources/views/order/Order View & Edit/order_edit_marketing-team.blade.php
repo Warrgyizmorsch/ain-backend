@@ -66,9 +66,9 @@
                             $isSuperAdmin = auth()->check() && (int)auth()->user()->role_id === 1;
                             $displayEmail = $isSuperAdmin ? $userDetails->email : mask_email_for_display($userDetails->email);
                             $displayCountry = $userDetails->countrycode ?? '';
-                            $displayMobile = mask_mobile_only($userDetails->countrycode, $userDetails->mobile_no);
+                            $displayMobile = $isSuperAdmin ? $userDetails->mobile_no : mask_mobile_only($userDetails->countrycode, $userDetails->mobile_no);
                             $displayCountry2 = $userDetails->countrycode2 ?? '';
-                            $displayMobile2 = mask_mobile_only($userDetails->countrycode2, $userDetails->mobile_no2);
+                            $displayMobile2 = $isSuperAdmin ? $userDetails->mobile_no2 : mask_mobile_only($userDetails->countrycode2, $userDetails->mobile_no2);
                         @endphp
 
                         <div class="row g-9 mb-8 text-start">

@@ -29,6 +29,7 @@ use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use App\Mail\OrderComplete;
+use App\Services\EmailService;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Redirect;
@@ -933,20 +934,19 @@ class OrderController extends Controller
                 $order->status_date = Carbon::now('Asia/Kolkata');
                 $order->status_by   = auth()->user()->name;
 
+                $resolvedEmail = (strpos($req->input('email', ''), '*') === false && $req->filled('email'))
+                    ? $req->input('email')
+                    : optional($order->user)->email;
+
                 $orderData = [
                     'name' => $req->input('user_name'),
-                    'email' => $req->input('email'),
+                    'email' => $resolvedEmail,
                     'title' => $req->input('title'),
                     'order_code' => $order->order_id,
                     'date'     => $order->delivery_date,
                     'due'     => $req->input('amount') - $req->input('r_amount'),
                 ];
-                try {
-                    Mail::to($orderData['email'])->cc('order@assignnmentinneed.com')->send(new OrderComplete($orderData));
-                } catch (\Throwable $e) {
-                    // Log the error but do not stop execution
-                    Log::error('Mail sending failed | Error: ' . $e->getMessage());
-                }
+                $this->sendOrderCompleteEmail($orderData);
             } elseif ($req->input('status') == 'Delivered') {
 
                 if ($this->dueAmount($order) > 0) {
@@ -1070,12 +1070,7 @@ class OrderController extends Controller
                     'date'     => $order->delivery_date,
                     'due'     => $req->input('amount') - $req->input('r_amount'),
                 ];
-                try {
-                    Mail::to($orderData['email'])->cc('order@assignnmentinneed.com')->send(new OrderComplete($orderData));
-                } catch (\Throwable $e) {
-                    // Log the error but do not stop execution
-                    Log::error('Mail sending failed | Error: ' . $e->getMessage());
-                }
+                $this->sendOrderCompleteEmail($orderData);
             } elseif ($req->input('status') == 'Delivered') {
                 if ($this->dueAmount($order) > 0) {
                     return redirect()->back()->with('warning', 'Order cannot be marked as Delivered if there is any due payment remaining.');
@@ -1120,27 +1115,29 @@ class OrderController extends Controller
                 $order->chapter = null;
             }
             $user = User::find($order->uid);
-            if ($req->filled('user_name')) {
-                $user->name = $req->input('user_name');
-            }
-            if ($req->filled('mobile')) {
-                $user->mobile_no = $req->input('mobile');
-            }
-            if ($req->filled('country_code')) {
-                $user->countrycode = $req->input('country_code');
-            }
-            if ($req->filled('mobile2')) {
-                $user->mobile_no2 = $req->input('mobile2');
-            }
-            if ($req->filled('country_code2')) {
-                $user->countrycode2 = $req->input('country_code2');
-            }
-            if ($req->filled('email')) {
-                $user->email = $req->input('email');
-            }
+            if ($user) {
+                if ($req->filled('user_name')) {
+                    $user->name = $req->input('user_name');
+                }
+                if ($req->filled('mobile') && !str_contains($req->input('mobile'), '*')) {
+                    $user->mobile_no = $req->input('mobile');
+                }
+                if ($req->filled('country_code') && !str_contains($req->input('country_code'), '*')) {
+                    $user->countrycode = $req->input('country_code');
+                }
+                if ($req->filled('mobile2') && !str_contains($req->input('mobile2'), '*')) {
+                    $user->mobile_no2 = $req->input('mobile2');
+                }
+                if ($req->filled('country_code2') && !str_contains($req->input('country_code2'), '*')) {
+                    $user->countrycode2 = $req->input('country_code2');
+                }
+                if ($req->filled('email') && !str_contains($req->input('email'), '*')) {
+                    $user->email = $req->input('email');
+                }
 
-            // Save user changes
-            $user->save();
+                // Save user changes
+                $user->save();
+            }
         }
 
 
@@ -1246,17 +1243,15 @@ class OrderController extends Controller
 
         $orders = Order::query()->select($this->orderListColumns());
 
-        // Only enforce uid != 0 and lead conversion if not explicitly searching for a matched order code
-        if (empty($matchedOrderIds)) {
-            $orders->whereNotNull('uid')->where('uid', '!=', 0)->where('uid', '!=', '0')
-                ->where(function ($q) {
-                    $q->where(function ($noLead) {
-                        $noLead->whereDoesntHave('lead')->whereDoesntHave('frontendLead');
-                    })
-                    ->orWhereHas('lead', fn ($lq) => $lq->where('is_converted', 1))
-                    ->orWhereHas('frontendLead', fn ($flq) => $flq->where('is_converted', 1));
-                });
-        }
+        // Enforce uid != 0 and lead conversion (never display unconverted or cancelled leads as orders)
+        $orders->whereNotNull('uid')->where('uid', '!=', 0)->where('uid', '!=', '0')
+            ->where(function ($q) {
+                $q->where(function ($noLead) {
+                    $noLead->whereDoesntHave('lead')->whereDoesntHave('frontendLead');
+                })
+                ->orWhereHas('lead', fn ($lq) => $lq->where('is_converted', 1))
+                ->orWhereHas('frontendLead', fn ($flq) => $flq->where('is_converted', 1));
+            });
 
         if ($semester != '') {
             $orders->where('semester',  $semester);
@@ -3473,34 +3468,22 @@ class OrderController extends Controller
             $mailError = null;
 
             if ($statusName->status == 'Completed') {
+                $resolvedEmail = (strpos($userDetails->email ?? '', '*') === false && !empty($userDetails->email))
+                    ? $userDetails->email
+                    : optional($order->user)->email;
+
                 $orderData = [
                     'name' => $userDetails->name,
-                    'email' => $userDetails->email,
+                    'email' => $resolvedEmail,
                     'title' => $order->title,
                     'order_code' => $order->order_id,
                     'date' => $order->delivery_date,
                     'due' => $this->dueAmount($order),
                 ];
 
-                if (!filter_var($orderData['email'], FILTER_VALIDATE_EMAIL)) {
-
-                    $mailSent = false;
-                    $mailError = 'Invalid email address';
-                } else {
-
-                    try {
-                        Mail::to($orderData['email'])
-                            ->cc('order@assignnmentinneed.com')
-                            ->bcc('yourmail@gmail.com')
-                            ->send(new OrderComplete($orderData));
-
-                        $mailSent = true;
-                    } catch (\Throwable $e) {
-                        $mailSent = false;
-                        $mailError = $e->getMessage();
-
-                        Log::error('Completed mail sending failed | Order: ' . $order->order_id . ' | Error: ' . $mailError);
-                    }
+                $mailSent = $this->sendOrderCompleteEmail($orderData);
+                if (!$mailSent) {
+                    $mailError = 'Failed to send completion email';
                 }
             }
 
@@ -3997,10 +3980,14 @@ class OrderController extends Controller
             }
         }
 
-        // Never let unconverted lead filter hide explicitly searched order codes
-        if (!empty($matchedOrderIds) && !empty($unconvertedOrderCodes)) {
-            $unconvertedOrderCodes = array_diff($unconvertedOrderCodes, $matchedOrderIds);
-        }
+        // Enforce lead conversion (never display unconverted or cancelled leads as orders)
+        $query->where(function ($q) {
+            $q->where(function ($noLead) {
+                $noLead->whereDoesntHave('lead')->whereDoesntHave('frontendLead');
+            })
+            ->orWhereHas('lead', fn ($lq) => $lq->where('is_converted', 1))
+            ->orWhereHas('frontendLead', fn ($flq) => $flq->where('is_converted', 1));
+        });
 
         if (!empty($unconvertedOrderCodes)) {
             $query->whereNotIn('orders.order_id', $unconvertedOrderCodes);
@@ -4385,12 +4372,13 @@ class OrderController extends Controller
         });
         $alphaCount = $teamCounts[1] ?? 0;
         $gigaCount  = $teamCounts[2] ?? 0;
+        $gammaCount = $teamCounts[3] ?? 0;
 
         // mk 5 10 26 - Cache active teams list (180s)
         $teams = Cache::remember('active_teams_list', 180, function () {
             return Team::where('is_delete', 0)->orderBy('priority', 'asc')->get();
         });
-        return view('back-end.order.index', compact('orders', 'totals', 'overdueCount', 'data', 'alphaCount', 'gigaCount', 'teams', 'teamCounts'));
+        return view('back-end.order.index', compact('orders', 'totals', 'overdueCount', 'data', 'alphaCount', 'gigaCount', 'gammaCount', 'teams', 'teamCounts'));
     }
 
     public function changeTeam(Request $request)
@@ -4655,6 +4643,7 @@ class OrderController extends Controller
 
         $alphaCount = $teamCounts[1] ?? 0;
         $gigaCount  = $teamCounts[2] ?? 0;
+        $gammaCount = $teamCounts[3] ?? 0;
 
         return response()->json([
             'html' => $html,
@@ -4664,6 +4653,7 @@ class OrderController extends Controller
             'team_counts' => $teamCounts,
             'alpha_count' => $alphaCount,
             'giga_count' => $gigaCount,
+            'gamma_count' => $gammaCount,
             'has_more' => $hasMore,
         ]);
     }
@@ -5907,6 +5897,7 @@ class OrderController extends Controller
         $teamFilterQuery = $this->buildOrderFilterQuery($request);
         $alphaCount = (clone $teamFilterQuery)->where('orders.team_id', 1)->count();
         $gigaCount  = (clone $teamFilterQuery)->where('orders.team_id', 2)->count();
+        $gammaCount = (clone $teamFilterQuery)->where('orders.team_id', 3)->count();
 
         $teams = Team::select('id', 'team_name')->get();
 
@@ -5915,6 +5906,7 @@ class OrderController extends Controller
             'overdueCount',
             'alphaCount',
             'gigaCount',
+            'gammaCount',
             'teams'
         ));
     }
@@ -6396,6 +6388,7 @@ public function myRevokePayments(Request $request)
 
     $alphaCount = Order::where('team_id', 1)->count();
     $gigaCount = Order::where('team_id', 2)->count();
+    $gammaCount = Order::where('team_id', 3)->count();
     $teams = Team::all();
 
     return view('back-end.reports.my-revoke-payments', compact(
@@ -6403,6 +6396,7 @@ public function myRevokePayments(Request $request)
         'overdueCount',
         'alphaCount',
         'gigaCount',
+        'gammaCount',
         'teams'
     ));
 }
@@ -6609,6 +6603,55 @@ public function myRevokePayments(Request $request)
             'grandTotalPayments', 
             'grandTotalPaidAmount'
         ));
+    }
+
+    /**
+     * Send order completion email via Client Email account (order@assignnmentinneed.com)
+     * so it is dispatched properly and preserved in the CRM Sent mail folder.
+     */
+    protected function sendOrderCompleteEmail(array $orderData): bool
+    {
+        $recipient = trim($orderData['email'] ?? '');
+        if (empty($recipient) || !filter_var($recipient, FILTER_VALIDATE_EMAIL)) {
+            Log::warning('OrderComplete mail skipped due to invalid recipient email', [
+                'order_code' => $orderData['order_code'] ?? null,
+                'email'      => $recipient,
+            ]);
+            return false;
+        }
+
+        $orderCode = $orderData['order_code'] ?? '';
+        $subject = 'Your Assignment is Ready - ' . $orderCode;
+
+        try {
+            $bodyHtml = view('mailordercomplete', ['OrderData' => $orderData])->render();
+            $clientAccountId = function_exists('crm_email_account_id') ? crm_email_account_id('client') : 2;
+
+            app(EmailService::class)->sendEmail([
+                'account_id' => $clientAccountId,
+                'to'         => $recipient,
+                'to_name'    => $orderData['name'] ?? null,
+                'cc'         => 'order@assignnmentinneed.com',
+                'subject'    => $subject,
+                'body_html'  => $bodyHtml,
+            ]);
+
+            Log::info("OrderComplete mail sent via EmailService for {$orderCode} to {$recipient}");
+            return true;
+        } catch (\Throwable $e) {
+            Log::error("OrderComplete mail via EmailService failed for {$orderCode}: " . $e->getMessage());
+
+            try {
+                Mail::to($recipient)
+                    ->cc('order@assignnmentinneed.com')
+                    ->send(new OrderComplete($orderData));
+                Log::info("OrderComplete mail sent via fallback Mail for {$orderCode}");
+                return true;
+            } catch (\Throwable $fallbackEx) {
+                Log::error("OrderComplete fallback mail also failed for {$orderCode}: " . $fallbackEx->getMessage());
+                return false;
+            }
+        }
     }
 }
 

@@ -1048,12 +1048,24 @@ class LeadsController extends Controller
                         return response()->json(['error' => 'Email already registered with a different user', 'message' => 'Email is already registered with a different user. Please change your email.'], 400);
                     }
 
-                    $user->email = $request->input('email');
-                    $user->mobile_no = $request->input('mobile');
-                    $user->mobile_no2 = $request->input('mobile_no2');
-                    $user->countrycode = $request->input('countrycode');
-                    $user->countrycode2 = $request->input('countrycode2');
-                    $user->name = $request->input('user_name');
+                    if ($request->filled('email') && !str_contains($request->input('email'), '*')) {
+                        $user->email = $request->input('email');
+                    }
+                    if ($request->filled('mobile') && !str_contains($request->input('mobile'), '*')) {
+                        $user->mobile_no = $request->input('mobile');
+                    }
+                    if ($request->filled('mobile_no2') && !str_contains($request->input('mobile_no2'), '*')) {
+                        $user->mobile_no2 = $request->input('mobile_no2');
+                    }
+                    if ($request->filled('countrycode') && !str_contains($request->input('countrycode'), '*')) {
+                        $user->countrycode = $request->input('countrycode');
+                    }
+                    if ($request->filled('countrycode2') && !str_contains($request->input('countrycode2'), '*')) {
+                        $user->countrycode2 = $request->input('countrycode2');
+                    }
+                    if ($request->filled('user_name')) {
+                        $user->name = $request->input('user_name');
+                    }
                     $user->save();
                     // Define data for the email
                     $mailData = [
@@ -1063,7 +1075,7 @@ class LeadsController extends Controller
                         'order_code' => $order_code,
                         'date' => $request->input('delivery_date'),
                     ];
-                    Mail::to($mailData['email'])->cc('order@assignnmentinneed.com')->send(new LeadsConvertMail($mailData));
+                    $this->sendLeadsConvertEmail($mailData);
                 } else {
                     \Log::error('User not found with ID: '.$emp_id);
                 }
@@ -1493,7 +1505,7 @@ class LeadsController extends Controller
         ];
         // dd ($mailData); EXIT;
 
-        Mail::to($mailData['email'])->cc('order@assignnmentinneed.com')->send(new LeadsConvertMail($mailData));
+        $this->sendLeadsConvertEmail($mailData);
 
         $order->save();
 
@@ -3313,5 +3325,54 @@ class LeadsController extends Controller
             'toDate',
             'tab'
         ));
+    }
+
+    /**
+     * Send lead conversion email via Client Email account (order@assignnmentinneed.com)
+     * so it is dispatched properly and preserved in the CRM Sent mail folder.
+     */
+    protected function sendLeadsConvertEmail(array $mailData): bool
+    {
+        $recipient = trim($mailData['email'] ?? '');
+        if (empty($recipient) || !filter_var($recipient, FILTER_VALIDATE_EMAIL)) {
+            \Log::warning('LeadsConvert mail skipped due to invalid recipient email', [
+                'order_code' => $mailData['order_code'] ?? null,
+                'email'      => $recipient,
+            ]);
+            return false;
+        }
+
+        $orderCode = $mailData['order_code'] ?? '';
+        $subject = $orderCode ?: 'Order Confirmation';
+
+        try {
+            $bodyHtml = view('mail', ['mailData' => $mailData])->render();
+            $clientAccountId = function_exists('crm_email_account_id') ? crm_email_account_id('client') : 2;
+
+            app(\App\Services\EmailService::class)->sendEmail([
+                'account_id' => $clientAccountId,
+                'to'         => $recipient,
+                'to_name'    => $mailData['name'] ?? null,
+                'cc'         => 'order@assignnmentinneed.com',
+                'subject'    => $subject,
+                'body_html'  => $bodyHtml,
+            ]);
+
+            \Log::info("LeadsConvert mail sent via EmailService for {$orderCode} to {$recipient}");
+            return true;
+        } catch (\Throwable $e) {
+            \Log::error("LeadsConvert mail via EmailService failed for {$orderCode}: " . $e->getMessage());
+
+            try {
+                Mail::to($recipient)
+                    ->cc('order@assignnmentinneed.com')
+                    ->send(new LeadsConvertMail($mailData));
+                \Log::info("LeadsConvert mail sent via fallback Mail for {$orderCode}");
+                return true;
+            } catch (\Throwable $fallbackEx) {
+                \Log::error("LeadsConvert fallback mail also failed for {$orderCode}: " . $fallbackEx->getMessage());
+                return false;
+            }
+        }
     }
 }

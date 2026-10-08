@@ -1,15 +1,25 @@
 <?php
+
 return [
-    'paths' => ['api/*', 'sanctum/csrf-cookie', 'leads/*'], // Apne leads wale path ko bhi add karein
+
+    /*
+    |--------------------------------------------------------------------------
+    | Cross-Origin Resource Sharing (CORS) Configuration
+    |--------------------------------------------------------------------------
+    |
+    | Here you may configure your settings for cross-origin resource sharing
+    | or "CORS". This determines what cross-origin operations may execute
+    | in web browsers. You are free to adjust these settings as needed.
+    |
+    | To learn more: https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS
+    |
+    */
+
+    'paths' => ['api/*', 'sanctum/csrf-cookie', 'leads/*'],
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => [
-        'http://localhost:8000', // Agar aapka frontend yahan chal raha hai
-        'http://127.0.0.1:8000',
-        'https://zudio.in',
-        'https://admin.zudio.in'
-    ],
+    'allowed_origins' => ['*'],
 
     'allowed_origins_patterns' => [],
 
@@ -19,5 +29,6 @@ return [
 
     'max_age' => 0,
 
-    'supports_credentials' => true, // ISKO TRUE KARNA HAI
+    'supports_credentials' => false,
+
 ];

@@ -287,11 +287,28 @@
                     $label = "Beginner"; 
                 } 
                 $isSuperAdmin = (int) ($roleId ?? optional(auth()->user())->role_id) === 1;
+                $effMob = $effectiveUser->mobile_no;
+                $effEmail = $effectiveUser->email;
+                $effCC = $effectiveUser->countrycode;
+
+                if ($isSuperAdmin && (str_contains((string)$effMob, '*') || str_contains((string)$effEmail, '*'))) {
+                    $cleanLead = $order->lead ?: $order->frontendLead;
+                    if ($cleanLead) {
+                        if (str_contains((string)$effMob, '*') && !empty($cleanLead->mobile) && !str_contains((string)$cleanLead->mobile, '*')) {
+                            $effMob = $cleanLead->mobile;
+                            $effCC = $cleanLead->countrycode ?: $effCC;
+                        }
+                        if (str_contains((string)$effEmail, '*') && !empty($cleanLead->email) && !str_contains((string)$cleanLead->email, '*')) {
+                            $effEmail = $cleanLead->email;
+                        }
+                    }
+                }
+
                 $displayMobile = $isSuperAdmin 
-                    ? trim(($effectiveUser->countrycode ? '+'.$effectiveUser->countrycode.' ' : '') . $effectiveUser->mobile_no)
+                    ? trim(($effCC ? '+'.preg_replace('/\D+/', '', (string)$effCC).' ' : '') . $effMob)
                     : mask_phone_for_display($effectiveUser->countrycode, $effectiveUser->mobile_no);
                 $displayEmail = $isSuperAdmin 
-                    ? $effectiveUser->email 
+                    ? $effEmail 
                     : mask_email_for_display($effectiveUser->email);
             @endphp
 
