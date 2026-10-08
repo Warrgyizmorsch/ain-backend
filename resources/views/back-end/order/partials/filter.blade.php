@@ -65,9 +65,10 @@
             @foreach($allActiveTeams as $idx => $t)
                 @php
                     $colors = $palette[$idx % count($palette)];
-                    $tCount = isset($teamCounts[$t->id]) ? $teamCounts[$t->id] : (isset(${"alphaCount"}) && $t->id == 1 ? $alphaCount : (isset(${"gigaCount"}) && $t->id == 2 ? $gigaCount : 0));
-                    $btnId = $t->id == 1 ? 'teamAlphaBtn' : ($t->id == 2 ? 'teamGigaBtn' : 'teamBtn_' . $t->id);
-                    $btnClass = $t->id == 1 ? 'team-alpha-btn' : ($t->id == 2 ? 'team-giga-btn' : '');
+                    $tCount = isset($teamCounts[$t->id]) ? $teamCounts[$t->id] : (isset(${"alphaCount"}) && $t->id == 1 ? $alphaCount : (isset(${"gigaCount"}) && $t->id == 2 ? $gigaCount : (isset(${"gammaCount"}) && $t->id == 3 ? $gammaCount : 0)));
+                    $isGamma = $t->id == 3 || str_contains(strtolower($t->team_name), 'gamma');
+                    $btnId = $t->id == 1 ? 'teamAlphaBtn' : ($t->id == 2 ? 'teamGigaBtn' : ($isGamma ? 'teamGammaBtn' : 'teamBtn_' . $t->id));
+                    $btnClass = $t->id == 1 ? 'team-alpha-btn' : ($t->id == 2 ? 'team-giga-btn' : ($isGamma ? 'team-gamma-btn' : ''));
                 @endphp
                 <a href="javascript:void(0)" 
                    id="{{ $btnId }}" 
@@ -668,6 +669,27 @@
         font-weight: 700;
     }
 
+    .team-gamma-btn {
+        background-color: #f0fdf4 !important;
+        border: 1px solid #bbf7d0 !important;
+        color: #15803d !important;
+    }
+    .team-gamma-btn:hover, .team-gamma-btn.quick-filter-active {
+        background-color: #dcfce7 !important;
+        border-color: #22c55e !important;
+        color: #166534 !important;
+        transform: translateY(-1px);
+        box-shadow: 0 3px 8px rgba(34, 197, 94, 0.25);
+    }
+    .team-gamma-btn .team-badge {
+        background: #16a34a;
+        color: #ffffff;
+        border-radius: 4px;
+        padding: 2px 6px;
+        font-size: 10px;
+        font-weight: 700;
+    }
+
     .dynamic-team-btn:hover, .dynamic-team-btn.quick-filter-active {
         filter: brightness(0.92);
         transform: translateY(-1px);
@@ -1137,9 +1159,9 @@ resetFilters();
         applyFilters();
     });
 
-    $(document).on('click', '.dynamic-team-btn, #teamAlphaBtn, #teamGigaBtn', function(e) {
+    $(document).on('click', '.dynamic-team-btn, #teamAlphaBtn, #teamGigaBtn, #teamGammaBtn', function(e) {
         e.preventDefault();
-        const selectedTeamId = String($(this).data('team-id') || ($(this).attr('id') === 'teamAlphaBtn' ? '1' : ($(this).attr('id') === 'teamGigaBtn' ? '2' : '')));
+        const selectedTeamId = String($(this).data('team-id') || ($(this).attr('id') === 'teamAlphaBtn' ? '1' : ($(this).attr('id') === 'teamGigaBtn' ? '2' : ($(this).attr('id') === 'teamGammaBtn' ? '3' : ''))));
         if (!selectedTeamId) return;
 
         if ($('#filter_team_id').val() === selectedTeamId) {
@@ -1231,6 +1253,9 @@ resetFilters();
                 }
                 if (response.giga_count !== undefined) {
                     $('#teamGigaBtn .team-badge').text(response.giga_count);
+                }
+                if (response.gamma_count !== undefined) {
+                    $('#teamGammaBtn .team-badge').text(response.gamma_count);
                 }
 
                 const activeTeamId = $('#filter_team_id').val();

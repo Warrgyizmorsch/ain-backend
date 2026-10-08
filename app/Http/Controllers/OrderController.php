@@ -4387,12 +4387,13 @@ class OrderController extends Controller
         });
         $alphaCount = $teamCounts[1] ?? 0;
         $gigaCount  = $teamCounts[2] ?? 0;
+        $gammaCount = $teamCounts[3] ?? 0;
 
         // mk 5 10 26 - Cache active teams list (180s)
         $teams = Cache::remember('active_teams_list', 180, function () {
             return Team::where('is_delete', 0)->orderBy('priority', 'asc')->get();
         });
-        return view('back-end.order.index', compact('orders', 'totals', 'overdueCount', 'data', 'alphaCount', 'gigaCount', 'teams', 'teamCounts'));
+        return view('back-end.order.index', compact('orders', 'totals', 'overdueCount', 'data', 'alphaCount', 'gigaCount', 'gammaCount', 'teams', 'teamCounts'));
     }
 
     public function changeTeam(Request $request)
@@ -4657,6 +4658,7 @@ class OrderController extends Controller
 
         $alphaCount = $teamCounts[1] ?? 0;
         $gigaCount  = $teamCounts[2] ?? 0;
+        $gammaCount = $teamCounts[3] ?? 0;
 
         return response()->json([
             'html' => $html,
@@ -4666,6 +4668,7 @@ class OrderController extends Controller
             'team_counts' => $teamCounts,
             'alpha_count' => $alphaCount,
             'giga_count' => $gigaCount,
+            'gamma_count' => $gammaCount,
             'has_more' => $hasMore,
         ]);
     }
@@ -5909,6 +5912,7 @@ class OrderController extends Controller
         $teamFilterQuery = $this->buildOrderFilterQuery($request);
         $alphaCount = (clone $teamFilterQuery)->where('orders.team_id', 1)->count();
         $gigaCount  = (clone $teamFilterQuery)->where('orders.team_id', 2)->count();
+        $gammaCount = (clone $teamFilterQuery)->where('orders.team_id', 3)->count();
 
         $teams = Team::select('id', 'team_name')->get();
 
@@ -5917,6 +5921,7 @@ class OrderController extends Controller
             'overdueCount',
             'alphaCount',
             'gigaCount',
+            'gammaCount',
             'teams'
         ));
     }
@@ -6398,6 +6403,7 @@ public function myRevokePayments(Request $request)
 
     $alphaCount = Order::where('team_id', 1)->count();
     $gigaCount = Order::where('team_id', 2)->count();
+    $gammaCount = Order::where('team_id', 3)->count();
     $teams = Team::all();
 
     return view('back-end.reports.my-revoke-payments', compact(
@@ -6405,6 +6411,7 @@ public function myRevokePayments(Request $request)
         'overdueCount',
         'alphaCount',
         'gigaCount',
+        'gammaCount',
         'teams'
     ));
 }
