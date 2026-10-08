@@ -7439,7 +7439,12 @@ function renderIsolatedEmailBody(container, rawHtml, plainText) {
                          .replace(/=\r?\n/g, '')
                          .replace(/width=["']?120["']?([0-9.]+%?)"?/gi, 'width="$1"')
                          .replace(/<p><\/p>/gi, '')
-                         .replace(/(<p[^>]*>(?:&nbsp;|\s| )*<\/p>\s*){2,}/gi, '<p style="margin: 4px 0;">&nbsp;</p>');
+                         .replace(/(<br\s*\/?>\s*){3,}/gi, '<br><br>')
+                         .replace(/(<p[^>]*>(?:&nbsp;|\s| |<br\s*\/?>)*<\/p>\s*){2,}/gi, '<p style="margin: 4px 0;">&nbsp;</p>')
+                         .replace(/(<div>\s*(?:&nbsp;| |<br\s*\/?>|\s)*<\/div>\s*){3,}/gi, '<div><br></div>')
+                         .replace(/(?:^|>|\s)\s*5px;["\']?>/gi, ' ')
+                         .replace(/https:\/\/www\.assignnmentinneed\.com\/[^\'"\s>]*assignment_logo\.(png|webp|jpg)/gi, 'https://ain.warrgyizmorsch.com/assets/media/avatars/assignment_logo.png')
+                         .replace(/https:\/\/www\.assignmentinneed\.com\/assets\/media\/avatars\/assignment_logo\.png/gi, 'https://ain.warrgyizmorsch.com/assets/media/avatars/assignment_logo.png');
 
         // Decode escaped HTML tags like &lt;b&gt;, &lt;/b&gt;, &lt;/tr&gt;, &lt;/html&gt;
         content = content.replace(/&lt;(\/?[a-zA-Z0-9_-]+(?:[\s\S]*?)?)&gt;/gi, function(match, inner) {
@@ -7559,16 +7564,55 @@ function renderIsolatedEmailBody(container, rawHtml, plainText) {
                     margin-right: auto !important;
                     max-width: 780px !important;
                 }
-                /* Email templates and cards: centered, responsive max-width */
-                .wrapper, div.wrapper, table.wrapper, [class*="wrapper"] {
+                /* Email templates and cards */
+                .wrapper, div.wrapper, [class*="wrapper"] {
                     width: 100% !important;
                     max-width: 100% !important;
                     margin: 0 auto !important;
-                    padding-left: 0 !important;
-                    padding-right: 0 !important;
-                    background-color: transparent !important;
+                    padding: 16px 8px 32px 8px !important;
+                    background-color: #f4f7ff;
+                    border-radius: 8px;
                 }
-                .main-table, table.main-table, [class*="main-table"],
+                .main-table, table.main-table, [class*="main-table"] {
+                    width: 100% !important;
+                    max-width: 620px !important;
+                    margin: 12px auto !important;
+                    margin-left: auto !important;
+                    margin-right: auto !important;
+                    background-color: #ffffff !important;
+                    border-radius: 8px !important;
+                    overflow: hidden !important;
+                    border: 1px solid #e0e0e0 !important;
+                    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+                    box-sizing: border-box !important;
+                }
+                .header, td.header {
+                    background-color: #a797ff !important;
+                    padding: 24px 20px !important;
+                    text-align: center !important;
+                }
+                .content, td.content {
+                    padding: 30px 24px !important;
+                    line-height: 1.6 !important;
+                    color: #333333 !important;
+                    font-size: 14.5px !important;
+                }
+                .footer, td.footer {
+                    background-color: #f8f9fa !important;
+                    padding: 18px 20px !important;
+                    text-align: center !important;
+                    font-size: 12px !important;
+                    color: #777777 !important;
+                    border-top: 1px solid #eeeeee !important;
+                }
+                .highlight {
+                    color: #040309 !important;
+                    font-weight: bold !important;
+                }
+                img {
+                    max-width: 100% !important;
+                    height: auto;
+                }
                 .email-container, [class*="container"],
                 .content-table, [class*="content-table"],
                 table[align="center"],
@@ -7598,7 +7642,7 @@ function renderIsolatedEmailBody(container, rawHtml, plainText) {
                     box-sizing: border-box !important;
                 }
                 /* Reset browser default blockquote margins and prevent nested indentation creep */
-                blockquote, .gmail_quote, .gmail_default {
+                blockquote, .gmail_quote {
                     margin: 8px 0 !important;
                     margin-inline-start: 0 !important;
                     margin-inline-end: 0 !important;
@@ -7611,6 +7655,27 @@ function renderIsolatedEmailBody(container, rawHtml, plainText) {
                     border-bottom: none !important;
                     max-width: 100% !important;
                     box-sizing: border-box !important;
+                }
+                .gmail_default {
+                    border: none !important;
+                    border-left: none !important;
+                    padding: 0 !important;
+                    margin: 0 !important;
+                }
+                /* All nested blockquotes (reply within reply) have ZERO extra indent/border so text never drifts to the right */
+                blockquote blockquote,
+                .gmail_quote blockquote,
+                blockquote .gmail_quote,
+                .gmail_quote .gmail_quote {
+                    margin: 0 !important;
+                    margin-inline-start: 0 !important;
+                    margin-inline-end: 0 !important;
+                    margin-block-start: 0 !important;
+                    margin-block-end: 0 !important;
+                    padding: 0 !important;
+                    padding-left: 0 !important;
+                    border: none !important;
+                    border-left: none !important;
                 }
                 /* All nested blockquotes (reply within reply) have ZERO extra indent/border so text never drifts to the right */
                 blockquote blockquote,

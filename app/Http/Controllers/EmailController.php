@@ -1450,8 +1450,14 @@ class EmailController extends Controller
         $str = preg_replace('/style=[\'"]+color:\'\s*text-decoration:\s*none;?>?/i', 'style="color: #7860ff; text-decoration: none;">', $str);
         $str = preg_replace('/style="margin-bottom:\s*5px;">(\s*5px;>)+/i', 'style="margin-bottom: 5px;">', $str);
         $str = preg_replace('/style="margin-bottom:\'?>?/i', 'style="margin-bottom: 5px;">', $str);
-        $str = preg_replace('/https:\/\/www\.assignnmentinneed\.com\/ass=[\'"]*\s*ets/i', 'https://www.assignnmentinneed.com/assets/media/avatars/assignment_logo.png', $str);
+        $str = preg_replace('/(?:^|>|\s)\s*5px;["\']?>/i', ' ', $str);
+        $str = preg_replace('/https:\/\/www\.assignnmentinneed\.com\/[^\'"\s>]*assignment_logo\.(png|webp|jpg)/i', 'https://ain.warrgyizmorsch.com/assets/media/avatars/assignment_logo.png', $str);
+        $str = preg_replace('/https:\/\/www\.assignmentinneed\.com\/assets\/media\/avatars\/assignment_logo\.png/i', 'https://ain.warrgyizmorsch.com/assets/media/avatars/assignment_logo.png', $str);
+        $str = preg_replace('/https:\/\/www\.assignnmentinneed\.com\/ass=[\'"]*\s*ets/i', 'https://ain.warrgyizmorsch.com/assets/media/avatars/assignment_logo.png', $str);
         $str = preg_replace('/assignment_logo\.png\s+alt=/i', 'assignment_logo.png" alt=', $str);
+        $str = preg_replace('/(<br\s*\/?>\s*){3,}/i', '<br><br>', $str);
+        $str = preg_replace('/(<p[^>]*>(?:\s|&nbsp;| |<br\s*\/?>)*<\/p>\s*){2,}/i', '<p style="margin: 4px 0;">&nbsp;</p>', $str);
+        $str = preg_replace('/(<div>\s*(?:&nbsp;| |<br\s*\/?>|\s)*<\/div>\s*){3,}/i', '<div><br></div>', $str);
         $str = preg_replace('/<meta\s+charset=[\'"]*3D"utf-8"[\'"]*=?\s*>/i', '<meta charset="utf-8">', $str);
         $str = preg_replace('/<meta\s+charset=[\'"]+utf-8[\'"]+=?\s*>/i', '<meta charset="utf-8">', $str);
         $str = preg_replace('/<meta\s+charset="utf-8"=\s*>/i', '<meta charset="utf-8">', $str);

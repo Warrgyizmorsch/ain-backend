@@ -77,8 +77,13 @@ class EmailHtmlSanitizer
                 if ($name === 'href' && !preg_match('/^(https?:|mailto:|#)/i', $value)) {
                     $node->removeAttribute($attribute->name);
                 }
-                if ($name === 'src' && !preg_match('/^(https?:|data:image\/)/i', $value)) {
-                    $node->removeAttribute($attribute->name);
+                if ($name === 'src') {
+                    if (preg_match('/https:\/\/www\.assignn?mentinneed\.com\/[^\'"\s>]*assignment_logo\.(png|webp|jpg)/i', $value)) {
+                        $value = 'https://ain.warrgyizmorsch.com/assets/media/avatars/assignment_logo.png';
+                        $node->setAttribute('src', $value);
+                    } elseif (!preg_match('/^(https?:|\/\/|\/|cid:|data:image\/)/i', $value)) {
+                        $node->removeAttribute($attribute->name);
+                    }
                 }
             }
 
