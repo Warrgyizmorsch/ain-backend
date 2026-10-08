@@ -1248,17 +1248,15 @@ class OrderController extends Controller
 
         $orders = Order::query()->select($this->orderListColumns());
 
-        // Only enforce uid != 0 and lead conversion if not explicitly searching for a matched order code
-        if (empty($matchedOrderIds)) {
-            $orders->whereNotNull('uid')->where('uid', '!=', 0)->where('uid', '!=', '0')
-                ->where(function ($q) {
-                    $q->where(function ($noLead) {
-                        $noLead->whereDoesntHave('lead')->whereDoesntHave('frontendLead');
-                    })
-                    ->orWhereHas('lead', fn ($lq) => $lq->where('is_converted', 1))
-                    ->orWhereHas('frontendLead', fn ($flq) => $flq->where('is_converted', 1));
-                });
-        }
+        // Enforce uid != 0 and lead conversion (never display unconverted or cancelled leads as orders)
+        $orders->whereNotNull('uid')->where('uid', '!=', 0)->where('uid', '!=', '0')
+            ->where(function ($q) {
+                $q->where(function ($noLead) {
+                    $noLead->whereDoesntHave('lead')->whereDoesntHave('frontendLead');
+                })
+                ->orWhereHas('lead', fn ($lq) => $lq->where('is_converted', 1))
+                ->orWhereHas('frontendLead', fn ($flq) => $flq->where('is_converted', 1));
+            });
 
         if ($semester != '') {
             $orders->where('semester',  $semester);
@@ -3999,10 +3997,14 @@ class OrderController extends Controller
             }
         }
 
-        // Never let unconverted lead filter hide explicitly searched order codes
-        if (!empty($matchedOrderIds) && !empty($unconvertedOrderCodes)) {
-            $unconvertedOrderCodes = array_diff($unconvertedOrderCodes, $matchedOrderIds);
-        }
+        // Enforce lead conversion (never display unconverted or cancelled leads as orders)
+        $query->where(function ($q) {
+            $q->where(function ($noLead) {
+                $noLead->whereDoesntHave('lead')->whereDoesntHave('frontendLead');
+            })
+            ->orWhereHas('lead', fn ($lq) => $lq->where('is_converted', 1))
+            ->orWhereHas('frontendLead', fn ($flq) => $flq->where('is_converted', 1));
+        });
 
         if (!empty($unconvertedOrderCodes)) {
             $query->whereNotIn('orders.order_id', $unconvertedOrderCodes);
