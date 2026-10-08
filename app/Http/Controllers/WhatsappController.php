@@ -1026,6 +1026,15 @@ class WhatsappController extends Controller
             });
         }
 
+        // Only include actual converted orders or direct orders (exclude unconverted lead stubs, matching OrderController)
+        $query->where(function ($q) {
+            $q->where(function ($noLead) {
+                $noLead->whereDoesntHave('lead')->whereDoesntHave('frontendLead');
+            })
+            ->orWhereHas('lead', fn ($lq) => $lq->where('is_converted', 1))
+            ->orWhereHas('frontendLead', fn ($flq) => $flq->where('is_converted', 1));
+        });
+
         $query
             ->orderByDesc('id');
 
@@ -2553,6 +2562,15 @@ class WhatsappController extends Controller
                     }
                 });
             }
+
+            // Only count actual converted orders or direct orders (exclude unconverted lead stubs, matching OrderController)
+            $ordersQuery->where(function ($q) {
+                $q->where(function ($noLead) {
+                    $noLead->whereDoesntHave('lead')->whereDoesntHave('frontendLead');
+                })
+                ->orWhereHas('lead', fn ($lq) => $lq->where('is_converted', 1))
+                ->orWhereHas('frontendLead', fn ($flq) => $flq->where('is_converted', 1));
+            });
 
             $ordersCount = (clone $ordersQuery)->count();
         }
