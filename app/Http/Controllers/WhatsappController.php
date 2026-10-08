@@ -2868,10 +2868,14 @@ class WhatsappController extends Controller
                         ?? $resData['message_id']
                         ?? null;
 
-                    $message->update([
+                    $currentStatus = strtolower((string) $message->status);
+                    $updatePayload = [
                         'wa_message_id' => $waMsgId ?: $message->wa_message_id,
-                        'status' => 'sent',
-                    ]);
+                    ];
+                    if (! in_array($currentStatus, ['delivered', 'read'], true)) {
+                        $updatePayload['status'] = 'sent';
+                    }
+                    $message->update($updatePayload);
 
                     return ['success' => true, 'error' => null];
                 }

@@ -7355,6 +7355,17 @@ document.addEventListener('DOMContentLoaded', function() {
         </span>`;
     }
 
+    function shouldUpgradeStatus(currentStatus, newStatus) {
+        const curNorm = normalizeMessageStatus(currentStatus);
+        const newNorm = normalizeMessageStatus(newStatus);
+        if (curNorm === newNorm) return false;
+        // Never downgrade 'read' (blue double ticks) to 'delivered' or 'sent'
+        if (curNorm === 'read' && (newNorm === 'delivered' || newNorm === 'sent' || newNorm === 'pending')) return false;
+        // Never downgrade 'delivered' (double ticks) to 'sent' or 'pending'
+        if (curNorm === 'delivered' && (newNorm === 'sent' || newNorm === 'pending')) return false;
+        return true;
+    }
+
     function updateMessageStatus(statusUpdate) {
         if (!statusUpdate) return;
         const msgId = statusUpdate.id;
@@ -7372,15 +7383,19 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         const currentTick = row.querySelector('.wab-tick');
+        const currentStatus = currentTick ? currentTick.dataset.status : (row.dataset.status || 'sent');
         const normalized = normalizeMessageStatus(statusUpdate.status);
 
         if (currentTick) {
             if (currentTick.dataset.status === normalized) return;
+            if (!shouldUpgradeStatus(currentStatus, normalized)) return;
             currentTick.outerHTML = tickMarkup(normalized);
+            row.dataset.status = normalized;
         } else {
             const meta = row.querySelector('.wab-msg-meta');
             if (meta && row.classList.contains('wab-outgoing')) {
                 meta.insertAdjacentHTML('beforeend', tickMarkup(normalized));
+                row.dataset.status = normalized;
             }
         }
     }
@@ -7609,13 +7624,23 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
-        // 1. Direct ID deduplication
-        if (message.id && body.querySelector(`[data-message-id="${message.id}"]`)) {
+        // 1. Direct ID deduplication & status update
+        const existingById = message.id ? body.querySelector(`[data-message-id="${message.id}"]`) : null;
+        if (existingById) {
+            if (message.wa_message_id && !existingById.dataset.waMessageId) {
+                existingById.dataset.waMessageId = message.wa_message_id;
+            }
+            updateMessageStatus(message);
             return;
         }
 
-        // 2. WA Message ID deduplication
-        if (message.wa_message_id && body.querySelector(`[data-wa-message-id="${message.wa_message_id}"]`)) {
+        // 2. WA Message ID deduplication & status update
+        const existingByWaId = message.wa_message_id ? body.querySelector(`[data-wa-message-id="${message.wa_message_id}"]`) : null;
+        if (existingByWaId) {
+            if (message.id && !String(message.id).startsWith('temp_')) {
+                existingByWaId.dataset.messageId = message.id;
+            }
+            updateMessageStatus(message);
             return;
         }
 
@@ -7625,13 +7650,20 @@ document.addEventListener('DOMContentLoaded', function() {
             const msgText = String(message.message || '').trim();
             for (const tempRow of pendingRows) {
                 const bubble = tempRow.querySelector('.wab-msg-bubble');
-                const bubbleText = tempRow.querySelector('.wab-media-caption')?.textContent?.trim()
-                    || (bubble ? Array.from(bubble.childNodes).filter(n => n.nodeType === Node.TEXT_NODE).map(n => n.textContent).join('').trim() : '')
-                    || '';
+                const textSpan = tempRow.querySelector('.wab-msg-text');
+                const captionEl = tempRow.querySelector('.wab-media-caption');
+                const bubbleText = (textSpan?.textContent || captionEl?.textContent || bubble?.getAttribute('data-copy-text') || '').trim();
 
-                if ((msgText !== '' && bubbleText === msgText) || (hasMedia && tempRow.querySelector('.wab-bubble--media'))) {
+                const isTextMatch = (msgText !== '' && bubbleText === msgText);
+                const isMediaMatch = (hasMedia && tempRow.querySelector('.wab-bubble--media'));
+
+                if (isTextMatch || isMediaMatch) {
                     tempRow.dataset.messageId = message.id;
                     if (message.wa_message_id) tempRow.dataset.waMessageId = message.wa_message_id;
+                    if (message.time) {
+                        const timeEl = tempRow.querySelector('.wab-msg-time');
+                        if (timeEl) timeEl.textContent = message.time;
+                    }
                     updateMessageStatus(message);
 
                     const numericId = Number(message.id);
@@ -8220,9 +8252,17 @@ document.addEventListener('DOMContentLoaded', function() {
             const returnedMsgs = Array.isArray(data.messages) ? data.messages : (data.message ? [data.message] : []);
             if (returnedMsgs.length > 0) {
                 const msg = returnedMsgs[0];
-                if (tempRow) {
+                const existingRealRow = document.querySelector(`[data-message-id="${msg.id}"]`);
+                if (existingRealRow && tempRow && existingRealRow !== tempRow) {
+                    tempRow.remove();
+                    updateMessageStatus(msg);
+                } else if (tempRow) {
                     tempRow.dataset.messageId = msg.id;
                     if (msg.wa_message_id) tempRow.dataset.waMessageId = msg.wa_message_id;
+                    if (msg.time) {
+                        const timeEl = tempRow.querySelector('.wab-msg-time');
+                        if (timeEl) timeEl.textContent = msg.time;
+                    }
                     updateMessageStatus(msg);
                 } else {
                     renderMessage(msg);
@@ -8362,9 +8402,18 @@ document.addEventListener('DOMContentLoaded', function() {
             }
 
             if (data.message) {
-                if (tempRow) {
+                const existingRealRow = document.querySelector(`[data-message-id="${data.message.id}"]`);
+                if (existingRealRow && tempRow && existingRealRow !== tempRow) {
+                    // Polling or WebSocket already appended real message row, remove temp row
+                    tempRow.remove();
+                    updateMessageStatus(data.message);
+                } else if (tempRow) {
                     tempRow.dataset.messageId = data.message.id;
                     if (data.message.wa_message_id) tempRow.dataset.waMessageId = data.message.wa_message_id;
+                    if (data.message.time) {
+                        const timeEl = tempRow.querySelector('.wab-msg-time');
+                        if (timeEl) timeEl.textContent = data.message.time;
+                    }
                     updateMessageStatus(data.message);
                 } else {
                     renderMessage(data.message);
@@ -8599,9 +8648,17 @@ document.addEventListener('DOMContentLoaded', function() {
             returnedMsgs.forEach((msg, idx) => {
                 const tId = tempIds[idx];
                 const tempRow = tId ? document.querySelector(`[data-message-id="${tId}"]`) : null;
-                if (tempRow) {
+                const existingRealRow = document.querySelector(`[data-message-id="${msg.id}"]`);
+                if (existingRealRow && tempRow && existingRealRow !== tempRow) {
+                    tempRow.remove();
+                    updateMessageStatus(msg);
+                } else if (tempRow) {
                     tempRow.dataset.messageId = msg.id;
                     if (msg.wa_message_id) tempRow.dataset.waMessageId = msg.wa_message_id;
+                    if (msg.time) {
+                        const timeEl = tempRow.querySelector('.wab-msg-time');
+                        if (timeEl) timeEl.textContent = msg.time;
+                    }
                     updateMessageStatus(msg);
                 } else {
                     renderMessage(msg);
