@@ -3151,23 +3151,23 @@
                 <div class="gmail-progress-bar-value"></div>
             </div>
 
-            <!-- Gmail Category Tabs (Primary, Promotions, Social, Updates) -->
+            <!-- Gmail Category Tabs (Primary, Unread, Read, Archive) -->
             <div class="gmail-category-tabs" id="gmailCategoryTabs" style="{{ (isset($folder) && $folder !== 'inbox') ? 'display: none;' : '' }}">
                 <div class="gmail-tab-item active" data-category="primary" onclick="switchCategoryTab('primary', this)">
                     <svg viewBox="0 0 24 24"><path d="M19 3H4.99c-1.11 0-1.98.89-1.98 2L3 19c0 1.1.88 2 1.99 2H19c1.1 0 2-.9 2-2V5c0-1.11-.9-2-2-2zm0 12h-4c0 1.66-1.35 3-3 3s-3-1.34-3-3H4.99V5H19v10z"/></svg>
                     <span>Primary</span>
                 </div>
-                <div class="gmail-tab-item" data-category="promotions" onclick="switchCategoryTab('promotions', this)">
-                    <svg viewBox="0 0 24 24"><path d="M21.41 11.58l-9-9C12.05 2.22 11.55 2 11 2H4c-1.1 0-2 .9-2 2v7c0 .55.22 1.05.59 1.42l9 9c.36.36.86.58 1.41.58s1.05-.22 1.41-.59l7-7c.37-.36.59-.86.59-1.41s-.23-1.06-.59-1.42zM13 20.01L4 11V4h7v-.01l9 9-7 7.02z"/><circle cx="6.5" cy="6.5" r="1.5"/></svg>
-                    <span>Promotions</span>
+                <div class="gmail-tab-item" data-category="unread" onclick="switchCategoryTab('unread', this)">
+                    <svg viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
+                    <span>Unread</span>
                 </div>
-                <div class="gmail-tab-item" data-category="social" onclick="switchCategoryTab('social', this)">
-                    <svg viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
-                    <span>Social</span>
+                <div class="gmail-tab-item" data-category="read" onclick="switchCategoryTab('read', this)">
+                    <svg viewBox="0 0 24 24"><path d="M21.99 8c0-.72-.37-1.35-.94-1.7L12 1 2.95 6.3C2.38 6.65 2 7.28 2 8v10c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2l-.01-10zM12 3.32L19.99 8v.01L12 13 4 8.01V8l8-4.68zM4 18v-8.2l7.46 4.66c.16.1.35.15.54.15s.38-.05.54-.15L20 9.8V18H4z"/></svg>
+                    <span>Read</span>
                 </div>
-                <div class="gmail-tab-item" data-category="updates" onclick="switchCategoryTab('updates', this)">
-                    <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
-                    <span>Updates</span>
+                <div class="gmail-tab-item" data-category="archive" onclick="switchCategoryTab('archive', this)">
+                    <svg viewBox="0 0 24 24"><path d="M20.54 5.23l-1.39-1.68C18.88 3.21 18.47 3 18 3H6c-.47 0-.88.21-1.16.55L3.46 5.23C3.17 5.57 3 6.02 3 6.5V19c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6.5c0-.48-.17-.93-.46-1.27zM12 17.5L6.5 12H10v-2h4v2h3.5L12 17.5zM5.12 5l.81-1h12l.94 1H5.12z"/></svg>
+                    <span>Archive</span>
                 </div>
             </div>
 
@@ -4814,6 +4814,15 @@ function appendSearchFilterParams(url, searchVal) {
     if (activeFilterChips.last_7_days) url.searchParams.set('date_range', 'last_7_days');
     if (activeFilterChips.from_me) url.searchParams.set('from_me', '1');
     if (activeFilterChips.unread) url.searchParams.set('is_read', 'unread');
+
+    // Category Tabs Filter (Primary, Unread, Read, Archive)
+    if (activeCategory === 'unread') {
+        url.searchParams.set('is_read', 'unread');
+    } else if (activeCategory === 'read') {
+        url.searchParams.set('is_read', 'read');
+    } else if (activeCategory === 'archive') {
+        url.searchParams.set('folder', 'archive');
+    }
 
     if (activeAdvancedFilters) {
         if (activeAdvancedFilters.filter_from) url.searchParams.set('filter_from', activeAdvancedFilters.filter_from);
@@ -7040,7 +7049,15 @@ function toggleReadStatus(id, isRead) {
         },
         body: JSON.stringify({ id: id, ids: [id], is_read: shouldBeRead })
     }).then(() => {
+        showGmailToast(shouldBeRead ? 'Conversation marked as read.' : 'Conversation marked as unread.');
         checkEmailUpdates();
+        if (activeCategory === 'unread' && shouldBeRead && row) {
+            row.classList.add('row-fade-out');
+            setTimeout(() => row.remove(), 260);
+        } else if (activeCategory === 'read' && !shouldBeRead && row) {
+            row.classList.add('row-fade-out');
+            setTimeout(() => row.remove(), 260);
+        }
     });
 }
 
@@ -7256,7 +7273,8 @@ function switchCategoryTab(cat, el) {
     document.querySelectorAll('.gmail-category-tabs .gmail-tab-item').forEach(tab => tab.classList.remove('active'));
     if (el) el.classList.add('active');
 
-    // Filter rows or trigger reload
+    // Close any open thread and reload list
+    closeEmailThread();
     reloadEmailList(true);
 }
 

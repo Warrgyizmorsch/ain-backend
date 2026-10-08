@@ -73,6 +73,9 @@ class EmailController extends Controller
             case 'trash':
                 $query->where('folder', 'trash');
                 break;
+            case 'archive':
+                $query->where('folder', 'archive');
+                break;
             case 'inbox':
             default:
                 if (! empty($search)) {
