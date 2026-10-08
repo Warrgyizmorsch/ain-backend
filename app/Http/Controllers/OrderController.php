@@ -2792,12 +2792,32 @@ class OrderController extends Controller
 
 
 
-        if ($fromDate != '') {
-
+        if ($dateStatus != '' || $fromDate != '' || $toDate != '') {
+            $targetField = ($dateStatus == 'draft_date') ? 'draft_date' : 'writer_deadline';
             if ($fromDate != '' && $toDate != '') {
-                $orders->whereBetween('writer_deadline', [$fromDate, $toDate]);
-            } else {
-                $orders->where('writer_deadline', $fromDate);
+                if ($dateStatus == 'draft_date') {
+                    $orders->whereBetween('draft_date', [$fromDate, $toDate])->where('draftrequired', 'y');
+                } else {
+                    $orders->whereBetween($targetField, [$fromDate, $toDate]);
+                }
+            } elseif ($fromDate != '') {
+                if ($dateStatus == 'draft_date') {
+                    $orders->whereDate('draft_date', $fromDate)->where('draftrequired', 'y');
+                } else {
+                    $orders->whereDate($targetField, $fromDate);
+                }
+            } elseif ($toDate != '') {
+                if ($dateStatus == 'draft_date') {
+                    $orders->whereDate('draft_date', '<=', $toDate)->where('draftrequired', 'y');
+                } else {
+                    $orders->whereDate($targetField, '<=', $toDate);
+                }
+            } elseif ($dateStatus != '') {
+                if ($dateStatus == 'draft_date') {
+                    $orders->whereDate('draft_date', Carbon::today())->where('draftrequired', 'y');
+                } else {
+                    $orders->whereDate($targetField, Carbon::today());
+                }
             }
         }
 
@@ -4256,22 +4276,43 @@ class OrderController extends Controller
                 break;
         }
 
-        $from = $request->input('fromDate');
-        $to = $request->input('toDate');
-        $dateField = $request->input('dateStatus');
+        $from = $request->input('fromDate') ?: $request->input('from_date');
+        $to = $request->input('toDate') ?: $request->input('to_date');
+        $dateField = $request->input('dateStatus') ?: $request->input('date_status');
 
-        if ($from && $to && $dateField) {
+        if ($dateField === 'overdue') {
+            $query->whereDate('delivery_date', '<', now())
+                ->whereNotIn('projectstatus', ['Completed', 'Delivered', 'Cancelled', 'Feedback', 'Feedback Delivered']);
+        } elseif ($from && $to && $dateField) {
             if ($dateField === 'draft_date') {
                 $query->whereBetween($dateField, [$from, $to])->where('draftrequired', 'y');
             } else {
                 $query->whereBetween($dateField, [$from, $to]);
             }
+        } elseif ($from && $dateField) {
+            if ($dateField === 'draft_date') {
+                $query->whereDate($dateField, $from)->where('draftrequired', 'y');
+            } else {
+                $query->whereDate($dateField, $from);
+            }
+        } elseif ($to && $dateField) {
+            if ($dateField === 'draft_date') {
+                $query->whereDate($dateField, '<=', $to)->where('draftrequired', 'y');
+            } else {
+                $query->whereDate($dateField, '<=', $to);
+            }
         } elseif ($from && $to) {
             $query->whereBetween('order_date', [$from, $to]);
         } elseif ($from) {
-            $query->where('order_date', $from);
+            $query->whereDate('order_date', $from);
+        } elseif ($to) {
+            $query->whereDate('order_date', '<=', $to);
         } elseif ($dateField) {
-            $query->where('order_date', Carbon::today());
+            if ($dateField === 'draft_date') {
+                $query->whereDate($dateField, Carbon::today())->where('draftrequired', 'y');
+            } else {
+                $query->whereDate($dateField, Carbon::today());
+            }
         }
 
         if ($request->input('payment') === 'empty') {

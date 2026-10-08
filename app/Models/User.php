@@ -198,8 +198,8 @@ class User extends Authenticatable
             return $emptyCollection;
         }
 
-        // Strictly enforce forCrm() so non-CRM labels never show in CRM / Orders
-        $labels = WhatsappChatLabel::forCrm()->whereIn('id', $uniqueIds)->ordered()->get();
+        // Load assigned labels by ID
+        $labels = WhatsappChatLabel::whereIn('id', $uniqueIds)->ordered()->get();
         $this->setRelation('labels', $labels);
         return $labels;
     }
@@ -323,8 +323,7 @@ class User extends Authenticatable
         }
 
         $allLabelIds = collect($userLabelIds)->flatten()->unique()->filter()->all();
-        // Strictly filter by forCrm()
-        $labelsById = !empty($allLabelIds) ? WhatsappChatLabel::forCrm()->whereIn('id', $allLabelIds)->ordered()->get()->keyBy('id') : collect();
+        $labelsById = !empty($allLabelIds) ? WhatsappChatLabel::whereIn('id', $allLabelIds)->ordered()->get()->keyBy('id') : collect();
 
         foreach ($userList as $u) {
             $uId = $u->id;
