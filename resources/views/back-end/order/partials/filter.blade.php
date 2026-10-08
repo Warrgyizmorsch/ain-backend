@@ -1,16 +1,23 @@
+@php
+    $reqUser = request('user') ?? request('mobile') ?? request('phone') ?? request('number') ?? request('email') ?? request('user_name') ?? '';
+    $reqUid = request('uid') ?? request('user_id') ?? '';
+    $reqSearch = request('search') ?? request('order') ?? request('order_id') ?? request('order_code') ?? '';
+    $reqTeam = request('team_id') ?? request('team') ?? '';
+    $hasInitialFilters = !empty($reqUser) || !empty($reqUid) || !empty($reqSearch) || !empty($reqTeam) || request()->filled('status') || request()->filled('date_status') || request()->filled('from_date') || request()->filled('to_date') || request()->filled('month') || request()->filled('deadline_status');
+@endphp
 <div class="card card-xxl-stretch mb-5 mb-xl-8">
     <div class="card-header border-0 pt-4 pb-2 px-6 d-flex align-items-center justify-content-between flex-nowrap" style="min-height: 54px; overflow-x: auto;">
         <div class="d-flex align-items-center flex-nowrap gap-2 flex-shrink-0">
             <h3 class="card-title align-items-center mb-0 me-2 flex-shrink-0" style="min-width: 155px;">
                 <span id="filter-total" class="card-label fw-bolder text-gray-800" style="font-size: 14px; letter-spacing: -0.2px; white-space: nowrap; transition: opacity 0.2s ease;">
-                    Filter
+                    {{ $hasInitialFilters ? 'Filtered: ' . (!empty($reqUser) ? $reqUser : (!empty($reqSearch) ? $reqSearch : 'Active')) : 'Filter' }}
                 </span>
             </h3>
 
-            <button type="button" id="toggleFilterBtn" onclick="window.toggleOrderFilters()" class="btn btn-sm btn-primary py-1.5 px-3 fs-8 fw-bold flex-shrink-0" style="border-radius: 6px;">
-                Show Filters
+            <button type="button" id="toggleFilterBtn" onclick="window.toggleOrderFilters()" class="btn btn-sm {{ $hasInitialFilters ? 'btn-danger' : 'btn-primary' }} py-1.5 px-3 fs-8 fw-bold flex-shrink-0" style="border-radius: 6px;">
+                {{ $hasInitialFilters ? 'Hide Filters' : 'Show Filters' }}
             </button>
-            <button type="button" id="topResetFiltersBtn" onclick="window.resetFilters()" class="btn btn-sm btn-danger py-1.5 px-3 fs-8 fw-bold flex-shrink-0" style="border-radius: 6px; display: none;">
+            <button type="button" id="topResetFiltersBtn" onclick="window.resetFilters()" class="btn btn-sm btn-danger py-1.5 px-3 fs-8 fw-bold flex-shrink-0" style="border-radius: 6px; {{ $hasInitialFilters ? '' : 'display: none;' }}">
                 Reset
             </button>
             <button type="button" id="toggleDeadlineGapBtn" onclick="window.toggleDeadlineGap()" class="btn btn-sm flex-shrink-0">
@@ -86,27 +93,27 @@
         </div>
         @endif
     </div>
-    <div class="card-body py-3" id="filterBody" style="display:none;">
+    <div class="card-body py-3" id="filterBody" style="{{ $hasInitialFilters ? '' : 'display:none;' }}">
         <form id="orderFilterForm" action="javascript:void(0);" onsubmit="event.preventDefault(); if (typeof window.applyFilters === 'function') { window.applyFilters(); } return false;">
-            <input type="hidden" id="filter_team_id" value="">
-            <input type="hidden" id="duration_gap_filter" value="">
-            <input type="hidden" id="today_deadline_filter" value="">
-            <input type="hidden" id="yesterday_deadline_filter" value="">
-            <input type="hidden" id="today_writer_deadline_filter" value="">
-            <input type="hidden" id="holdBtn" value="">
+            <input type="hidden" id="filter_team_id" value="{{ $reqTeam }}">
+            <input type="hidden" id="duration_gap_filter" value="{{ request('duration_gap') ?? '' }}">
+            <input type="hidden" id="today_deadline_filter" value="{{ request('today_deadline_filter') ?? '' }}">
+            <input type="hidden" id="yesterday_deadline_filter" value="{{ request('yesterday_deadline_filter') ?? '' }}">
+            <input type="hidden" id="today_writer_deadline_filter" value="{{ request('today_writer_deadline_filter') ?? '' }}">
+            <input type="hidden" id="holdBtn" value="{{ request('holdBtn') ?? '' }}">
             <div class="row mb-3">
                 <div class="col-md-3 fv-row">
-                    <input type="search" name="search" id="search" class="form-control form-control-solid"
+                    <input type="search" name="search" id="search" value="{{ $reqSearch }}" class="form-control form-control-solid"
                         placeholder="OrderCode or Title" autocomplete="off">
                 </div>
 
                 <div class="col-md-3 fv-row position-relative">
-                    <input type="text" id="searchInput" name="user"
+                    <input type="text" id="searchInput" name="user" value="{{ $reqUser }}"
                         class="form-control form-control-solid" placeholder="User-Name,Number,Email" autocomplete="off">
                     <!-- Container to display custom search results dropdown -->
                     <div id="searchResultss" class="dropdown-menu w-100 shadow-lg p-0 mt-1" style="display:none; max-height: 250px; overflow-y: auto; z-index: 1050; position: absolute;"></div>
                     <!-- Hidden field to store the selected value -->
-                    <input type="hidden" id="selectedValue" name="uid">
+                    <input type="hidden" id="selectedValue" name="uid" value="{{ $reqUid }}">
                 </div>
                 {{-- mk 5 10 26 - Cache group masters list for 180s --}}
                 <div class="col-md-3 fv-row"><select id="group_id" name="group_id" class="form-select form-select-solid" data-control="select2" data-placeholder="User Group"><option value="">All Groups</option>@foreach(\Illuminate\Support\Facades\Cache::remember('leads_active_group_masters', 180, fn() => \App\Models\GroupMaster::where('status',1)->orderBy('name')->get(['id','name'])) as $group)<option value="{{ $group->id }}">{{ $group->name }}</option>@endforeach</select></div>
@@ -415,7 +422,7 @@
                 <!-- <button type='submit' class="btn btn-sm btn-primary" >Search</button> -->
                 <div>
                     <button type="button" onclick="window.applyFilters()" class="btn btn-sm btn-primary" id="applyFilterBtn">Search</button>
-                    <button type="button" onclick="window.resetFilters()" id="resetFiltersBtn" class="btn btn-sm btn-danger" style="display: none;">Reset</button>
+                    <button type="button" onclick="window.resetFilters()" id="resetFiltersBtn" class="btn btn-sm btn-danger" style="{{ $hasInitialFilters ? '' : 'display: none;' }}">Reset</button>
                     <button type="button" id="showMoreFilters" class="btn btn-sm btn-success">Show More Filters</button>
                     @if(empty($hideOrderQuickFilters))
                     <a href="javascript:void(0)" id="overdueBtn" class="btn btn-sm btn-danger">
@@ -1439,9 +1446,10 @@ resetFilters();
             localStorage.removeItem(filterStorageKey);
         } catch (e) {}
 
-        // Clear URL search params without reload
-        if (window.history && window.history.replaceState) {
-            window.history.replaceState({}, document.title, window.location.pathname);
+        // If URL had query parameters (e.g. ?uid=14453&user=Gaby), reload to clean URL so full orders list loads
+        if (window.location.search && window.location.search.length > 1) {
+            window.location.href = window.location.pathname;
+            return;
         }
 
         // Clear all text and search inputs
