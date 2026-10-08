@@ -1,7 +1,9 @@
 @once
 @php
-    $n2cPlugin = \App\Models\PluginSetting::where('plugin_key', 'next2call')->first();
-    $n2cIsActive = (bool) ($n2cPlugin?->is_active ?? true);
+    $n2cPlugin = \Illuminate\Support\Facades\Cache::remember('plugin_next2call_setting', 300, function() {
+        return \App\Models\PluginSetting::where('plugin_key', 'next2call')->first();
+    });
+    $n2cIsActive = (bool) ($n2cPlugin?->is_active ?? false);
     if (!auth()->check() || !$n2cIsActive) {
         return;
     }
@@ -13,29 +15,19 @@
 
     $isSuperAdmin = auth()->check() && ((int) auth()->user()->role_id === 1);
 
-    $n2cSession = \App\Http\Controllers\PluginController::getNext2CallSession($userId, $password);
-    $n2cDialerUrl = $n2cSession['webphone_url'] ?? ("https://{$sipDomain}/api-section/softphone/Phone/index.html?" . http_build_query([
+    $n2cDialerUrl = "https://{$sipDomain}/api-section/softphone/Phone/index.html?" . http_build_query([
         'profileName' => $userId,
         'SipDomain'   => $sipDomain,
         'SipUsername' => $userId,
         'SipPassword' => $password,
-    ]));
-    if (!str_contains($n2cDialerUrl, 'api-section')) {
-        $n2cDialerUrl = str_replace('/softphone/Phone/', '/api-section/softphone/Phone/', $n2cDialerUrl);
-    }
+    ]);
 
-    $n2cRawCtc = $n2cSession['click_to_call_url'] ?? '';
-    $n2cCtcBaseUrl = !empty($n2cRawCtc)
-        ? str_replace('index.html', 'click-to-dial.html', $n2cRawCtc)
-        : ("https://{$sipDomain}/api-section/softphone/Phone/click-to-dial.html?" . http_build_query([
-            'profileName' => $userId,
-            'SipDomain'   => $sipDomain,
-            'SipUsername' => $userId,
-            'SipPassword' => $password,
-        ]) . '&d=');
-    if (!str_contains($n2cCtcBaseUrl, 'api-section')) {
-        $n2cCtcBaseUrl = str_replace('/softphone/Phone/', '/api-section/softphone/Phone/', $n2cCtcBaseUrl);
-    }
+    $n2cCtcBaseUrl = "https://{$sipDomain}/api-section/softphone/Phone/click-to-dial.html?" . http_build_query([
+        'profileName' => $userId,
+        'SipDomain'   => $sipDomain,
+        'SipUsername' => $userId,
+        'SipPassword' => $password,
+    ]) . '&d=';
 @endphp
 
 <style>
