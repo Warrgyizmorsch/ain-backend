@@ -92,8 +92,7 @@
 											<td>
 												<div class="d-flex align-items-center">
 													<div class="symbol symbol-45px me-5">
-														    <img src="{{ asset($blog->images) }}" alt="">
-                                                      
+														    <img src="{{ asset($blog->images ?? $blog->Images ?? 'assets/media/avatars/demo.png') }}" alt="">
                                                     </div>
 													
 												</div>

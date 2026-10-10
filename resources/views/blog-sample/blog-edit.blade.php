@@ -54,15 +54,18 @@
                             <label class="col-lg-4 col-form-label fw-bold fs-6">Thumbnail</label>
                             <div class="col-lg-8">
                                 <div class="image-input image-input-outline" data-kt-image-input="true" style="background-image: url('{{ asset('assets/media/avatars/blank.png') }}')">
-                                    @if (!empty($data['blog']->images))
-                                        <div class="image-input-wrapper w-125px h-125px" style="width: 200px !important; height:150px; background-image: url('{{ asset($data['blog']->images) }}')"></div>
+                                    @php
+                                        $existingThumb = $data['blog']->images ?? $data['blog']->Images ?? null;
+                                    @endphp
+                                    @if (!empty($existingThumb))
+                                        <div class="image-input-wrapper w-125px h-125px" id="thumbnail-preview-wrapper" style="width: 200px !important; height:150px; background-image: url('{{ asset($existingThumb) }}?v={{ strtotime($data['blog']->updated_at ?? 'now') }}'); background-size: cover; background-position: center;"></div>
                                     @else
-                                        <div class="image-input-wrapper w-125px h-125px" style="width: 200px !important; height:150px; background-image: url('{{ asset('assets/media/avatars/blank.png') }}')"></div>
+                                        <div class="image-input-wrapper w-125px h-125px" id="thumbnail-preview-wrapper" style="width: 200px !important; height:150px; background-image: url('{{ asset('assets/media/avatars/blank.png') }}'); background-size: cover; background-position: center;"></div>
                                     @endif
 
                                     <label class="btn btn-icon btn-circle btn-active-color-primary w-25px h-25px bg-body shadow" data-kt-image-input-action="change" data-bs-toggle="tooltip" title="Change avatar">
                                         <i class="bi bi-pencil-fill fs-7"></i>
-                                        <input type="file" name="photo" accept=".png, .jpg, .jpeg">
+                                        <input type="file" name="photo" id="blogPhotoInput" accept=".png, .jpg, .jpeg, .webp">
                                     </label>
                                     <span class="btn btn-icon btn-circle btn-active-color-primary w-25px h-25px bg-body shadow" data-kt-image-input-action="cancel" data-bs-toggle="tooltip" title="Cancel avatar">
                                         <i class="bi bi-x fs-2"></i>
@@ -71,7 +74,7 @@
                                         <i class="bi bi-x fs-2"></i>
                                     </span>
                                 </div>
-                                <div class="form-text">Allowed file types: png, jpg, jpeg.</div>
+                                <div class="form-text">Allowed file types: png, jpg, jpeg, webp.</div>
                             </div>
                         </div>
                         <div class="mb-3">
@@ -303,6 +306,24 @@ document.addEventListener("DOMContentLoaded", function () {
             });
         });
     });
+
+    var photoInput = document.getElementById('blogPhotoInput');
+    if (photoInput) {
+        photoInput.addEventListener('change', function () {
+            if (this.files && this.files[0]) {
+                var reader = new FileReader();
+                reader.onload = function (e) {
+                    var wrapper = document.getElementById('thumbnail-preview-wrapper');
+                    if (wrapper) {
+                        wrapper.style.backgroundImage = 'url(' + e.target.result + ')';
+                        wrapper.style.backgroundSize = 'cover';
+                        wrapper.style.backgroundPosition = 'center';
+                    }
+                };
+                reader.readAsDataURL(this.files[0]);
+            }
+        });
+    }
 });
 </script>
 @endsection
