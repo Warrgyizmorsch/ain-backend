@@ -103,18 +103,7 @@ class ExpertController extends Controller
          if ($request->hasFile('photo')) {
             $uploadedFile = $request->file('photo');
             $fileName = uniqid() . '_' . $uploadedFile->getClientOriginalName();
-            $destinationPathPublic = public_path('assets/media/blogthumbnail');
-            $destinationPathRoot = base_path('assets/media/blogthumbnail');
-
-            if (!file_exists($destinationPathPublic)) {
-                @mkdir($destinationPathPublic, 0777, true);
-            }
-            if (!file_exists($destinationPathRoot)) {
-                @mkdir($destinationPathRoot, 0777, true);
-            }
-
-            $uploadedFile->move($destinationPathPublic, $fileName);
-            @copy($destinationPathPublic . '/' . $fileName, $destinationPathRoot . '/' . $fileName);
+            $this->saveUploadedFileToAllPaths($uploadedFile, 'assets/media/blogthumbnail', $fileName);
             $expert->image = 'assets/media/blogthumbnail/' . $fileName;
         } 
 
@@ -127,12 +116,56 @@ class ExpertController extends Controller
     }
 }
 
-    
+    private function saveUploadedFileToAllPaths($uploadedFile, $subPath, $fileName)
+    {
+        $cleanSubPath = trim($subPath, '/\\');
+        $targetDirs = array_unique([
+            base_path($cleanSubPath),
+            public_path($cleanSubPath),
+            rtrim(dirname(base_path()), '/\\') . '/public_html/' . $cleanSubPath,
+        ]);
+
+        $savedPath = null;
+        foreach ($targetDirs as $dir) {
+            if (!file_exists($dir)) {
+                @mkdir($dir, 0755, true);
+            }
+            if (is_dir($dir)) {
+                $targetFile = rtrim($dir, '/\\') . '/' . $fileName;
+                if (!$savedPath) {
+                    $uploadedFile->move($dir, $fileName);
+                    $savedPath = $targetFile;
+                } else {
+                    @copy($savedPath, $targetFile);
+                }
+            }
+        }
+    }
+
+    private function deleteFileFromAllPaths($subPath, $fileName)
+    {
+        $cleanSubPath = trim($subPath, '/\\');
+        $targetDirs = array_unique([
+            base_path($cleanSubPath),
+            public_path($cleanSubPath),
+            rtrim(dirname(base_path()), '/\\') . '/public_html/' . $cleanSubPath,
+        ]);
+
+        foreach ($targetDirs as $dir) {
+            $targetFile = rtrim($dir, '/\\') . '/' . $fileName;
+            if (file_exists($targetFile)) {
+                @unlink($targetFile);
+            }
+        }
+    }
 
     public function destroy($id)
     {
         try {
             $expert = Experts::findOrFail($id); 
+            if (!empty($expert->image) && $expert->image !== 'assets/media/avatars/blank.png') {
+                $this->deleteFileFromAllPaths('assets/media/blogthumbnail', basename($expert->image));
+            }
             $expert->delete();
             return redirect()->back()->with('success', 'Expert deleted successfully.');
 
@@ -206,39 +239,18 @@ class ExpertController extends Controller
         $expert->customer_review = json_encode($customerReviews, JSON_UNESCAPED_UNICODE); // Store clean JSON
     
         // Handle the file upload for the photo
-         if ($request->hasFile('photo')) {
+        if ($request->hasFile('photo')) {
+            if (!empty($expert->image) && $expert->image !== 'assets/media/avatars/blank.png') {
+                $this->deleteFileFromAllPaths('assets/media/blogthumbnail', basename($expert->image));
+            }
+
             $uploadedFile = $request->file('photo');
             $fileName = uniqid() . '_' . $uploadedFile->getClientOriginalName();
-            $destinationPathPublic = public_path('assets/media/blogthumbnail');
-            $destinationPathRoot = base_path('assets/media/blogthumbnail');
-
-            if (!file_exists($destinationPathPublic)) {
-                @mkdir($destinationPathPublic, 0777, true);
-            }
-            if (!file_exists($destinationPathRoot)) {
-                @mkdir($destinationPathRoot, 0777, true);
-            }
-
-            // Remove old image if exists
-            if (!empty($expert->image) && $expert->image !== 'assets/media/avatars/blank.png') {
-                if (file_exists(public_path($expert->image))) {
-                    @unlink(public_path($expert->image));
-                }
-                if (file_exists(base_path($expert->image))) {
-                    @unlink(base_path($expert->image));
-                }
-            }
-
-            $uploadedFile->move($destinationPathPublic, $fileName);
-            @copy($destinationPathPublic . '/' . $fileName, $destinationPathRoot . '/' . $fileName);
+            $this->saveUploadedFileToAllPaths($uploadedFile, 'assets/media/blogthumbnail', $fileName);
             $expert->image = 'assets/media/blogthumbnail/' . $fileName;
-
-        } else if (!empty($expert->image) && file_exists(public_path($expert->image)) &&
-            $expert->image !== 'assets/media/avatars/blank.png') {
-            unlink(public_path($expert->image));
-            if (file_exists(base_path($expert->image))) {
-                @unlink(base_path($expert->image));
-            }
+        } else if (!empty($expert->image) && $expert->image !== 'assets/media/avatars/blank.png' && $request->has('remove_photo')) {
+            $this->deleteFileFromAllPaths('assets/media/blogthumbnail', basename($expert->image));
+            $expert->image = 'assets/media/avatars/blank.png';
         }
         $expert->save();
         return redirect('new-expert')->with('success', 'Expert saved successfully!');

@@ -1296,11 +1296,8 @@ class HomeController extends Controller
             // Generate a unique filename based on the original file name
             $fileName = uniqid() . '_' . $uploadedFile->getClientOriginalName();
 
-            // Define the destination path
-            $destinationPath = public_path('assets/media/blogthumbnail');
-
-            // Move the uploaded file to the destination path
-            $uploadedFile->move($destinationPath, $fileName);
+            // Save to all target paths
+            $this->saveUploadedFileToAllPaths($uploadedFile, 'assets/media/blogthumbnail', $fileName);
 
             // Update the user's photo field with the file path
             $add->Images = 'assets/media/blogthumbnail/' . $fileName;
@@ -1468,6 +1465,69 @@ class HomeController extends Controller
         return trim($html);
     }
 
+    private function saveUploadedFileToAllPaths($uploadedFile, $subPath, $fileName)
+    {
+        $cleanSubPath = trim($subPath, '/\\');
+        $targetDirs = array_unique([
+            base_path($cleanSubPath),
+            public_path($cleanSubPath),
+            rtrim(dirname(base_path()), '/\\') . '/public_html/' . $cleanSubPath,
+        ]);
+
+        $savedPath = null;
+        foreach ($targetDirs as $dir) {
+            if (!file_exists($dir)) {
+                @mkdir($dir, 0755, true);
+            }
+            if (is_dir($dir)) {
+                $targetFile = rtrim($dir, '/\\') . '/' . $fileName;
+                if (!$savedPath) {
+                    $uploadedFile->move($dir, $fileName);
+                    $savedPath = $targetFile;
+                } else {
+                    @copy($savedPath, $targetFile);
+                }
+            }
+        }
+    }
+
+    private function saveDecodedFileToAllPaths($decodedData, $subPath, $fileName)
+    {
+        $cleanSubPath = trim($subPath, '/\\');
+        $targetDirs = array_unique([
+            base_path($cleanSubPath),
+            public_path($cleanSubPath),
+            rtrim(dirname(base_path()), '/\\') . '/public_html/' . $cleanSubPath,
+        ]);
+
+        foreach ($targetDirs as $dir) {
+            if (!file_exists($dir)) {
+                @mkdir($dir, 0755, true);
+            }
+            if (is_dir($dir)) {
+                $targetFile = rtrim($dir, '/\\') . '/' . $fileName;
+                @file_put_contents($targetFile, $decodedData);
+            }
+        }
+    }
+
+    private function deleteFileFromAllPaths($subPath, $fileName)
+    {
+        $cleanSubPath = trim($subPath, '/\\');
+        $targetDirs = array_unique([
+            base_path($cleanSubPath),
+            public_path($cleanSubPath),
+            rtrim(dirname(base_path()), '/\\') . '/public_html/' . $cleanSubPath,
+        ]);
+
+        foreach ($targetDirs as $dir) {
+            $targetFile = rtrim($dir, '/\\') . '/' . $fileName;
+            if (file_exists($targetFile)) {
+                @unlink($targetFile);
+            }
+        }
+    }
+
     public function blog_store(Request $request)
     {
         if ($request->input('type') === "blog") {
@@ -1511,16 +1571,8 @@ class HomeController extends Controller
                         $decodedImage = base64_decode($base64Data);
 
                         if ($decodedImage !== false) {
-                            $destinationPath = base_path('blogs/blog-content-images/');
-                            if (!file_exists($destinationPath)) {
-                                mkdir($destinationPath, 0755, true);
-                            }
-
-                            // Use the blog title as the image name, sanitized and with the appropriate extension
                             $fileName = Str::slug($request->input('blogTitle'), '-') . '.' . $imageType;
-                            $fullPath = $destinationPath . '/' . $fileName;
-
-                            file_put_contents($fullPath, $decodedImage); // Save the decoded image
+                            $this->saveDecodedFileToAllPaths($decodedImage, 'blogs/blog-content-images', $fileName);
 
                             // Replace the Base64 image source with the file path in the blog content
                             $relativePath = 'blogs/blog-content-images/' . $fileName;
@@ -1544,22 +1596,9 @@ class HomeController extends Controller
             if ($request->hasFile('photo')) {
                 $uploadedFile = $request->file('photo');
 
-                // Use the blog title as the image name (if title is too long, truncate it for safety)
                 $fileExtension = $uploadedFile->getClientOriginalExtension();
                 $fileName = $slug . '.' . $fileExtension;
-                $destinationPathPublic = public_path('assets/media/blogthumbnail');
-                $destinationPathRoot = base_path('assets/media/blogthumbnail');
-
-                if (!file_exists($destinationPathPublic)) {
-                    @mkdir($destinationPathPublic, 0777, true);
-                }
-                if (!file_exists($destinationPathRoot)) {
-                    @mkdir($destinationPathRoot, 0777, true);
-                }
-
-                // Move the uploaded file to the public destination path for web serving and sync to root
-                $uploadedFile->move($destinationPathPublic, $fileName);
-                @copy($destinationPathPublic . '/' . $fileName, $destinationPathRoot . '/' . $fileName);
+                $this->saveUploadedFileToAllPaths($uploadedFile, 'assets/media/blogthumbnail', $fileName);
 
                 // Save the relative path in the database
                 $blog->Images = 'assets/media/blogthumbnail/' . $fileName;
@@ -1579,14 +1618,10 @@ class HomeController extends Controller
 
     public function blog_edit(Request $request, $id)
     {
-        // dd( $request);
-
         $blog = Blog::find($id);
         if (!$blog) {
             return redirect()->back()->with('error', 'Blog not found');
         }
-
-
 
         $blogContent = $request->input('blogContent');
 
@@ -1602,16 +1637,8 @@ class HomeController extends Controller
                     $decodedImage = base64_decode($base64Data);
 
                     if ($decodedImage !== false) {
-                        $destinationPath = base_path('blogs/blog-content-images/');
-                        if (!file_exists($destinationPath)) {
-                            mkdir($destinationPath, 0755, true);
-                        }
-
-                        // Use the blog title as the image name, sanitized and with the appropriate extension
                         $fileName = Str::slug($request->input('blogTitle'), '-') . '.' . $imageType;
-                        $fullPath = $destinationPath . '/' . $fileName;
-
-                        file_put_contents($fullPath, $decodedImage); // Save the decoded image
+                        $this->saveDecodedFileToAllPaths($decodedImage, 'blogs/blog-content-images', $fileName);
 
                         // Replace the Base64 image source with the file path in the blog content
                         $relativePath = 'blogs/blog-content-images/' . $fileName;
@@ -1623,40 +1650,23 @@ class HomeController extends Controller
 
         // Update the blog attributes
         $blog->tittle = $request->input('blogTitle');
-        // $blog->slug = Str::slug($request->input('blogTitle'), '-');
         $blog->slug = Str::slug($request->input('blogUrl'), '-');
         $blog->content = $blogContent;
         $blog->FAQ = $request->input('faq_data');
         $blog->meta_title = $request->input('MetaTag');
         $blog->meta_discribtion = $request->input('Metadescription');
         $blog->author_id = $request->input('author_id');
-        // dd($blog->meta_title );
+
         // Handle main photo upload if provided
         if ($request->hasFile('photo')) {
             $uploadedFile = $request->file('photo');
             $extension = $uploadedFile->getClientOriginalExtension(); // Get file extension
             $fileName = $blog->slug . '.' . $extension; // Use slug as filename
-            $destinationPathPublic = public_path('assets/media/blogthumbnail');
-            $destinationPathRoot = base_path('assets/media/blogthumbnail');
+            // Delete existing image with the same slug name across all paths
+            $this->deleteFileFromAllPaths('assets/media/blogthumbnail', $fileName);
 
-            if (!file_exists($destinationPathPublic)) {
-                @mkdir($destinationPathPublic, 0777, true);
-            }
-            if (!file_exists($destinationPathRoot)) {
-                @mkdir($destinationPathRoot, 0777, true);
-            }
-
-            // Delete existing image with the same slug name in public & root
-            if (file_exists($destinationPathPublic . '/' . $fileName)) {
-                @unlink($destinationPathPublic . '/' . $fileName);
-            }
-            if (file_exists($destinationPathRoot . '/' . $fileName)) {
-                @unlink($destinationPathRoot . '/' . $fileName);
-            }
-
-            // Save the new uploaded photo into public and sync to root
-            $uploadedFile->move($destinationPathPublic, $fileName);
-            @copy($destinationPathPublic . '/' . $fileName, $destinationPathRoot . '/' . $fileName);
+            // Save the new uploaded photo across all paths
+            $this->saveUploadedFileToAllPaths($uploadedFile, 'assets/media/blogthumbnail', $fileName);
 
             // Save image path in the database
             $blog->Images = 'assets/media/blogthumbnail/' . $fileName;
@@ -1773,20 +1783,8 @@ class HomeController extends Controller
                 // Generate a unique filename based on the original file name
                 $fileName = uniqid() . '_' . $uploadedFile->getClientOriginalName();
 
-                // Define the destination path
-                $destinationPathPublic = public_path('assets/media/blogthumbnail');
-                $destinationPathRoot = base_path('assets/media/blogthumbnail');
-
-                if (!file_exists($destinationPathPublic)) {
-                    @mkdir($destinationPathPublic, 0777, true);
-                }
-                if (!file_exists($destinationPathRoot)) {
-                    @mkdir($destinationPathRoot, 0777, true);
-                }
-
-                // Move the uploaded file to the public destination path and sync to root
-                $uploadedFile->move($destinationPathPublic, $fileName);
-                @copy($destinationPathPublic . '/' . $fileName, $destinationPathRoot . '/' . $fileName);
+                // Save to all paths
+                $this->saveUploadedFileToAllPaths($uploadedFile, 'assets/media/blogthumbnail', $fileName);
 
                 // Update the user's photo field with the file path
                 $blog->Images = 'assets/media/blogthumbnail/' . $fileName;

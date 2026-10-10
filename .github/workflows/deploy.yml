@@ -44,5 +44,13 @@ jobs:
             php artisan config:clear
             php artisan route:clear
             
+            # Sync public assets and uploads to public_html
+            cp -ru /home/u313739815/domains/ain.warrgyizmorsch.com/laravel_app/public/. /home/u313739815/domains/ain.warrgyizmorsch.com/public_html/ 2>/dev/null || true
+            cp -ru /home/u313739815/domains/ain.warrgyizmorsch.com/laravel_app/assets/media/blogthumbnail/. /home/u313739815/domains/ain.warrgyizmorsch.com/public_html/assets/media/blogthumbnail/ 2>/dev/null || true
+            cp -ru /home/u313739815/domains/ain.warrgyizmorsch.com/laravel_app/blogs/. /home/u313739815/domains/ain.warrgyizmorsch.com/public_html/blogs/ 2>/dev/null || true
+            
+            # Touch .htaccess to invalidate opcache
+            touch /home/u313739815/domains/ain.warrgyizmorsch.com/public_html/.htaccess 2>/dev/null || true
+            
             echo "✅ Deployment completed successfully for ${{ github.ref_name }}!"
 
