@@ -1596,14 +1596,17 @@ class HomeController extends Controller
             if ($request->hasFile('photo')) {
                 $uploadedFile = $request->file('photo');
 
-                $fileExtension = $uploadedFile->getClientOriginalExtension();
-                $fileName = $slug . '.' . $fileExtension;
+                $fileExtension = $uploadedFile->getClientOriginalExtension() ?: 'png';
+                $fileName = $slug . '_' . time() . '.' . strtolower($fileExtension);
                 $this->saveUploadedFileToAllPaths($uploadedFile, 'assets/media/blogthumbnail', $fileName);
 
                 // Save the relative path in the database
-                $blog->Images = 'assets/media/blogthumbnail/' . $fileName;
+                $relativePath = 'assets/media/blogthumbnail/' . $fileName;
+                $blog->images = $relativePath;
+                $blog->Images = $relativePath;
             } else {
                 // Set default image if no photo is uploaded
+                $blog->images = 'assets/media/avatars/demo.png';
                 $blog->Images = 'assets/media/avatars/demo.png';
             }
 
@@ -1660,16 +1663,24 @@ class HomeController extends Controller
         // Handle main photo upload if provided
         if ($request->hasFile('photo')) {
             $uploadedFile = $request->file('photo');
-            $extension = $uploadedFile->getClientOriginalExtension(); // Get file extension
-            $fileName = $blog->slug . '.' . $extension; // Use slug as filename
-            // Delete existing image with the same slug name across all paths
-            $this->deleteFileFromAllPaths('assets/media/blogthumbnail', $fileName);
+            $extension = $uploadedFile->getClientOriginalExtension() ?: 'png';
+
+            // Delete existing image across all paths if present
+            $oldImage = $blog->images ?? $blog->Images ?? null;
+            if ($oldImage && !in_array($oldImage, ['assets/media/avatars/demo.png', 'assets/media/avatars/blank.png'])) {
+                $this->deleteFileFromAllPaths('assets/media/blogthumbnail', basename($oldImage));
+            }
+
+            // Create timestamped unique filename to guarantee fresh URL & bust cache
+            $fileName = $blog->slug . '_' . time() . '.' . strtolower($extension);
 
             // Save the new uploaded photo across all paths
             $this->saveUploadedFileToAllPaths($uploadedFile, 'assets/media/blogthumbnail', $fileName);
 
-            // Save image path in the database
-            $blog->Images = 'assets/media/blogthumbnail/' . $fileName;
+            // Save image path in the database (both lower and upper case attributes)
+            $relativePath = 'assets/media/blogthumbnail/' . $fileName;
+            $blog->images = $relativePath;
+            $blog->Images = $relativePath;
         }
 
         // Save the updated blog entry
