@@ -53,16 +53,16 @@
                         <div class="row mb-6">
                             <label class="col-lg-4 col-form-label fw-bold fs-6">Thumbnail</label>
                             <div class="col-lg-8">
-                                <div class="image-input image-input-outline" data-kt-image-input="true" style="background-image: url(assets/media/avatars/blank.png)">
-                                    @if ($data['blog']->images)
+                                <div class="image-input image-input-outline" data-kt-image-input="true" style="background-image: url('{{ asset('assets/media/avatars/blank.png') }}')">
+                                    @if (!empty($data['blog']->images))
                                         <div class="image-input-wrapper w-125px h-125px" style="width: 200px !important; height:150px; background-image: url('{{ asset($data['blog']->images) }}')"></div>
                                     @else
-                                        <div class="image-input-wrapper w-125px h-125px" style="width: 200px !important; height:150px; background-image: url(assets/media/avatars/blank.png)"></div>
+                                        <div class="image-input-wrapper w-125px h-125px" style="width: 200px !important; height:150px; background-image: url('{{ asset('assets/media/avatars/blank.png') }}')"></div>
                                     @endif
 
                                     <label class="btn btn-icon btn-circle btn-active-color-primary w-25px h-25px bg-body shadow" data-kt-image-input-action="change" data-bs-toggle="tooltip" title="Change avatar">
                                         <i class="bi bi-pencil-fill fs-7"></i>
-                                        <input type="file" name="photo" accept=".png, .jpg, .jpeg" onchange="showImageDimensionsAlert(this)">
+                                        <input type="file" name="photo" accept=".png, .jpg, .jpeg">
                                     </label>
                                     <span class="btn btn-icon btn-circle btn-active-color-primary w-25px h-25px bg-body shadow" data-kt-image-input-action="cancel" data-bs-toggle="tooltip" title="Cancel avatar">
                                         <i class="bi bi-x fs-2"></i>
