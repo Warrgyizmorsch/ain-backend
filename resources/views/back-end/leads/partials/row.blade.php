@@ -17,8 +17,8 @@
 
     <td class="text-center align-middle" style="min-width: 165px; padding: 6px;">
         <div class="d-flex flex-column align-items-center justify-content-center gap-1">
-            <!-- 4x2 Grid for Buttons & Switches -->
-            <div style="display: grid; grid-template-columns: repeat(4, 32px); gap: 6px; align-items: center; justify-items: center;">
+            <!-- 5x2 Grid for Buttons & Switches -->
+            <div style="display: grid; grid-template-columns: repeat(5, 32px); gap: 6px; align-items: center; justify-items: center;">
                 
                 <!-- Row 1, Col 1: Flag Checkbox -->
                 <div class="form-check form-check-sm form-check-custom form-check-solid m-0 p-0 d-flex align-items-center justify-content-center">
@@ -49,6 +49,25 @@
                     style="background-color: #1e1e2d; width: 28px; height: 28px; border-radius: 6px;" title="Edit Lead">
                     <i style="color: white;" class="fa fa-edit"></i>
                 </a>
+
+                <!-- Row 1, Col 5: Orders Button -->
+                @if($lead->user)
+                    <a href="{{ url('/orders') }}?uid={{ $lead->user->id }}&user={{ urlencode($lead->user->name) }}" target="_blank" 
+                        class="btn btn-sm btn-icon p-0 d-inline-flex align-items-center justify-content-center shadow-xs position-relative"
+                        style="background-color: #009ef7; color: white; width: 28px; height: 28px; border-radius: 6px;" title="View User Orders">
+                        <span class="fw-bolder" style="font-size: 13px;">O</span>
+                        @php
+                            $orderCount = $lead->user->orders()->count();
+                        @endphp
+                        @if($orderCount > 0)
+                            <span style="position:absolute; top:-5px; right:-5px; background:#e53e3e; color:#ffffff; font-size:9px; font-weight:700; line-height:1; padding:2px 4px; border-radius:10px; box-shadow:0 1px 2px rgba(0,0,0,0.3);">
+                                {{ $orderCount }}
+                            </span>
+                        @endif
+                    </a>
+                @else
+                    <div></div>
+                @endif
 
                 <!-- Row 2, Col 1: Convert / Sync Button -->
                 <button type="button" class="btn btn-sm btn-primary btn-icon p-0 d-inline-flex align-items-center justify-content-center shadow-xs" 

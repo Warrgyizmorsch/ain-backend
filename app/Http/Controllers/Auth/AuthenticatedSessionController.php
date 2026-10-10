@@ -23,60 +23,12 @@ class AuthenticatedSessionController extends Controller
         return view('auth.login');
     }
 
-    // public function store(LoginRequest $request): RedirectResponse
-    // {
-    //     $bypassEmails = ['admin@gmail.com', 'marketing@gmail.com'];
-    //     $isBypass = in_array(strtolower((string) $request->input('email')), $bypassEmails);
-
-    //     if ($isBypass) {
-    //         $user = $request->authenticate();
-
-    //         Auth::login($user, true);
-    //         $request->session()->regenerate();
-
-    //         return $this->redirectAfterLogin($user);
-    //     }
-
-    //     $user = $request->authenticate();
-
-    //     if ($ban = $this->activeAccountBan($user->id)) {
-    //         return redirect()->route('login')
-    //             ->with('warning', $this->accountBanMessage($ban));
-    //     }
-
-    //     if ((int) $user->role_id === 1) {
-    //         try {
-    //             $this->createAdminEmailOtpNotification($request, $user);
-    //         } catch (\Throwable $e) {
-    //             \Log::error('Admin OTP email failed: '.$e->getMessage());
-
-    //             return redirect()->route('login')
-    //                 ->with('warning', 'Admin OTP email could not be sent. SMTP username/password is incorrect.');
-    //         }
-
-    //         return redirect()->route('login.otp')
-    //             ->with('warning', 'Admin OTP has been sent to singhmahipal23@gmail.com.');
-    //     }
-
-    //     if ((int) $user->role_id !== 1) {
-    //         $this->createPendingOtpNotification($request, $user);
-
-    //         return redirect()->route('login.otp')
-    //             ->with('warning', 'Admin OTP approval is required before login.');
-    //     }
-
-    //     return redirect()->route('login')
-    //         ->with('warning', 'Please log in to access this page.');
-    // }
-
-    // mk 10 1 26 dummy store method for local login otp bypass
-        public function store(LoginRequest $request): RedirectResponse
+    public function store(LoginRequest $request): RedirectResponse
     {
         $bypassEmails = ['admin@gmail.com', 'marketing@gmail.com'];
         $isBypass = in_array(strtolower((string) $request->input('email')), $bypassEmails);
 
-        // LOCAL ONLY: OTP bypass. Production par (APP_ENV != local) OTP chalta rahega.
-        if ($isBypass || app()->environment('local')) {
+        if ($isBypass) {
             $user = $request->authenticate();
 
             Auth::login($user, true);
@@ -87,16 +39,16 @@ class AuthenticatedSessionController extends Controller
 
         $user = $request->authenticate();
 
-            if ($ban = $this->activeAccountBan($user->id)) {
-                return redirect()->route('login')
-                    ->with('warning', $this->accountBanMessage($ban));
-            }
+        if ($ban = $this->activeAccountBan($user->id)) {
+            return redirect()->route('login')
+                ->with('warning', $this->accountBanMessage($ban));
+        }
 
         if ((int) $user->role_id === 1) {
             try {
                 $this->createAdminEmailOtpNotification($request, $user);
             } catch (\Throwable $e) {
-                \Log::error('Admin OTP email failed: ' . $e->getMessage());
+                \Log::error('Admin OTP email failed: '.$e->getMessage());
 
                 return redirect()->route('login')
                     ->with('warning', 'Admin OTP email could not be sent. SMTP username/password is incorrect.');
@@ -116,6 +68,55 @@ class AuthenticatedSessionController extends Controller
         return redirect()->route('login')
             ->with('warning', 'Please log in to access this page.');
     }
+
+    // mk 10 1 26 dummy store method for local login otp bypass
+    //     public function store(LoginRequest $request): RedirectResponse
+    // {
+    //     $bypassEmails = ['admin@gmail.com', 'marketing@gmail.com'];
+    //     $isBypass = in_array(strtolower((string) $request->input('email')), $bypassEmails);
+
+    //     // LOCAL ONLY: OTP bypass. Production par (APP_ENV != local) OTP chalta rahega.
+    //     // Modified to always bypass OTP verification
+    //     if (true || $isBypass || app()->environment('local')) {
+    //         $user = $request->authenticate();
+
+    //         Auth::login($user, true);
+    //         $request->session()->regenerate();
+
+    //         return $this->redirectAfterLogin($user);
+    //     }
+
+    //     $user = $request->authenticate();
+
+    //         if ($ban = $this->activeAccountBan($user->id)) {
+    //             return redirect()->route('login')
+    //                 ->with('warning', $this->accountBanMessage($ban));
+    //         }
+
+    //     if ((int) $user->role_id === 1) {
+    //         try {
+    //             $this->createAdminEmailOtpNotification($request, $user);
+    //         } catch (\Throwable $e) {
+    //             \Log::error('Admin OTP email failed: ' . $e->getMessage());
+
+    //             return redirect()->route('login')
+    //                 ->with('warning', 'Admin OTP email could not be sent. SMTP username/password is incorrect.');
+    //         }
+
+    //         return redirect()->route('login.otp')
+    //             ->with('warning', 'Admin OTP has been sent to singhmahipal23@gmail.com.');
+    //     }
+
+    //     if ((int) $user->role_id !== 1) {
+    //         $this->createPendingOtpNotification($request, $user);
+
+    //         return redirect()->route('login.otp')
+    //             ->with('warning', 'Admin OTP approval is required before login.');
+    //     }
+
+    //     return redirect()->route('login')
+    //         ->with('warning', 'Please log in to access this page.');
+    // }
 
     public function destroy(Request $request): RedirectResponse
     {
