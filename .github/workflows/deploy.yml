@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - deployment
+      - main
   workflow_dispatch:
 
 jobs:
@@ -17,25 +18,24 @@ jobs:
         with:
           host: ${{ secrets.SSH_HOST || '82.29.191.71' }}
           username: ${{ secrets.SSH_USER || 'u313739815' }}
-          password: ${{ secrets.SSH_PASSWORD }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          password: ${{ secrets.SSH_PASSWORD || 'MPSDnsd@123' }}
           port: ${{ secrets.SSH_PORT || 65002 }}
           script_stop: false
           script: |
-            echo "🚀 Starting automated code deployment..."
+            echo "🚀 Starting automated code deployment for branch: ${{ github.ref_name }}..."
             cd /home/u313739815/domains/ain.warrgyizmorsch.com/laravel_app
             
             # Stash any untracked or local changes safely so pull never gets blocked
             git stash --include-untracked || true
             
-            # Fetch latest deployment branch from origin
-            git fetch origin deployment
+            # Fetch latest branch from origin
+            git fetch origin ${{ github.ref_name }}
             
-            # Switch to deployment branch cleanly
-            git checkout -B deployment origin/deployment
+            # Switch to branch cleanly
+            git checkout -B ${{ github.ref_name }} origin/${{ github.ref_name }}
             
             # Pull latest changes
-            git pull origin deployment
+            git pull origin ${{ github.ref_name }}
             
             # Clear caches safely (NO migrations, NO seeders)
             php artisan optimize:clear
@@ -44,4 +44,5 @@ jobs:
             php artisan config:clear
             php artisan route:clear
             
-            echo "✅ Deployment completed successfully!"
+            echo "✅ Deployment completed successfully for ${{ github.ref_name }}!"
+
