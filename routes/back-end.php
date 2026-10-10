@@ -70,8 +70,7 @@ Route::post('/lead/assign-type', [LeadsController::class, 'assignType'])
 Route::post('/lead-reason-update', [LeadsController::class, 'updateLeadReason'])
     ->name('lead-reason-update');
 
-// Route::middleware(['auth', 'check.permission'])->group(function () {
-Route::middleware(['auth'])->group(function () {
+Route::middleware(['auth', 'check.permission'])->group(function () {
 
     Route::prefix('whatsapp')->name('whatsapp.')->group(function () {
         Route::get('/settings', [WhatsappController::class, 'settings'])->name('settings');
@@ -570,7 +569,7 @@ Route::middleware(['auth'])->group(function () {
     ->name('orders.change.team');
     
 
-    route::middleware(['auth'])->group(function () {
+    Route::middleware(['auth', 'check.permission'])->group(function () {
         Route::get('/group-master', [GroupMasterController::class, 'index'])->name('group.master.index');
         Route::post('/group-master/store', [GroupMasterController::class, 'store'])->name('group.master.store');
         Route::post('/group-master/update/{id}', [GroupMasterController::class, 'update'])->name('group.master.update');
