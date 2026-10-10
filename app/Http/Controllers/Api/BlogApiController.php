@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Blog;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class BlogApiController extends Controller
 {
@@ -73,6 +74,24 @@ class BlogApiController extends Controller
 
         if (!empty($blog->content)) {
             $blog->content = render_blog_ctas($blog->content);
+        }
+
+        if (!empty($blog->author_id)) {
+            $author = DB::table('author')
+                ->where('id', $blog->author_id)
+                ->select('id', 'name', 'photo', 'description')
+                ->first();
+
+            if ($author) {
+                if (!empty($author->photo) && !str_starts_with($author->photo, 'http://') && !str_starts_with($author->photo, 'https://')) {
+                    $author->photo = url(ltrim($author->photo, '/'));
+                }
+                $blog->author = $author;
+            } else {
+                $blog->author = null;
+            }
+        } else {
+            $blog->author = null;
         }
 
         return response()->json([
