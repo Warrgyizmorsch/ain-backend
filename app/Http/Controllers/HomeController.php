@@ -1547,15 +1547,19 @@ class HomeController extends Controller
                 // Use the blog title as the image name (if title is too long, truncate it for safety)
                 $fileExtension = $uploadedFile->getClientOriginalExtension();
                 $fileName = $slug . '.' . $fileExtension;
-                $destinationPath = base_path('assets/media/blogthumbnail');
+                $destinationPathPublic = public_path('assets/media/blogthumbnail');
+                $destinationPathRoot = base_path('assets/media/blogthumbnail');
 
-                // Ensure the directory exists
-                if (!file_exists($destinationPath)) {
-                    mkdir($destinationPath, 0755, true);
+                if (!file_exists($destinationPathPublic)) {
+                    @mkdir($destinationPathPublic, 0777, true);
+                }
+                if (!file_exists($destinationPathRoot)) {
+                    @mkdir($destinationPathRoot, 0777, true);
                 }
 
-                // Move the uploaded file to the destination path
-                $uploadedFile->move($destinationPath, $fileName);
+                // Move the uploaded file to the public destination path for web serving and sync to root
+                $uploadedFile->move($destinationPathPublic, $fileName);
+                @copy($destinationPathPublic . '/' . $fileName, $destinationPathRoot . '/' . $fileName);
 
                 // Save the relative path in the database
                 $blog->Images = 'assets/media/blogthumbnail/' . $fileName;
@@ -1632,21 +1636,27 @@ class HomeController extends Controller
             $uploadedFile = $request->file('photo');
             $extension = $uploadedFile->getClientOriginalExtension(); // Get file extension
             $fileName = $blog->slug . '.' . $extension; // Use slug as filename
-            $destinationPath = base_path('assets/media/blogthumbnail');
-            $fullPath = $destinationPath . '/' . $fileName;
+            $destinationPathPublic = public_path('assets/media/blogthumbnail');
+            $destinationPathRoot = base_path('assets/media/blogthumbnail');
 
-            // Ensure the directory exists
-            if (!file_exists($destinationPath)) {
-                mkdir($destinationPath, 0755, true);
+            if (!file_exists($destinationPathPublic)) {
+                @mkdir($destinationPathPublic, 0777, true);
+            }
+            if (!file_exists($destinationPathRoot)) {
+                @mkdir($destinationPathRoot, 0777, true);
             }
 
-            // Delete existing image with the same slug name
-            if (file_exists($fullPath)) {
-                unlink($fullPath);
+            // Delete existing image with the same slug name in public & root
+            if (file_exists($destinationPathPublic . '/' . $fileName)) {
+                @unlink($destinationPathPublic . '/' . $fileName);
+            }
+            if (file_exists($destinationPathRoot . '/' . $fileName)) {
+                @unlink($destinationPathRoot . '/' . $fileName);
             }
 
-            // Save the new uploaded photo
-            $uploadedFile->move($destinationPath, $fileName);
+            // Save the new uploaded photo into public and sync to root
+            $uploadedFile->move($destinationPathPublic, $fileName);
+            @copy($destinationPathPublic . '/' . $fileName, $destinationPathRoot . '/' . $fileName);
 
             // Save image path in the database
             $blog->Images = 'assets/media/blogthumbnail/' . $fileName;
@@ -1764,10 +1774,19 @@ class HomeController extends Controller
                 $fileName = uniqid() . '_' . $uploadedFile->getClientOriginalName();
 
                 // Define the destination path
-                $destinationPath = public_path('assets/media/blogthumbnail');
+                $destinationPathPublic = public_path('assets/media/blogthumbnail');
+                $destinationPathRoot = base_path('assets/media/blogthumbnail');
 
-                // Move the uploaded file to the destination path
-                $uploadedFile->move($destinationPath, $fileName);
+                if (!file_exists($destinationPathPublic)) {
+                    @mkdir($destinationPathPublic, 0777, true);
+                }
+                if (!file_exists($destinationPathRoot)) {
+                    @mkdir($destinationPathRoot, 0777, true);
+                }
+
+                // Move the uploaded file to the public destination path and sync to root
+                $uploadedFile->move($destinationPathPublic, $fileName);
+                @copy($destinationPathPublic . '/' . $fileName, $destinationPathRoot . '/' . $fileName);
 
                 // Update the user's photo field with the file path
                 $blog->Images = 'assets/media/blogthumbnail/' . $fileName;
