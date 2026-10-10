@@ -120,6 +120,7 @@
 
     <td class="text-center">
         <span class="fw-bold text-gray-800">{{ $order->order_id ?? 'N/A' }}</span><br>
+        {!! get_order_duration_gap_badge($order) !!}
 
         @if($order->team?->team_name)
             <span class="badge badge-light-primary fs-7 fw-bold mb-1">
@@ -147,14 +148,33 @@
     </td>
 
     <td class="text-center">
+        @php
+            $revokeUserId = $order->user ? $order->user->id : ($order->uid ?? null);
+        @endphp
         @if($order->user)
-            {{ $order->user->name }}<br>
+            <div class="fw-bold">{{ $order->user->name }}</div>
+            @if(!empty($revokeUserId))
+                <div class="d-inline-flex align-items-center justify-content-center gap-1 my-1">
+                    <span class="badge badge-light-dark fs-8 fw-bold">ID: {{ $revokeUserId }}</span>
+                    <button type="button" class="btn btn-icon btn-sm btn-active-light-dark p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy User ID" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $revokeUserId }}', 'User ID copied!');">
+                        <i class="fa fa-clone fs-8 text-muted"></i>
+                    </button>
+                </div><br>
+            @endif
             <span class="badge badge-light-danger fs-7 fw-bold">
                 +{{ $order->user->countrycode }} {{ $order->user->mobile_no }}
             </span><br>
             <span class="fs-7 fw-bold">{{ $order->user->email }}</span>
         @else
             <span class="badge badge-light-danger fs-7 fw-bold">User Was Deleted</span>
+            @if(!empty($revokeUserId))
+                <div class="d-inline-flex align-items-center justify-content-center gap-1 my-1">
+                    <span class="badge badge-light-dark fs-8 fw-bold">ID: {{ $revokeUserId }}</span>
+                    <button type="button" class="btn btn-icon btn-sm btn-active-light-dark p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy User ID" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $revokeUserId }}', 'User ID copied!');">
+                        <i class="fa fa-clone fs-8 text-muted"></i>
+                    </button>
+                </div>
+            @endif
         @endif
     </td>
 

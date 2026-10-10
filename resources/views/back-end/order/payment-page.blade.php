@@ -118,7 +118,7 @@
                             <label class="form-label">Company Account</label>
                             <select name="company_accounts" class="select-form" required>
                                 <option disabled selected value="">Select a Company Account</option>
-                                @foreach(['HDFC', 'Native', 'PayPal', 'Skydo', 'Wallet','Other'] as $option)
+                                @foreach(['HDFC', 'Native', 'PayPal', 'Skydo', 'Banking Circle', 'Wallet', 'Other'] as $option)
                                     <option value="{{ $option }}"
                                             {{ isset($editPayment) && $editPayment->company_accounts == $option ? 'selected' : '' }}>
                                         {{ $option }}
@@ -193,6 +193,14 @@
         });
     });
 </script>
+{{-- mk 6/10/2026: Set sync flag on payment success so orders tab auto-refreshes with updated paid/due amount --}}
+@if(session('success'))
+<script>
+    try {
+        localStorage.setItem('order_payment_synced', Date.now().toString());
+    } catch(e) {}
+</script>
+@endif
 <style>
     .dark-bordered-table th,
     .dark-bordered-table td,

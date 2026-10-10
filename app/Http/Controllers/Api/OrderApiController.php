@@ -23,7 +23,7 @@ class OrderApiController extends Controller
 
             'name' => $request->name,
 
-            'email' => $request->email,
+            'email' => $request->email ?? 'N/A',
 
             'country' => $request->country,
 

@@ -10,11 +10,16 @@ class EmailHtmlSanitizer
 {
     private const ALLOWED_TAGS = [
         'a', 'b', 'blockquote', 'br', 'code', 'div', 'em', 'h1', 'h2', 'h3',
-        'h4', 'h5', 'h6', 'hr', 'i', 'li', 'ol', 'p', 'pre', 'span', 'strong',
-        'table', 'tbody', 'td', 'th', 'thead', 'tr', 'u', 'ul',
+        'h4', 'h5', 'h6', 'hr', 'i', 'img', 'li', 'ol', 'p', 'pre', 'span', 'strong',
+        'table', 'tbody', 'td', 'th', 'thead', 'tr', 'u', 'ul', 'center', 'font',
     ];
 
-    private const ALLOWED_ATTRIBUTES = ['href', 'title', 'colspan', 'rowspan'];
+    private const ALLOWED_ATTRIBUTES = [
+        'href', 'title', 'colspan', 'rowspan',
+        'style', 'class', 'src', 'alt', 'width', 'height',
+        'align', 'valign', 'cellpadding', 'cellspacing', 'border', 'bgcolor',
+        'color', 'size', 'face',
+    ];
 
     public function sanitize(?string $html): string
     {
@@ -71,6 +76,14 @@ class EmailHtmlSanitizer
                 }
                 if ($name === 'href' && !preg_match('/^(https?:|mailto:|#)/i', $value)) {
                     $node->removeAttribute($attribute->name);
+                }
+                if ($name === 'src') {
+                    if (preg_match('/https:\/\/www\.assignn?mentinneed\.com\/[^\'"\s>]*assignment_logo\.(png|webp|jpg)/i', $value)) {
+                        $value = 'https://ain.warrgyizmorsch.com/assets/media/avatars/assignment_logo.png';
+                        $node->setAttribute('src', $value);
+                    } elseif (!preg_match('/^(https?:|\/\/|\/|cid:|data:image\/)/i', $value)) {
+                        $node->removeAttribute($attribute->name);
+                    }
                 }
             }
 

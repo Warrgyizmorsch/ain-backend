@@ -96,6 +96,7 @@
                                 <span class="badge badge-light-primary fw-bold">
                                     {{ $order->order_id }}
                                 </span>
+                                {!! get_order_duration_gap_badge($order) !!}
                             </td>
 
                             <td>

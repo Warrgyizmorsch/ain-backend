@@ -13,6 +13,8 @@ class WhatsappChatLabel extends Model
         'name',
         'color',
         'is_whatsapp',
+        'is_client_email',
+        'is_writer_email',
         'is_email',
         'is_crm',
         'sequence',
@@ -21,6 +23,8 @@ class WhatsappChatLabel extends Model
 
     protected $casts = [
         'is_whatsapp' => 'boolean',
+        'is_client_email' => 'boolean',
+        'is_writer_email' => 'boolean',
         'is_email' => 'boolean',
         'is_crm' => 'boolean',
         'sequence' => 'integer',
@@ -43,11 +47,98 @@ class WhatsappChatLabel extends Model
     }
 
     /**
+     * Check if account-specific columns exist in the database table
+     */
+    public static function hasAccountColumns(): bool
+    {
+        static $hasColumns = null;
+        if ($hasColumns === null) {
+            try {
+                $hasColumns = \Illuminate\Support\Facades\Schema::hasColumn('whatsapp_chat_labels', 'is_writer_email')
+                    && \Illuminate\Support\Facades\Schema::hasColumn('whatsapp_chat_labels', 'is_client_email');
+            } catch (\Throwable $e) {
+                $hasColumns = false;
+            }
+        }
+        return (bool) $hasColumns;
+    }
+
+    /**
+     * Scope for Client Email channel labels
+     */
+    public function scopeForClientEmail($query)
+    {
+        if (!static::hasAccountColumns()) {
+            return $query->where('is_email', true);
+        }
+        return $query->where(function ($q) {
+            $q->where('is_client_email', true)->orWhere('is_email', true);
+        });
+    }
+
+    /**
+     * Scope for Writer Email channel labels
+     */
+    public function scopeForWriterEmail($query)
+    {
+        if (!static::hasAccountColumns()) {
+            return $query->where('is_email', true);
+        }
+        return $query->where(function ($q) {
+            $q->where('is_writer_email', true)->orWhere('is_email', true);
+        });
+    }
+
+    /**
+     * Scope for specific Email Account (Client vs Writer)
+     * If account is Writer: is_writer_email or is_email
+     * If account is Client: is_client_email or is_email
+     * Fallback: any email channel
+     */
+    public function scopeForEmailAccount($query, $account = null)
+    {
+        if (!static::hasAccountColumns()) {
+            return $query->where('is_email', true);
+        }
+
+        if ($account) {
+            $name = is_object($account) ? ($account->name ?? '') : (string) $account;
+            $id = is_object($account) ? ($account->id ?? 0) : (is_numeric($account) ? (int) $account : 0);
+
+            if ((int) $id === 1 || stripos($name, 'writer') !== false) {
+                return $query->where(function ($q) {
+                    $q->where('is_writer_email', true)->orWhere('is_email', true);
+                });
+            }
+
+            if ((int) $id === 2 || stripos($name, 'client') !== false) {
+                return $query->where(function ($q) {
+                    $q->where('is_client_email', true)->orWhere('is_email', true);
+                });
+            }
+        }
+
+        return $query->where(function ($q) {
+            $q->where('is_client_email', true)
+              ->orWhere('is_writer_email', true)
+              ->orWhere('is_email', true);
+        });
+    }
+
+    /**
      * Scope for Email channel labels
      */
     public function scopeForEmail($query)
     {
-        return $query->where('is_email', true);
+        if (!static::hasAccountColumns()) {
+            return $query->where('is_email', true);
+        }
+
+        return $query->where(function ($q) {
+            $q->where('is_email', true)
+              ->orWhere('is_client_email', true)
+              ->orWhere('is_writer_email', true);
+        });
     }
 
     /**
@@ -58,3 +149,4 @@ class WhatsappChatLabel extends Model
         return $query->where('is_crm', true);
     }
 }
+

@@ -48,22 +48,36 @@
                     <i style="color: white;" class="fa fa-edit"></i>
                 </a>
 
-                <!-- Call Customer Button (Twilio) -->
+                <!-- Call Customer Buttons: Twilio & Next2Call -->
                 @php
                     $rowPhone = optional($effectiveUser)->mobile_no ?? '';
                     $rowCC = preg_replace('/\D+/', '', (string)(optional($effectiveUser)->countrycode ?? ''));
                     $rowName = addslashes(optional($effectiveUser)->name ?? 'Customer');
                 @endphp
                 @if($rowPhone)
+                {{-- Twilio Call Button --}}
                 <a href="#"
                    id="twilioCallBtnorderrow{{ $order->id }}"
-                   onclick="event.preventDefault(); event.stopPropagation(); initiateCustomerCall('{{ $rowCC . $rowPhone }}', '{{ $rowName }}');"
+                   onclick="event.preventDefault(); event.stopPropagation(); initiateTwilioCall('{{ $rowCC . $rowPhone }}', '{{ $rowName }}');"
                    class="btn btn-icon btn-sm"
                    style="width:28px;height:28px;min-width:28px;border-radius:6px;background-color:#25D366;color:#ffffff;display:inline-flex;align-items:center;justify-content:center;transition:transform 0.2s ease,background-color 0.2s ease;"
                    onmouseover="this.style.backgroundColor='#1ebd58';this.style.transform='scale(1.1)';"
                    onmouseout="this.style.backgroundColor='#25D366';this.style.transform='scale(1)';"
                    title="Call via Twilio">
                     <i class="fa fa-phone text-white" style="font-size:12px;"></i>
+                </a>
+
+                {{-- Next2Call Button (with red 2 badge) --}}
+                <a href="#"
+                   id="n2cCallBtnorderrow{{ $order->id }}"
+                   onclick="event.preventDefault(); event.stopPropagation(); initiateNext2Call('{{ $rowCC . $rowPhone }}', '{{ $rowName }}');"
+                   class="btn btn-icon btn-sm position-relative"
+                   style="width:28px;height:28px;min-width:28px;border-radius:6px;background-color:#25D366;color:#ffffff;display:inline-flex;align-items:center;justify-content:center;transition:transform 0.2s ease,background-color 0.2s ease;"
+                   onmouseover="this.style.backgroundColor='#1ebd58';this.style.transform='scale(1.1)';"
+                   onmouseout="this.style.backgroundColor='#25D366';this.style.transform='scale(1)';"
+                   title="Call via Next2Call">
+                    <i class="fa fa-phone text-white" style="font-size:12px;"></i>
+                    <span style="position:absolute;bottom:-2px;right:-1px;background:#e53e3e;color:#ffffff;font-size:8px;font-weight:900;line-height:1;padding:1px 2.5px;border-radius:2px;box-shadow:0 1px 2px rgba(0,0,0,0.3);font-family:Arial,sans-serif;pointer-events:none;">2</span>
                 </a>
                 @endif
 
@@ -110,6 +124,7 @@
                     <span>T</span>
                 </button>
             </div>
+            {!! get_order_duration_gap_badge($order, $effectiveDeliveryDate) !!}
         </td>
         
         <td id="order-cell-{{ $order->id }}" class="text-center {{ ($order->is_read == 1) ? 'bold-row' : '' }}" style="{{ $orderIdStyle }}">
@@ -136,23 +151,36 @@
                     @endif
                 </div><br>
             @endif
-            @if($order->team?->team_name)
-
-            @if($roleId == 1)
-                <span 
-                    class="badge badge-light-primary fs-7 fw-bold mb-1 cursor-pointer"
-                    data-bs-toggle="modal"
-                    data-bs-target="#changeTeamModal"
-                    onclick="openTeamModal('{{ $order->id }}', '{{ $order->team_id }}')"
-                >
-                    {{ $order->team->team_name }}
-                </span>
-            @else
-                <span class="badge badge-light-primary fs-7 fw-bold mb-1">
-                    {{ $order->team->team_name }}
-                </span>
-            @endif
-                
+            @if($roleId != 4)
+            <div class="d-inline-flex align-items-center justify-content-center gap-1 mb-1 order-team-badge-container-{{ $order->id }}">
+                @if($order->team?->team_name)
+                    @if(in_array($roleId, [1, 9]))
+                        <span 
+                            class="badge badge-light-primary fs-7 fw-bold cursor-pointer"
+                            data-bs-toggle="modal"
+                            data-bs-target="#changeTeamModal"
+                            onclick="openTeamModal('{{ $order->id }}', '{{ $order->team_id }}')"
+                            title="Click to change team"
+                        >
+                            <i class="fas fa-users fs-9 me-1"></i>{{ $order->team->team_name }}
+                        </span>
+                    @else
+                        <span class="badge badge-light-primary fs-7 fw-bold">
+                            <i class="fas fa-users fs-9 me-1"></i>{{ $order->team->team_name }}
+                        </span>
+                    @endif
+                @elseif(in_array($roleId, [1, 9]))
+                    <span 
+                        class="badge badge-light-secondary text-muted fs-8 fw-bold cursor-pointer"
+                        data-bs-toggle="modal"
+                        data-bs-target="#changeTeamModal"
+                        onclick="openTeamModal('{{ $order->id }}', '')"
+                        title="Click to assign team"
+                    >
+                        <i class="fas fa-plus fs-9 me-1"></i> Assign Team
+                    </span>
+                @endif
+            </div><br>
             @endif
 
             @if($order->marks)
@@ -208,6 +236,9 @@
         </td>
 
         <td class="text-center">
+            @php
+                $orderUserId = $effectiveUser ? $effectiveUser->id : ($order->uid ?? null);
+            @endphp
             @if($effectiveUser)
             @php
                 $userAssignedLabels = optional($effectiveUser)->labels ?? collect();
@@ -218,6 +249,14 @@
             <div class="d-flex align-items-center justify-content-center">
                 <span class="fw-bold">{{ $effectiveUser->name }}</span>
             </div>
+            @if(!empty($orderUserId))
+                <div class="d-inline-flex align-items-center justify-content-center gap-1 my-1">
+                    <span class="badge badge-light-dark fs-8 fw-bold">ID: {{ $orderUserId }}</span>
+                    <button type="button" class="btn btn-icon btn-sm btn-active-light-dark p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy User ID" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $orderUserId }}', 'User ID copied!');">
+                        <i class="fa fa-clone fs-8 text-muted"></i>
+                    </button>
+                </div><br>
+            @endif
 
             @if(!empty($effectiveUser->client_review))
             <span class="duplicate-info-wrapper">
@@ -247,8 +286,30 @@
                     $class = "badge-light-info"; 
                     $label = "Beginner"; 
                 } 
-                $displayMobile = mask_phone_for_display($effectiveUser->countrycode, $effectiveUser->mobile_no);
-                $displayEmail  = mask_email_for_display($effectiveUser->email);
+                $isSuperAdmin = (int) ($roleId ?? optional(auth()->user())->role_id) === 1;
+                $effMob = $effectiveUser->mobile_no;
+                $effEmail = $effectiveUser->email;
+                $effCC = $effectiveUser->countrycode;
+
+                if ($isSuperAdmin && (str_contains((string)$effMob, '*') || str_contains((string)$effEmail, '*'))) {
+                    $cleanLead = $order->lead ?: $order->frontendLead;
+                    if ($cleanLead) {
+                        if (str_contains((string)$effMob, '*') && !empty($cleanLead->mobile) && !str_contains((string)$cleanLead->mobile, '*')) {
+                            $effMob = $cleanLead->mobile;
+                            $effCC = $cleanLead->countrycode ?: $effCC;
+                        }
+                        if (str_contains((string)$effEmail, '*') && !empty($cleanLead->email) && !str_contains((string)$cleanLead->email, '*')) {
+                            $effEmail = $cleanLead->email;
+                        }
+                    }
+                }
+
+                $displayMobile = $isSuperAdmin 
+                    ? trim(($effCC ? '+'.preg_replace('/\D+/', '', (string)$effCC).' ' : '') . $effMob)
+                    : mask_phone_for_display($effectiveUser->countrycode, $effectiveUser->mobile_no);
+                $displayEmail = $isSuperAdmin 
+                    ? $effEmail 
+                    : mask_email_for_display($effectiveUser->email);
             @endphp
 
             <div class="d-inline-flex align-items-center justify-content-center gap-1 my-1">
@@ -272,6 +333,34 @@
                 </div><br>
             @endif
 
+            @php
+                $clientAccountId = crm_email_account_id('client');
+                $orderCode = trim((string)($order->order_id ?: $order->id));
+                $orderRawWAPhone = preg_replace('/\D+/', '', (string)((optional($effectiveUser)->countrycode ?? '') . (optional($effectiveUser)->mobile_no ?? '')));
+                $orderRawEmail = optional($effectiveUser)->email ?? '';
+                $orderSearchTerm = !empty($orderCode) ? $orderCode : $orderRawEmail;
+                $orderEmailUrl = route('emails.index', array_filter(['account_id' => $clientAccountId, 'search' => $orderSearchTerm]));
+            @endphp
+
+            {{-- Direct Contact Actions: WhatsApp & Email --}}
+            <div class="d-inline-flex align-items-center justify-content-center gap-2 my-1">
+                <form method="POST" action="{{ route('whatsapp.chat.open-order') }}" target="_blank" class="d-inline-flex m-0">
+                    @csrf
+                    <input type="hidden" name="order_ref" value="{{ $order->id }}">
+                    <button type="submit" class="btn btn-icon btn-sm crm-btn-wa" title="Open WhatsApp Chat">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 16 16">
+                        <path d="M13.601 2.326A7.85 7.85 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.364 2.76 1.057 3.965L0 16l4.204-1.102a7.9 7.9 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.9 7.9 0 0 0 13.6 2.326zM7.994 14.521a6.6 6.6 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.56 6.56 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592m3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.73.73 0 0 0-.529.247c-.182.198-.691.677-.691 1.654s.707 2.002.806 2.134c.098.133 1.392 2.123 3.372 2.978.471.204.838.326 1.124.418.473.15.905.129 1.246.078.38-.058 1.17-.479 1.338-.943.166-.464.166-.862.116-.944-.049-.082-.182-.133-.38-.232"/>
+                    </svg>
+                    </button>
+                </form>
+                <a href="{{ $orderEmailUrl }}" target="_blank" class="btn btn-icon btn-sm crm-btn-email" title="Client Email: {{ $orderCode ? 'Order ' . $orderCode : ($orderRawEmail ?: 'Open Emails') }}">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 16 16">
+                        <path d="M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2zm2-1a1 1 0 0 0-1 1v.217l7 4.2 7-4.2V4a1 1 0 0 0-1-1zm13 2.383-4.708 2.825L15 11.105zm-.034 6.876-5.64-3.471L8 9.583l-1.326-.795-5.64 3.47A1 1 0 0 0 2 13h12a1 1 0 0 0 .966-.741M1 11.105l4.708-2.897L1 5.383z"/>
+                    </svg>
+                </a>
+            </div>
+            <br>
+
             {{-- User Assigned Labels Chips --}}
             <div class="d-flex flex-wrap justify-content-center gap-1 my-1" data-user-labels-badges="{{ $effectiveUser->id }}" @if(!empty($rawUserMobile)) data-user-labels-badges-phone="{{ preg_replace('/\D+/', '', $rawUserMobile) }}" @endif>
                 @foreach($userAssignedLabels as $lbl)
@@ -286,8 +375,8 @@
             @endif
 
             <div class="d-flex justify-content-center align-items-center gap-2 mt-2">
-                <button type="button" class="btn btn-icon btn-sm btn-light-success" title="Assign Labels" data-user-label-button="{{ $effectiveUser->id }}" data-labels='@json($userAssignedLabelIds)' onclick="openUserLabelModal({{ $effectiveUser->id }}, @js($effectiveUser->name), @js($displayMobile), @js($displayEmail), JSON.parse(this.dataset.labels || '[]'))">
-                    <i class="fa fa-tag text-success fs-7"></i>
+                <button type="button" class="btn btn-icon btn-sm btn-light-success crm-btn-tag" title="Assign Labels" data-user-label-button="{{ $effectiveUser->id }}" data-labels='@json($userAssignedLabelIds)' onclick="openUserLabelModal({{ $effectiveUser->id }}, @js($effectiveUser->name), @js($displayMobile), @js($displayEmail), JSON.parse(this.dataset.labels || '[]'))">
+                    <i class="fa fa-tag fs-7"></i>
                 </button>
 
                 <button type="button" class="btn btn-icon btn-sm btn-light-info" title="Add Review" onclick="openReviewModal({{ $effectiveUser->id }})">
@@ -308,6 +397,14 @@
 
             @else
             <span class="badge badge-light-danger fs-7 fw-bold">User Was Deleted</span>
+            @if(!empty($orderUserId))
+                <div class="d-inline-flex align-items-center justify-content-center gap-1 my-1">
+                    <span class="badge badge-light-dark fs-8 fw-bold">ID: {{ $orderUserId }}</span>
+                    <button type="button" class="btn btn-icon btn-sm btn-active-light-dark p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy User ID" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $orderUserId }}', 'User ID copied!');">
+                        <i class="fa fa-clone fs-8 text-muted"></i>
+                    </button>
+                </div>
+            @endif
             @endif
         </td>
 
@@ -373,19 +470,33 @@
         </td>
 
         <td class="text-center" style="width:50px">
-            {!! $effectiveTitle ?: '<span class="badge badge-light-danger fs-7 fw-bold">Not Available</span>' !!}
-            <br>
+            @if($effectiveTitle)
+                <div class="d-inline-flex align-items-center justify-content-center flex-wrap">
+                    <span>{!! $effectiveTitle !!}</span>
+                    <button type="button" class="btn btn-icon btn-sm btn-active-light-primary ms-1 p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Project Title" data-copy-text="{{ strip_tags($effectiveTitle) }}" onclick="event.stopPropagation(); crmCopyToClipboard(this.getAttribute('data-copy-text'), 'Project Title copied!');">
+                        <i class="fa fa-clone fs-8 text-muted"></i>
+                    </button>
+                </div>
+            @else
+                <span class="badge badge-light-danger fs-7 fw-bold">Not Available</span>
+            @endif
             @if($effectiveSemester)
-            Semester: ({{ $effectiveSemester }})
+            <br>Semester: ({{ $effectiveSemester }})
             @endif
             @if($effectiveChapter)
-            <span class="badge badge-light-danger fs-7 fw-bold">{{ $effectiveChapter }}</span>
+            <br><span class="badge badge-light-danger fs-7 fw-bold">{{ $effectiveChapter }}</span>
             @endif
             @if($effectiveTech == '1' || $effectiveTech === 'on')
-            <span class="badge badge-light-success fs-7 fw-bold">Technical Work</span>
+            <br><span class="badge badge-light-success fs-7 fw-bold">Technical Work</span>
             @endif
             @if($effectiveModuleCode)
-            <span class="badge badge-light-danger fs-7 fw-bold">{{ $effectiveModuleCode }}</span>
+                <br>
+                <div class="d-inline-flex align-items-center justify-content-center mt-1">
+                    <span class="badge badge-light-danger fs-7 fw-bold">{{ $effectiveModuleCode }}</span>
+                    <button type="button" class="btn btn-icon btn-sm btn-active-light-primary ms-1 p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Module Code" data-copy-text="{{ $effectiveModuleCode }}" onclick="event.stopPropagation(); crmCopyToClipboard(this.getAttribute('data-copy-text'), 'Module Code copied!');">
+                        <i class="fa fa-clone fs-8 text-muted"></i>
+                    </button>
+                </div>
             @endif
         </td>
 
@@ -593,10 +704,21 @@
                 </span>
             @endif
 
-            <button type="button" class="btn btn-sm btn-light-primary mt-1 py-1 px-3 fs-8"
-                onclick="openWriterFeedbackModal({{ $order->id }}, '{{ $currentFeedback ?? '' }}')">
-                <i class="fa fa-star fs-8"></i> Rate Writer
-            </button>
+            @php
+                $orderCode = $order->order_id ?: (string) $order->id;
+                $writeEmailUrl = route('emails.index', array_filter(['account_id' => crm_email_account_id('writer'), 'search' => $orderCode]));
+            @endphp
+            <div class="d-flex align-items-center justify-content-center gap-1 mt-1">
+                <button type="button" class="btn btn-sm btn-light-primary py-1 px-3 fs-8"
+                    onclick="openWriterFeedbackModal({{ $order->id }}, '{{ $currentFeedback ?? '' }}')">
+                    <i class="fa fa-star fs-8"></i> Rate Writer
+                </button>
+                <a href="{{ $writeEmailUrl }}" target="_blank" class="btn btn-icon btn-sm crm-btn-email" style="width: 26px !important; height: 26px !important;" title="Writer Email: {{ $orderCode ? 'Order ' . $orderCode : 'Open Writer Email Channel' }}">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 16 16">
+                        <path d="M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2zm2-1a1 1 0 0 0-1 1v.217l7 4.2 7-4.2V4a1 1 0 0 0-1-1zm13 2.383-4.708 2.825L15 11.105zm-.034 6.876-5.64-3.471L8 9.583l-1.326-.795-5.64 3.47A1 1 0 0 0 2 13h12a1 1 0 0 0 .966-.741M1 11.105l4.708-2.897L1 5.383z"/>
+                    </svg>
+                </a>
+            </div>
 
             {{-- @else
             <span class="badge badge-light-danger fs-7 fw-bold">N/A</span>
@@ -610,6 +732,17 @@
                         W Q: {{ \Carbon\Carbon::parse($order->writerstatus_date)->format('d M Y h:i A') }}
                     </span>
                 @endif
+                @php
+                    $orderCode = $order->order_id ?: (string) $order->id;
+                    $writeEmailUrl = route('emails.index', array_filter(['account_id' => crm_email_account_id('writer'), 'search' => $orderCode]));
+                @endphp
+                <div class="mt-1">
+                    <a href="{{ $writeEmailUrl }}" target="_blank" class="btn btn-icon btn-sm crm-btn-email" style="width: 26px !important; height: 26px !important;" title="Writer Email: {{ $orderCode ? 'Order ' . $orderCode : 'Open Writer Email Channel' }}">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 16 16">
+                            <path d="M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2zm2-1a1 1 0 0 0-1 1v.217l7 4.2 7-4.2V4a1 1 0 0 0-1-1zm13 2.383-4.708 2.825L15 11.105zm-.034 6.876-5.64-3.471L8 9.583l-1.326-.795-5.64 3.47A1 1 0 0 0 2 13h12a1 1 0 0 0 .966-.741M1 11.105l4.708-2.897L1 5.383z"/>
+                        </svg>
+                    </a>
+                </div>
             @endif
         </td>
 
@@ -618,10 +751,31 @@
             <div class="border rounded p-3 bg-light">
 
                 @php
-                    $createdByName = $order->preloaded_creator_name
-                        ?? ($order->lead?->creator ? $order->lead->creator->name . ' (ID: ' . $order->lead->creator->id . ')' : null)
-                        ?? ($order->frontendLead?->creator ? $order->frontendLead->creator->name . ' (ID: ' . $order->frontendLead->creator->id . ')' : null)
-                        ?? ($order->created_by ?? ($order->lead?->created_by ?? (auth()->user()?->name ? auth()->user()->name . ' (ID: ' . auth()->user()->id . ')' : 'Admin User')));
+                    // mk 5 10 26 - Prioritize preloaded_creator_name to eliminate N+1 User::find queries in loop
+                    $orderCreatorUser = null;
+                    if (!empty($order->preloaded_creator_name)) {
+                        $createdByName = $order->preloaded_creator_name;
+                    } elseif ($order->lead && $order->lead->creator) {
+                        $orderCreatorUser = $order->lead->creator;
+                    } elseif (!empty($order->created_by) && is_numeric($order->created_by)) {
+                        $orderCreatorUser = \App\Models\User::select('id', 'name')->find($order->created_by);
+                    } elseif ($order->lead && !empty($order->lead->created_by) && is_numeric($order->lead->created_by)) {
+                        $orderCreatorUser = \App\Models\User::select('id', 'name')->find($order->lead->created_by);
+                    }
+
+                    if (isset($createdByName)) {
+                        // already set
+                    } elseif ($orderCreatorUser) {
+                        $createdByName = $orderCreatorUser->name . ' (ID: ' . $orderCreatorUser->id . ')';
+                    } elseif (!empty($order->created_by) && !is_numeric($order->created_by)) {
+                        $createdByName = $order->created_by;
+                    } elseif (!empty($order->lead?->created_by) && !is_numeric($order->lead->created_by)) {
+                        $createdByName = $order->lead->created_by;
+                    } elseif ($order->frontendorder == 1 || ($order->lead && $order->lead->frontendorder == 1)) {
+                        $createdByName = 'Website / Frontend';
+                    } else {
+                        $createdByName = 'Website / System';
+                    }
                 @endphp
 
                 <div class="mb-2">
@@ -694,48 +848,7 @@
         </td>
     </tr>
 
-    <!-- Change Team Modal -->
-<div class="modal fade" id="changeTeamModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
 
-            <div class="modal-header">
-                <h5 class="modal-title">Change Team</h5>
-
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-
-            <div class="modal-body">
-
-                <input type="hidden" id="modal_order_id">
-
-                <div class="mb-3">
-                    <label>Select Team</label>
-
-                    <select class="form-select" id="modal_team_id">
-                        <option value="">Select Team</option>
-
-                        @foreach($teams as $team)
-                            <option value="{{ $team->id }}">
-                                {{ $team->team_name }}
-                            </option>
-                        @endforeach
-                    </select>
-                </div>
-
-            </div>
-
-            <div class="modal-footer">
-                <button type="button"
-                        class="btn btn-primary"
-                        onclick="updateTeam()">
-                    Update
-                </button>
-            </div>
-
-        </div>
-    </div>
-</div>
 
     <style>
         .duplicate-info-wrapper {
@@ -771,45 +884,7 @@
             color: #f1416c !important;
         }
     </style>
-    <script>
 
-    function openTeamModal(orderId, teamId)
-    {
-        $('#modal_order_id').val(orderId);
-        $('#modal_team_id').val(teamId);
-    }
-
-    function updateTeam()
-    {
-        let orderId = $('#modal_order_id').val();
-        let teamId  = $('#modal_team_id').val();
-
-        $.ajax({
-            url: "{{ route('orders.change.team') }}",
-            type: "POST",
-            data: {
-                _token: "{{ csrf_token() }}",
-                order_id: orderId,
-                team_id: teamId
-            },
-
-            success: function(response)
-            {
-                $('#changeTeamModal').modal('hide');
-
-                Swal.fire({
-                    icon: 'success',
-                    title: 'Team Updated Successfully',
-                    timer: 1500,
-                    showConfirmButton: false
-                });
-
-                location.reload();
-            }
-        });
-    }
-
-</script>
 
     {{-- <script>
 	function status(orderId) {

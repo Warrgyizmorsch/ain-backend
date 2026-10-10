@@ -5,6 +5,42 @@
   .note-editor .note-editable {
     min-height: 400px;
   }
+  .cta-dropdown-menu {
+    border-radius: 12px !important;
+    border: 1px solid #e2e8f0 !important;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1) !important;
+    padding: 6px !important;
+    z-index: 1055 !important;
+  }
+  .cta-dropdown-menu .cta-menu-item {
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+    padding: 9px 14px !important;
+    border-radius: 8px !important;
+    color: #1e293b !important;
+    text-decoration: none !important;
+    font-size: 13.5px !important;
+    font-weight: 500 !important;
+    transition: background 0.15s ease, color 0.15s ease !important;
+  }
+  .cta-dropdown-menu .cta-menu-item:hover {
+    background: #f5f3ff !important;
+    color: #6d28d9 !important;
+  }
+  .blog-cta-box {
+    border: 2px dashed #7c3aed !important;
+    background: #faf5ff !important;
+    padding: 14px 20px !important;
+    text-align: center !important;
+    border-radius: 12px !important;
+    margin: 18px 0 !important;
+    color: #6d28d9 !important;
+    font-weight: 700 !important;
+    font-size: 15px !important;
+    cursor: default !important;
+    user-select: none !important;
+  }
 </style>
 <div class="docs-content d-flex flex-column flex-column-fluid" id="kt_docs_content">
     <div class="container" id="kt_docs_content_container">
@@ -150,6 +186,10 @@ $(document).ready(function () {
 
       // Convert FAQs to JSON before form submission
       document.getElementById("blogForm").addEventListener("submit", function (e) {
+          if (window.jQuery && $('#summernote').length && $.fn.summernote) {
+              var code = $('#summernote').summernote('code');
+              $('#summernote').val(code);
+          }
           let faqs = [];
           document.querySelectorAll(".faq-entry").forEach(entry => {
               let question = entry.querySelector(".faq-question").value.trim();
@@ -175,6 +215,57 @@ document.addEventListener("DOMContentLoaded", function () {
 
     loadScript('https://code.jquery.com/jquery-3.7.1.min.js', function () {
         loadScript('https://cdn.jsdelivr.net/npm/summernote@0.9.0/dist/summernote-lite.min.js', function () {
+            
+            const blogCtaItems = @json(array_values(get_blog_cta_definitions()));
+
+            function getCtaBoxHtml(item) {
+                return '<div class="blog-cta-box" data-cta-key="' + item.key + '" data-cta-id="' + item.id + '" contenteditable="false">'
+                    + item.icon + ' [' + item.key + ']'
+                    + '</div>';
+            }
+
+            var CtaDropdownButton = function (context) {
+                var ui = $.summernote.ui;
+                
+                var itemsHtml = blogCtaItems.map(function (item) {
+                    return '<a class="cta-menu-item" href="#" data-cta-id="' + item.id + '" data-cta-key="' + item.key + '">'
+                        + '<span style="font-size: 18px; line-height: 1;">' + item.icon + '</span>'
+                        + '<span>' + item.title + '</span>'
+                        + '</a>';
+                }).join('');
+
+                var button = ui.buttonGroup([
+                    ui.button({
+                        className: 'dropdown-toggle btn-cta-insert',
+                        contents: '<i class="fa fa-bullhorn" style="color: #7c3aed; margin-right: 6px;"></i> <span style="font-weight: 600;">Insert CTAs</span> <span class="note-icon-caret"></span>',
+                        tooltip: 'Insert Blog CTA Banner',
+                        data: {
+                            toggle: 'dropdown'
+                        }
+                    }),
+                    ui.dropdown({
+                        className: 'dropdown-menu cta-dropdown-menu shadow-lg',
+                        contents: '<div style="min-width: 250px;">' + itemsHtml + '</div>',
+                        callback: function ($dropdown) {
+                            $dropdown.find('.cta-menu-item').on('click', function (e) {
+                                e.preventDefault();
+                                var ctaId = $(this).data('cta-id');
+                                var ctaItem = blogCtaItems.find(function (i) { return i.id === ctaId; });
+                                if (!ctaItem) return;
+
+                                var ctaPlaceholderHtml = '<p><br></p>'
+                                    + getCtaBoxHtml(ctaItem)
+                                    + '<p><br></p>';
+
+                                context.invoke('editor.pasteHTML', ctaPlaceholderHtml);
+                            });
+                        }
+                    })
+                ]);
+
+                return button.render();
+            };
+
             $('#summernote').summernote({
                 placeholder: 'Write blog content...',
                 tabsize: 2,
@@ -184,8 +275,31 @@ document.addEventListener("DOMContentLoaded", function () {
                     ['font', ['bold', 'italic', 'underline', 'clear']],
                     ['para', ['ul', 'ol', 'paragraph']],
                     ['insert', ['link', 'picture']],
+                    ['custom', ['cta']],
                     ['view', ['codeview']]
-                ]
+                ],
+                buttons: {
+                    cta: CtaDropdownButton
+                },
+                callbacks: {
+                    onInit: function () {
+                        // Ensure existing tokens are displayed as visual CTA boxes in editor
+                        try {
+                            var content = $('#summernote').summernote('code');
+                            if (content) {
+                                blogCtaItems.forEach(function (item) {
+                                    var token = '[' + item.key + ']';
+                                    if (content.indexOf(token) !== -1 && content.indexOf('data-cta-key="' + item.key + '"') === -1) {
+                                        content = content.split(token).join(getCtaBoxHtml(item));
+                                    }
+                                });
+                                $('#summernote').summernote('code', content);
+                            }
+                        } catch (err) {
+                            console.error(err);
+                        }
+                    }
+                }
             });
         });
     });

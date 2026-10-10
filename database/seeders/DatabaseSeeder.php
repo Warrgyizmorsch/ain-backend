@@ -16,6 +16,8 @@ class DatabaseSeeder extends Seeder
             AdminMenuSeeder::class,
             UserRetentionReportPermissionSeeder::class,
             WalletMenuSeeder::class,
+            EmailConfigurationSeeder::class,
+            PluginMenuSeeder::class,
         ]);
 
         // \App\Models\User::factory()->create([

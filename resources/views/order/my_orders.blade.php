@@ -85,8 +85,11 @@
 													</button>
 												@endif
 											</div>
+											{!! get_order_duration_gap_badge($order) !!}
 											@if($order->team?->team_name)
-											<span class="badge badge-light-primary fs-7 fw-bold ">{{ $order->team->team_name }}</span>
+												<div class="d-inline-flex align-items-center justify-content-center gap-1 mb-1">
+													<span class="badge badge-light-primary fs-7 fw-bold">{{ $order->team->team_name }}</span>
+												</div><br>
 											@endif
 											<span class="badge badge-light-danger fs-7 fw-bold ">{{$order->feedback_ticket}}</span>
 
@@ -106,14 +109,41 @@
 												@php
 													$userAssignedLabels = optional($order->user)->labels ?? collect();
 													$userAssignedLabelIds = $userAssignedLabels->pluck('id')->all();
+													$isSuperAdmin = auth()->check() && (int) auth()->user()->role_id === 1;
 													$rawUserMobile = $order->user->mobile_no ?: '';
 													$rawUserEmail = $order->user->email ?: '';
-													$displayMobile = mask_phone_for_display($order->user->countrycode, $order->user->mobile_no);
-													$displayEmail  = mask_email_for_display($order->user->email);
+													$rawUserCC = $order->user->countrycode ?: '';
+
+													if ($isSuperAdmin && (str_contains($rawUserMobile, '*') || str_contains($rawUserEmail, '*'))) {
+														$cleanLead = $order->lead ?: $order->frontendLead;
+														if ($cleanLead) {
+															if (str_contains($rawUserMobile, '*') && !empty($cleanLead->mobile) && !str_contains($cleanLead->mobile, '*')) {
+																$rawUserMobile = $cleanLead->mobile;
+																$rawUserCC = $cleanLead->countrycode ?: $rawUserCC;
+															}
+															if (str_contains($rawUserEmail, '*') && !empty($cleanLead->email) && !str_contains($cleanLead->email, '*')) {
+																$rawUserEmail = $cleanLead->email;
+															}
+														}
+													}
+
+													$displayMobile = $isSuperAdmin 
+														? trim(($rawUserCC ? ('+' . preg_replace('/\D+/', '', (string)$rawUserCC) . ' ') : '') . $rawUserMobile)
+														: mask_phone_for_display($order->user->countrycode, $order->user->mobile_no);
+													$displayEmail  = $isSuperAdmin 
+														? $rawUserEmail 
+														: mask_email_for_display($order->user->email);
 												@endphp
 												<div class="d-flex align-items-center justify-content-center">
 													<span class="fw-bold">{{ $order->user->name }}</span>
 												</div>
+												<div class="d-inline-flex align-items-center justify-content-center gap-1 my-1">
+													<span class="badge badge-light-dark fs-8 fw-bold">ID: {{ $order->user->id }}</span>
+													<button type="button" class="btn btn-icon btn-sm btn-active-light-dark p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy User ID" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $order->user->id }}', 'User ID copied!');">
+														<i class="fa fa-clone fs-8 text-muted"></i>
+													</button>
+												</div>
+												<br>
 												@if(!empty($order->user->email))
 													<div class="d-inline-flex align-items-center my-1">
 														<span class="text-gray-600 fs-8 text-break">{{ $displayEmail }}</span>
@@ -132,6 +162,31 @@
 													</div>
 												@endif
 
+												@php
+											$clientAccountId = crm_email_account_id('client');
+													$orderCode = trim((string)($order->order_id ?: $order->id));
+													$orderRawWAPhone = preg_replace('/\D+/', '', (string)((optional($order->user)->countrycode ?? '') . (optional($order->user)->mobile_no ?? '')));
+													$orderRawEmail = optional($order->user)->email ?? '';
+													$orderSearchTerm = !empty($orderCode) ? $orderCode : $orderRawEmail;
+													$orderEmailUrl = route('emails.index', array_filter(['account_id' => $clientAccountId, 'search' => $orderSearchTerm]));
+											$orderWhatsAppUrl = !empty($orderRawWAPhone) ? route('whatsapp.chat', ['order_ref' => $order->id]) : route('whatsapp.chat');
+												@endphp
+
+												{{-- Direct Contact Actions: WhatsApp & Email --}}
+												<div class="d-inline-flex align-items-center justify-content-center gap-2 my-1">
+													<a href="{{ $orderWhatsAppUrl }}" target="_blank" class="btn btn-icon btn-sm crm-btn-wa" title="Open WhatsApp Chat">
+														<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 16 16">
+															<path d="M13.601 2.326A7.85 7.85 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.364 2.76 1.057 3.965L0 16l4.204-1.102a7.9 7.9 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.9 7.9 0 0 0 13.6 2.326zM7.994 14.521a6.6 6.6 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.56 6.56 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592m3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.73.73 0 0 0-.529.247c-.182.198-.691.677-.691 1.654s.707 2.002.806 2.134c.098.133 1.392 2.123 3.372 2.978.471.204.838.326 1.124.418.473.15.905.129 1.246.078.38-.058 1.17-.479 1.338-.943.166-.464.166-.862.116-.944-.049-.082-.182-.133-.38-.232"/>
+														</svg>
+													</a>
+													<a href="{{ $orderEmailUrl }}" target="_blank" class="btn btn-icon btn-sm crm-btn-email" title="Client Email: {{ $orderCode ? 'Order ' . $orderCode : ($orderRawEmail ?: 'Open Emails') }}">
+														<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 16 16">
+															<path d="M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2zm2-1a1 1 0 0 0-1 1v.217l7 4.2 7-4.2V4a1 1 0 0 0-1-1zm13 2.383-4.708 2.825L15 11.105zm-.034 6.876-5.64-3.471L8 9.583l-1.326-.795-5.64 3.47A1 1 0 0 0 2 13h12a1 1 0 0 0 .966-.741M1 11.105l4.708-2.897L1 5.383z"/>
+														</svg>
+													</a>
+												</div>
+												<br>
+
 												{{-- User Assigned Labels Chips --}}
 												<div class="d-flex flex-wrap justify-content-center gap-1 my-1" data-user-labels-badges="{{ $order->user->id }}" @if(!empty($rawUserMobile)) data-user-labels-badges-phone="{{ preg_replace('/\D+/', '', $rawUserMobile) }}" @endif>
 													@foreach($userAssignedLabels as $lbl)
@@ -142,12 +197,20 @@
 												</div>
 
 												<div class="d-flex justify-content-center align-items-center gap-2 mt-2">
-													<button type="button" class="btn btn-icon btn-sm btn-light-success" title="Assign Labels" data-user-label-button="{{ $order->user->id }}" data-labels='@json($userAssignedLabelIds)' onclick="openUserLabelModal({{ $order->user->id }}, @js($order->user->name), @js($displayMobile ?? ''), @js($displayEmail ?? ''), JSON.parse(this.dataset.labels || '[]'))">
-														<i class="fa fa-tag text-success fs-7"></i>
+													<button type="button" class="btn btn-icon btn-sm btn-light-success crm-btn-tag" title="Assign Labels" data-user-label-button="{{ $order->user->id }}" data-labels='@json($userAssignedLabelIds)' onclick="openUserLabelModal({{ $order->user->id }}, @js($order->user->name), @js($displayMobile ?? ''), @js($displayEmail ?? ''), JSON.parse(this.dataset.labels || '[]'))">
+														<i class="fa fa-tag fs-7"></i>
 													</button>
 												</div>
 											@else
 												User Was Deleted
+												@if(!empty($order->uid))
+													<div class="d-inline-flex align-items-center justify-content-center gap-1 my-1">
+														<span class="badge badge-light-dark fs-8 fw-bold">ID: {{ $order->uid }}</span>
+														<button type="button" class="btn btn-icon btn-sm btn-active-light-dark p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy User ID" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $order->uid }}', 'User ID copied!');">
+															<i class="fa fa-clone fs-8 text-muted"></i>
+														</button>
+													</div>
+												@endif
 											@endif
 										</td>
 										
@@ -267,12 +330,28 @@
 										</td>
 
 										<td>
+											@php
+												$orderCode = $order->order_id ?: (string) $order->id;
+										$writeEmailUrl = route('emails.index', array_filter(['account_id' => crm_email_account_id('writer'), 'search' => $orderCode]));
+											@endphp
 											@if($order->writer_name != null)
-												{{ $order->writer_name }}
+												<div class="d-inline-flex align-items-center justify-content-center gap-1">
+													<span>{{ $order->writer_name }}</span>
+													<a href="{{ $writeEmailUrl }}" target="_blank" class="btn btn-icon btn-sm crm-btn-email" style="width: 20px !important; height: 20px !important; min-width: 20px !important;" title="Writer Email: {{ $orderCode ? 'Order ' . $orderCode : 'Open Writer Email Channel' }}">
+														<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 16 16">
+															<path d="M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2zm2-1a1 1 0 0 0-1 1v.217l7 4.2 7-4.2V4a1 1 0 0 0-1-1zm13 2.383-4.708 2.825L15 11.105zm-.034 6.876-5.64-3.471L8 9.583l-1.326-.795-5.64 3.47A1 1 0 0 0 2 13h12a1 1 0 0 0 .966-.741M1 11.105l4.708-2.897L1 5.383z"/>
+														</svg>
+													</a>
+												</div>
 												<br>
 												<span style="background-color: #f8f5ff;" class="badge badge-light-info fs-7 fw-bold">{{ \Carbon\Carbon::parse($order->writer_deadline)->format('d M Y') }}</span>	
 											@else
-                                            <span class="badge badge-light-danger fs-7 fw-bold">N/A</span>											
+                                            <span class="badge badge-light-danger fs-7 fw-bold">N/A</span>
+											<a href="{{ $writeEmailUrl }}" target="_blank" class="btn btn-icon btn-sm crm-btn-email ms-1" style="width: 20px !important; height: 20px !important; min-width: 20px !important;" title="Writer Email: {{ $orderCode ? 'Order ' . $orderCode : 'Open Writer Email Channel' }}">
+												<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 16 16">
+													<path d="M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2zm2-1a1 1 0 0 0-1 1v.217l7 4.2 7-4.2V4a1 1 0 0 0-1-1zm13 2.383-4.708 2.825L15 11.105zm-.034 6.876-5.64-3.471L8 9.583l-1.326-.795-5.64 3.47A1 1 0 0 0 2 13h12a1 1 0 0 0 .966-.741M1 11.105l4.708-2.897L1 5.383z"/>
+												</svg>
+											</a>											
                                             @endif
 										</td>
 										<td>
@@ -563,7 +642,8 @@
 				};
 				$.ajax({
 					type: 'POST',
-					url: 'update_status',
+					// mk 6/10/2026: Use named route to avoid 404 errors on subpaths/trailing slashes
+					url: '{{ route('update_status') }}',
 					data: updateData,
 					success: function(response) {
 						if (response.warning) {

@@ -160,9 +160,10 @@
                 $cPhone = $c['phone'] ?? '';
                 $rawCName = trim($c['name'] ?? '');
                 $cleanCPhone = preg_replace('/\D+/', '', (string)$cPhone);
+                $cleanCPhone10 = strlen($cleanCPhone) >= 10 ? substr($cleanCPhone, -10) : $cleanCPhone;
                 $cleanCName = preg_replace('/\D+/', '', (string)$rawCName);
-                if (empty($rawCName) || $rawCName === $cPhone || ($cleanCPhone !== '' && $cleanCName === $cleanCPhone) || $rawCName === 'System') {
-                    $cDisplayName = 'Unknown User';
+                if (empty($rawCName) || $rawCName === $cPhone || ($cleanCPhone !== '' && $cleanCName === $cleanCPhone) || ($cleanCPhone10 !== '' && $cleanCName === $cleanCPhone10) || strlen($cleanCName) >= 10 || $rawCName === 'System' || $rawCName === 'Unknown User') {
+                    $cDisplayName = $c['phone_display'] ?? mask_phone_for_display('', $cPhone);
                 } else {
                     $cDisplayName = $rawCName;
                 }
@@ -173,9 +174,9 @@
                 $cIsClosed = !empty($c['is_closed']);
                 $cTemplateRequired = !empty($c['template_required']);
             @endphp
-            <div class="wab-contact-item {{ $c['active'] ? 'is-active' : '' }}" id="wab-contact-card-{{ preg_replace('/\D+/', '', $cPhone) }}" data-name="{{ strtolower($cDisplayName) }}" data-contact-id="{{ $c['id'] }}" data-url="{{ isset($c['phone']) ? route('whatsapp.chat', ['phone' => $c['phone']]) : '' }}" data-phone="{{ $cPhone }}" data-color="{{ $c['color'] }}" data-badge="{{ $c['badge'] ?? 0 }}" data-is-group="{{ !empty($c['is_group']) ? '1' : '0' }}" data-is-archived="{{ $cIsArchived ? '1' : '0' }}" data-is-pinned="{{ $cIsPinned ? '1' : '0' }}" data-is-closed="{{ $cIsClosed ? '1' : '0' }}" data-template-required="{{ $cTemplateRequired ? '1' : '0' }}" data-label-ids="{{ json_encode(array_values(array_map('strval', $cLabelIds ?? []))) }}">
+            <div class="wab-contact-item {{ $c['active'] ? 'is-active' : '' }}" id="wab-contact-card-{{ preg_replace('/\D+/', '', $cPhone) }}" data-name="{{ strtolower($cDisplayName) }}" data-contact-id="{{ $c['id'] }}" data-url="{{ route('whatsapp.chat') }}" data-phone="{{ $cPhone }}" data-phone-display="{{ $c['phone_display'] ?? mask_phone_for_display('', $cPhone) }}" data-color="{{ $c['color'] }}" data-badge="{{ $c['badge'] ?? 0 }}" data-is-group="{{ !empty($c['is_group']) ? '1' : '0' }}" data-is-archived="{{ $cIsArchived ? '1' : '0' }}" data-is-pinned="{{ $cIsPinned ? '1' : '0' }}" data-is-closed="{{ $cIsClosed ? '1' : '0' }}" data-template-required="{{ $cTemplateRequired ? '1' : '0' }}" data-label-ids="{{ json_encode(array_values(array_map('strval', $cLabelIds ?? []))) }}">
                 <div class="wab-avatar" style="background:{{ $c['color'] }}1a;color:{{ $c['color'] }}">
-                    {{ strtoupper(substr($cDisplayName,0,1)) }}
+                    {{ (preg_match('/^\d|\*/', $cDisplayName)) ? '#' : strtoupper(substr($cDisplayName,0,1)) }}
                     <span class="wab-status-badge wab-status--{{ $c['status'] }}"></span>
                 </div>
                 <div class="wab-contact-info">
@@ -189,7 +190,7 @@
                         </div>
                     </div>
                     <div class="wab-contact-row-bottom">
-                        <span class="wab-contact-preview">{{ $c['msg'] }}</span>
+                        <span class="wab-contact-preview">{{ mask_chat_text($c['msg']) }}</span>
                         <div class="wab-contact-row-right d-flex align-items-center gap-1">
                             @if($c['badge'])
                                 <span class="wab-badge">{{ $c['badge'] }}</span>
@@ -270,24 +271,22 @@
     {{-- ── CONVERSATION PANEL ── --}}
     <section class="wab-conversation" style="position:relative">
 
-        @unless($selectedPhone)
-            <div class="wab-blank-chat">
-                <div class="wab-blank-actions">
-                    <button type="button">
-                        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                        <span>Send document</span>
-                    </button>
-                    <button type="button" data-bs-toggle="modal" data-bs-target="#newWaChatModal">
-                        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
-                        <span>Add contact</span>
-                    </button>
-                    <button type="button">
-                        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
-                        <span>Ask AI</span>
-                    </button>
-                </div>
+        <div class="wab-blank-chat {{ $selectedPhone ? 'd-none' : '' }}">
+            <div class="wab-blank-actions">
+                <button type="button">
+                    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                    <span>Send document</span>
+                </button>
+                <button type="button" data-bs-toggle="modal" data-bs-target="#newWaChatModal">
+                    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
+                    <span>Add contact</span>
+                </button>
+                <button type="button">
+                    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+                    <span>Ask AI</span>
+                </button>
             </div>
-        @endunless
+        </div>
 
         {{-- Conv Header --}}
         <div class="wab-conv-header {{ !$selectedPhone ? 'd-none' : '' }}">
@@ -328,14 +327,27 @@
                         <span id="waHeaderCheckOrdersText">Orders @if(($customerSummary['orders_count'] ?? 0) > 0)({{ $customerSummary['orders_count'] }})@endif</span>
                     </button>
 
+                    {{-- Client Email Button (Only shown when customer is linked to a user with email) --}}
+                    <a href="{{ $customerSummary['client_email_url'] ?? '#' }}" target="_blank" class="wab-header-action-btn wab-header-btn-client-email {{ empty($customerSummary['client_email_url']) ? 'd-none' : '' }}" id="waHeaderClientEmailBtn" title="{{ !empty($customerSummary['email']) ? 'Client Email: ' . mask_email_for_display($customerSummary['email']) : 'Client Email' }}">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+                        <span id="waHeaderClientEmailText">Client Email</span>
+                    </a>
+
+
                     {{-- Create Lead Button (Circle Plus Icon Only) --}}
                     <button type="button" class="wab-header-icon-btn wab-header-btn-create-lead" data-bs-toggle="modal" data-bs-target="#kt_modal_create_appaa_newLeads" id="waHeaderCreateLeadBtn" title="Create New Lead">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>
                     </button>
 
-                    {{-- Twilio Call Button (Call Icon Only) --}}
-                    <button type="button" class="wab-header-icon-btn wab-header-btn-call" id="waHeaderCallBtn" title="Call customer via Twilio" onclick="initiateCustomerCall()">
+                    {{-- Twilio Call Button --}}
+                    <button type="button" class="wab-header-icon-btn wab-header-btn-call" id="waHeaderCallTwilioBtn" title="Call via Twilio" onclick="initiateTwilioCall(window.selectedPhone || window.selectedCustomerPhone, window.selectedCustomerName || 'Customer')">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+                    </button>
+
+                    {{-- Next2Call Button (with red 2 badge) --}}
+                    <button type="button" class="wab-header-icon-btn wab-header-btn-call position-relative" id="waHeaderCallN2cBtn" title="Call via Next2Call" onclick="initiateNext2Call(window.selectedPhone || window.selectedCustomerPhone, window.selectedCustomerName || 'Customer')">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+                        <span style="position:absolute;bottom:0px;right:2px;background:#e53e3e;color:#ffffff;font-size:7.5px;font-weight:900;line-height:1;padding:1px 2px;border-radius:2px;font-family:Arial,sans-serif;pointer-events:none;">2</span>
                     </button>
 
                     {{-- Label Chat Button (Tag Icon Only) --}}
@@ -356,8 +368,7 @@
                         <button type="button" id="wabSendTemplateMenuBtn" class="{{ $selectedTemplateRequired ? '' : 'd-none' }}" data-bs-toggle="modal" data-bs-target="#waSendTemplateModal" onclick="openSendTemplateModal()">Send template</button>
                         <button type="button" id="wabPinChatBtn">Pin chat</button>
                         <button type="button" id="wabMarkUnreadBtn">Mark as unread</button>
-                        <button type="button" id="wabArchiveChatBtn">Archive chat</button>
-                        <a href="{{ route('whatsapp.chat') }}" id="wabCloseChatBtn">Close chat</a>
+                        <button type="button" id="wabCloseChatBtn" onclick="window.closeActiveChatRealtime()">Close chat</button>
                     </div>
                 </div>
             </div>
@@ -444,7 +455,16 @@
                     @php $lastRenderedDate = $messageDate; @endphp
                 @endif
                 <div class="wab-msg-row {{ $message->direction === 'inbound' ? 'wab-incoming' : 'wab-outgoing' }}" data-message-id="{{ $message->id }}">
-                    <div class="wab-msg-bubble {{ $messageMediaType ? 'wab-bubble--media wab-bubble--' . $messageMediaType : '' }}">
+                    <div class="wab-msg-bubble {{ $messageMediaType ? 'wab-bubble--media wab-bubble--' . $messageMediaType : '' }}" data-copy-text="{{ mask_chat_text($message->message) ?: ($message->media_name ?: $message->media_url) }}">
+                        <button type="button" class="wab-copy-msg-btn" title="Copy message" aria-label="Copy message" data-copy-text="{{ mask_chat_text($message->message) ?: ($message->media_name ?: $message->media_url) }}">
+                            <svg class="wab-copy-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                            </svg>
+                            <svg class="wab-copied-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:none;">
+                                <polyline points="20 6 9 17 4 12"></polyline>
+                            </svg>
+                        </button>
                         @if($message->media_url)
                             @php
                                 $messageMediaUrl = $mediaDisplayUrl($message->media_url);
@@ -493,10 +513,10 @@
                                 </a>
                             @endif
                             @if(trim($message->message ?? '') !== '')
-                                <div class="wab-media-caption">{{ $message->message }}</div>
+                                <div class="wab-media-caption">{!! mask_chat_html($message->message) !!}</div>
                             @endif
                         @else
-                            {{ $message->message }}
+                            <span class="wab-msg-text">{!! mask_chat_html($message->message) !!}</span>
                         @endif
                         <div class="wab-msg-meta">
                             <span class="wab-msg-time">{{ optional($message->created_at)->format('H:i') }}</span>
@@ -1013,7 +1033,12 @@
                         </div>
                         <div class="col-md-6">
                             <label class="wab-form-label fw-bold">Email Address</label>
-                            <input type="email" name="email" id="waCreateLeadEmail" class="wab-form-input" value="{{ $existingUser->email ?? '' }}" placeholder="customer@example.com">
+                            @if(auth()->user()->role_id == 1)
+                                <input type="email" name="email" id="waCreateLeadEmail" class="wab-form-input" value="{{ $existingUser->email ?? '' }}" placeholder="customer@example.com">
+                            @else
+                                <input type="hidden" name="email" id="waCreateLeadEmailReal" value="{{ $existingUser->email ?? '' }}">
+                                <input type="text" id="waCreateLeadEmail" class="wab-form-input" value="{{ mask_email_for_display($existingUser->email ?? '') }}" placeholder="customer@example.com" autocomplete="off">
+                            @endif
                         </div>
 
                         {{-- Phone Numbers --}}
@@ -1224,7 +1249,7 @@
      CHECK LEADS MODAL (AJAX Preloader & On-Demand Load)
 ══════════════════════════════════════════════════ --}}
 <div class="modal fade" id="waCheckLeadsModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered mw-1000px modal-dialog-scrollable">
+    <div class="modal-dialog modal-dialog-centered modal-xl modal-dialog-scrollable" style="max-width: 95vw; width: 1400px; margin: 1.5rem auto;">
         <div class="modal-content wab-modal-content">
             <div class="modal-header wab-modal-header" style="background:linear-gradient(135deg,#1565c0,#0d47a1)">
                 <div class="wab-modal-icon" style="background:rgba(255,255,255,0.2)">
@@ -1235,16 +1260,19 @@
                     <div class="text-white opacity-75 fs-8">Customer: <strong>{{ $selectedContact['name'] ?? 'User' }}</strong> ({{ $selectedPhone ? mask_phone_for_display('', $selectedPhone) : '' }})</div>
                 </div>
                 <div class="ms-auto d-flex align-items-center gap-2">
-                    <a href="{{ route('leads') }}" target="_blank" id="waLeadsModalViewAllBtn" class="btn btn-sm btn-light py-1 px-3 fs-8 fw-bold" title="Open Leads page for this customer">
+                    {{-- <a href="{{ route('leads') }}" target="_blank" id="waLeadsModalViewAllBtn"  --}}
+{{-- mk --}}
+                    <a href="{{ route('lead.index') }}" target="_blank" id="waLeadsModalViewAllBtn"
+                    class="btn btn-sm btn-light py-1 px-3 fs-8 fw-bold" title="Open Leads page for this customer">
                         <i class="fa fa-external-link me-1"></i>View All Leads
                     </a>
-                    <button type="button" class="btn btn-sm btn-success py-1 px-3 fs-8 fw-bold" data-bs-dismiss="modal" data-bs-toggle="modal" data-bs-target="#waCreateLeadModal">
+                    <button type="button" class="btn btn-sm btn-success py-1 px-3 fs-8 fw-bold" data-bs-dismiss="modal" data-bs-toggle="modal" data-bs-target="#kt_modal_create_appaa_newLeads">
                         <i class="fa fa-plus me-1"></i>+ New Lead
                     </button>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
             </div>
-            <div class="modal-body p-0" id="waLeadsScrollBody" style="max-height:460px;overflow-y:auto">
+            <div class="modal-body p-0" id="waLeadsScrollBody" style="max-height: calc(85vh - 130px); min-height: 400px; overflow-y: auto;">
                 {{-- Spinner / Preloader --}}
                 <div id="waLeadsPreloader" class="text-center py-5">
                     <div class="spinner-border text-primary" role="status" style="width:2.5rem;height:2.5rem">
@@ -1259,7 +1287,7 @@
                     <div class="text-muted fs-4 mb-2"><i class="fa fa-folder-open text-gray-400 fs-1"></i></div>
                     <div class="fw-bolder text-dark fs-6">No Leads Found for this Customer</div>
                     <div class="text-muted fs-8 mt-1">No CRM Lead record found for this WhatsApp contact.</div>
-                    <button type="button" class="btn btn-sm btn-primary mt-3" data-bs-dismiss="modal" data-bs-toggle="modal" data-bs-target="#waCreateLeadModal">
+                    <button type="button" class="btn btn-sm btn-primary mt-3" data-bs-dismiss="modal" data-bs-toggle="modal" data-bs-target="#kt_modal_create_appaa_newLeads">
                         <i class="fa fa-plus-circle me-1"></i>Create First Lead
                     </button>
                 </div>
@@ -1302,7 +1330,7 @@
      CHECK ORDERS MODAL (AJAX Preloader & On-Demand Load)
 ══════════════════════════════════════════════════ --}}
 <div class="modal fade" id="waCheckOrdersModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered mw-1000px modal-dialog-scrollable">
+    <div class="modal-dialog modal-dialog-centered modal-xl modal-dialog-scrollable" style="max-width: 95vw; width: 1400px; margin: 1.5rem auto;">
         <div class="modal-content wab-modal-content">
             <div class="modal-header wab-modal-header" style="background:linear-gradient(135deg,#6a1b9a,#4a148c);padding:14px 20px;">
                 <div class="d-flex align-items-center gap-3">
@@ -1315,13 +1343,13 @@
                     </div>
                 </div>
                 <div class="ms-auto d-flex align-items-center gap-2">
-                    <a href="{{ route('orders.index') }}" target="_blank" id="waOrdersModalViewAllBtn" class="btn btn-sm btn-light py-1.5 px-3 fs-9 fw-bold rounded" title="Open Orders page for this customer">
+                    <a href="{{ !empty($customerSummary['user']['id']) ? route('orders.index', ['uid' => $customerSummary['user']['id'], 'user' => $customerSummary['user']['name'] ?? '']) : route('orders.index') }}" target="_blank" id="waOrdersModalViewAllBtn" class="btn btn-sm btn-light py-1.5 px-3 fs-9 fw-bold rounded" title="Open Orders page for this customer">
                         <i class="fa fa-external-link me-1"></i>View All Orders
                     </a>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
             </div>
-            <div class="modal-body p-0" id="waOrdersScrollBody" style="max-height:460px;overflow-y:auto">
+            <div class="modal-body p-0" id="waOrdersScrollBody" style="max-height: calc(85vh - 130px); min-height: 400px; overflow-y: auto;">
                 {{-- Spinner / Preloader --}}
                 <div id="waOrdersPreloader" class="text-center py-5">
                     <div class="spinner-border" role="status" style="width:2.5rem;height:2.5rem;color:#6a1b9a">
@@ -1340,17 +1368,17 @@
 
                 {{-- Table Wrap --}}
                 <div id="waOrdersTableWrap" class="table-responsive d-none">
-                    <table class="table table-bordered table-hover align-middle mb-0 fs-8 wab-crm-border-table" id="waOrdersTable" style="border:1px solid #cbd5e1 !important">
+                    <table class="table table-bordered table-hover align-middle mb-0 fs-8 wab-crm-border-table w-100" id="waOrdersTable" style="border:1px solid #cbd5e1 !important; width: 100%;">
                         <thead class="bg-light fw-bolder text-uppercase text-gray-800 fs-9 position-sticky top-0" style="z-index:2;background:#f1f5f9 !important">
                             <tr>
-                                <th style="border:1px solid #cbd5e1 !important;width:40px;text-align:center">#</th>
-                                <th style="border:1px solid #cbd5e1 !important;min-width:140px;text-align:start">Order ID &amp; Labels</th>
-                                <th style="border:1px solid #cbd5e1 !important;min-width:160px;text-align:start">Title &amp; Service</th>
-                                <th style="border:1px solid #cbd5e1 !important;width:75px;text-align:center">Words</th>
-                                <th style="border:1px solid #cbd5e1 !important;min-width:140px;text-align:start">Total, Paid &amp; Due</th>
-                                <th style="border:1px solid #cbd5e1 !important;width:120px;text-align:center">Project Status</th>
-                                <th style="border:1px solid #cbd5e1 !important;min-width:190px;text-align:start">Dates</th>
-                                <th style="border:1px solid #cbd5e1 !important;width:95px;text-align:center">Action</th>
+                                <th style="border:1px solid #cbd5e1 !important;width:38px;text-align:center">#</th>
+                                <th style="border:1px solid #cbd5e1 !important;width:130px;text-align:start">Order ID &amp; Labels</th>
+                                <th style="border:1px solid #cbd5e1 !important;min-width:180px;text-align:start">Title &amp; Service</th>
+                                <th style="border:1px solid #cbd5e1 !important;width:60px;text-align:center">Words</th>
+                                <th style="border:1px solid #cbd5e1 !important;width:135px;text-align:start">Total, Paid &amp; Due</th>
+                                <th style="border:1px solid #cbd5e1 !important;width:110px;text-align:center">Project Status</th>
+                                <th style="border:1px solid #cbd5e1 !important;width:190px;text-align:start">Dates</th>
+                                <th style="border:1px solid #cbd5e1 !important;width:190px;text-align:center">Actions</th>
                             </tr>
                         </thead>
                         <tbody id="waOrdersTbody"></tbody>
@@ -1376,7 +1404,7 @@
      ORDER PAYMENT MODAL (Clean Component Loader)
 ══════════════════════════════════════════════════ --}}
 <div class="modal fade" id="waOrderPaymentModal" tabindex="-1" aria-hidden="true" style="z-index: 1065;">
-    <div class="modal-dialog modal-dialog-centered mw-1000px modal-dialog-scrollable">
+    <div class="modal-dialog modal-dialog-centered modal-xl modal-dialog-scrollable" style="max-width: 95vw; width: 1150px; margin: 1.5rem auto;">
         <div class="modal-content wab-modal-content">
             <div class="modal-header wab-modal-header" style="background:linear-gradient(135deg,#059669,#10b981)">
                 <div class="wab-modal-icon" style="background:rgba(255,255,255,0.2)">
@@ -1393,7 +1421,7 @@
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
             </div>
-            <div class="modal-body p-0 position-relative" id="waPaymentModalBody" style="max-height: 520px; overflow-y: auto; background: #f8fafc;">
+            <div class="modal-body p-0 position-relative" id="waPaymentModalBody" style="max-height: calc(85vh - 130px); min-height: 480px; overflow-y: auto; background: #f8fafc;">
                 <div id="waPaymentModalLoader" class="text-center py-5">
                     <div class="spinner-border text-success" role="status" style="width:2.5rem;height:2.5rem">
                         <span class="visually-hidden">Loading...</span>
@@ -1531,38 +1559,43 @@
     </div>
 </div>
 
+@php
+    $initialCustomerUser = $customerSummary['user'] ?? null;
+    if (!$initialCustomerUser && !empty($existingUser)) {
+        $initialCustomerUser = [
+            'id' => $existingUser->id,
+            'name' => $existingUser->name,
+            'email' => $existingUser->email,
+            'masked_email' => mask_email_for_display($existingUser->email),
+            'countrycode' => $existingUser->countrycode,
+            'mobile_no' => $existingUser->mobile_no,
+            'masked_mobile' => mask_mobile_only($existingUser->countrycode, $existingUser->mobile_no),
+            'refer_id' => $existingUser->refer_id ?? null,
+        ];
+    }
+@endphp
 <script>
+// Clean raw phone from browser address bar immediately so it is never exposed in URL
+if (window.history && window.history.replaceState && window.location.search.includes('phone=')) {
+    window.history.replaceState({}, document.title, window.location.pathname);
+}
 window.selectedCustomerPhone = @json($selectedPhone ?? '');
-window.currentCustomerUser = @json($existingUser ?? null);
+window.currentCustomerUser = @json($initialCustomerUser);
 window.currentCustomerRefer = @json($customerSummary['refer_user'] ?? null);
-window.currentCustomerName = @json($selectedName ?? '');
+window.currentCustomerName = @json($customerSummary['name'] ?? ($selectedName ?? ''));
 window.leadsLoadedPhone = null;
-window.ordersLoadedPhone = null;
+window.ordersLoadedCustomerKey = null;
 window.resetLeadsOrdersPhone = function(phone) {
     window.selectedCustomerPhone = phone;
     window.leadsLoadedPhone = null;
-    window.ordersLoadedPhone = null;
+    window.ordersLoadedCustomerKey = null;
 };
 
-window.syncCrmNewLeadModal = function(phone, resolvedName, userObj, referUserObj) {
-    const crmNewLeadModal = document.getElementById('kt_modal_create_appaa_newLeads');
-    if (!crmNewLeadModal) return;
-
-    const nameInp = crmNewLeadModal.querySelector('input[name="user_name"]');
-    const emailInp = crmNewLeadModal.querySelector('input[name="email"]');
-    const idInp = crmNewLeadModal.querySelector('input[name="id"]');
-    const ccInp = crmNewLeadModal.querySelector('input[name="countrycode"]');
-    const mobInp = crmNewLeadModal.querySelector('input[name="mobile"]');
-    const referIdInp = crmNewLeadModal.querySelector('#refer_id');
-    const referSearchInp = crmNewLeadModal.querySelector('#refer_search');
-    const mobileUserResult = crmNewLeadModal.querySelector('#mobile_user_result');
-
-    if (mobileUserResult) mobileUserResult.style.display = 'none';
-
-    // Parse Country Code and Mobile Number
-    let defaultCc = '';
-    let defaultMob = phone ? String(phone) : '';
-    const cleanP = (phone ? String(phone) : '').replace(/\D/g, '');
+window.parseChatPhone = function(phone) {
+    let defaultCc = '44';
+    let defaultMob = '';
+    if (!phone) return { cc: defaultCc, mobile: defaultMob };
+    const cleanP = String(phone).replace(/\D/g, '');
     if (cleanP.startsWith('91') && cleanP.length >= 12) {
         defaultCc = '91';
         defaultMob = cleanP.substring(2);
@@ -1578,54 +1611,165 @@ window.syncCrmNewLeadModal = function(phone, resolvedName, userObj, referUserObj
     } else if (cleanP.startsWith('61') && cleanP.length >= 11) {
         defaultCc = '61';
         defaultMob = cleanP.substring(2);
+    } else if (cleanP.startsWith('60') && cleanP.length >= 11) {
+        defaultCc = '60';
+        defaultMob = cleanP.substring(2);
+    } else if (cleanP.startsWith('64') && cleanP.length >= 11) {
+        defaultCc = '64';
+        defaultMob = cleanP.substring(2);
+    } else if (cleanP.startsWith('65') && cleanP.length >= 10) {
+        defaultCc = '65';
+        defaultMob = cleanP.substring(2);
+    } else if (cleanP.startsWith('353') && cleanP.length >= 11) {
+        defaultCc = '353';
+        defaultMob = cleanP.substring(3);
+    } else if (cleanP.length > 10) {
+        defaultCc = cleanP.slice(0, -10);
+        defaultMob = cleanP.slice(-10);
     } else {
-        defaultMob = cleanP.length > 10 ? cleanP.slice(-10) : cleanP;
-        defaultCc = cleanP.length > 10 ? cleanP.slice(0, -10) : '';
+        defaultMob = cleanP;
     }
+    return { cc: defaultCc, mobile: defaultMob };
+};
 
-    const hasUser = userObj && (userObj.id || userObj.mobile_no || userObj.email);
-    const isSystemUser = userObj && userObj.name === 'System';
-    const isSystemResolved = !resolvedName || resolvedName === 'System' || resolvedName === phone;
+window.syncCrmNewLeadModal = function(phone, resolvedName, userObj, referUserObj) {
+    const crmNewLeadModal = document.getElementById('kt_modal_create_appaa_newLeads');
+    if (!crmNewLeadModal) return;
 
-    let candidateName = '';
-    if (hasUser && userObj.name && userObj.name !== 'System' && !userObj.name.startsWith('user')) {
-        candidateName = userObj.name;
-    } else if (!isSystemResolved) {
-        candidateName = resolvedName;
-    }
+    const isSuperAdmin = (typeof window.canViewFullPhone !== 'undefined') ? window.canViewFullPhone : ((typeof loggedInRoleId !== 'undefined') ? (loggedInRoleId == 1) : false);
 
-    let candidateEmail = '';
-    if (hasUser && userObj.email && !userObj.email.startsWith('user') && !userObj.email.includes('example.com')) {
-        candidateEmail = userObj.email;
-    }
+    const nameInp = crmNewLeadModal.querySelector('input[name="user_name"]');
+    const emailRealInp = crmNewLeadModal.querySelector('#email_real') || crmNewLeadModal.querySelector('input[name="email"]');
+    const emailDisplayInp = crmNewLeadModal.querySelector('#email_display');
+    const superAdminEmailInp = crmNewLeadModal.querySelector('input[type="email"][name="email"]') || crmNewLeadModal.querySelector('#email');
+    const idInp = crmNewLeadModal.querySelector('input[name="id"]');
+    const ccInp = crmNewLeadModal.querySelector('input[name="countrycode"]');
+    const mobRealInp = crmNewLeadModal.querySelector('#mobile_real') || crmNewLeadModal.querySelector('input[type="hidden"][name="mobile"]');
+    const mobDisplayInp = crmNewLeadModal.querySelector('#mobile');
+    const referIdInp = crmNewLeadModal.querySelector('#refer_id');
+    const referSearchInp = crmNewLeadModal.querySelector('#refer_search');
+    const mobileUserResult = crmNewLeadModal.querySelector('#mobile_user_result');
+    const mobileLoader = crmNewLeadModal.querySelector('#mobile_lookup_loader');
 
-    if (nameInp) {
-        nameInp.value = candidateName;
-        nameInp.readOnly = false; // Always allow editing name
-    }
-    if (emailInp) {
-        emailInp.value = candidateEmail;
-        emailInp.readOnly = false; // Always allow editing email
-    }
-    if (idInp) {
-        idInp.value = (hasUser && userObj.id) ? userObj.id : '';
-    }
-    if (ccInp) {
-        ccInp.value = (hasUser && userObj.countrycode) ? userObj.countrycode : defaultCc;
-        ccInp.readOnly = false;
-    }
-    if (mobInp) {
-        mobInp.value = (hasUser && userObj.mobile_no) ? userObj.mobile_no : defaultMob;
-        mobInp.readOnly = false;
-    }
+    if (mobileUserResult) mobileUserResult.style.display = 'none';
+    if (mobileLoader) mobileLoader.style.display = 'none';
 
-    if (referUserObj && (referUserObj.id || referUserObj.name)) {
-        if (referIdInp) referIdInp.value = referUserObj.id || '';
-        if (referSearchInp) {
-            referSearchInp.value = `${referUserObj.name || ''} - ${referUserObj.mobile_no || ''} - ${referUserObj.email || ''}`;
-            referSearchInp.readOnly = true;
+    // Parse Country Code and Mobile Number from open chat
+    const parsed = window.parseChatPhone(phone);
+    const hasUser = userObj && (userObj.id || (userObj.mobile_no && userObj.name && userObj.name !== 'System'));
+
+    if (hasUser) {
+        // Customer already exists in DB!
+        const userId = userObj.id || '';
+        const userName = userObj.name || resolvedName || '';
+        const userEmail = (userObj.email && !userObj.email.startsWith('user') && !userObj.email.includes('example.com')) ? userObj.email : (userObj.email || '');
+        const userCc = userObj.countrycode ? String(userObj.countrycode).replace(/\D/g, '') : parsed.cc;
+        const userMob = userObj.mobile_no ? String(userObj.mobile_no).replace(/\D/g, '') : parsed.mobile;
+
+        if (idInp) idInp.value = userId;
+
+        if (nameInp) {
+            nameInp.value = userName;
+            nameInp.readOnly = !isSuperAdmin;
         }
+
+        if (ccInp) {
+            ccInp.value = userCc || '44';
+            ccInp.readOnly = !isSuperAdmin;
+        }
+
+        // Mobile Field (Masked for all users: 63********)
+        if (mobRealInp) mobRealInp.value = userMob;
+        const maskedMob = userObj.masked_mobile || (window.maskPhoneForDisplay ? window.maskPhoneForDisplay(userMob) : userMob);
+        if (mobDisplayInp) {
+            mobDisplayInp.value = maskedMob;
+            mobDisplayInp.readOnly = true;
+            mobDisplayInp.title = 'Existing customer phone number (masked)';
+        }
+        if (typeof window.rawDigitsBuffer !== 'undefined') {
+            window.rawDigitsBuffer = userMob;
+        }
+
+        // Email Field (Masked for all users)
+        if (emailRealInp) emailRealInp.value = userEmail;
+        const maskedEmail = userObj.masked_email || (window.maskEmailForDisplay ? window.maskEmailForDisplay(userEmail) : userEmail);
+        if (emailDisplayInp) {
+            emailDisplayInp.value = maskedEmail;
+            emailDisplayInp.readOnly = true;
+            emailDisplayInp.title = 'Existing customer email (masked)';
+            emailDisplayInp.removeAttribute('required');
+        }
+        if (superAdminEmailInp && superAdminEmailInp !== emailDisplayInp) {
+            superAdminEmailInp.value = maskedEmail;
+            superAdminEmailInp.readOnly = true;
+            superAdminEmailInp.removeAttribute('required');
+        }
+
+        // Refer User
+        if (referUserObj && (referUserObj.id || referUserObj.name)) {
+            if (referIdInp) referIdInp.value = referUserObj.id || '';
+            if (referSearchInp) {
+                const refMob = referUserObj.masked_mobile || (window.maskPhoneForDisplay ? window.maskPhoneForDisplay(referUserObj.mobile_no || '') : referUserObj.mobile_no || '');
+                const refEmail = referUserObj.masked_email || (window.maskEmailForDisplay ? window.maskEmailForDisplay(referUserObj.email || '') : referUserObj.email || '');
+                referSearchInp.value = `${referUserObj.name || ''} - ${refMob} - ${refEmail}`;
+                referSearchInp.readOnly = true;
+            }
+        } else {
+            if (referIdInp) referIdInp.value = '';
+            if (referSearchInp) {
+                referSearchInp.value = '';
+                referSearchInp.readOnly = false;
+            }
+        }
+
     } else {
+        // Customer does NOT exist in DB yet (New customer from WhatsApp chat)
+        if (idInp) idInp.value = '';
+
+        // Country code & mobile from active chat MUST come prefilled!
+        if (ccInp) {
+            ccInp.value = parsed.cc || '44';
+            ccInp.readOnly = false;
+        }
+
+        if (mobRealInp) mobRealInp.value = parsed.mobile;
+        const maskedNewMob = window.maskPhoneForDisplay ? window.maskPhoneForDisplay(parsed.mobile) : parsed.mobile;
+        if (mobDisplayInp) {
+            mobDisplayInp.value = maskedNewMob;
+            mobDisplayInp.readOnly = true;
+            mobDisplayInp.title = 'Phone number pre-filled from chat (masked)';
+        }
+        if (typeof window.rawDigitsBuffer !== 'undefined') {
+            window.rawDigitsBuffer = parsed.mobile;
+        }
+
+        // Name & Email editable so agent can type them in! Email is NOT mandatory!
+        let candidateName = '';
+        const cleanNameDigits = String(resolvedName || '').replace(/\D/g, '');
+        if (resolvedName && resolvedName !== 'Unknown User' && resolvedName !== 'System' && resolvedName !== phone && !resolvedName.includes('*') && cleanNameDigits.length < 8) {
+            candidateName = resolvedName;
+        }
+        if (nameInp) {
+            nameInp.value = candidateName;
+            nameInp.readOnly = false;
+        }
+
+        if (isSuperAdmin) {
+            if (superAdminEmailInp) {
+                superAdminEmailInp.value = '';
+                superAdminEmailInp.readOnly = false;
+                superAdminEmailInp.removeAttribute('required');
+            }
+        } else {
+            if (emailRealInp) emailRealInp.value = '';
+            if (emailDisplayInp) {
+                emailDisplayInp.value = '';
+                emailDisplayInp.readOnly = false;
+                emailDisplayInp.title = '';
+                emailDisplayInp.removeAttribute('required');
+            }
+        }
+
         if (referIdInp) referIdInp.value = '';
         if (referSearchInp) {
             referSearchInp.value = '';
@@ -1784,6 +1928,29 @@ document.addEventListener('DOMContentLoaded', function() {
                         csrfToken = await window.getFreshCsrfToken();
                     }
 
+                    const isSuperAdmin = (typeof window.canViewFullPhone !== 'undefined') ? window.canViewFullPhone : false;
+                    if (!isSuperAdmin) {
+                        const mobReal = crmModalEl.querySelector('#mobile_real');
+                        const mobDisp = crmModalEl.querySelector('#mobile');
+                        if (mobReal && mobDisp) {
+                            const dispVal = mobDisp.value.trim();
+                            if (!dispVal.includes('*') && dispVal.length >= 4) {
+                                mobReal.value = dispVal.replace(/\D/g, '');
+                            } else if (!mobReal.value && window.selectedCustomerPhone) {
+                                const parsed = window.parseChatPhone ? window.parseChatPhone(window.selectedCustomerPhone) : null;
+                                if (parsed && parsed.mobile) mobReal.value = parsed.mobile;
+                            }
+                        }
+                        const emReal = crmModalEl.querySelector('#email_real');
+                        const emDisp = crmModalEl.querySelector('#email_display');
+                        if (emReal && emDisp) {
+                            const dispEm = emDisp.value.trim();
+                            if (!dispEm.includes('*')) {
+                                emReal.value = dispEm;
+                            }
+                        }
+                    }
+
                     const formData = new FormData(crmLeadForm);
                     if (csrfToken) {
                         formData.set('_token', csrfToken);
@@ -1837,7 +2004,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
                     // Invalidate leads loaded cache so next open fetches fresh leads
                     window.leadsLoadedPhone = null;
-                    window.ordersLoadedPhone = null;
+                    window.ordersLoadedCustomerKey = null;
 
                     // Instant 0ms UI update for Leads button
                     const leadsBtn = document.getElementById('waHeaderCheckLeadsBtn');
@@ -2084,9 +2251,20 @@ document.addEventListener('DOMContentLoaded', function() {
     const loadMoreOrdersBtn = document.getElementById('waLoadMoreOrdersBtn');
     const ordersScrollBody = document.getElementById('waOrdersScrollBody');
 
+    function updateViewAllOrdersLink(customer = window.currentCustomerUser) {
+        const button = document.getElementById('waOrdersModalViewAllBtn');
+        if (!button || !customer?.id) return;
+
+        const ordersUrl = new URL(`{{ route('orders.index') }}`, window.location.origin);
+        ordersUrl.searchParams.set('uid', String(customer.id));
+        if (customer.name) ordersUrl.searchParams.set('user', customer.name);
+        button.href = ordersUrl.toString();
+    }
+
     function fetchOrders(page = 1) {
         const phone = window.selectedCustomerPhone;
-        if (!phone || ordersIsLoading) return;
+        const customerId = window.currentCustomerUser?.id || '';
+        if ((!phone && !customerId) || ordersIsLoading) return;
         ordersIsLoading = true;
 
         if (page === 1) {
@@ -2100,7 +2278,14 @@ document.addEventListener('DOMContentLoaded', function() {
             loadMoreOrdersBtn.disabled = true;
         }
 
-        fetch(`{{ route('whatsapp.chat.customer-orders', [], false) }}?phone=${encodeURIComponent(phone)}&page=${page}&limit=10`)
+        const ordersParams = new URLSearchParams({ page: String(page), limit: '10' });
+        if (customerId) {
+            ordersParams.set('customer_id', String(customerId));
+        } else {
+            ordersParams.set('phone', phone);
+        }
+
+        fetch(`{{ route('whatsapp.chat.customer-orders', [], false) }}?${ordersParams.toString()}`)
             .then(res => res.json())
             .then(data => {
                 ordersIsLoading = false;
@@ -2108,6 +2293,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (loadMoreOrdersBtn) {
                     loadMoreOrdersBtn.innerHTML = '<i class="fa fa-arrow-down me-1"></i>Load Next 10';
                     loadMoreOrdersBtn.disabled = false;
+                }
+
+                const ordersModalViewAll = document.getElementById('waOrdersModalViewAllBtn');
+                if (ordersModalViewAll && data.all_orders_url) {
+                    ordersModalViewAll.href = data.all_orders_url;
                 }
 
                 if (!data.success || !data.orders || data.orders.length === 0) {
@@ -2125,11 +2315,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 ordersTotal = data.total;
                 ordersHasMore = data.has_more;
                 ordersCurrentPage = data.page;
-
-                const ordersModalViewAll = document.getElementById('waOrdersModalViewAllBtn');
-                if (ordersModalViewAll && data.all_orders_url) {
-                    ordersModalViewAll.href = data.all_orders_url;
-                }
 
                 let rowsHtml = '';
                 data.orders.forEach((ord) => {
@@ -2206,7 +2391,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                 ${badgesHtml ? `<div class="d-flex flex-wrap gap-1 mt-1">${badgesHtml}</div>` : ''}
                             </td>
                             <td class="align-middle" style="border:1px solid #cbd5e1 !important">
-                                <div class="fw-bold text-dark text-truncate" style="max-width:200px" title="${ord.title}">
+                                <div class="fw-bold text-dark text-truncate" style="max-width:320px" title="${ord.title}">
                                     ${ord.title}
                                 </div>
                                 <div class="text-muted fs-9">${ord.service_type}</div>
@@ -2231,10 +2416,20 @@ document.addEventListener('DOMContentLoaded', function() {
                             <td class="align-middle" style="border:1px solid #cbd5e1 !important;min-width:190px">
                                 ${datesHtml}
                             </td>
-                            <td class="text-center align-middle" style="border:1px solid #cbd5e1 !important;width:95px">
-                                <button type="button" class="btn btn-sm btn-light-success fw-bold py-1 px-3" style="display:inline-flex;align-items:center;justify-content:center;gap:5px;white-space:nowrap;font-size:11px;" title="Open Payment Modal" onclick="openWaOrderPaymentModal('${ord.id}', '${ord.order_id}', '${ord.payment_url}')">
-                                    <i class="fa fa-money fs-7"></i><span>Pay</span>
-                                </button>
+                            <td class="text-center align-middle" style="border:1px solid #cbd5e1 !important;min-width:185px">
+                                <div class="d-flex flex-column gap-1 align-items-stretch" style="min-width:160px;padding:2px">
+                                    <button type="button" class="btn btn-xs btn-light-success fw-bold py-1 px-2 d-inline-flex align-items-center justify-content-center gap-1 shadow-none" style="font-size:11px;border:1px solid #86efac;border-radius:4px;" title="Open Payment Modal" onclick="openWaOrderPaymentModal('${ord.id}', '${ord.order_id}', '${ord.payment_url}')">
+                                        <i class="fa fa-money fs-8 text-success"></i><span>Pay ${ord.due_amount > 0 ? '(£' + ord.due_amount_formatted + ')' : ''}</span>
+                                    </button>
+                                    <div class="d-flex gap-1">
+                                        <a href="${ord.client_email_url}" target="_blank" class="btn btn-xs btn-light-primary fw-bold py-1 px-2 flex-fill d-inline-flex align-items-center justify-content-center gap-1 shadow-none" style="font-size:10px;white-space:nowrap;border:1px solid #bfdbfe;border-radius:4px;" title="Client Email: ${ord.customer_email || 'order@assignnmentinneed.com'}">
+                                            <i class="fa fa-envelope fs-9 text-primary"></i><span>Client Email</span>
+                                        </a>
+                                        <a href="${ord.writer_email_url}" target="_blank" class="btn btn-xs btn-light-danger fw-bold py-1 px-2 flex-fill d-inline-flex align-items-center justify-content-center gap-1 shadow-none" style="font-size:10px;white-space:nowrap;border:1px solid #fecdd3;border-radius:4px;" title="Writer Email: Order ${ord.order_id || ord.id}">
+                                            <i class="fa fa-envelope-open-text fs-9 text-danger"></i><span>Writer Email</span>
+                                        </a>
+                                    </div>
+                                </div>
                             </td>
                         </tr>
                     `;
@@ -2267,8 +2462,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (ordersModal) {
         ordersModal.addEventListener('show.bs.modal', function() {
-            if (window.ordersLoadedPhone !== window.selectedCustomerPhone) {
-                window.ordersLoadedPhone = window.selectedCustomerPhone;
+            updateViewAllOrdersLink();
+            const customerKey = window.currentCustomerUser?.id
+                ? `user:${window.currentCustomerUser.id}`
+                : `phone:${window.selectedCustomerPhone || ''}`;
+            if (window.ordersLoadedCustomerKey !== customerKey) {
+                window.ordersLoadedCustomerKey = customerKey;
                 fetchOrders(1);
             }
         });
@@ -2319,9 +2518,14 @@ document.addEventListener('DOMContentLoaded', function() {
         {{-- Actions row --}}
         <div class="wab-pp-actions d-flex align-items-center justify-content-center gap-2.5">
             @if($selectedPhone)
-            <button class="wab-pp-action-btn" type="button" onclick="initiateCustomerCall()" title="Call customer via Twilio">
+            <button class="wab-pp-action-btn" type="button" onclick="initiateTwilioCall(window.selectedPhone || window.selectedCustomerPhone, window.selectedCustomerName || 'Customer')" title="Call customer via Twilio">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
-                Call
+                Twilio
+            </button>
+            <button class="wab-pp-action-btn position-relative" type="button" onclick="initiateNext2Call(window.selectedPhone || window.selectedCustomerPhone, window.selectedCustomerName || 'Customer')" title="Call customer via Next2Call">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+                <span style="position:absolute;top:5px;right:10px;background:#e53e3e;color:#ffffff;font-size:7.5px;font-weight:900;line-height:1;padding:1px 2px;border-radius:2px;font-family:Arial,sans-serif;pointer-events:none;">2</span>
+                Next2Call
             </button>
             <button class="wab-pp-action-btn" type="button" onclick="openQuickLabelModal(window.selectedPhone || window.selectedCustomerPhone, window.selectedCustomerName || '{{ addslashes($selectedContact['name'] ?? $selectedPhone) }}')" title="Assign Labels">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
@@ -3029,6 +3233,26 @@ document.addEventListener('DOMContentLoaded', function() {
     background: #e1bee7;
     color: #4a148c;
 }
+.wab-header-btn-client-email {
+    background: #e3f2fd;
+    color: #1565c0;
+    border: 1px solid #bbdefb;
+    text-decoration: none;
+}
+.wab-header-btn-client-email:hover {
+    background: #bbdefb;
+    color: #0d47a1;
+}
+.wab-header-btn-writer-email {
+    background: #fce4ec;
+    color: #c2185b;
+    border: 1px solid #f8bbd0;
+    text-decoration: none;
+}
+.wab-header-btn-writer-email:hover {
+    background: #f8bbd0;
+    color: #880e4f;
+}
 .wab-header-btn-create-lead {
     background: #00a884;
     color: #ffffff;
@@ -3284,7 +3508,7 @@ document.addEventListener('DOMContentLoaded', function() {
 /* ── Bubble ── */
 .wab-msg-bubble {
     position: relative;
-    padding: 9px 12px 28px;
+    padding: 9px 28px 28px 12px;
     border-radius: 8px;
     font-size: 14px;
     line-height: 1.5;
@@ -3300,6 +3524,61 @@ document.addEventListener('DOMContentLoaded', function() {
 .wab-outgoing .wab-msg-bubble {
     background: var(--wa-bubble-out);
     border-radius: 8px 8px 0 8px;
+}
+.wab-msg-text {
+    display: inline-block;
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-width: 100%;
+}
+.wab-media-caption {
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-width: 100%;
+}
+.wab-quote-block {
+    display: block;
+    margin: 6px 0 6px 0;
+    padding: 6px 10px;
+    border-left: 3.5px solid #25d366;
+    background: rgba(0, 0, 0, 0.04);
+    border-radius: 0 6px 6px 0;
+    color: inherit;
+    font-style: normal;
+}
+.wab-incoming .wab-quote-block {
+    border-left-color: #25d366;
+    background: rgba(0, 0, 0, 0.04);
+}
+.wab-outgoing .wab-quote-block {
+    border-left-color: #128c7e;
+    background: rgba(0, 0, 0, 0.05);
+}
+.wab-code-block {
+    display: block;
+    background: rgba(0, 0, 0, 0.06);
+    border-radius: 4px;
+    padding: 6px 8px;
+    font-family: monospace;
+    font-size: 12.5px;
+    margin: 4px 0;
+    overflow-x: auto;
+    white-space: pre-wrap;
+}
+.wab-inline-code {
+    background: rgba(0, 0, 0, 0.06);
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-family: monospace;
+    font-size: 12.5px;
+}
+.wab-msg-link {
+    color: #027eb5;
+    text-decoration: underline;
+    word-break: break-all;
+}
+.wab-msg-link:hover {
+    color: #015c85;
 }
 
 /* Tail */
@@ -3320,6 +3599,97 @@ document.addEventListener('DOMContentLoaded', function() {
     border-left: 0;
 }
 
+/* ── Masked Entity (Phone / Email in chat) ── */
+.wab-masked-entity {
+    display: inline-block;
+    padding: 1px 4px;
+    border-radius: 4px;
+    font-weight: 600;
+    cursor: pointer;
+    background: rgba(0, 168, 132, 0.08);
+    color: #008069;
+    border: 1px dashed rgba(0, 168, 132, 0.35);
+    transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+    user-select: all;
+}
+.wab-masked-entity:hover {
+    background: rgba(0, 168, 132, 0.18);
+    border-color: #00a884;
+    color: #005c4b;
+    transform: translateY(-1px);
+}
+.wab-masked-entity:active {
+    transform: translateY(0);
+}
+.wab-masked-entity.wab-entity-copied {
+    background: #e8f5e9 !important;
+    border-color: #16a34a !important;
+    color: #16a34a !important;
+}
+
+/* ── Copy Message Button ── */
+.wab-copy-msg-btn {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 22px;
+    height: 22px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.88);
+    backdrop-filter: blur(4px);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 4px;
+    color: #54656f;
+    cursor: pointer;
+    opacity: 0;
+    visibility: hidden;
+    transform: scale(0.9);
+    transition: opacity 0.15s ease, transform 0.15s ease, background 0.15s ease, color 0.15s ease;
+    z-index: 4;
+    padding: 0;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+.wab-msg-bubble:hover .wab-copy-msg-btn,
+.wab-copy-msg-btn.is-active,
+.wab-copy-msg-btn:focus-visible {
+    opacity: 1;
+    visibility: visible;
+    transform: scale(1);
+}
+.wab-copy-msg-btn:hover {
+    background: #ffffff;
+    color: #111b21;
+    border-color: rgba(0, 0, 0, 0.18);
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.14);
+}
+.wab-copy-msg-btn.wab-copied {
+    opacity: 1 !important;
+    visibility: visible !important;
+    transform: scale(1) !important;
+    background: #e8f5e9 !important;
+    border-color: #81c784 !important;
+    color: #16a34a !important;
+}
+.wab-copy-msg-btn .wab-copied-icon {
+    display: none;
+}
+.wab-copy-msg-btn.wab-copied .wab-copy-icon {
+    display: none !important;
+}
+.wab-copy-msg-btn.wab-copied .wab-copied-icon {
+    display: inline-block !important;
+}
+
+@media (hover: none) and (pointer: coarse) {
+    .wab-copy-msg-btn {
+        opacity: 0.75;
+        visibility: visible;
+        transform: scale(1);
+    }
+}
+
 /* ── Message Meta ── */
 .wab-msg-meta {
     position: absolute;
@@ -3333,12 +3703,12 @@ document.addEventListener('DOMContentLoaded', function() {
 .wab-link { color: #0066cc; text-decoration: underline; }
 
 .wab-bubble--media {
-    padding: 5px 5px 28px;
+    padding: 5px 5px 28px !important;
     min-width: 180px;
     max-width: 330px;
 }
 .wab-bubble--audio {
-    padding: 0 0 24px;
+    padding: 0 0 24px !important;
     background: transparent !important;
     box-shadow: none;
     min-width: 292px;
@@ -5167,6 +5537,26 @@ document.addEventListener('DOMContentLoaded', function() {
     const csrfToken     = document.querySelector('meta[name="csrf-token"]')?.content || '';
     let selectedPhone   = body?.dataset.selectedPhone || '';
     window.selectedPhone = selectedPhone;
+    if (selectedPhone) {
+        try { sessionStorage.setItem('wab_active_phone', selectedPhone); } catch(e) {}
+        if (window.history && window.history.replaceState) {
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }
+    } else {
+        try {
+            const cachedPhone = sessionStorage.getItem('wab_active_phone');
+            if (cachedPhone) {
+                setTimeout(() => {
+                    const existingCard = document.querySelector(`.wab-contact-item[data-phone="${cachedPhone}"]`);
+                    if (existingCard) {
+                        existingCard.click();
+                    } else if (typeof switchChat === 'function') {
+                        switchChat(cachedPhone, cachedPhone, '#25d366');
+                    }
+                }, 100);
+            }
+        } catch(e) {}
+    }
     let selectedPhoneChannel = selectedPhone.replace(/\D+/g, '');
     const messagesUrl   = @json(route('whatsapp.chat.messages', [], false));
     const contactListUrl = @json(route('whatsapp.chat.contacts', [], false));
@@ -5558,6 +5948,8 @@ document.addEventListener('DOMContentLoaded', function() {
         if (leadsBtn) leadsBtn.classList.add('d-none');
         const ordersBtn = document.getElementById('waHeaderCheckOrdersBtn');
         if (ordersBtn) ordersBtn.classList.add('d-none');
+        const clientEmailBtn = document.getElementById('waHeaderClientEmailBtn');
+        if (clientEmailBtn) clientEmailBtn.classList.add('d-none');
         const labelRow = document.querySelector('.wab-chat-label-row');
         if (labelRow) labelRow.remove();
 
@@ -5573,9 +5965,13 @@ document.addEventListener('DOMContentLoaded', function() {
         // Hide sidebar on mobile
         if (window.innerWidth <= 768 && sidebar) sidebar.classList.add('mobile-hidden');
 
-        // Update browser URL without reloading
-        const newUrl = contactUrl(phone);
-        history.pushState({ phone, name: initialResolvedName, color }, '', newUrl);
+        // Save active phone in sessionStorage for instant reload persistence
+        try {
+            if (phone) sessionStorage.setItem('wab_active_phone', phone);
+        } catch (e) {}
+
+        // Keep browser URL clean without exposing raw phone number
+        history.replaceState({ phone, name: initialResolvedName, color }, '', window.location.pathname);
 
         // Show conversation containers
         document.querySelector('.wab-blank-chat')?.classList.add('d-none');
@@ -5610,6 +6006,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const hiddenPhoneInput = document.querySelector('.wab-conv-footer input[name="phone"]');
         if (hiddenPhoneInput) hiddenPhoneInput.value = phone;
+
+        // Ensure browser address bar does not display raw phone number
+        if (window.history && window.history.replaceState) {
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }
 
         // Update header basics immediately
         updateHeaderBasic(initialResolvedName, phone, color);
@@ -5689,30 +6090,133 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    window.initiateCustomerCall = function(phoneToCall = null, nameToCall = null) {
-        const phone = phoneToCall || window.selectedCustomerPhone || selectedPhone || document.querySelector('.wab-conv-footer input[name="phone"]')?.value || '';
-        const name = nameToCall || window.currentCustomerName || document.querySelector('.wab-conv-name')?.textContent || phone;
+    /* ── Instant Real-Time Close Chat (No Page Reload / No Refresh) ── */
+    window.closeActiveChatRealtime = function() {
+        // 1. Abort any active chat message load in progress
+        if (chatSwitchAbortController) {
+            chatSwitchAbortController.abort();
+        }
 
-        if (!phone) {
-            if (typeof toastr !== 'undefined') {
-                toastr.warning('Please select a customer or chat conversation first.');
-            } else if (typeof Swal !== 'undefined') {
-                Swal.fire('No Contact Selected', 'Please select a customer or chat conversation first.', 'info');
-            } else {
-                alert('Please select a customer or chat conversation first.');
+        // 2. Hide top 3-dots chat menu & close dropdowns
+        const menu = document.getElementById('wabChatMenu');
+        if (menu) menu.classList.remove('is-open');
+        const chatMoreWrapper = document.getElementById('wabChatMoreWrapper');
+        if (chatMoreWrapper) chatMoreWrapper.classList.add('d-none');
+        if (typeof closeAllQuickDropdowns === 'function') {
+            closeAllQuickDropdowns();
+        }
+
+        // 3. Hide conversation containers in 0ms instant real-time
+        document.querySelector('.wab-conv-header')?.classList.add('d-none');
+        if (body) {
+            body.classList.add('d-none');
+            body.innerHTML = '';
+            body.dataset.selectedPhone = '';
+            body.dataset.lastMessageId = '0';
+            body.dataset.firstMessageId = '0';
+        }
+        document.getElementById('wabConvFooterForm')?.classList.add('d-none');
+        document.querySelector('.wab-conv-footer')?.classList.add('d-none');
+        document.getElementById('wab24hClosedBanner')?.classList.add('d-none');
+        document.getElementById('waHeaderSendTemplateBtn')?.classList.add('d-none');
+        document.getElementById('wabSendTemplateMenuBtn')?.classList.add('d-none');
+        document.getElementById('wabChatActionButtons')?.classList.add('d-none');
+        document.getElementById('waHeaderCheckLeadsBtn')?.classList.add('d-none');
+        document.getElementById('waHeaderCheckOrdersBtn')?.classList.add('d-none');
+        document.getElementById('waHeaderClientEmailBtn')?.classList.add('d-none');
+
+        // 4. Show blank welcome placeholder
+        document.querySelector('.wab-blank-chat')?.classList.remove('d-none');
+
+        // 5. Unselect active card in sidebar
+        document.querySelectorAll('.wab-contact-item').forEach(i => i.classList.remove('is-active'));
+
+        // 6. If on mobile, show sidebar list
+        if (window.innerWidth <= 768 && sidebar) {
+            sidebar.classList.remove('mobile-hidden');
+        }
+
+        // 7. Reset active phone variables
+        selectedPhone = '';
+        window.selectedPhone = '';
+        window.selectedCustomerPhone = '';
+        window.selectedCustomerName = '';
+        selectedPhoneChannel = '';
+        lastMessageId = 0;
+        firstMessageId = 0;
+
+        // 8. Clear browser sessionStorage & keep URL bar clean
+        try { sessionStorage.removeItem('wab_active_phone'); } catch (e) {}
+        if (window.history && window.history.replaceState) {
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }
+
+        // 9. Inform server in background without blocking or reloading page
+        fetch(@json(route('whatsapp.chat.close-session', [], false)), {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': csrfToken,
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
             }
+        }).catch(() => {});
+
+        if (typeof toastr !== 'undefined') {
+            toastr.info('Chat closed');
+        }
+    };
+
+    window.initiateTwilioCall = function(phoneToCall = null, nameToCall = null) {
+        let phone = phoneToCall || window.selectedCustomerPhone || selectedPhone || document.querySelector('.wab-conv-footer input[name="phone"]')?.value || document.querySelector('#wabMessagesBody')?.dataset?.selectedPhone || '';
+        let name = nameToCall || window.selectedCustomerName || window.currentCustomerName || document.querySelector('.wab-conv-name')?.textContent || 'Customer';
+
+        let clean = String(phone || '').replace(/[^\d+]/g, '');
+        let digits = clean.replace(/\D/g, '');
+
+        if (!clean || digits.length < 7) {
+            const msg = !clean ? 'Please select a customer or chat conversation first.' : 'This contact does not have a valid phone number.';
+            if (typeof toastr !== 'undefined') toastr.warning(msg);
+            else alert(msg);
             return;
         }
 
+        if (!clean.startsWith('+')) clean = '+' + clean;
+
         if (window.twilioSoftphone && typeof window.twilioSoftphone.makeCall === 'function') {
-            window.twilioSoftphone.makeCall(phone, name);
+            window.twilioSoftphone.makeCall(clean, name);
         } else {
-            if (typeof toastr !== 'undefined') {
-                toastr.error('Twilio Voice softphone is not ready or active.');
-            } else {
-                alert('Twilio Voice softphone is not ready or active.');
-            }
+            if (typeof toastr !== 'undefined') toastr.error('Twilio Voice softphone is not ready or active.');
+            else alert('Twilio Voice softphone is not ready or active.');
         }
+    };
+
+    window.initiateNext2Call = function(phoneToCall = null, nameToCall = null) {
+        let phone = phoneToCall || window.selectedCustomerPhone || selectedPhone || document.querySelector('.wab-conv-footer input[name="phone"]')?.value || document.querySelector('#wabMessagesBody')?.dataset?.selectedPhone || '';
+        let name = nameToCall || window.selectedCustomerName || window.currentCustomerName || document.querySelector('.wab-conv-name')?.textContent || 'Customer';
+
+        let clean = String(phone || '').replace(/[^\d+]/g, '');
+        let digits = clean.replace(/\D/g, '');
+
+        if (!clean || digits.length < 7) {
+            const msg = !clean ? 'Please select a customer or chat conversation first.' : 'This contact does not have a valid phone number.';
+            if (typeof toastr !== 'undefined') toastr.warning(msg);
+            else alert(msg);
+            return;
+        }
+
+        if (typeof window.dialNext2CallNumber === 'function') {
+            window.dialNext2CallNumber(clean, '', name);
+        } else {
+            if (typeof toastr !== 'undefined') toastr.error('Next2Call softphone is not ready or active.');
+            else alert('Next2Call softphone is not ready or active.');
+        }
+    };
+
+    window.initiateCustomerCall = function(phoneToCall = null, nameToCall = null) {
+        if (typeof window.dialNext2CallNumber === 'function') {
+            return window.initiateNext2Call(phoneToCall, nameToCall);
+        }
+        return window.initiateTwilioCall(phoneToCall, nameToCall);
     };
 
     function updateHeaderBasic(name, phone, color) {
@@ -5822,6 +6326,22 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
 
+        // Update Client Email header button visibility and URL
+        const clientEmailBtn = document.getElementById('waHeaderClientEmailBtn');
+        if (clientEmailBtn) {
+            if (customer && customer.client_email_url) {
+                const displayEmail = (window.maskEmailForDisplay ? window.maskEmailForDisplay(customer.email || '') : (customer.masked_email || customer.email || ''));
+                clientEmailBtn.href = customer.client_email_url;
+                clientEmailBtn.title = 'Client Email: ' + displayEmail;
+                clientEmailBtn.classList.remove('d-none');
+            } else {
+                clientEmailBtn.href = '#';
+                clientEmailBtn.title = 'Client Email';
+                clientEmailBtn.classList.add('d-none');
+            }
+        }
+
+
         // Prefill CRM New Lead Modal (#kt_modal_create_appaa_newLeads)
         window.currentCustomerUser = customer.user || null;
         window.currentCustomerRefer = customer.refer_user || null;
@@ -5852,7 +6372,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Update Check Leads / Orders modal subtitles & state
         window.selectedCustomerPhone = phone;
         window.leadsLoadedPhone = null;
-        window.ordersLoadedPhone = null;
+        window.ordersLoadedCustomerKey = null;
         const leadsModalSub = document.querySelector('#waCheckLeadsModal .opacity-75');
         if (leadsModalSub) leadsModalSub.innerHTML = `Customer: <strong>${escapeHtml(resolvedName)}</strong> (${escapeHtml(window.maskPhoneForDisplay(phone))})`;
         const ordersModalSub = document.querySelector('#waCheckOrdersModal .opacity-75');
@@ -5867,17 +6387,61 @@ document.addEventListener('DOMContentLoaded', function() {
             const userIdInput = document.getElementById('waCreateLeadUserId');
             const nameInput = document.getElementById('waCreateLeadUserName');
             const emailInput = document.getElementById('waCreateLeadEmail');
+            const emailRealInput = document.getElementById('waCreateLeadEmailReal');
             const countryCodeSelect = document.getElementById('waCreateLeadCountryCode');
             const mobileInput = document.getElementById('waCreateLeadMobile');
             const mobileDisplayInput = document.getElementById('waCreateLeadMobileDisplay');
             const setLeadMobile = function (value) {
                 if (mobileInput) mobileInput.value = value || '';
-                if (mobileDisplayInput) mobileDisplayInput.value = window.maskPhoneForDisplay(value || '');
+                const masked = window.maskPhoneForDisplay ? window.maskPhoneForDisplay(value || '') : (value || '');
+                if (mobileDisplayInput) mobileDisplayInput.value = masked;
+                if (window.registerMaskedToken && value) window.registerMaskedToken(masked, value);
             };
             const subtitleEl = document.getElementById('waCreateLeadSubtitle');
             const bannerEl = document.getElementById('waCreateLeadUserBanner');
             const bannerTitleEl = document.getElementById('waCreateLeadBannerTitle');
             const bannerDescEl = document.getElementById('waCreateLeadBannerDesc');
+
+            if (emailInput && !emailInput.dataset.maskedBound) {
+                emailInput.dataset.maskedBound = '1';
+                emailInput.addEventListener('paste', function(e) {
+                    const text = (e.clipboardData || window.clipboardData).getData('text')?.trim() || '';
+                    if (text.includes('*')) {
+                        const resolved = (typeof window.resolveMaskedToken === 'function') ? window.resolveMaskedToken(text) : '';
+                        if (resolved) {
+                            e.preventDefault();
+                            if (emailRealInput) emailRealInput.value = resolved;
+                            emailInput.value = text;
+                        }
+                    } else {
+                        if (emailRealInput) emailRealInput.value = text;
+                    }
+                });
+                emailInput.addEventListener('input', function() {
+                    const val = emailInput.value.trim();
+                    if (!val.includes('*')) {
+                        if (emailRealInput) emailRealInput.value = val;
+                    } else {
+                        const resolved = (typeof window.resolveMaskedToken === 'function') ? window.resolveMaskedToken(val) : '';
+                        if (resolved && emailRealInput) emailRealInput.value = resolved;
+                    }
+                });
+            }
+
+            if (mobileDisplayInput && !mobileDisplayInput.dataset.maskedBound) {
+                mobileDisplayInput.dataset.maskedBound = '1';
+                mobileDisplayInput.addEventListener('paste', function(e) {
+                    const text = (e.clipboardData || window.clipboardData).getData('text')?.trim() || '';
+                    if (text.includes('*')) {
+                        const resolved = (typeof window.resolveMaskedToken === 'function') ? window.resolveMaskedToken(text) : '';
+                        if (resolved) {
+                            e.preventDefault();
+                            if (mobileInput) mobileInput.value = resolved.replace(/\D/g, '');
+                            mobileDisplayInput.value = text;
+                        }
+                    }
+                });
+            }
 
             if (subtitleEl) subtitleEl.textContent = `Create CRM Lead & Order for ${window.maskPhoneForDisplay(phone)}`;
 
@@ -5907,34 +6471,74 @@ document.addEventListener('DOMContentLoaded', function() {
                 parsedMobile = cleanP.slice(-10);
             }
 
+            const isSuperAdmin = (typeof window.canViewFullPhone !== 'undefined') ? window.canViewFullPhone : false;
+
             if (customer && customer.user) {
                 if (userIdInput) userIdInput.value = customer.user.id || '';
-                if (nameInput) nameInput.value = customer.user.name || customer.name || fallbackName || '';
-                if (emailInput) emailInput.value = customer.user.email || '';
+                if (nameInput) {
+                    nameInput.value = customer.user.name || customer.name || fallbackName || '';
+                    nameInput.readOnly = !isSuperAdmin;
+                }
+                const userEmail = customer.user.email || '';
+                if (emailRealInput) emailRealInput.value = userEmail;
+                if (emailInput) {
+                    if (isSuperAdmin) {
+                        emailInput.value = userEmail;
+                        emailInput.readOnly = true;
+                    } else {
+                        const maskedEm = customer.user.masked_email || (window.maskEmailForDisplay ? window.maskEmailForDisplay(userEmail) : userEmail);
+                        emailInput.value = maskedEm;
+                        emailInput.readOnly = true;
+                        if (window.registerMaskedToken) window.registerMaskedToken(maskedEm, userEmail);
+                    }
+                    emailInput.removeAttribute('required');
+                }
                 if (countryCodeSelect && customer.user.countrycode) countryCodeSelect.value = customer.user.countrycode;
                 else if (countryCodeSelect) countryCodeSelect.value = parsedCode;
-                setLeadMobile(customer.user.mobile_no || parsedMobile);
+
+                const userMob = customer.user.mobile_no || parsedMobile;
+                setLeadMobile(userMob);
+                if (mobileInput) mobileInput.value = userMob;
+                if (mobileDisplayInput) {
+                    mobileDisplayInput.value = customer.user.masked_mobile || (window.maskPhoneForDisplay ? window.maskPhoneForDisplay(userMob) : userMob);
+                    mobileDisplayInput.readOnly = true;
+                }
 
                 if (bannerEl) {
                     bannerEl.className = 'p-2 mb-3 rounded d-flex align-items-center justify-content-between bg-light-success border border-success';
                 }
                 if (bannerTitleEl) bannerTitleEl.textContent = '✓ Existing Registered Customer';
                 if (bannerDescEl) {
-                    bannerDescEl.textContent = `${customer.user.name || 'User'} (${customer.user.email || 'No email'}) - User ID: #${customer.user.id}`;
+                    const dispEmail = customer.user.masked_email || (window.maskEmailForDisplay ? window.maskEmailForDisplay(userEmail) : userEmail);
+                    bannerDescEl.textContent = `${customer.user.name || 'User'} (${dispEmail || 'No email'}) - User ID: #${customer.user.id}`;
                 }
             } else {
                 if (userIdInput) userIdInput.value = '';
-                if (nameInput) nameInput.value = (customer && customer.name && customer.name !== phone) ? customer.name : (fallbackName && fallbackName !== phone ? fallbackName : '');
-                if (emailInput) emailInput.value = '';
+                if (nameInput) {
+                    const cleanCandidate = String((customer && customer.name) || fallbackName || '').replace(/\D/g, '');
+                    nameInput.value = (cleanCandidate.length < 8 && customer && customer.name && customer.name !== phone) ? customer.name : (cleanCandidate.length < 8 && fallbackName && fallbackName !== phone ? fallbackName : '');
+                    nameInput.readOnly = false;
+                }
+                if (emailRealInput) emailRealInput.value = '';
+                if (emailInput) {
+                    emailInput.value = '';
+                    emailInput.readOnly = false;
+                    emailInput.removeAttribute('required');
+                }
                 if (countryCodeSelect) countryCodeSelect.value = parsedCode;
                 setLeadMobile(parsedMobile);
+                if (mobileInput) mobileInput.value = parsedMobile;
+                if (mobileDisplayInput) {
+                    mobileDisplayInput.value = window.maskPhoneForDisplay ? window.maskPhoneForDisplay(parsedMobile) : parsedMobile;
+                    mobileDisplayInput.readOnly = true;
+                }
 
                 if (bannerEl) {
                     bannerEl.className = 'p-2 mb-3 rounded d-flex align-items-center justify-content-between bg-light-info border border-info';
                 }
                 if (bannerTitleEl) bannerTitleEl.textContent = 'ℹ New Customer from WhatsApp';
                 if (bannerDescEl) {
-                    bannerDescEl.textContent = 'Phone number is pre-filled. Enter name & email to register user and create lead.';
+                    bannerDescEl.textContent = 'Phone number is pre-filled. Enter name & email (optional) to register user and create lead.';
                 }
             }
         }
@@ -6057,11 +6661,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
             const hasMedia = Boolean(msg.media_url);
             const mediaClass = mediaTypeClass(msg.media_type);
+            const copyContent = msg.message || msg.media_name || msg.media_url || '';
             const row = document.createElement('div');
             row.className = `wab-msg-row ${msg.direction === 'inbound' ? 'wab-incoming' : 'wab-outgoing'}`;
             row.dataset.messageId = msg.id;
             row.innerHTML = `
-                <div class="wab-msg-bubble ${hasMedia ? `wab-bubble--media ${mediaClass ? `wab-bubble--${mediaClass}` : ''}` : ''}">
+                <div class="wab-msg-bubble ${hasMedia ? `wab-bubble--media ${mediaClass ? `wab-bubble--${mediaClass}` : ''}` : ''}" data-copy-text="${escapeHtml(copyContent)}">
+                    ${copyButtonMarkup(copyContent)}
                     ${messageContentMarkup(msg)}
                     <div class="wab-msg-meta">
                         <span class="wab-msg-time">${escapeHtml(msg.time || '')}</span>
@@ -6101,8 +6707,9 @@ document.addEventListener('DOMContentLoaded', function() {
         div.id = `wab-contact-card-${cleanPhone}`;
         div.dataset.name = displayName.toLowerCase();
         div.dataset.contactId = c.id;
-        div.dataset.url = c.phone ? `{{ route('whatsapp.chat') }}?phone=${encodeURIComponent(c.phone)}` : '';
+        div.dataset.url = @json(route('whatsapp.chat'));
         div.dataset.phone = c.phone || '';
+        div.dataset.phoneDisplay = c.phone_display || (window.maskPhoneForDisplay ? window.maskPhoneForDisplay(c.phone) : c.phone) || '';
         div.dataset.color = c.color || '#25d366';
         div.dataset.badge = c.badge || 0;
         div.dataset.isGroup = c.is_group ? '1' : '0';
@@ -6144,7 +6751,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     </div>
                 </div>
                 <div class="wab-contact-row-bottom">
-                    <span class="wab-contact-preview">${escapeHtml(c.msg || '')}</span>
+                    <span class="wab-contact-preview">${escapeHtml((typeof window.maskChatText === 'function') ? window.maskChatText(c.msg || '') : (c.msg || ''))}</span>
                     <div class="wab-contact-row-right d-flex align-items-center gap-1">
                         ${c.badge ? `<span class="wab-badge">${c.badge}</span>` : ''}
                         <button type="button" class="wab-quick-copy-btn" onclick="event.stopPropagation(); copyPhoneNumberToClipboard('${escapeHtml(c.phone_display || c.phone)}', this)" title="Copy phone number">
@@ -6199,6 +6806,30 @@ document.addEventListener('DOMContentLoaded', function() {
         return div;
     }
 
+    /* ── Helper to format search query display with masking for phone numbers ── */
+    function maskSearchQueryForDisplay(val) {
+        if (!val) return '';
+        if (window.canViewFullPhone) return String(val);
+        const str = String(val).trim();
+        if (/[a-zA-Z]/.test(str)) {
+            return str;
+        }
+        const digits = str.replace(/\D/g, '');
+        if (digits.length < 7) {
+            return str;
+        }
+        if (typeof window.maskPhoneForDisplay === 'function') {
+            return window.maskPhoneForDisplay(str);
+        }
+        let d = digits;
+        let prefix = str.startsWith('+') ? '+' : '';
+        if (d.length > 10) {
+            prefix = '+' + d.slice(0, d.length - 10) + ' ';
+            d = d.slice(-10);
+        }
+        return prefix + '*'.repeat(Math.max(4, d.length - 4)) + d.slice(-4);
+    }
+
     let currentTabFilter = 'all';
     let currentLabelFilter = 'all';
     let contactFilterAbortController = null;
@@ -6249,8 +6880,27 @@ document.addEventListener('DOMContentLoaded', function() {
             if (contactSearchQuery) {
                 const name = (item.dataset.name || '').toLowerCase();
                 const phone = (item.dataset.phone || '').toLowerCase();
-                const q = contactSearchQuery.toLowerCase();
-                matchSearch = name.includes(q) || phone.includes(q);
+                const phoneDisplay = (item.dataset.phoneDisplay || '').toLowerCase();
+                const q = contactSearchQuery.toLowerCase().trim();
+                const cleanPhone = phone.replace(/\D+/g, '');
+                const cleanPhoneDisplay = phoneDisplay.replace(/[^\d*]/g, '');
+
+                if (q.includes('*')) {
+                    const parts = q.split(/\*+/).filter(Boolean);
+                    if (parts.length > 0) {
+                        const pattern = '^.*' + parts.map(p => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('.*') + '.*$';
+                        const reg = new RegExp(pattern, 'i');
+                        matchSearch = reg.test(phone) || reg.test(cleanPhone) || reg.test(phoneDisplay) || reg.test(cleanPhoneDisplay) || reg.test(name);
+                    } else {
+                        matchSearch = true;
+                    }
+                } else {
+                    const cleanQ = q.replace(/\D+/g, '');
+                    matchSearch = name.includes(q) || 
+                                  phone.includes(q) || 
+                                  phoneDisplay.includes(q) || 
+                                  (cleanQ.length >= 3 && cleanPhone.includes(cleanQ));
+                }
             }
 
             if (matchTab && matchLabel && matchSearch) {
@@ -6323,7 +6973,8 @@ document.addEventListener('DOMContentLoaded', function() {
         } else if (showLoader) {
             let loaderTitle = 'Loading chats...';
             if (contactSearchQuery) {
-                loaderTitle = `Searching "${escapeHtml(contactSearchQuery)}"...`;
+                const displaySearch = maskSearchQueryForDisplay(contactSearchQuery);
+                loaderTitle = `Searching "${escapeHtml(displaySearch)}"...`;
             } else if (currentLabelFilter !== 'all') {
                 const activeChip = document.querySelector(`.wab-label-chip.active[data-label-id="${currentLabelFilter}"]`);
                 const labelName = activeChip?.querySelector('.wab-label-chip-name')?.textContent || 'selected label';
@@ -6381,7 +7032,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     let emptySubtitle = 'Try changing your search or filter criteria.';
 
                     if (contactSearchQuery) {
-                        emptyTitle = `No results for "${escapeHtml(contactSearchQuery)}"`;
+                        const displaySearch = maskSearchQueryForDisplay(contactSearchQuery);
+                        emptyTitle = `No results for "${escapeHtml(displaySearch)}"`;
                         emptySubtitle = 'Check spelling or try a phone number.';
                     } else if (currentLabelFilter !== 'all') {
                         const activeChip = document.querySelector(`.wab-label-chip.active[data-label-id="${currentLabelFilter}"]`);
@@ -6464,18 +7116,21 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    /* ── Real-time Debounced Search across whole DB with 0ms local response & live preloader ── */
-    searchInput?.addEventListener('input', function () {
-        const q = this.value.trim();
+    /* ── Real-time Debounced Search across whole DB with 0ms local response, live preloader & Phone Masking ── */
+    let searchRawBuffer = '';
+
+    function executeSearchFromInput() {
+        const q = searchRawBuffer.trim();
         contactSearchQuery = q;
         applyLocalFilter(); // Instant 0ms local response
 
-        // Show live preloader immediately while typing
+        // Show live preloader immediately while typing/pasting with masked query
         const topLoader = document.getElementById('wabSidebarTopLoader');
         const topLoaderText = document.getElementById('wabSidebarTopLoaderText');
+        const displayQ = maskSearchQueryForDisplay(q);
         if (topLoader) {
             if (topLoaderText) {
-                topLoaderText.textContent = q ? `Searching "${q}"...` : 'Loading chats...';
+                topLoaderText.textContent = q ? `Searching "${displayQ}"...` : 'Loading chats...';
             }
             topLoader.classList.remove('d-none');
         }
@@ -6484,6 +7139,75 @@ document.addEventListener('DOMContentLoaded', function() {
         searchDebounceTimer = setTimeout(() => {
             loadContactsServer({ page: 1, append: false, showLoader: true });
         }, 200);
+    }
+
+    // 1. Copy-paste handling: paste full number, display masked version
+    searchInput?.addEventListener('paste', function (e) {
+        e.preventDefault();
+        const text = (e.clipboardData || window.clipboardData).getData('text') || '';
+        searchRawBuffer = text.trim();
+        this.value = maskSearchQueryForDisplay(searchRawBuffer);
+        executeSearchFromInput();
+    });
+
+    // 2. Keyboard typing handling: mask middle digits while preserving raw digits in buffer
+    searchInput?.addEventListener('beforeinput', function (e) {
+        if (e.inputType === 'insertText' && e.data) {
+            e.preventDefault();
+            if (this.selectionStart === 0 && this.selectionEnd === this.value.length) {
+                searchRawBuffer = '';
+            }
+            searchRawBuffer += e.data;
+            this.value = maskSearchQueryForDisplay(searchRawBuffer);
+            executeSearchFromInput();
+        } else if (e.inputType === 'deleteContentBackward') {
+            e.preventDefault();
+            if (this.selectionStart === 0 && this.selectionEnd === this.value.length) {
+                searchRawBuffer = '';
+            } else if (searchRawBuffer.length > 0) {
+                searchRawBuffer = searchRawBuffer.slice(0, -1);
+            }
+            this.value = maskSearchQueryForDisplay(searchRawBuffer);
+            executeSearchFromInput();
+        }
+    });
+
+    // 3. Backspace/Delete keyboard handler
+    searchInput?.addEventListener('keydown', function (e) {
+        if (e.key === 'Backspace' || e.key === 'Delete') {
+            if (this.selectionStart === 0 && this.selectionEnd === this.value.length) {
+                e.preventDefault();
+                searchRawBuffer = '';
+                this.value = '';
+                executeSearchFromInput();
+                return;
+            }
+            if (e.key === 'Backspace') {
+                e.preventDefault();
+                if (searchRawBuffer.length > 0) {
+                    searchRawBuffer = searchRawBuffer.slice(0, -1);
+                }
+                this.value = maskSearchQueryForDisplay(searchRawBuffer);
+                executeSearchFromInput();
+            } else if (e.key === 'Delete') {
+                e.preventDefault();
+                searchRawBuffer = '';
+                this.value = '';
+                executeSearchFromInput();
+            }
+        }
+    });
+
+    // 4. Input fallback (e.g. clear button, autocomplete)
+    searchInput?.addEventListener('input', function () {
+        if (!this.value) {
+            searchRawBuffer = '';
+            executeSearchFromInput();
+        } else if (!this.value.includes('*') && this.value !== searchRawBuffer) {
+            searchRawBuffer = this.value;
+            this.value = maskSearchQueryForDisplay(searchRawBuffer);
+            executeSearchFromInput();
+        }
     });
 
     // Handle browser Back/Forward navigation
@@ -6493,6 +7217,65 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
+    function formatWhatsAppHtml(rawText) {
+        if (!rawText) return '';
+        let text = (typeof window.maskChatHtml === 'function')
+            ? window.maskChatHtml(rawText)
+            : escapeHtml(rawText);
+
+        // Normalize line breaks
+        text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
+        // Code blocks: ```...```
+        text = text.replace(/```([\s\S]*?)```/g, '<pre class="wab-code-block"><code>$1</code></pre>');
+
+        // Inline code: `...`
+        text = text.replace(/`([^`\n]+)`/g, '<code class="wab-inline-code">$1</code>');
+
+        // Blockquotes: lines starting with &gt; or >
+        const lines = text.split('\n');
+        let inQuote = false;
+        let quoteLines = [];
+        let outputLines = [];
+
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            const qm = line.match(/^(?:&gt;|>)\s?(.*)$/);
+            if (qm) {
+                inQuote = true;
+                quoteLines.push(qm[1]);
+            } else {
+                if (inQuote) {
+                    outputLines.push('<div class="wab-quote-block">' + quoteLines.join('\n') + '</div>');
+                    quoteLines = [];
+                    inQuote = false;
+                }
+                outputLines.push(line);
+            }
+        }
+        if (inQuote) {
+            outputLines.push('<div class="wab-quote-block">' + quoteLines.join('\n') + '</div>');
+        }
+        text = outputLines.join('\n');
+
+        // Markdown bold: **text**
+        text = text.replace(/\*\*([^*\n]+?)\*\*/g, '<strong>$1</strong>');
+
+        // WhatsApp bold: *text* (excluding masked asterisks)
+        text = text.replace(/(^|[^\w*])\*(?!\s)([^*\n]+?)(?<!\s)\*(?=[^\w*]|$)/g, '$1<strong>$2</strong>');
+
+        // WhatsApp italic: _text_
+        text = text.replace(/(^|[^\w_])_(?!\s)([^_\n]+?)(?<!\s)_(?=[^\w_]|$)/g, '$1<em>$2</em>');
+
+        // WhatsApp strikethrough: ~text~
+        text = text.replace(/(^|[^\w~])~(?!\s)([^~\n]+?)(?<!\s)~(?=[^\w~]|$)/g, '$1<del>$2</del>');
+
+        // Links: https:// or http://
+        text = text.replace(/(?<!["'>=])(https?:\/\/[^\s<]+[a-zA-Z0-9/])/gi, '<a href="$1" target="_blank" rel="noopener noreferrer" class="wab-msg-link">$1</a>');
+
+        return text;
+    }
+
     function escapeHtml(value) {
         return String(value ?? '').replace(/[&<>"']/g, char => ({
             '&': '&amp;',
@@ -6501,6 +7284,20 @@ document.addEventListener('DOMContentLoaded', function() {
             '"': '&quot;',
             "'": '&#039;',
         }[char]));
+    }
+
+    function copyButtonMarkup(text) {
+        const masked = (typeof window.maskChatText === 'function') ? window.maskChatText(text || '') : (text || '');
+        const safe = escapeHtml(masked);
+        return `<button type="button" class="wab-copy-msg-btn" title="Copy message" aria-label="Copy message" data-copy-text="${safe}">
+            <svg class="wab-copy-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+            </svg>
+            <svg class="wab-copied-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:none;">
+                <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+        </button>`;
     }
 
     function normalizeMessageStatus(status) {
@@ -6558,6 +7355,17 @@ document.addEventListener('DOMContentLoaded', function() {
         </span>`;
     }
 
+    function shouldUpgradeStatus(currentStatus, newStatus) {
+        const curNorm = normalizeMessageStatus(currentStatus);
+        const newNorm = normalizeMessageStatus(newStatus);
+        if (curNorm === newNorm) return false;
+        // Never downgrade 'read' (blue double ticks) to 'delivered' or 'sent'
+        if (curNorm === 'read' && (newNorm === 'delivered' || newNorm === 'sent' || newNorm === 'pending')) return false;
+        // Never downgrade 'delivered' (double ticks) to 'sent' or 'pending'
+        if (curNorm === 'delivered' && (newNorm === 'sent' || newNorm === 'pending')) return false;
+        return true;
+    }
+
     function updateMessageStatus(statusUpdate) {
         if (!statusUpdate) return;
         const msgId = statusUpdate.id;
@@ -6575,15 +7383,19 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         const currentTick = row.querySelector('.wab-tick');
+        const currentStatus = currentTick ? currentTick.dataset.status : (row.dataset.status || 'sent');
         const normalized = normalizeMessageStatus(statusUpdate.status);
 
         if (currentTick) {
             if (currentTick.dataset.status === normalized) return;
+            if (!shouldUpgradeStatus(currentStatus, normalized)) return;
             currentTick.outerHTML = tickMarkup(normalized);
+            row.dataset.status = normalized;
         } else {
             const meta = row.querySelector('.wab-msg-meta');
             if (meta && row.classList.contains('wab-outgoing')) {
                 meta.insertAdjacentHTML('beforeend', tickMarkup(normalized));
+                row.dataset.status = normalized;
             }
         }
     }
@@ -6659,10 +7471,11 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function messageContentMarkup(message) {
-        const caption = String(message.message || '').trim();
+        const rawCaption = String(message.message || '').trim();
+        const contentHtml = formatWhatsAppHtml(message.message || '');
 
         if (!message.media_url) {
-            return escapeHtml(message.message || '');
+            return `<span class="wab-msg-text">${contentHtml}</span>`;
         }
 
         const url = escapeHtml(message.media_url);
@@ -6705,7 +7518,7 @@ document.addEventListener('DOMContentLoaded', function() {
             `;
         }
 
-        return mediaMarkup + (caption ? `<div class="wab-media-caption">${escapeHtml(message.message)}</div>` : '');
+        return mediaMarkup + (rawCaption ? `<div class="wab-media-caption">${contentHtml}</div>` : '');
     }
 
     async function fetchOlderMessages() {
@@ -6773,12 +7586,16 @@ document.addEventListener('DOMContentLoaded', function() {
 
             const hasMedia = Boolean(message.media_url);
             const mediaClass = mediaTypeClass(message.media_type);
+            const copyContent = (typeof window.maskChatText === 'function')
+                ? window.maskChatText(message.message || message.media_name || message.media_url || '')
+                : (message.message || message.media_name || message.media_url || '');
             const row = document.createElement('div');
             row.className = `wab-msg-row ${message.direction === 'inbound' ? 'wab-incoming' : 'wab-outgoing'}`;
             row.dataset.messageId = message.id;
             if (message.wa_message_id) row.dataset.waMessageId = message.wa_message_id;
             row.innerHTML = `
-                <div class="wab-msg-bubble ${hasMedia ? `wab-bubble--media ${mediaClass ? `wab-bubble--${mediaClass}` : ''}` : ''}">
+                <div class="wab-msg-bubble ${hasMedia ? `wab-bubble--media ${mediaClass ? `wab-bubble--${mediaClass}` : ''}` : ''}" data-copy-text="${escapeHtml(copyContent)}">
+                    ${copyButtonMarkup(copyContent)}
                     ${messageContentMarkup(message)}
                     <div class="wab-msg-meta">
                         <span class="wab-msg-time">${escapeHtml(message.time || '')}</span>
@@ -6807,13 +7624,23 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
-        // 1. Direct ID deduplication
-        if (message.id && body.querySelector(`[data-message-id="${message.id}"]`)) {
+        // 1. Direct ID deduplication & status update
+        const existingById = message.id ? body.querySelector(`[data-message-id="${message.id}"]`) : null;
+        if (existingById) {
+            if (message.wa_message_id && !existingById.dataset.waMessageId) {
+                existingById.dataset.waMessageId = message.wa_message_id;
+            }
+            updateMessageStatus(message);
             return;
         }
 
-        // 2. WA Message ID deduplication
-        if (message.wa_message_id && body.querySelector(`[data-wa-message-id="${message.wa_message_id}"]`)) {
+        // 2. WA Message ID deduplication & status update
+        const existingByWaId = message.wa_message_id ? body.querySelector(`[data-wa-message-id="${message.wa_message_id}"]`) : null;
+        if (existingByWaId) {
+            if (message.id && !String(message.id).startsWith('temp_')) {
+                existingByWaId.dataset.messageId = message.id;
+            }
+            updateMessageStatus(message);
             return;
         }
 
@@ -6823,13 +7650,20 @@ document.addEventListener('DOMContentLoaded', function() {
             const msgText = String(message.message || '').trim();
             for (const tempRow of pendingRows) {
                 const bubble = tempRow.querySelector('.wab-msg-bubble');
-                const bubbleText = tempRow.querySelector('.wab-media-caption')?.textContent?.trim()
-                    || (bubble ? Array.from(bubble.childNodes).filter(n => n.nodeType === Node.TEXT_NODE).map(n => n.textContent).join('').trim() : '')
-                    || '';
+                const textSpan = tempRow.querySelector('.wab-msg-text');
+                const captionEl = tempRow.querySelector('.wab-media-caption');
+                const bubbleText = (textSpan?.textContent || captionEl?.textContent || bubble?.getAttribute('data-copy-text') || '').trim();
 
-                if ((msgText !== '' && bubbleText === msgText) || (hasMedia && tempRow.querySelector('.wab-bubble--media'))) {
+                const isTextMatch = (msgText !== '' && bubbleText === msgText);
+                const isMediaMatch = (hasMedia && tempRow.querySelector('.wab-bubble--media'));
+
+                if (isTextMatch || isMediaMatch) {
                     tempRow.dataset.messageId = message.id;
                     if (message.wa_message_id) tempRow.dataset.waMessageId = message.wa_message_id;
+                    if (message.time) {
+                        const timeEl = tempRow.querySelector('.wab-msg-time');
+                        if (timeEl) timeEl.textContent = message.time;
+                    }
                     updateMessageStatus(message);
 
                     const numericId = Number(message.id);
@@ -6846,12 +7680,16 @@ document.addEventListener('DOMContentLoaded', function() {
         ensureDateBadge(message);
 
         const mediaClass = mediaTypeClass(message.media_type);
+        const copyContent = (typeof window.maskChatText === 'function')
+            ? window.maskChatText(message.message || message.media_name || message.media_url || '')
+            : (message.message || message.media_name || message.media_url || '');
         const row = document.createElement('div');
         row.className = `wab-msg-row ${message.direction === 'inbound' ? 'wab-incoming' : 'wab-outgoing'}`;
         row.dataset.messageId = message.id;
         if (message.wa_message_id) row.dataset.waMessageId = message.wa_message_id;
         row.innerHTML = `
-            <div class="wab-msg-bubble ${hasMedia ? `wab-bubble--media ${mediaClass ? `wab-bubble--${mediaClass}` : ''}` : ''}">
+            <div class="wab-msg-bubble ${hasMedia ? `wab-bubble--media ${mediaClass ? `wab-bubble--${mediaClass}` : ''}` : ''}" data-copy-text="${escapeHtml(copyContent)}">
+                ${copyButtonMarkup(copyContent)}
                 ${messageContentMarkup(message)}
                 <div class="wab-msg-meta">
                     <span class="wab-msg-time">${escapeHtml(message.time || '')}</span>
@@ -6959,7 +7797,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     function contactUrl(phone) {
-        return @json(route('whatsapp.chat')) + '?phone=' + encodeURIComponent(phone);
+        return @json(route('whatsapp.chat'));
     }
 
     function resolveContactName(name, phone) {
@@ -6967,15 +7805,16 @@ document.addEventListener('DOMContentLoaded', function() {
         const ph = String(phone || '').trim();
         const cleanPh = ph.replace(/\D+/g, '');
         const cleanRaw = raw.replace(/\D+/g, '');
+        const cleanPh10 = cleanPh.length >= 10 ? cleanPh.slice(-10) : cleanPh;
 
-        if (!raw || raw === 'System' || raw === 'null' || raw === 'undefined') {
-            return ph ? 'Unknown User' : 'Select chat';
+        if (!raw || raw === 'System' || raw === 'null' || raw === 'undefined' || raw === 'Unknown User') {
+            return ph ? window.maskPhoneForDisplay(ph) : 'Select chat';
         }
         if (raw === 'Select chat' && !ph) {
             return 'Select chat';
         }
-        if (raw === ph || (cleanPh && cleanRaw === cleanPh)) {
-            return 'Unknown User';
+        if (raw === ph || (cleanPh && cleanRaw === cleanPh) || (cleanPh10 && cleanRaw === cleanPh10) || cleanRaw.length >= 10) {
+            return window.maskPhoneForDisplay(raw || ph);
         }
         return raw;
     }
@@ -6984,6 +7823,7 @@ document.addEventListener('DOMContentLoaded', function() {
     function initials(name) {
         const clean = String(name || '?').trim();
         if (!clean || clean === '?' || clean === 'null' || clean === 'undefined') return 'U';
+        if (clean.includes('*') || /^\d/.test(clean)) return '#';
         return clean.charAt(0).toUpperCase() || 'U';
     }
 
@@ -7125,7 +7965,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (timeEl && contact.time) timeEl.textContent = contact.time;
 
         const previewEl = item.querySelector('.wab-contact-preview');
-        if (previewEl && contact.msg !== undefined) previewEl.textContent = contact.msg;
+        if (previewEl && contact.msg !== undefined) previewEl.textContent = (typeof window.maskChatText === 'function') ? window.maskChatText(contact.msg) : contact.msg;
 
         updateBadge(item, Number(contact.badge || 0));
 
@@ -7412,9 +8252,17 @@ document.addEventListener('DOMContentLoaded', function() {
             const returnedMsgs = Array.isArray(data.messages) ? data.messages : (data.message ? [data.message] : []);
             if (returnedMsgs.length > 0) {
                 const msg = returnedMsgs[0];
-                if (tempRow) {
+                const existingRealRow = document.querySelector(`[data-message-id="${msg.id}"]`);
+                if (existingRealRow && tempRow && existingRealRow !== tempRow) {
+                    tempRow.remove();
+                    updateMessageStatus(msg);
+                } else if (tempRow) {
                     tempRow.dataset.messageId = msg.id;
                     if (msg.wa_message_id) tempRow.dataset.waMessageId = msg.wa_message_id;
+                    if (msg.time) {
+                        const timeEl = tempRow.querySelector('.wab-msg-time');
+                        if (timeEl) timeEl.textContent = msg.time;
+                    }
                     updateMessageStatus(msg);
                 } else {
                     renderMessage(msg);
@@ -7554,9 +8402,18 @@ document.addEventListener('DOMContentLoaded', function() {
             }
 
             if (data.message) {
-                if (tempRow) {
+                const existingRealRow = document.querySelector(`[data-message-id="${data.message.id}"]`);
+                if (existingRealRow && tempRow && existingRealRow !== tempRow) {
+                    // Polling or WebSocket already appended real message row, remove temp row
+                    tempRow.remove();
+                    updateMessageStatus(data.message);
+                } else if (tempRow) {
                     tempRow.dataset.messageId = data.message.id;
                     if (data.message.wa_message_id) tempRow.dataset.waMessageId = data.message.wa_message_id;
+                    if (data.message.time) {
+                        const timeEl = tempRow.querySelector('.wab-msg-time');
+                        if (timeEl) timeEl.textContent = data.message.time;
+                    }
                     updateMessageStatus(data.message);
                 } else {
                     renderMessage(data.message);
@@ -7791,9 +8648,17 @@ document.addEventListener('DOMContentLoaded', function() {
             returnedMsgs.forEach((msg, idx) => {
                 const tId = tempIds[idx];
                 const tempRow = tId ? document.querySelector(`[data-message-id="${tId}"]`) : null;
-                if (tempRow) {
+                const existingRealRow = document.querySelector(`[data-message-id="${msg.id}"]`);
+                if (existingRealRow && tempRow && existingRealRow !== tempRow) {
+                    tempRow.remove();
+                    updateMessageStatus(msg);
+                } else if (tempRow) {
                     tempRow.dataset.messageId = msg.id;
                     if (msg.wa_message_id) tempRow.dataset.waMessageId = msg.wa_message_id;
+                    if (msg.time) {
+                        const timeEl = tempRow.querySelector('.wab-msg-time');
+                        if (timeEl) timeEl.textContent = msg.time;
+                    }
                     updateMessageStatus(msg);
                 } else {
                     renderMessage(msg);
@@ -7874,9 +8739,15 @@ document.addEventListener('DOMContentLoaded', function() {
             sidebar.classList.remove('mobile-hidden');
             return;
         }
-        @if($selectedPhone)
-            window.location.href = '{{ route('whatsapp.chat') }}';
-        @endif
+        if (selectedPhone && typeof window.closeActiveChatRealtime === 'function') {
+            window.closeActiveChatRealtime();
+        }
+    });
+
+    mobileBack?.addEventListener('click', () => {
+        if (typeof window.closeActiveChatRealtime === 'function') {
+            window.closeActiveChatRealtime();
+        }
     });
 
     function toggleSidebarCollapse(e) {
@@ -8090,6 +8961,104 @@ document.addEventListener('DOMContentLoaded', function() {
         if (selectedPhone) pollMessages();
         refreshContactsSidebar();
     });
+
+    // ── WhatsApp Message Copy to Clipboard ──
+    document.addEventListener('click', function (e) {
+        const copyBtn = e.target.closest('.wab-copy-msg-btn');
+        if (!copyBtn) return;
+        e.preventDefault();
+        e.stopPropagation();
+
+        let textToCopy = copyBtn.getAttribute('data-copy-text');
+
+        if (!textToCopy) {
+            const bubble = copyBtn.closest('.wab-msg-bubble');
+            if (bubble) {
+                textToCopy = bubble.getAttribute('data-copy-text');
+                if (!textToCopy) {
+                    const captionEl = bubble.querySelector('.wab-media-caption');
+                    if (captionEl && captionEl.textContent.trim()) {
+                        textToCopy = captionEl.textContent.trim();
+                    } else {
+                        const textEl = bubble.querySelector('.wab-msg-text');
+                        if (textEl) {
+                            textToCopy = textEl.innerText.trim();
+                        } else {
+                            const clone = bubble.cloneNode(true);
+                            clone.querySelectorAll('.wab-msg-meta, .wab-copy-msg-btn, video, audio, .wab-voice-card, .wab-media-img-link').forEach(el => el.remove());
+                            textToCopy = clone.innerText.trim();
+                        }
+                    }
+
+                    if (!textToCopy) {
+                        const docName = bubble.querySelector('.wab-media-doc-name')?.textContent?.trim();
+                        const mediaLink = bubble.querySelector('a[href]')?.getAttribute('href') || bubble.querySelector('audio, video')?.getAttribute('src');
+                        textToCopy = docName || mediaLink || '';
+                    }
+                }
+            }
+        }
+
+        if (!textToCopy) {
+            if (typeof toastr !== 'undefined') {
+                toastr.warning('No text to copy in this message');
+            }
+            return;
+        }
+
+        copyTextToClipboard(textToCopy, function (success) {
+            if (success) {
+                copyBtn.classList.add('wab-copied');
+                copyBtn.setAttribute('title', 'Copied!');
+                if (typeof toastr !== 'undefined') {
+                    toastr.success('Message copied to clipboard', '', { timeOut: 1500 });
+                }
+                setTimeout(() => {
+                    copyBtn.classList.remove('wab-copied');
+                    copyBtn.setAttribute('title', 'Copy message');
+                }, 1800);
+            } else {
+                if (typeof toastr !== 'undefined') {
+                    toastr.error('Failed to copy message');
+                }
+            }
+        });
+    });
+
+    function copyTextToClipboard(text, callback) {
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(text).then(() => {
+                if (callback) callback(true);
+            }).catch(err => {
+                console.warn('Clipboard API error, trying fallback:', err);
+                fallbackCopyText(text, callback);
+            });
+        } else {
+            fallbackCopyText(text, callback);
+        }
+    }
+
+    function fallbackCopyText(text, callback) {
+        try {
+            const textArea = document.createElement('textarea');
+            textArea.value = text;
+            textArea.style.position = 'fixed';
+            textArea.style.top = '-9999px';
+            textArea.style.left = '-9999px';
+            textArea.style.opacity = '0';
+            textArea.setAttribute('readonly', '');
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            textArea.setSelectionRange(0, 99999);
+            const successful = document.execCommand('copy');
+            document.body.removeChild(textArea);
+            if (callback) callback(successful);
+        } catch (err) {
+            console.error('Fallback copy failed:', err);
+            if (callback) callback(false);
+        }
+    }
 
 })();
 </script>

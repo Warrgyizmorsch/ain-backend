@@ -321,18 +321,29 @@
                                             @endif
                                         </div>
                                     @endif
+                                    {!! get_order_duration_gap_badge($order) !!}
                                 </td>
 
                                 <td class="user-info-box">
+                                    @php
+                                        $orderUserId = $user ? $user->id : ($order->uid ?? null);
+                                    @endphp
                                     @if($user)
                                         @php
+                                            $isSuperAdmin = auth()->check() && (int) auth()->user()->role_id === 1;
                                             $rawName = $user->name ?? '';
                                             $rawEmail = $user->email ?? '';
                                             $rawMobile = $user->mobile_no ?? $user->mobile ?? '';
                                             $rawCC = $user->countrycode ?? $user->country_code ?? '';
                                             $cleanCC = preg_replace('/\D+/', '', (string)$rawCC);
-                                            $maskedEmail = $rawEmail ? mask_email_for_display($rawEmail) : '';
-                                            $maskedMobile = $rawMobile ? mask_mobile_only($cleanCC, $rawMobile) : '';
+                                            $maskedEmail = $isSuperAdmin ? $rawEmail : ($rawEmail ? mask_email_for_display($rawEmail) : '');
+                                            $maskedMobile = $isSuperAdmin ? $rawMobile : ($rawMobile ? mask_mobile_only($cleanCC, $rawMobile) : '');
+
+                                            $orderRawWAPhone = preg_replace('/\D+/', '', (string)($cleanCC . $rawMobile));
+                                            $orderSearchTerm = !empty($orderCode) ? $orderCode : $rawEmail;
+                                            $clientAccountId = crm_email_account_id('client');
+                                            $orderEmailUrl = route('emails.index', array_filter(['account_id' => $clientAccountId, 'search' => $orderSearchTerm]));
+                                            $orderWhatsAppUrl = !empty($orderRawWAPhone) ? route('whatsapp.chat', ['order_ref' => $order->id]) : route('whatsapp.chat');
                                         @endphp
 
                                         <div class="d-flex flex-column gap-1 py-1">
@@ -341,6 +352,16 @@
                                                 <div class="d-flex align-items-center">
                                                     <span class="fw-bolder text-dark fs-6">{{ $rawName }}</span>
                                                     <button type="button" class="btn btn-icon btn-sm btn-active-light-primary ms-1 p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Name" onclick="event.stopPropagation(); crmCopyToClipboard('{{ addslashes($rawName) }}', 'Customer name copied!');">
+                                                        <i class="fa fa-clone fs-8 text-muted"></i>
+                                                    </button>
+                                                </div>
+                                            @endif
+
+                                            {{-- User ID Badge & Copy Button --}}
+                                            @if(!empty($orderUserId))
+                                                <div class="d-inline-flex align-items-center gap-1">
+                                                    <span class="badge badge-light-dark fs-8 fw-bold">ID: {{ $orderUserId }}</span>
+                                                    <button type="button" class="btn btn-icon btn-sm btn-active-light-dark p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy User ID" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $orderUserId }}', 'User ID copied!');">
                                                         <i class="fa fa-clone fs-8 text-muted"></i>
                                                     </button>
                                                 </div>
@@ -356,7 +377,7 @@
                                                 </div>
                                             @endif
 
-                                            {{-- 3. Mobile Number with CC, Masking, Copy Button & Attractive Call Icon (Below Email) --}}
+                                            {{-- 3. Mobile Number with CC, Masking & Copy Button --}}
                                             @if(!empty($maskedMobile))
                                                 <div class="d-flex align-items-center flex-wrap gap-1 mt-1">
                                                     @if(!empty($cleanCC))
@@ -366,23 +387,61 @@
                                                     <button type="button" class="btn btn-icon btn-sm btn-active-light-danger p-0 flex-shrink-0" style="width: 20px; height: 20px;" title="Copy Mobile" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $maskedMobile }}', 'Mobile number copied!');">
                                                         <i class="fa fa-clone fs-8 text-danger"></i>
                                                     </button>
+                                                </div>
+                                            @endif
 
-                                                    {{-- Premium Attractive Call Icon Button --}}
+                                            {{-- Direct Contact Action Icons: Call, WhatsApp, Email (Client) --}}
+                                            <div class="d-inline-flex align-items-center gap-1 mt-1">
+                                                @if(!empty($rawMobile))
+                                                    {{-- Twilio Call Button --}}
                                                     <a href="#" 
                                                        id="twilioCallBtnfeedback{{ $order->id }}"
-                                                       onclick="event.preventDefault(); event.stopPropagation(); initiateCustomerCall('{{ $cleanCC . $rawMobile }}', '{{ addslashes($rawName ?: 'Customer') }}');"
-                                                       class="btn btn-icon btn-sm ms-1 shadow-sm call-btn-styled"
+                                                       onclick="event.preventDefault(); event.stopPropagation(); initiateTwilioCall('{{ $cleanCC . $rawMobile }}', '{{ addslashes($rawName ?: 'Customer') }}');"
+                                                       class="btn btn-icon btn-sm shadow-sm call-btn-styled"
                                                        style="width: 24px; height: 24px; min-width: 24px; border-radius: 6px; background-color: #25D366; color: #ffffff; display: inline-flex; align-items: center; justify-content: center; transition: transform 0.2s ease, background-color 0.2s ease;"
                                                        onmouseover="this.style.backgroundColor='#1ebd58'; this.style.transform='scale(1.1)';"
                                                        onmouseout="this.style.backgroundColor='#25D366'; this.style.transform='scale(1)';"
-                                                       title="Call Customer">
+                                                       title="Call via Twilio: {{ $cleanCC . $rawMobile }}">
                                                         <i class="fa fa-phone text-white" style="font-size: 11px;"></i>
                                                     </a>
-                                                </div>
-                                            @endif
+
+                                                    {{-- Next2Call Button (with red 2 badge) --}}
+                                                    <a href="#" 
+                                                       id="n2cCallBtnfeedback{{ $order->id }}"
+                                                       onclick="event.preventDefault(); event.stopPropagation(); initiateNext2Call('{{ $cleanCC . $rawMobile }}', '{{ addslashes($rawName ?: 'Customer') }}');"
+                                                       class="btn btn-icon btn-sm shadow-sm call-btn-styled position-relative"
+                                                       style="width: 24px; height: 24px; min-width: 24px; border-radius: 6px; background-color: #25D366; color: #ffffff; display: inline-flex; align-items: center; justify-content: center; transition: transform 0.2s ease, background-color 0.2s ease;"
+                                                       onmouseover="this.style.backgroundColor='#1ebd58'; this.style.transform='scale(1.1)';"
+                                                       onmouseout="this.style.backgroundColor='#25D366'; this.style.transform='scale(1)';"
+                                                       title="Call via Next2Call: {{ $cleanCC . $rawMobile }}">
+                                                        <i class="fa fa-phone text-white" style="font-size: 11px;"></i>
+                                                        <span style="position:absolute;bottom:-2px;right:-1px;background:#e53e3e;color:#ffffff;font-size:7.5px;font-weight:900;line-height:1;padding:1px 2px;border-radius:2px;box-shadow:0 1px 2px rgba(0,0,0,0.3);font-family:Arial,sans-serif;pointer-events:none;">2</span>
+                                                    </a>
+                                                @endif
+
+                                                <a href="{{ $orderWhatsAppUrl }}" target="_blank" class="btn btn-icon btn-sm crm-btn-wa" style="width: 24px !important; height: 24px !important; min-width: 24px !important;" title="WhatsApp: {{ $orderRawWAPhone ?: 'Open Chat' }}">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 16 16">
+                                                        <path d="M13.601 2.326A7.85 7.85 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.364 2.76 1.057 3.965L0 16l4.204-1.102a7.9 7.9 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.9 7.9 0 0 0 13.6 2.326zM7.994 14.521a6.6 6.6 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.56 6.56 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592m3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.73.73 0 0 0-.529.247c-.182.198-.691.677-.691 1.654s.707 2.002.806 2.134c.098.133 1.392 2.123 3.372 2.978.471.204.838.326 1.124.418.473.15.905.129 1.246.078.38-.058 1.17-.479 1.338-.943.166-.464.166-.862.116-.944-.049-.082-.182-.133-.38-.232"/>
+                                                    </svg>
+                                                </a>
+
+                                                <a href="{{ $orderEmailUrl }}" target="_blank" class="btn btn-icon btn-sm crm-btn-email" style="width: 24px !important; height: 24px !important; min-width: 24px !important;" title="Email: {{ $rawEmail ?: 'Open Emails' }}">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 16 16">
+                                                        <path d="M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2zm2-1a1 1 0 0 0-1 1v.217l7 4.2 7-4.2V4a1 1 0 0 0-1-1zm13 2.383-4.708 2.825L15 11.105zm-.034 6.876-5.64-3.471L8 9.583l-1.326-.795-5.64 3.47A1 1 0 0 0 2 13h12a1 1 0 0 0 .966-.741M1 11.105l4.708-2.897L1 5.383z"/>
+                                                    </svg>
+                                                </a>
+                                            </div>
                                         </div>
                                     @else
                                         <span class="badge badge-light-danger">User Deleted</span>
+                                        @if(!empty($orderUserId))
+                                            <div class="d-inline-flex align-items-center gap-1 mt-1">
+                                                <span class="badge badge-light-dark fs-8 fw-bold">ID: {{ $orderUserId }}</span>
+                                                <button type="button" class="btn btn-icon btn-sm btn-active-light-dark p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy User ID" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $orderUserId }}', 'User ID copied!');">
+                                                    <i class="fa fa-clone fs-8 text-muted"></i>
+                                                </button>
+                                            </div>
+                                        @endif
                                     @endif
                                 </td>
 
@@ -594,6 +653,16 @@
         $('#searchInput').on('keypress', function (e) {
             if (e.which === 13) {
                 $('#searchResultss').removeClass('show').css('display', 'none');
+            }
+        });
+
+        // Auto-set uid when a pure numeric ID is typed directly (without dropdown selection)
+        $('#orderFeedbackFilterForm').on('submit', function () {
+            var userVal = $('#searchInput').val().trim();
+            var hiddenUid = $('#selectedValue').val().trim();
+            // If user typed a pure number and didn't pick from dropdown, treat it as user ID
+            if (userVal && /^\d+$/.test(userVal) && !hiddenUid) {
+                $('#selectedValue').val(userVal);
             }
         });
     });

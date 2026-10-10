@@ -90,10 +90,17 @@ Route::prefix('emails')->name('emails.')->middleware(['auth', 'check.permission'
     Route::post('/toggle-star', [\App\Http\Controllers\EmailController::class, 'toggleStar'])->name('star');
     Route::post('/mark-read', [\App\Http\Controllers\EmailController::class, 'markAsRead'])->name('mark-read');
     Route::post('/delete', [\App\Http\Controllers\EmailController::class, 'deleteMessage'])->name('delete');
+    Route::post('/archive', [\App\Http\Controllers\EmailController::class, 'archive'])->name('archive');
+    Route::post('/move-folder', [\App\Http\Controllers\EmailController::class, 'moveToFolder'])->name('move-folder');
+    Route::post('/undo', [\App\Http\Controllers\EmailController::class, 'undoAction'])->name('undo');
+    Route::post('/bulk-labels', [\App\Http\Controllers\EmailController::class, 'bulkAssignLabels'])->name('bulk-labels');
     Route::post('/sync', [\App\Http\Controllers\EmailController::class, 'sync'])->name('sync');
     Route::get('/updates', [\App\Http\Controllers\EmailController::class, 'updates'])->name('updates');
     Route::get('/csrf-token', [\App\Http\Controllers\EmailController::class, 'csrfToken'])->name('csrf-token');
     Route::get('/attachment/{id}/download', [\App\Http\Controllers\EmailController::class, 'downloadAttachment'])->name('attachment.download');
+    Route::get('/attachment/{id}/view', [\App\Http\Controllers\EmailController::class, 'viewAttachment'])->name('attachment.view');
+    Route::get('/attachment/{id}/preview-html', [\App\Http\Controllers\EmailController::class, 'previewAttachmentHtml'])->name('attachment.preview-html');
+    Route::get('/search/suggest', [\App\Http\Controllers\EmailController::class, 'suggestSearch'])->name('search.suggest');
     Route::get('/{id}', [\App\Http\Controllers\EmailController::class, 'show'])->name('show');
     Route::post('/{id}/star', [\App\Http\Controllers\EmailController::class, 'toggleStarById'])->name('star.id');
     Route::delete('/{id}', [\App\Http\Controllers\EmailController::class, 'deleteById'])->name('delete.id');

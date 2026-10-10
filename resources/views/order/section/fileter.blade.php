@@ -5,7 +5,7 @@
     	</h3>
     </div>
     <div class="card-body py-3">
-    	<form action="">
+    	<form action="" onsubmit="event.preventDefault(); applyFilters(); return false;">
     		<div class="row mb-3">
             <div class="col-md-3 fv-row">
                 <input type="search" name="search" id="search" class="form-control form-control-solid" placeholder="Search By OrderCode or Title">
@@ -40,6 +40,13 @@
                 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
                 <script>
                     $(document).ready(function () {
+                        $('#search, #searchInput').on('keypress', function(e) {
+                            if (e.which === 13 || e.keyCode === 13) {
+                                e.preventDefault();
+                                applyFilters();
+                            }
+                        });
+
                         $('#searchInput').on('input', function () {
                             var searchValue = $(this).val();
 
@@ -55,7 +62,7 @@
                                             $('#searchDatalist').empty();
                                             $.each(response, function (key, value) {
                                                 // Append each option with email, name, and mobile number
-                                                $('#searchDatalist').append('<option data-id="' + value.id + '" value="' + value.email + '">' + value.name + ' (' + value.mobile_no + ')</option>');
+                                                $('#searchDatalist').append('<option data-id="' + value.id + '" value="' + value.email + '">' + value.name + (value.id ? ' (ID: ' + value.id + ')' : '') + ' (' + value.mobile_no + ')</option>');
                                             });
                                             if(response.length === 1) {
                                                 // If there is only one result, automatically fill in the search input

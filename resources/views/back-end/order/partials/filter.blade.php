@@ -1,53 +1,144 @@
+@php
+    $reqUser = request('user') ?? request('mobile') ?? request('phone') ?? request('number') ?? request('email') ?? request('user_name') ?? '';
+    $reqUid = request('uid') ?? request('user_id') ?? '';
+    $reqSearch = request('search') ?? request('order') ?? request('order_id') ?? request('order_code') ?? '';
+    $reqTeam = request('team_id') ?? request('team') ?? '';
+    $hasInitialFilters = !empty($reqUser) || !empty($reqUid) || !empty($reqSearch) || !empty($reqTeam) || request()->filled('status') || request()->filled('date_status') || request()->filled('from_date') || request()->filled('to_date') || request()->filled('month') || request()->filled('deadline_status');
+@endphp
 <div class="card card-xxl-stretch mb-5 mb-xl-8">
-    <div class="card-header border-0 pt-5">
-        {{-- <h3 class="card-title align-items-start flex-column">
-            <span id="filter-total" class="card-label fw-bolder fs-3 mb-1">Filter</span>
-        </h3> --}}
-        <div class="d-flex align-items-center gap-3">
-            <h3 class="card-title align-items-start flex-column mb-0">
-                <span id="filter-total" class="card-label fw-bolder fs-3 mb-1">
-                    Filter
+    <div class="card-header border-0 pt-4 pb-2 px-6 d-flex align-items-center justify-content-between flex-nowrap" style="min-height: 54px; overflow-x: auto;">
+        <div class="d-flex align-items-center flex-nowrap gap-2 flex-shrink-0">
+            <h3 class="card-title align-items-center mb-0 me-2 flex-shrink-0" style="min-width: 155px;">
+                <span id="filter-total" class="card-label fw-bolder text-gray-800" style="font-size: 14px; letter-spacing: -0.2px; white-space: nowrap; transition: opacity 0.2s ease;">
+                    {{ $hasInitialFilters ? 'Filtered: ' . (!empty($reqUser) ? $reqUser : (!empty($reqSearch) ? $reqSearch : 'Active')) : 'Filter' }}
                 </span>
             </h3>
 
-            <button type="button" id="toggleFilterBtn" class="btn btn-sm btn-primary">
-                Show Filters
+            <button type="button" id="toggleFilterBtn" onclick="window.toggleOrderFilters()" class="btn btn-sm {{ $hasInitialFilters ? 'btn-danger' : 'btn-primary' }} py-1.5 px-3 fs-8 fw-bold flex-shrink-0" style="border-radius: 6px;">
+                {{ $hasInitialFilters ? 'Hide Filters' : 'Show Filters' }}
             </button>
+            <button type="button" id="topResetFiltersBtn" onclick="window.resetFilters()" class="btn btn-sm btn-danger py-1.5 px-3 fs-8 fw-bold flex-shrink-0" style="border-radius: 6px; {{ $hasInitialFilters ? '' : 'display: none;' }}">
+                Reset
+            </button>
+            <button type="button" id="toggleDeadlineGapBtn" onclick="window.toggleDeadlineGap()" class="btn btn-sm flex-shrink-0">
+                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="me-1" style="vertical-align: -1px;">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <polyline points="12 6 12 12 16 14"></polyline>
+                </svg>
+                <span>Deadline Type</span>
+            </button>
+
+            <!-- Inline sliding buttons between Deadline Type and Team-Alpha -->
+            <div id="deadlineGapContainer" class="flex-shrink-0" style="display: none;">
+                <div class="d-inline-flex align-items-center gap-1 p-1 rounded-3 bg-white border border-gray-300 shadow-sm">
+                    <button type="button" class="btn btn-sm deadline-gap-btn deadline-gap-danger py-1 px-2.5 fs-8" data-gap="<2" onclick="window.toggleDeadlineGapItem(this)">
+                        &lt; 2 Days
+                    </button>
+                    <button type="button" class="btn btn-sm deadline-gap-btn deadline-gap-warning py-1 px-2.5 fs-8" data-gap="3-5" onclick="window.toggleDeadlineGapItem(this)">
+                        3-5 Days
+                    </button>
+                    <button type="button" class="btn btn-sm deadline-gap-btn deadline-gap-primary py-1 px-2.5 fs-8" data-gap="6-15" onclick="window.toggleDeadlineGapItem(this)">
+                        6-15 Days
+                    </button>
+                    <button type="button" class="btn btn-sm deadline-gap-btn deadline-gap-success py-1 px-2.5 fs-8" data-gap="15+" onclick="window.toggleDeadlineGapItem(this)">
+                        15 Days & Above
+                    </button>
+                    <button type="button" class="btn deadline-gap-clear-btn" onclick="window.clearDeadlineGap()" title="Clear Deadline Filter"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="2.5" y1="2.5" x2="9.5" y2="9.5"></line><line x1="9.5" y1="2.5" x2="2.5" y2="9.5"></line></svg></button>
+                </div>
+            </div>
         </div>
-        @if(empty($hideOrderQuickFilters))
-        <div class="card-toolbar gap-2">
-            <a href="javascript:void(0)" id="teamAlphaBtn" class="btn btn-sm btn-info">
-                Team-Alpha {{ $alphaCount ?? 0 }}
-            </a>
-            <a href="javascript:void(0)" id="teamGigaBtn" class="btn btn-sm btn-dark">
-                Team-Giga {{ $gigaCount ?? 0 }}
-            </a>
+        @php
+            $currentAuth = auth()->user();
+            $userRoleId = !empty($currentAuth) ? (int)$currentAuth->role_id : null;
+            $userTeamId = !empty($currentAuth) ? $currentAuth->team_id : null;
+        @endphp
+        @if(empty($hideOrderQuickFilters) && $userRoleId !== 4)
+        @php
+            $allActiveTeams = isset($teams) ? $teams : \App\Models\Team::where('is_delete', 0)->orderBy('priority', 'asc')->get();
+
+            if ($userRoleId === 9) {
+                // Subadmin: if team assigned, show only that team; if not assigned, show all teams
+                if (!empty($userTeamId)) {
+                    $allActiveTeams = $allActiveTeams->where('id', $userTeamId);
+                }
+            }
+            $palette = [
+                ['bg' => '#eff6ff', 'border' => '#bfdbfe', 'color' => '#1d4ed8', 'badge' => '#3b82f6'],
+                ['bg' => '#f8fafc', 'border' => '#cbd5e1', 'color' => '#1e293b', 'badge' => '#1e293b'],
+                ['bg' => '#f0fdf4', 'border' => '#bbf7d0', 'color' => '#15803d', 'badge' => '#16a34a'],
+                ['bg' => '#faf5ff', 'border' => '#e9d5ff', 'color' => '#7e22ce', 'badge' => '#9333ea'],
+                ['bg' => '#fff7ed', 'border' => '#fed7aa', 'color' => '#c2410c', 'badge' => '#ea580c'],
+                ['bg' => '#fdf2f8', 'border' => '#fbcfe8', 'color' => '#be185d', 'badge' => '#db2777'],
+            ];
+        @endphp
+        <div class="d-flex align-items-center gap-2 flex-shrink-0 ms-3" id="dynamicTeamBtnsContainer">
+            @foreach($allActiveTeams as $idx => $t)
+                @php
+                    $colors = $palette[$idx % count($palette)];
+                    $tCount = isset($teamCounts[$t->id]) ? $teamCounts[$t->id] : (isset(${"alphaCount"}) && $t->id == 1 ? $alphaCount : (isset(${"gigaCount"}) && $t->id == 2 ? $gigaCount : (isset(${"gammaCount"}) && $t->id == 3 ? $gammaCount : 0)));
+                    $isGamma = $t->id == 3 || str_contains(strtolower($t->team_name), 'gamma');
+                    $btnId = $t->id == 1 ? 'teamAlphaBtn' : ($t->id == 2 ? 'teamGigaBtn' : ($isGamma ? 'teamGammaBtn' : 'teamBtn_' . $t->id));
+                    $btnClass = $t->id == 1 ? 'team-alpha-btn' : ($t->id == 2 ? 'team-giga-btn' : ($isGamma ? 'team-gamma-btn' : ''));
+                @endphp
+                <a href="javascript:void(0)" 
+                   id="{{ $btnId }}" 
+                   data-team-id="{{ $t->id }}" 
+                   onclick="window.toggleTeamFilter(this)"
+                   class="team-quick-btn dynamic-team-btn {{ $btnClass }}"
+                   style="background-color: {{ $colors['bg'] }}; border: 1px solid {{ $colors['border'] }}; color: {{ $colors['color'] }};">
+                    <span>{{ $t->team_name }}</span>
+                    <span class="team-badge" style="background: {{ $colors['badge'] }};">{{ $tCount }}</span>
+                </a>
+            @endforeach
         </div>
         @endif
     </div>
-    <div class="card-body py-3" id="filterBody" style="display:none;">
-        <form action="">
+    <div class="card-body py-3" id="filterBody" style="{{ $hasInitialFilters ? '' : 'display:none;' }}">
+        <form id="orderFilterForm" action="javascript:void(0);" onsubmit="event.preventDefault(); if (typeof window.applyFilters === 'function') { window.applyFilters(); } return false;">
+            <input type="hidden" id="filter_team_id" value="{{ $reqTeam }}">
+            <input type="hidden" id="duration_gap_filter" value="{{ request('duration_gap') ?? '' }}">
+            <input type="hidden" id="today_deadline_filter" value="{{ request('today_deadline_filter') ?? '' }}">
+            <input type="hidden" id="yesterday_deadline_filter" value="{{ request('yesterday_deadline_filter') ?? '' }}">
+            <input type="hidden" id="today_writer_deadline_filter" value="{{ request('today_writer_deadline_filter') ?? '' }}">
+            <input type="hidden" id="holdBtn" value="{{ request('holdBtn') ?? '' }}">
             <div class="row mb-3">
                 <div class="col-md-3 fv-row">
-                    <input type="search" name="search" id="search" class="form-control form-control-solid"
-                        placeholder="OrderCode or Title">
+                    <input type="search" name="search" id="search" value="{{ $reqSearch }}" class="form-control form-control-solid"
+                        placeholder="OrderCode or Title" autocomplete="off">
                 </div>
-
-                <script src="{{ asset('js/jquery.js') }}"></script>
 
                 <div class="col-md-3 fv-row position-relative">
-                    <input type="text" id="searchInput" name="user"
+                    <input type="text" id="searchInput" name="user" value="{{ $reqUser }}"
                         class="form-control form-control-solid" placeholder="User-Name,Number,Email" autocomplete="off">
                     <!-- Container to display custom search results dropdown -->
-                    <div id="searchResultss" class="dropdown-menu w-100 shadow-lg p-0 mt-1" style="display:none; max-height: 250px; overflow-y: auto; z-index: 1050; position: absolute;"></div>
+                    <div id="searchResultss" class="dropdown-menu shadow-lg p-0 mt-1" style="display:none; max-height: 280px; overflow-y: auto; z-index: 9999; position: absolute; left: 0; top: 100%; width: 100%; background: #ffffff !important; border: 1px solid #cbd5e1; border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.15);"></div>
                     <!-- Hidden field to store the selected value -->
-                    <input type="hidden" id="selectedValue" name="uid">
+                    <input type="hidden" id="selectedValue" name="uid" value="{{ $reqUid }}">
                 </div>
-                <div class="col-md-3 fv-row"><select id="group_id" name="group_id" class="form-select form-select-solid" data-control="select2" data-placeholder="User Group"><option value="">All Groups</option>@foreach(\App\Models\GroupMaster::where('status',1)->orderBy('name')->get(['id','name']) as $group)<option value="{{ $group->id }}">{{ $group->name }}</option>@endforeach</select></div>
+                {{-- mk 5 10 26 - Cache group masters list for 180s --}}
+                <div class="col-md-3 fv-row"><select id="group_id" name="group_id" class="form-select form-select-solid" data-control="select2" data-placeholder="User Group"><option value="">All Groups</option>@foreach(\Illuminate\Support\Facades\Cache::remember('leads_active_group_masters', 180, fn() => \App\Models\GroupMaster::where('status',1)->orderBy('name')->get(['id','name'])) as $group)<option value="{{ $group->id }}">{{ $group->name }}</option>@endforeach</select></div>
 
                 <script>
                     $(document).ready(function() {
                         let searchTimeout = null;
+
+                        $('#search, #searchInput').on('keydown keypress', function(e) {
+                            if (e.which === 13 || e.keyCode === 13) {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                $('#searchResultss').removeClass('show').css('display', 'none');
+                                if (typeof window.applyFilters === 'function') {
+                                    window.applyFilters();
+                                }
+                                return false;
+                            }
+                        });
+
+                        $('#search').on('search', function() {
+                            if (typeof window.applyFilters === 'function') {
+                                window.applyFilters();
+                            }
+                        });
 
                         $('#searchInput').on('input focus', function() {
                             var searchValue = $(this).val().trim();
@@ -58,9 +149,9 @@
                                 $('#searchResultss').html(
                                     '<div class="p-3 text-center text-muted fs-7 d-flex align-items-center justify-content-center gap-2">' +
                                         '<div class="spinner-border spinner-border-sm text-primary" role="status"></div>' +
-                                        '<span>Searching users...</span>' +
+                                        '<span>Searching users & orders...</span>' +
                                     '</div>'
-                                ).show();
+                                ).addClass('show').css('display', 'block');
 
                                 searchTimeout = setTimeout(function() {
                                     $.ajax({
@@ -74,24 +165,30 @@
                                             if (response && response.length > 0) {
                                                 $.each(response, function(key, value) {
                                                     var mobileStr = value.mobile_no ? ' | 📞 ' + value.mobile_no : '';
-                                                    resultsHtml += '<a href="javascript:void(0)" class="dropdown-item user-select-item p-3 border-bottom text-wrap" ' +
-                                                        'data-id="' + value.id + '" data-email="' + value.email + '" data-name="' + value.name + '">' +
-                                                        '<div class="fw-bolder text-dark fs-6">' + value.name + '</div>' +
-                                                        '<div class="text-muted fs-7">' + value.email + mobileStr + '</div>' +
+                                                    var orderAttr = value.order_id ? ' data-order-id="' + value.order_id + '"' : '';
+                                                    var idBadge = value.id ? '<span class="badge badge-light-primary fw-bolder fs-8 ms-2 px-2 py-0.5" style="border: 1px solid #bfdbfe;">ID: ' + value.id + '</span>' : '';
+                                                    var displayName = value.display_name || value.name || ('User #' + value.id);
+                                                    resultsHtml += '<a href="javascript:void(0)" class="dropdown-item user-select-item p-3 border-bottom text-wrap" style="transition: background-color 0.15s ease;" ' +
+                                                        'data-id="' + value.id + '" data-email="' + (value.email || '') + '" data-name="' + displayName + '"' + orderAttr + '>' +
+                                                        '<div class="d-flex align-items-center justify-content-between">' +
+                                                            '<span class="fw-bolder text-dark fs-6">' + displayName + '</span>' +
+                                                            idBadge +
+                                                        '</div>' +
+                                                        '<div class="text-muted fs-7 mt-1">' + (value.email || '') + mobileStr + '</div>' +
                                                         '</a>';
                                                 });
                                             } else {
                                                 resultsHtml = '<div class="p-3 text-muted fs-7 text-center">No results found</div>';
                                             }
-                                            $('#searchResultss').html(resultsHtml).show();
+                                            $('#searchResultss').html(resultsHtml).addClass('show').css('display', 'block');
                                         },
                                         error: function() {
-                                            $('#searchResultss').html('<div class="p-3 text-danger fs-7 text-center">Error loading results</div>').show();
+                                            $('#searchResultss').html('<div class="p-3 text-danger fs-7 text-center">Error loading results</div>').addClass('show').css('display', 'block');
                                         }
                                     });
                                 }, 250);
                             } else {
-                                $('#searchResultss').hide().empty();
+                                $('#searchResultss').removeClass('show').css('display', 'none').empty();
                                 if (searchValue.length === 0) {
                                     $('#selectedValue').val('');
                                 }
@@ -102,18 +199,29 @@
                         $(document).on('click', '.user-select-item', function(e) {
                             e.preventDefault();
                             var selectedId = $(this).attr('data-id');
-                            var selectedEmail = $(this).attr('data-email');
                             var selectedName = $(this).attr('data-name');
+                            var selectedOrderId = $(this).attr('data-order-id');
 
-                            $('#searchInput').val(selectedName + ' (' + selectedEmail + ')');
-                            $('#selectedValue').val(selectedId);
-                            $('#searchResultss').hide().empty();
+                            if (selectedOrderId) {
+                                $('#search').val(selectedOrderId);
+                                $('#searchInput').val(selectedOrderId);
+                                $('#selectedValue').val(selectedId);
+                            } else {
+                                var displayName = selectedName;
+                                if (selectedId && displayName.indexOf('ID:') === -1) {
+                                    displayName += ' (ID: ' + selectedId + ')';
+                                }
+                                $('#searchInput').val(displayName);
+                                $('#selectedValue').val(selectedId);
+                            }
+                            $('#searchResultss').removeClass('show').css('display', 'none').empty();
+                            applyFilters();
                         });
 
                         // Close dropdown on clicking outside
                         $(document).on('click', function(e) {
                             if (!$(e.target).closest('#searchInput, #searchResultss').length) {
-                                $('#searchResultss').hide();
+                                $('#searchResultss').removeClass('show').css('display', 'none');
                             }
                         });
                     });
@@ -240,7 +348,7 @@
 
 
             </div>
-            <div class="row mb-1 additional-filters" style="display:none;">
+            <div class="row mb-1 additional-filters" id="additionalFiltersRow" style="display:none;">
                 <div class="col-md-3 fv-row mb-3">
                     <input type="date" name="from_date" id="from_date" class="form-control form-control-solid"
                         placeholder="Search By From Date">
@@ -313,10 +421,9 @@
             <div class="col-lg-12 fv-row fv-plugins-icon-container" style="display: flex; justify-content: space-between; align-items: center;">
                 <!-- <button type='submit' class="btn btn-sm btn-primary" >Search</button> -->
                 <div>
-
-                    <a onclick="applyFilters()" class="btn btn-sm btn-primary">Search</a>
-                    <button type="button" id="resetFiltersBtn" class="btn btn-sm btn-danger" style="display: none;">Reset</button>
-                    <button type="button" id="showMoreFilters" class="btn btn-sm btn-success">Show More Filters</button>
+                    <button type="button" onclick="window.applyFilters()" class="btn btn-sm btn-primary" id="applyFilterBtn">Search</button>
+                    <button type="button" onclick="window.resetFilters()" id="resetFiltersBtn" class="btn btn-sm btn-danger" style="{{ $hasInitialFilters ? '' : 'display: none;' }}">Reset</button>
+                    <button type="button" onclick="window.toggleMoreFilters(event)" id="showMoreFilters" class="btn btn-sm btn-success">Show More Filters</button>
                     @if(empty($hideOrderQuickFilters))
                     <a href="javascript:void(0)" id="overdueBtn" class="btn btn-sm btn-danger">
                         Overdue {{ $overdueCount }}
@@ -335,22 +442,12 @@
                         Writer's Deadline
                     </a>
 
-                    <input type="hidden" id="today_deadline_filter" value="">
-                    <input type="hidden" id="yesterday_deadline_filter" value="">
-                    <input type="hidden" id="today_writer_deadline_filter" value="">
                     <a href="javascript:void(0)" id="writerQueryBtn" class="btn btn-sm btn-secondary">
                         Writer Query
                     </a>
                     <a href="javascript:void(0)" id="holdWorkBtn" class="btn btn-sm btn-warning">
                         Hold Work
                     </a>
-                    {{-- <a href="javascript:void(0)" id="teamAlphaBtn" class="btn btn-sm btn-info">
-                        Team-Alpha {{ $alphaCount ?? 0 }}
-                    </a>
-                    <a href="javascript:void(0)" id="teamGigaBtn" class="btn btn-sm btn-dark">
-                        Team-Giga {{ $gigaCount ?? 0 }}
-                    </a> --}}
-                    <input type="hidden" id="filter_team_id" value="">
                     @endif
                 </div>
                 @if( auth()->user()->role_id == 1)
@@ -384,6 +481,292 @@
 </div>
 
 <style>
+    .deadline-gap-btn {
+        height: 26px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 6px !important;
+        font-weight: 600;
+        font-size: 11.5px !important;
+        padding: 0 10px !important;
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        border: 1px solid transparent;
+        cursor: pointer;
+        user-select: none;
+        white-space: nowrap;
+        line-height: 1;
+    }
+    .deadline-gap-danger {
+        background-color: #fff5f8 !important;
+        border-color: #fca5a5 !important;
+        color: #e11d48 !important;
+    }
+    .deadline-gap-danger:hover {
+        background-color: #ffe4e6 !important;
+        border-color: #f43f5e !important;
+        color: #be123c !important;
+        transform: translateY(-1px);
+    }
+    .deadline-gap-danger.active {
+        background: linear-gradient(135deg, #f43f5e, #e11d48) !important;
+        border-color: #e11d48 !important;
+        color: #ffffff !important;
+        box-shadow: 0 3px 9px rgba(225, 29, 72, 0.4) !important;
+        transform: translateY(-1px);
+    }
+
+    .deadline-gap-warning {
+        background-color: #fffbeb !important;
+        border-color: #fde68a !important;
+        color: #d97706 !important;
+    }
+    .deadline-gap-warning:hover {
+        background-color: #fef3c7 !important;
+        border-color: #f59e0b !important;
+        color: #b45309 !important;
+        transform: translateY(-1px);
+    }
+    .deadline-gap-warning.active {
+        background: linear-gradient(135deg, #f59e0b, #d97706) !important;
+        border-color: #d97706 !important;
+        color: #ffffff !important;
+        box-shadow: 0 3px 9px rgba(217, 119, 6, 0.4) !important;
+        transform: translateY(-1px);
+    }
+
+    .deadline-gap-primary {
+        background-color: #eff6ff !important;
+        border-color: #bfdbfe !important;
+        color: #2563eb !important;
+    }
+    .deadline-gap-primary:hover {
+        background-color: #dbeafe !important;
+        border-color: #3b82f6 !important;
+        color: #1d4ed8 !important;
+        transform: translateY(-1px);
+    }
+    .deadline-gap-primary.active {
+        background: linear-gradient(135deg, #3b82f6, #2563eb) !important;
+        border-color: #2563eb !important;
+        color: #ffffff !important;
+        box-shadow: 0 3px 9px rgba(37, 99, 235, 0.4) !important;
+        transform: translateY(-1px);
+    }
+
+    .deadline-gap-success {
+        background-color: #ecfdf5 !important;
+        border-color: #a7f3d0 !important;
+        color: #059669 !important;
+    }
+    .deadline-gap-success:hover {
+        background-color: #d1fae5 !important;
+        border-color: #10b981 !important;
+        color: #047857 !important;
+        transform: translateY(-1px);
+    }
+    .deadline-gap-success.active {
+        background: linear-gradient(135deg, #10b981, #059669) !important;
+        border-color: #059669 !important;
+        color: #ffffff !important;
+        box-shadow: 0 3px 9px rgba(5, 150, 105, 0.4) !important;
+        transform: translateY(-1px);
+    }
+
+    .deadline-gap-clear-btn {
+        width: 0;
+        height: 26px !important;
+        min-height: 26px !important;
+        max-height: 26px !important;
+        border-radius: 6px !important;
+        background-color: #fee2e2 !important;
+        border: 0 solid #fca5a5 !important;
+        color: #dc2626 !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        text-align: center !important;
+        opacity: 0;
+        padding: 0 !important;
+        margin: 0 !important;
+        overflow: hidden;
+        pointer-events: none;
+        cursor: pointer;
+        font-size: 0 !important;
+        line-height: 1 !important;
+        box-sizing: border-box !important;
+        vertical-align: middle !important;
+        outline: none !important;
+        transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease, margin 0.25s ease, border-width 0.25s ease;
+    }
+    .deadline-gap-clear-btn.is-visible {
+        width: 26px !important;
+        min-width: 26px !important;
+        max-width: 26px !important;
+        opacity: 1 !important;
+        margin-left: 3px !important;
+        border-width: 1px !important;
+        pointer-events: auto !important;
+    }
+    .deadline-gap-clear-btn svg {
+        width: 12px !important;
+        height: 12px !important;
+        stroke: #dc2626;
+        display: block !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        transform: none !important;
+        transition: stroke 0.2s ease;
+        flex-shrink: 0 !important;
+    }
+    .deadline-gap-clear-btn:hover {
+        background-color: #dc2626 !important;
+        border-color: #dc2626 !important;
+        color: #ffffff !important;
+        transform: scale(1.05);
+    }
+    .deadline-gap-clear-btn:hover svg {
+        stroke: #ffffff !important;
+    }
+
+    .team-quick-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 700;
+        transition: all 0.2s ease;
+        text-decoration: none !important;
+    }
+    .team-alpha-btn {
+        background-color: #eff6ff !important;
+        border: 1px solid #bfdbfe !important;
+        color: #1d4ed8 !important;
+    }
+    .team-alpha-btn:hover, .team-alpha-btn.quick-filter-active {
+        background-color: #dbeafe !important;
+        border-color: #3b82f6 !important;
+        color: #1e40af !important;
+        transform: translateY(-1px);
+        box-shadow: 0 3px 8px rgba(59, 130, 246, 0.25);
+    }
+    .team-alpha-btn .team-badge {
+        background: #3b82f6;
+        color: #ffffff;
+        border-radius: 4px;
+        padding: 2px 6px;
+        font-size: 10px;
+        font-weight: 700;
+    }
+
+    .team-giga-btn {
+        background-color: #f8fafc !important;
+        border: 1px solid #cbd5e1 !important;
+        color: #1e293b !important;
+    }
+    .team-giga-btn:hover, .team-giga-btn.quick-filter-active {
+        background-color: #e2e8f0 !important;
+        border-color: #64748b !important;
+        color: #0f172a !important;
+        transform: translateY(-1px);
+        box-shadow: 0 3px 8px rgba(30, 41, 59, 0.2);
+    }
+    .team-giga-btn .team-badge {
+        background: #1e293b;
+        color: #ffffff;
+        border-radius: 4px;
+        padding: 2px 6px;
+        font-size: 10px;
+        font-weight: 700;
+    }
+
+    .team-gamma-btn {
+        background-color: #f0fdf4 !important;
+        border: 1px solid #bbf7d0 !important;
+        color: #15803d !important;
+    }
+    .team-gamma-btn:hover, .team-gamma-btn.quick-filter-active {
+        background-color: #dcfce7 !important;
+        border-color: #22c55e !important;
+        color: #166534 !important;
+        transform: translateY(-1px);
+        box-shadow: 0 3px 8px rgba(34, 197, 94, 0.25);
+    }
+    .team-gamma-btn .team-badge {
+        background: #16a34a;
+        color: #ffffff;
+        border-radius: 4px;
+        padding: 2px 6px;
+        font-size: 10px;
+        font-weight: 700;
+    }
+
+    .dynamic-team-btn:hover, .dynamic-team-btn.quick-filter-active {
+        filter: brightness(0.92);
+        transform: translateY(-1px);
+        box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15) !important;
+        outline: 2px solid currentColor;
+    }
+    .dynamic-team-btn .team-badge {
+        color: #ffffff;
+        border-radius: 4px;
+        padding: 2px 6px;
+        font-size: 10px;
+        font-weight: 700;
+    }
+
+    #toggleDeadlineGapBtn {
+        border-radius: 6px !important;
+        font-weight: 700;
+        font-size: 12px;
+        padding: 6px 14px;
+        background: #fff8dd !important;
+        border: 1px solid #ffd54f !important;
+        color: #8c6000 !important;
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        display: inline-flex;
+        align-items: center;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    #toggleDeadlineGapBtn svg {
+        stroke: #ff9800;
+        transition: stroke 0.2s ease;
+    }
+    #toggleDeadlineGapBtn:hover {
+        background: #ffecb3 !important;
+        border-color: #ffc107 !important;
+        color: #634300 !important;
+        box-shadow: 0 3px 8px rgba(255, 193, 7, 0.28);
+        transform: translateY(-1px);
+    }
+    #toggleDeadlineGapBtn.active {
+        background: linear-gradient(135deg, #ffb300, #f57c00) !important;
+        border-color: #f57c00 !important;
+        color: #ffffff !important;
+        box-shadow: 0 4px 12px rgba(245, 124, 0, 0.35) !important;
+    }
+    #toggleDeadlineGapBtn.active svg {
+        stroke: #ffffff !important;
+    }
+
+    #deadlineGapContainer {
+        display: none;
+        vertical-align: middle;
+        animation: fadeInSlideRight 0.25s ease-out;
+    }
+    @keyframes fadeInSlideRight {
+        from {
+            opacity: 0;
+            transform: translateX(-12px);
+        }
+        to {
+            opacity: 1;
+            transform: translateX(0);
+        }
+    }
+
     .quick-filter-active {
         border: 2px solid #50CD89 !important;
         box-shadow: 0 0 10px rgba(80, 205, 137, 0.7) !important;
@@ -650,8 +1033,107 @@ resetFilters();
         total_due: 0
     };
 
+    window.toggleMoreFilters = function(e) {
+        if (e && e.stopPropagation) {
+            e.stopPropagation();
+        }
+        var el = document.getElementById('additionalFiltersRow') || document.querySelector('.additional-filters');
+        var btn = document.getElementById('showMoreFilters');
+        if (!el) return false;
+
+        var isHidden = (el.style.display === 'none' || window.getComputedStyle(el).display === 'none');
+        if (isHidden) {
+            el.style.setProperty('display', 'flex', 'important');
+            if (btn) btn.innerText = 'Hide More Filters';
+        } else {
+            el.style.setProperty('display', 'none', 'important');
+            if (btn) btn.innerText = 'Show More Filters';
+        }
+        return false;
+    };
+
+    window.toggleOrderFilters = function() {
+        const filterBody = $('#filterBody');
+        const isCurrentlyVisible = filterBody.is(':visible');
+        const btn = $('#toggleFilterBtn');
+
+        if (isCurrentlyVisible) {
+            filterBody.hide();
+            btn.text('Show Filters')
+               .removeClass('btn-danger')
+               .addClass('btn-primary');
+        } else {
+            filterBody.show();
+            btn.text('Hide Filters')
+               .removeClass('btn-primary')
+               .addClass('btn-danger');
+        }
+    };
+
+    window.toggleDeadlineGap = function() {
+        const container = $('#deadlineGapContainer');
+        const btn = $('#toggleDeadlineGapBtn');
+        if (container.is(':visible')) {
+            container.hide();
+            btn.removeClass('active');
+        } else {
+            container.css('display', 'inline-flex');
+            btn.addClass('active');
+        }
+    };
+
+    window.toggleDeadlineGapItem = function(elem) {
+        const gap = $(elem).data('gap');
+        if ($('#duration_gap_filter').val() === String(gap)) {
+            // Toggle off
+            $('#duration_gap_filter').val('');
+            $('.deadline-gap-btn').removeClass('active');
+            $('.deadline-gap-clear-btn').removeClass('is-visible');
+        } else {
+            $('#duration_gap_filter').val(gap);
+            $('.deadline-gap-btn').removeClass('active');
+            $(elem).addClass('active');
+            $('.deadline-gap-clear-btn').addClass('is-visible');
+            $('#deadline_status').val('').trigger('change');
+            $('#today_deadline_filter').val('');
+            $('#yesterday_deadline_filter').val('');
+            $('#today_writer_deadline_filter').val('');
+            $('#status').val('').trigger('change');
+        }
+        window.applyFilters();
+    };
+
+    window.clearDeadlineGap = function() {
+        $('#duration_gap_filter').val('');
+        $('.deadline-gap-btn').removeClass('active');
+        $('.deadline-gap-clear-btn').removeClass('is-visible');
+        window.applyFilters();
+    };
+
+    window.toggleTeamFilter = function(elem) {
+        const $btn = $(elem);
+        const selectedTeamId = String($btn.data('team-id') || ($btn.attr('id') === 'teamAlphaBtn' ? '1' : ($btn.attr('id') === 'teamGigaBtn' ? '2' : ($btn.attr('id') === 'teamGammaBtn' ? '3' : ''))));
+        if (!selectedTeamId) return;
+
+        if ($('#filter_team_id').val() === selectedTeamId) {
+            // Toggle OFF
+            $('#filter_team_id').val('');
+        } else {
+            // Toggle ON
+            $('#deadline_status').val('').trigger('change');
+            $('#today_deadline_filter').val('');
+            $('#yesterday_deadline_filter').val('');
+            $('#today_writer_deadline_filter').val('');
+            $('#status').val('').trigger('change');
+            $('#from_date').val('');
+            $('#to_date').val('');
+            $('#filter_team_id').val(selectedTeamId);
+        }
+        window.applyFilters();
+    };
+
     function highlightActiveQuickFilters() {
-        $('#overdueBtn, #todayDeadlineBtn, #yesterdayDeadlineBtn, #todayWriterDeadlineBtn, #writerQueryBtn, #holdWorkBtn, #teamAlphaBtn, #teamGigaBtn').removeClass('quick-filter-active');
+        $('#overdueBtn, #todayDeadlineBtn, #yesterdayDeadlineBtn, #todayWriterDeadlineBtn, #writerQueryBtn, #holdWorkBtn, .dynamic-team-btn, #teamAlphaBtn, #teamGigaBtn, #teamGammaBtn').removeClass('quick-filter-active');
 
         if ($('#deadline_status').val() === 'overdue') {
             $('#overdueBtn').addClass('quick-filter-active');
@@ -671,11 +1153,26 @@ resetFilters();
         if ($('#status').val() === 'Hold Work') {
             $('#holdWorkBtn').addClass('quick-filter-active');
         }
-        if ($('#filter_team_id').val() === '1') {
-            $('#teamAlphaBtn').addClass('quick-filter-active');
+        
+        var currentTeam = String($('#filter_team_id').val() || '');
+        if (currentTeam) {
+            $('.dynamic-team-btn[data-team-id="' + currentTeam + '"]').addClass('quick-filter-active');
+            if (currentTeam === '1') $('#teamAlphaBtn').addClass('quick-filter-active');
+            if (currentTeam === '2') $('#teamGigaBtn').addClass('quick-filter-active');
+            if (currentTeam === '3') $('#teamGammaBtn').addClass('quick-filter-active');
         }
-        if ($('#filter_team_id').val() === '2') {
-            $('#teamGigaBtn').addClass('quick-filter-active');
+
+        const activeGap = String($('#duration_gap_filter').val() || '');
+        $('.deadline-gap-btn').removeClass('active').each(function() {
+            const gap = String($(this).data('gap') || '');
+            if (activeGap && activeGap === gap) {
+                $(this).addClass('active');
+            }
+        });
+        if (activeGap) {
+            $('.deadline-gap-clear-btn').addClass('is-visible');
+        } else {
+            $('.deadline-gap-clear-btn').removeClass('is-visible');
         }
     }
 
@@ -775,40 +1272,6 @@ resetFilters();
         applyFilters();
     });
 
-    $(document).on('click', '#teamAlphaBtn', function(e) {
-        e.preventDefault();
-        if ($('#filter_team_id').val() === '1') {
-            $('#filter_team_id').val('');
-        } else {
-            $('#deadline_status').val('').trigger('change');
-            $('#today_deadline_filter').val('');
-            $('#yesterday_deadline_filter').val('');
-            $('#today_writer_deadline_filter').val('');
-            $('#status').val('').trigger('change');
-            $('#from_date').val('');
-            $('#to_date').val('');
-            $('#filter_team_id').val('1');
-        }
-        applyFilters();
-    });
-
-    $(document).on('click', '#teamGigaBtn', function(e) {
-        e.preventDefault();
-        if ($('#filter_team_id').val() === '2') {
-            $('#filter_team_id').val('');
-        } else {
-            $('#deadline_status').val('').trigger('change');
-            $('#today_deadline_filter').val('');
-            $('#yesterday_deadline_filter').val('');
-            $('#today_writer_deadline_filter').val('');
-            $('#status').val('').trigger('change');
-            $('#from_date').val('');
-            $('#to_date').val('');
-            $('#filter_team_id').val('2');
-        }
-        applyFilters();
-    });
-
     function fetchData(append = false) {
         if (loading || !hasMore) return;
 
@@ -873,8 +1336,29 @@ resetFilters();
                     currentTotalCount = response.total;
                 }
 
-                // $('#filter-total').text(`Filtered Orders (${response.total ?? 0} total)`);
-                $('#filter-total').text(`{{ $filterTitle ?? 'Filtered Orders' }} (${response.total ?? currentTotalCount} total)`);
+                if (response.team_counts) {
+                    $.each(response.team_counts, function(tid, cnt) {
+                        $('.dynamic-team-btn[data-team-id="' + tid + '"] .team-badge').text(cnt);
+                    });
+                }
+                if (response.alpha_count !== undefined) {
+                    $('#teamAlphaBtn .team-badge').text(response.alpha_count);
+                }
+                if (response.giga_count !== undefined) {
+                    $('#teamGigaBtn .team-badge').text(response.giga_count);
+                }
+                if (response.gamma_count !== undefined) {
+                    $('#teamGammaBtn .team-badge').text(response.gamma_count);
+                }
+
+                const activeTeamId = $('#filter_team_id').val();
+                if (activeTeamId) {
+                    const activeTeamBtn = $('.dynamic-team-btn[data-team-id="' + activeTeamId + '"]');
+                    const teamTitle = activeTeamBtn.find('span:first').text().trim() || 'Team';
+                    $('#filter-total').text(`Team: ${teamTitle} (${response.total ?? currentTotalCount} orders)`);
+                } else {
+                    $('#filter-total').text(`{{ $filterTitle ?? 'Filtered Orders' }} (${response.total ?? currentTotalCount} total)`);
+                }
 
                 $('#spinner-row').hide();
                 $('#preloader2').hide();
@@ -894,14 +1378,13 @@ resetFilters();
         hasMore = true;
 
         runningTotals = {
-        total_amount: 0,
-        total_paid: 0,
-        total_due: 0
-    };
+            total_amount: 0,
+            total_paid: 0,
+            total_due: 0
+        };
 
         disableScrollHandler();
 
-        // NAYA UPDATE YAHAN HAI: deadline_status add kar diya gaya hai
         filters = {
             search: $('#search').val(),
             uid: $('#selectedValue').val(),
@@ -921,7 +1404,7 @@ resetFilters();
             semester: $('#semester').val(),
             payment: $('#payment').val(),
             month: $('#month').val(),
-            deadline_status: $('#deadline_status').val(), // Naya field add kiya
+            deadline_status: $('#deadline_status').val(),
             team_id: $('#filter_team_id').val(),
             offer: $('#offer').val(),
             duec: $('#duec').val(),
@@ -929,69 +1412,101 @@ resetFilters();
             holdBtn: $('#holdBtn').val(),
             today_deadline_filter: $('#today_deadline_filter').val(),
             yesterday_deadline_filter: $('#yesterday_deadline_filter').val(),
-            today_writer_deadline_filter: $('#today_writer_deadline_filter').val()
-            
+            today_writer_deadline_filter: $('#today_writer_deadline_filter').val(),
+            duration_gap: $('#duration_gap_filter').val()
         };
-        // localStorage.setItem('order_filters', JSON.stringify(filters));
+
         localStorage.setItem(filterStorageKey, JSON.stringify(filters));
 
-
-
-        const allEmpty = Object.values(filters).every(val => !val || val.trim() === "");
+        const allEmpty = Object.values(filters).every(val => !val || String(val).trim() === "");
 
         if (allEmpty) {
-            Swal.fire({
-                icon: 'warning',
-                title: 'No Filters Applied',
-                text: 'Please fill at least one filter to search.',
-                confirmButtonColor: '#3085d6',
-                confirmButtonText: 'OK'
-            });
+            resetFilters(false);
             return;
         }
 
         // 🔄 Hide initial blade data, show AJAX target tbody
         $('#initial-order-rows').hide();
         $('#lead-rows').show().empty();
-        $('#resetFiltersBtn').show();
+        $('#resetFiltersBtn, #topResetFiltersBtn').show();
 
         highlightActiveQuickFilters();
 
         fetchData(false);
     }
 
-    function resetFilters() {
-        // localStorage.removeItem('order_filters');
-        localStorage.removeItem(filterStorageKey);
-        // Clear filter values
-        $('input[type=search], input[type=date], input[type=month], input[type=text], input[type=hidden]').val('');
-        $('#searchResultss').hide().empty();
-        $('select').val('').trigger('change');
-        $('#filter_team_id').val('');
+    function resetFilters(hideDeadlineBar = true) {
+        try {
+            localStorage.removeItem(filterStorageKey);
+        } catch (e) {}
 
-        // Reset state
+        // If URL had query parameters (e.g. ?uid=14453&user=Gaby), reload to clean URL so full orders list loads
+        if (window.location.search && window.location.search.length > 1) {
+            window.location.href = window.location.pathname;
+            return;
+        }
+
+        // Clear all text and search inputs
+        $('input[type=search], input[type=date], input[type=month], input[type=text]').val('');
+        $('#search').val('');
+        $('#searchInput').val('');
+        $('#selectedValue').val('');
+        $('#searchResultss').hide().empty();
+
+        // Clear hidden inputs
+        $('#filter_team_id').val('');
+        $('#duration_gap_filter').val('');
+        $('#today_deadline_filter').val('');
+        $('#yesterday_deadline_filter').val('');
+        $('#today_writer_deadline_filter').val('');
+        $('#deadline_status').val('');
+        $('#holdBtn').val('');
+        $('#orderFilterForm input[type=hidden]').not('[name="_token"]').val('');
+
+        // Reset select dropdowns
+        $('select').each(function() {
+            $(this).val('').trigger('change.select2');
+        });
+
+        // Remove active highlights
+        $('.deadline-gap-btn').removeClass('active');
+        $('.deadline-gap-clear-btn').removeClass('is-visible');
+        $('.dynamic-team-btn, #teamAlphaBtn, #teamGigaBtn, #teamGammaBtn').removeClass('quick-filter-active');
+        $('#overdueBtn, #todayDeadlineBtn, #yesterdayDeadlineBtn, #todayWriterDeadlineBtn, #writerQueryBtn, #holdWorkBtn').removeClass('quick-filter-active');
+
+        if (hideDeadlineBar) {
+            $('#deadlineGapContainer').hide();
+            $('#toggleDeadlineGapBtn').removeClass('active');
+        }
+
+        // Reset pagination and state
         offset = 0;
-        hasMore = true;
+        hasMore = false;
         filters = {};
         disableScrollHandler();
 
-        highlightActiveQuickFilters();
-
-         runningTotals = {
-        total_amount: 0,
-        total_paid: 0,
-        total_due: 0
-    };
+        runningTotals = {
+            total_amount: 0,
+            total_paid: 0,
+            total_due: 0
+        };
 
         // 🔄 Hide AJAX data, show initial blade-rendered data
         $('#lead-rows').hide().empty();
         $('#initial-order-rows').show();
-        $('#filter-total').text(`All Orders`);
+        $('#filter-total').text('All Orders');
         $('#export-order-btn').hide();
-
-        // NAYI LINE: Reset hone ke baad button wapas hide kar do
-        $('#resetFiltersBtn').hide();
+        $('#resetFiltersBtn, #topResetFiltersBtn').hide();
+        var el = document.getElementById('additionalFiltersRow');
+        if (el) el.style.setProperty('display', 'none', 'important');
+        $('.additional-filters').hide();
+        $('#showMoreFilters').text('Show More Filters');
     }
+
+    window.applyFilters = applyFilters;
+    window.resetFilters = resetFilters;
+    window.fetchData = fetchData;
+    window.highlightActiveQuickFilters = highlightActiveQuickFilters;
 
     function enableScrollHandler() {
         $('#scroll-order-table').off('scroll').on('scroll', function() {
@@ -1000,14 +1515,21 @@ resetFilters();
             const containerHeight = container.innerHeight();
             const scrollHeight = this.scrollHeight;
 
-            if (scrollTop + containerHeight >= scrollHeight - 50) {
+            if (scrollTop + containerHeight >= scrollHeight - 80) {
                 fetchData(true); // Load more and append
+            }
+        });
+
+        $(window).off('scroll.orderInfinite').on('scroll.orderInfinite', function() {
+            if ($(window).scrollTop() + $(window).height() >= $(document).height() - 150) {
+                fetchData(true);
             }
         });
     }
 
     function disableScrollHandler() {
         $('#scroll-order-table').off('scroll');
+        $(window).off('scroll.orderInfinite');
     }
 
     $(document).ready(function() {
@@ -1039,117 +1561,45 @@ resetFilters();
             }
         }
 
-        // Show/Hide more filters
-        $('#showMoreFilters').on('click', function() {
-            $('.additional-filters').toggle();
-            const isVisible = $('.additional-filters').is(':visible');
-            $(this).text(isVisible ? 'Hide More Filters' : 'Show More Filters');
-        });
-
         // TL change triggers subwriter update
         $(document).on('change', '#writerTL', populateSubwriters);
 
-        // Reset filters and show original data
-        $('#resetFiltersBtn').on('click', function() {
-            resetFilters();
-        });
-
-        // Check URL parameters first (e.g. ?search=... or ?uid=... or ?phone=...)
+        // Check URL parameters (e.g. from WhatsApp, Leads, CRM: ?order_id=... ?user=... ?phone=... ?mobile=... ?uid=... ?user_id=...)
         const urlParams = new URLSearchParams(window.location.search);
-        const searchParam = urlParams.get('search') || urlParams.get('order') || urlParams.get('search_order') || urlParams.get('phone');
-        const uidParam = urlParams.get('uid');
-        const userParam = urlParams.get('user');
+        const searchParam = urlParams.get('search') || urlParams.get('order') || urlParams.get('order_id') || urlParams.get('order_code') || urlParams.get('search_order');
+        const userParam = urlParams.get('user') || urlParams.get('mobile') || urlParams.get('phone') || urlParams.get('number') || urlParams.get('mobile_no') || urlParams.get('email') || urlParams.get('username') || urlParams.get('user_name') || urlParams.get('client');
+        const uidParam = urlParams.get('uid') || urlParams.get('user_id');
         const statusParam = urlParams.get('status');
+        const teamParam = urlParams.get('team_id') || urlParams.get('team');
 
-        if (searchParam || uidParam || userParam || statusParam) {
-            localStorage.removeItem(filterStorageKey);
+        if (searchParam || uidParam || userParam || statusParam || teamParam) {
+            try {
+                localStorage.removeItem(filterStorageKey);
+            } catch (e) {}
 
             if (searchParam) $('#search').val(searchParam);
             if (uidParam) $('#selectedValue').val(uidParam);
             if (userParam) $('#searchInput').val(userParam);
-            if (statusParam) $('#status').val(statusParam).trigger('change');
+            if (statusParam) $('#status').val(statusParam).trigger('change.select2');
+            if (teamParam) $('#filter_team_id').val(teamParam);
 
             $('#filterBody').show();
             $('#toggleFilterBtn').text('Hide Filters').removeClass('btn-primary').addClass('btn-danger');
+            $('#topResetFiltersBtn, #resetFiltersBtn').show();
 
             applyFilters();
             return;
         }
 
-        // let savedFilters = localStorage.getItem('order_filters');
-        let savedFilters = localStorage.getItem(filterStorageKey);
-        if (savedFilters) {
-            try {
-                filters = JSON.parse(savedFilters);
-                const hasActiveFilters = Object.values(filters).some(val => val && String(val).trim() !== "");
-
-                if (hasActiveFilters) {
-                    $('#search').val(filters.search || '');
-                    $('#selectedValue').val(filters.uid || '');
-                    $('#searchInput').val(filters.user || '');
-                    $('#group_id').val(filters.group_id || '').trigger('change');
-                    $('#status').val(filters.status || '').trigger('change');
-                    $('#writer').val(filters.writer || '').trigger('change');
-                    $('#date_status').val(filters.dateStatus || '').trigger('change');
-                    $('#from_date').val(filters.fromDate || '');
-                    $('#to_date').val(filters.toDate || '');
-                    $('#writerTL').val(filters.WriterTL || '').trigger('change');
-                    $('#SubWriter').val(filters.SubWriter || '').trigger('change');
-                    $('#college').val(filters.college || '').trigger('change');
-                    $('#extra').val(filters.extra || '').trigger('change');
-                    $('#module_code').val(filters.module_code || '');
-                    $('#paper_type').val(filters.paper_type || '').trigger('change');
-                    $('#semester').val(filters.semester || '').trigger('change');
-                    $('#payment').val(filters.payment || '').trigger('change');
-                    $('#month').val(filters.month || '');
-                    $('#deadline_status').val(filters.deadline_status || '').trigger('change');
-                    $('#filter_team_id').val(filters.team_id || '');
-                    $('#offer').val(filters.offer || '').trigger('change');
-                    $('#duec').val(filters.duec || '').trigger('change');
-                    $('#marks_filter').val(filters.marks_filter || '').trigger('change');
-                    $('#today_deadline_filter').val(filters.today_deadline_filter || '');
-                    $('#yesterday_deadline_filter').val(filters.yesterday_deadline_filter || '');
-                    $('#today_writer_deadline_filter').val(filters.today_writer_deadline_filter || '');
-
-                    // Auto-open filter section so user can see restored active filters
-                    $('#filterBody').show();
-                    $('#toggleFilterBtn').text('Hide Filters').removeClass('btn-primary').addClass('btn-danger');
-
-                    const hasMoreFilterData = !!(filters.fromDate || filters.toDate || filters.dateStatus || filters.module_code || filters.paper_type || filters.semester || filters.payment || filters.month);
-                    if (hasMoreFilterData) {
-                        $('.additional-filters').show();
-                        $('#showMoreFilters').text('Hide More Filters');
-                    }
-
-                    offset = 0;
-                    hasMore = true;
-
-                    $('#initial-order-rows').hide();
-                    $('#lead-rows').show().empty();
-                    $('#resetFiltersBtn').show();
-
-                    highlightActiveQuickFilters();
-
-                    fetchData(false);
-                } else {
-                    localStorage.removeItem(filterStorageKey);
-                }
-            } catch (e) {
-                localStorage.removeItem(filterStorageKey);
-            }
-        }
-
-        // Optionally: load default base data via AJAX on first load (commented out)
-        // fetchData(false);
+        // Clear old sticky localStorage if present so refresh is clean
+        try {
+            localStorage.removeItem(filterStorageKey);
+        } catch (e) {}
     });
-</script>
 
-<script>
-    // Document ready hone ke baad hi export ka button chalega
+    // Export handler
     $(document).ready(function() {
-        // Event delegation use kiya hai taaki agar button baad mein bhi load ho tab bhi click chal jaaye
         $(document).on("click", "#export-order-btn", function() {
-            // Button ko instantly hide kar do
             $(this).hide();
 
             Swal.fire({
@@ -1162,10 +1612,10 @@ resetFilters();
                 showCancelButton: true,
                 cancelButtonText: 'Cancel',
             }).then((result) => {
-                // jQuery se smoothly values get karna
-                const filters = {
+                const exportFilters = {
                     search: $('#search').val() || "",
-                    uid: $('#selectedValue').val() || "", group_id: $('#group_id').val() || "",
+                    uid: $('#selectedValue').val() || "",
+                    group_id: $('#group_id').val() || "",
                     status: $('#status').val() || "",
                     writer: $('#writer').val() || "",
                     dateStatus: $('#date_status').val() || "",
@@ -1187,11 +1637,12 @@ resetFilters();
                     marks_filter: $('#marks_filter').val() || "",
                     today_deadline_filter: $('#today_deadline_filter').val() || "",
                     yesterday_deadline_filter: $('#yesterday_deadline_filter').val() || "",
-                    today_writer_deadline_filter: $('#today_writer_deadline_filter').val() || ""
+                    today_writer_deadline_filter: $('#today_writer_deadline_filter').val() || "",
+                    duration_gap: $('#duration_gap_filter').val() || ""
                 };
 
                 if (result.isConfirmed) {
-                    sendExport(filters);
+                    sendExport(exportFilters);
                 } else if (result.isDenied) {
                     Swal.fire({
                         title: 'Select Columns to Export',
@@ -1217,7 +1668,6 @@ resetFilters();
                         confirmButtonText: 'Export Selected',
                         showCancelButton: true,
                         preConfirm: () => {
-                            // jQuery se checked values nikalna
                             const selected = $(".export-column:checked").map(function() {
                                 return $(this).val();
                             }).get();
@@ -1230,69 +1680,45 @@ resetFilters();
                     }).then((colRes) => {
                         if (colRes.isConfirmed) {
                             sendExport({
-                                ...filters,
+                                ...exportFilters,
                                 selected_columns: colRes.value
                             });
                         } else {
-                            // Agar custom popup cancel ho jaye toh wapas button dikha do
                             $('#export-order-btn').show();
                         }
                     });
                 } else {
-                    // Agar main popup cancel ho jaye toh wapas button dikha do
                     $('#export-order-btn').show();
                 }
             });
 
             function sendExport(payload) {
-                // Fetch API ka use kiya gaya hai jaisa tumne likha tha
                 fetch("/order/export", {
-                        method: "POST",
-                        headers: {
-                            "X-CSRF-TOKEN": document.querySelector('meta[name="csrf-token"]').content,
-                            "Content-Type": "application/json",
-                        },
-                        body: JSON.stringify(payload),
-                    })
-                    .then(async res => {
-                        const data = await res.json().catch(() => ({}));
-                        if (!res.ok) throw new Error(data.message || 'Export could not be started.');
-                        return data;
-                    })
-                    .then((data) => {
-                        sessionStorage.removeItem('orderExportProgressDismissed');
-                        localStorage.setItem("orderExportStatus", "pending");
-                        if (window.showExportProgress) {
-                            window.showExportProgress('order', data);
-                        }
-                    })
-                    .catch(error => {
-                        console.error("Export Error: ", error);
-                        $('#export-order-btn').show();
-                        Swal.fire('Export Failed', error.message || 'Please try again.', 'error');
-                    });
+                    method: "POST",
+                    headers: {
+                        "X-CSRF-TOKEN": document.querySelector('meta[name="csrf-token"]').content,
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify(payload),
+                })
+                .then(async res => {
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok) throw new Error(data.message || 'Export could not be started.');
+                    return data;
+                })
+                .then((data) => {
+                    sessionStorage.removeItem('orderExportProgressDismissed');
+                    localStorage.setItem("orderExportStatus", "pending");
+                    if (window.showExportProgress) {
+                        window.showExportProgress('order', data);
+                    }
+                })
+                .catch(error => {
+                    console.error("Export Error: ", error);
+                    $('#export-order-btn').show();
+                    Swal.fire('Export Failed', error.message || 'Please try again.', 'error');
+                });
             }
         });
     });
-</script>
-<script>
-    $(document).ready(function () {
-
-    $('#toggleFilterBtn').on('click', function () {
-        const isCurrentlyVisible = $('#filterBody').is(':visible');
-
-        $('#filterBody').slideToggle(300);
-
-        if (isCurrentlyVisible) {
-            $(this).text('Show Filters')
-                   .removeClass('btn-danger')
-                   .addClass('btn-primary');
-        } else {
-            $(this).text('Hide Filters')
-                   .removeClass('btn-primary')
-                   .addClass('btn-danger');
-        }
-    });
-
-});
 </script>

@@ -151,6 +151,7 @@
                                         <option value="Native">Native</option>
                                         <option value="PayPal">PayPal</option>
                                         <option value="Skydo">Skydo</option>
+                                        <option value="Banking Circle">Banking Circle</option>
                                         <option value="Other">Other</option>
                                     </select>
                                     <div class="fv-plugins-message-container invalid-feedback"></div>

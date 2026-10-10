@@ -1,5 +1,5 @@
 <script>
-    let offset = {{count($leads)}};
+    let offset = {{ count($leads) }};
     const leadPageSize = 30;
     let activeLeadFilters = null;
     const leadLoadMorePath = @json(route('lead.loadMore'));
@@ -47,7 +47,8 @@
     }
 
     $('#load-more').on('click', function() {
-        $('#preloader').show();
+        $('#spinner-row').show();
+        $('#load-more').prop('disabled', true);
         const loadMoreFilters = activeLeadFilters ? {
             ...activeLeadFilters,
             offset: offset,
@@ -78,14 +79,16 @@
                 alert('Failed to load more leads.');
             },
             complete: function() {
-                $('#preloader').hide();
+                $('#spinner-row').hide();
+                $('#load-more').prop('disabled', false);
                 document.documentElement.classList.remove('lead-filter-restoring');
             }
         });
     });
 
     function applyFilters(filters) {
-        $('#preloader').show();
+        $('#lead-rows').html('');
+        $('#spinner-row').show();
         activeLeadFilters = filters;
         $.ajax({
             url: leadFilterPath,
@@ -99,7 +102,9 @@
                     $('#lead-rows').html(res.html);
                     refreshLeadSrNumbers();
                 } else {
-                    $('#lead-rows').html('<tr><td colspan="11" class="text-center text-muted py-5"><i class="fa fa-folder-open-o fs-3 text-gray-400 d-block mb-2"></i>No leads found matching your criteria.</td></tr>');
+                    $('#lead-rows').html(
+                        '<tr><td colspan="11" class="text-center text-muted py-5"><i class="fa fa-folder-open-o fs-3 text-gray-400 d-block mb-2"></i>No leads found matching your criteria.</td></tr>'
+                    );
                 }
                 if (window.initLeadStars) {
                     window.initLeadStars(document.getElementById('lead-rows'));
@@ -111,7 +116,7 @@
                 Swal.fire('Error', 'Failed to load leads.', 'error');
             },
             complete: function() {
-                $('#preloader').hide();
+                $('#spinner-row').hide();
                 document.documentElement.classList.remove('lead-filter-restoring');
                 $('#export-btn').show();
             }
@@ -119,12 +124,14 @@
     }
 
     // Toggle Filter Body
-    $('#toggleFilterBtn').on('click', function () {
+    $('#toggleFilterBtn').on('click', function() {
         $('#filterBody').slideToggle(300, function() {
             if ($('#filterBody').is(':visible')) {
-                $('#toggleFilterBtn').text('Hide Filters').removeClass('btn-primary').addClass('btn-danger');
+                $('#toggleFilterBtn').text('Hide Filters').removeClass('btn-primary').addClass(
+                    'btn-danger');
             } else {
-                $('#toggleFilterBtn').text('Show Filters').removeClass('btn-danger').addClass('btn-primary');
+                $('#toggleFilterBtn').text('Show Filters').removeClass('btn-danger').addClass(
+                    'btn-primary');
             }
         });
     });
@@ -145,8 +152,9 @@
         const searchUserVal = ($('#searchInput').val() || '').trim();
         const selectedUidVal = ($('#selectedValue').val() || '').trim();
 
+        // mk 7 10 26 - If user is selected by UID, do not pass user dropdown display label as general text search
         const filters = {
-            search: searchOrderVal || searchUserVal || '',
+            search: searchOrderVal || (selectedUidVal ? '' : searchUserVal) || '',
             order: searchOrderVal,
             user: searchUserVal,
             selectedValue: selectedUidVal,
@@ -197,8 +205,8 @@
         if (searchValue.length >= 2) {
             $('#searchResultss').html(
                 '<div class="p-3 text-center text-muted fs-7 d-flex align-items-center justify-content-center gap-2">' +
-                    '<div class="spinner-border spinner-border-sm text-primary" role="status"></div>' +
-                    '<span>Searching users...</span>' +
+                '<div class="spinner-border spinner-border-sm text-primary" role="status"></div>' +
+                '<span>Searching users...</span>' +
                 '</div>'
             ).show();
 
@@ -213,20 +221,29 @@
                         var resultsHtml = '';
                         if (response && response.length > 0) {
                             $.each(response, function(key, value) {
-                                var mobileStr = value.mobile_no ? ' | 📞 ' + value.mobile_no : '';
-                                resultsHtml += '<a href="javascript:void(0)" class="dropdown-item user-select-item p-3 border-bottom text-wrap" ' +
-                                    'data-id="' + value.id + '" data-email="' + (value.email || '') + '" data-name="' + (value.name || '') + '">' +
-                                    '<div class="fw-bolder text-dark fs-6">' + (value.name || 'No Name') + '</div>' +
-                                    '<div class="text-muted fs-7">' + (value.email || '') + mobileStr + '</div>' +
+                                var mobileStr = value.mobile_no ? ' | 📞 ' + value
+                                    .mobile_no : '';
+                                resultsHtml +=
+                                    '<a href="javascript:void(0)" class="dropdown-item user-select-item p-3 border-bottom text-wrap" ' +
+                                    'data-id="' + value.id + '" data-email="' + (
+                                        value.email || '') + '" data-name="' + (
+                                        value.name || '') + '">' +
+                                    '<div class="fw-bolder text-dark fs-6">' + (
+                                        value.name || 'No Name') + '</div>' +
+                                    '<div class="text-muted fs-7">' + (value
+                                        .email || '') + mobileStr + '</div>' +
                                     '</a>';
                             });
                         } else {
-                            resultsHtml = '<div class="p-3 text-muted fs-7 text-center">No results found</div>';
+                            resultsHtml =
+                                '<div class="p-3 text-muted fs-7 text-center">No results found</div>';
                         }
                         $('#searchResultss').html(resultsHtml).show();
                     },
                     error: function() {
-                        $('#searchResultss').html('<div class="p-3 text-danger fs-7 text-center">Error loading results</div>').show();
+                        $('#searchResultss').html(
+                            '<div class="p-3 text-danger fs-7 text-center">Error loading results</div>'
+                        ).show();
                     }
                 });
             }, 250);
@@ -259,7 +276,8 @@
 
     $(document).ready(function() {
         const urlParams = new URLSearchParams(window.location.search);
-        const searchParam = urlParams.get('search') || urlParams.get('order') || urlParams.get('search_order') || urlParams.get('phone') || urlParams.get('user');
+        const searchParam = urlParams.get('search') || urlParams.get('order') || urlParams.get(
+            'search_order') || urlParams.get('phone') || urlParams.get('user');
         const uidParam = urlParams.get('uid');
         const statusParam = urlParams.get('status') || urlParams.get('lead_status_tab');
 
@@ -310,7 +328,9 @@
         if (savedLeadFilters) {
             try {
                 const filters = JSON.parse(savedLeadFilters);
-                const hasFormFilters = !!(filters.order || filters.user || filters.status || filters.type || filters.date_from || filters.date_to || filters.date_type || filters.assign_type || filters.selectedValue || filters.lead_source || filters.group_id);
+                const hasFormFilters = !!(filters.order || filters.user || filters.status || filters.type ||
+                    filters.date_from || filters.date_to || filters.date_type || filters.assign_type ||
+                    filters.selectedValue || filters.lead_source || filters.group_id);
 
                 $('#search_order').val(filters.order || '');
                 $('#searchInput').val(filters.user || '');
@@ -329,7 +349,8 @@
 
                 if (hasFormFilters) {
                     $('#filterBody').show();
-                    $('#toggleFilterBtn').text('Hide Filters').removeClass('btn-primary').addClass('btn-danger');
+                    $('#toggleFilterBtn').text('Hide Filters').removeClass('btn-primary').addClass(
+                        'btn-danger');
                     $('#resetFiltersBtn').show();
                 }
 
@@ -420,7 +441,7 @@
         const convertType = confirmResult.value;
 
 
-       const url = "{{ route('lead.convert', ':id') }}".replace(':id', leadId);
+        const url = "{{ route('lead.convert', ':id') }}".replace(':id', leadId);
         const row = document.getElementById(`lead-${leadId}`);
         const btn = button;
 
@@ -528,7 +549,8 @@
 
                             // Replace spinner with checkbox again
                             const checkboxContainer = row.querySelector('td .form-check');
-                            checkboxContainer.innerHTML = `<input class="form-check-input" type="checkbox" id="${leadId}" role="switch" checked onchange="handleChange(this, ${leadId})">`;
+                            checkboxContainer.innerHTML =
+                                `<input class="form-check-input" type="checkbox" id="${leadId}" role="switch" checked onchange="handleChange(this, ${leadId})">`;
 
                             Swal.fire({
                                 icon: 'error',
@@ -549,13 +571,9 @@
 
 <script>
     function loadTemplates(userId) {
-        $('#preloader').show();
-
         fetch(`{{ route('lead.fetchTemplates', ['userId' => '__USER_ID__']) }}`.replace('__USER_ID__', userId))
             .then(response => response.json())
             .then(data => {
-                $('#preloader').hide();
-
                 const dropdown = document.getElementById('templateDropdown');
                 dropdown.innerHTML = '<option value="">Select Template</option>';
 
@@ -574,7 +592,6 @@
             })
             .catch(error => {
                 console.error(error);
-                $('#preloader').show();
                 alert('Failed to load templates.');
             });
     }
@@ -696,57 +713,313 @@
 </script> --}}
 
 <script>
-//     function filterByStatusTab(statusName, element) {
-//     $('.nav-link').removeClass('active');
-//     $(element).addClass('active');
+    //     function filterByStatusTab(statusName, element) {
+    //     $('.nav-link').removeClass('active');
+    //     $(element).addClass('active');
 
-//     if (statusName === 'All') {
-//         $('#lead_status_tab').val('All');
-//         $('#status_filter').val('').trigger('change');
-//     } 
-//     else if (statusName === 'Hot' || statusName === 'Warm' || statusName === 'Cold') {
-//         $('#lead_status_tab').val(statusName);
-//         $('#status_filter').val('').trigger('change');
-//     } 
-//     else {
-//         $('#lead_status_tab').val('');
-//         $('#status_filter').val(statusName).trigger('change');
-//     }
+    //     if (statusName === 'All') {
+    //         $('#lead_status_tab').val('All');
+    //         $('#status_filter').val('').trigger('change');
+    //     } 
+    //     else if (statusName === 'Hot' || statusName === 'Warm' || statusName === 'Cold') {
+    //         $('#lead_status_tab').val(statusName);
+    //         $('#status_filter').val('').trigger('change');
+    //     } 
+    //     else {
+    //         $('#lead_status_tab').val('');
+    //         $('#status_filter').val(statusName).trigger('change');
+    //     }
 
-//     $('#applyButton').click();
-// }
+    //     $('#applyButton').click();
+    // }
 
-function filterByStatusTab(status, element) {
-    setActiveLeadTab(status);
+    function filterByStatusTab(status, element) {
+        setActiveLeadTab(status);
 
-    if (status === 'All') {
-        localStorage.removeItem('lead_filters');
+        if (status === 'All') {
+            localStorage.removeItem('lead_filters');
+            clearLeadFilters();
+            $('#resetFiltersBtn').hide();
+            applyFilters({});
+            return;
+        }
+
+        $('#lead_status_tab').val(status);
+
+        const filters = {
+            order: '',
+            status: '',
+            lead_status_tab: status,
+            type: '',
+            date_from: '',
+            date_to: '',
+            date_type: '',
+            assign_type: '',
+            selectedValue: '',
+            lead_source: '',
+            limit: leadPageSize
+        };
+
+        localStorage.setItem('lead_filters', JSON.stringify(filters));
         clearLeadFilters();
-        $('#resetFiltersBtn').hide();
-        applyFilters({});
-        return;
+        $('#lead_status_tab').val(status);
+
+        applyFilters(filters);
     }
 
-    $('#lead_status_tab').val(status);
+    // -------------------------------------------------------------
+    // Row Action Handlers (Moved from row.blade.php to eliminate DOM bloat)
+    // -------------------------------------------------------------
+    if (typeof handleTypeToggle === 'undefined') {
+        window.handleTypeToggle = function(el, leadId) {
+            let assign_type = el.checked ? 1 : 0;
+            Swal.fire({
+                title: 'Are you sure?',
+                text: 'Do you want to change assign type?',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Yes',
+                cancelButtonText: 'No'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    fetch("{{ url('/lead/assign-type') }}", {
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/json",
+                                "X-CSRF-TOKEN": "{{ csrf_token() }}"
+                            },
+                            body: JSON.stringify({
+                                lead_id: leadId,
+                                assign_type: assign_type
+                            })
+                        })
+                        .then(res => res.json())
+                        .then(data => {
+                            if (!data.status) {
+                                alert("Failed to update");
+                            }
+                        })
+                        .catch(() => alert("Server error"));
+                } else {
+                    el.checked = !el.checked;
+                }
+            });
+        };
+    }
 
-    const filters = {
-        order: '',
-        status: '',
-        lead_status_tab: status,
-        type: '',
-        date_from: '',
-        date_to: '',
-        date_type: '',
-        assign_type: '',
-        selectedValue: '',
-        lead_source: '',
-        limit: leadPageSize
+    if (typeof handleLeadReason === 'undefined') {
+        window.handleLeadReason = function(leadId) {
+            let value = document.getElementById('leadReason' + leadId).value;
+            fetch("{{ url('/lead-reason-update') }}", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-CSRF-TOKEN": "{{ csrf_token() }}"
+                    },
+                    body: JSON.stringify({
+                        lead_id: leadId,
+                        l_status: value
+                    })
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (!data.status) {
+                        alert("Update failed");
+                    }
+                })
+                .catch(() => alert("Server error"));
+        };
+    }
+
+    // mk 7 10 26 - Lead star rating initialization with case-insensitive status matching and robust element handling
+    window.initLeadStars = function(container = document) {
+        if (!container) return;
+        const ratings = container.matches && container.matches('.star-rating') ? [container] :
+            container.querySelectorAll('.star-rating');
+
+        ratings.forEach(rating => {
+            const stars = rating.querySelectorAll('.star');
+            const current = (rating.getAttribute('data-current') || '').trim().toLowerCase();
+
+            let fillCount = 0;
+            if (current === 'cold' || current === '1') fillCount = 1;
+            else if (current === 'warm' || current === '2') fillCount = 2;
+            else if (current === 'hot' || current === '3') fillCount = 3;
+
+            stars.forEach((star, index) => {
+                if (index < fillCount) {
+                    star.classList.add('active');
+                } else {
+                    star.classList.remove('active');
+                }
+            });
+        });
     };
 
-    localStorage.setItem('lead_filters', JSON.stringify(filters));
-    clearLeadFilters();
-    $('#lead_status_tab').val(status);
+    window.updateLeadStatusTabCount = function(status, change) {
+        if (!['Cold', 'Warm', 'Hot'].includes(status) || change === 0) return;
 
-    applyFilters(filters);
-}
+        const badge = document.querySelector(
+            `.lead-status-tabs .nav-link[data-status="${status}"] .lead-tab-count`);
+        if (!badge) return;
+
+        const current = parseInt((badge.textContent || '0').trim(), 10) || 0;
+        badge.textContent = Math.max(0, current + change);
+    };
+
+    // mk 7 10 26 - Initialize stars immediately or on DOM ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function() {
+            window.initLeadStars();
+        });
+    } else {
+        window.initLeadStars();
+    }
+
+    if (!window.leadStarClickHandlerBound) {
+        window.leadStarClickHandlerBound = true;
+        document.addEventListener('click', function(e) {
+            let star = e.target.closest('.star');
+            if (!star) return;
+
+            let rating = star.closest('.star-rating');
+            if (!rating) return;
+
+            let stars = rating.querySelectorAll('.star');
+            let value = parseInt(star.getAttribute('data-value'), 10) || 0;
+            let leadId = rating.getAttribute('data-id');
+            let oldStatus = rating.getAttribute('data-current') || '';
+
+            if (rating.dataset.loading === "1") return;
+            rating.dataset.loading = "1";
+
+            stars.forEach((s, idx) => {
+                if (idx < value) {
+                    s.classList.add('active');
+                } else {
+                    s.classList.remove('active');
+                }
+            });
+
+            let status = '';
+            if (value === 1) status = 'Cold';
+            else if (value === 2) status = 'Warm';
+            else if (value === 3) status = 'Hot';
+
+            fetch("{{ route('update-leads-status') }}", {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': "{{ csrf_token() }}"
+                    },
+                    body: JSON.stringify({
+                        lead_id: leadId,
+                        status: status
+                    })
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.status) {
+                        if (oldStatus !== status) {
+                            window.updateLeadStatusTabCount(oldStatus, -1);
+                            window.updateLeadStatusTabCount(status, 1);
+                        }
+                        rating.setAttribute('data-current', status);
+                    } else {
+                        window.initLeadStars(rating);
+                        alert("Failed to update status");
+                    }
+                })
+                .catch(err => {
+                    window.initLeadStars(rating);
+                    console.error(err);
+                })
+                .finally(() => {
+                    rating.dataset.loading = "0";
+                });
+        });
+    }
+
+    function openReviewModal(userId, existingReview) {
+        $('#review_user_id').val(userId);
+        $('#review_text').val(existingReview);
+        $('#clientReviewModal').modal('show');
+    }
+
+    function saveClientReview() {
+        let userId = $('#review_user_id').val();
+        let reviewText = $('#review_text').val();
+
+        $.ajax({
+            url: "{{ route('user.save.review') }}",
+            type: "POST",
+            data: {
+                _token: "{{ csrf_token() }}",
+                user_id: userId,
+                client_review: reviewText
+            },
+            success: function(response) {
+                if (response.success) {
+                    $('#clientReviewModal').modal('hide');
+                    Swal.fire({
+                        text: "Review saved successfully!",
+                        icon: "success",
+                        buttonsStyling: false,
+                        confirmButtonText: "Ok, got it!",
+                        customClass: {
+                            confirmButton: "btn btn-primary"
+                        }
+                    });
+                }
+            },
+            error: function() {
+                alert("Something went wrong!");
+            }
+        });
+    }
+
+    function openDuplicateLeadModal(leadId) {
+        $('#duplicate_lead_id').val(leadId);
+        $('#hide_order_id').val('');
+    }
+
+    function hideLeadByOrderId() {
+        let leadId = $('#duplicate_lead_id').val();
+        let orderId = $('#hide_order_id').val();
+
+        if (!leadId) {
+            Swal.fire('Error', 'Lead ID missing', 'error');
+            return;
+        }
+        if (!orderId) {
+            Swal.fire('Error', 'Please enter Order ID', 'error');
+            return;
+        }
+        $.ajax({
+            url: "{{ route('lead.duplicate') }}",
+            type: "POST",
+            data: {
+                _token: "{{ csrf_token() }}",
+                lead_id: leadId,
+                order_id: orderId
+            },
+            success: function(response) {
+                if (response.status) {
+                    Swal.fire('Success', response.message, 'success')
+                        .then(() => {
+                            $('#hideLeadModal').modal('hide');
+                            $('#hide_order_id').val('');
+                            $('#duplicate_lead_id').val('');
+                            location.reload();
+                        });
+                } else {
+                    Swal.fire('Error', response.message, 'error');
+                }
+            },
+            error: function(xhr) {
+                Swal.fire('Error', 'Something went wrong!', 'error');
+                console.log(xhr.responseText);
+            }
+        });
+    }
 </script>

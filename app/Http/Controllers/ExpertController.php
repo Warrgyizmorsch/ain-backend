@@ -4,7 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\Experts;
 use Illuminate\Http\Request;
-use Str;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Support\Str;
 
 class ExpertController extends Controller
 {

@@ -94,8 +94,11 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/chat/customer-leads', [WhatsappController::class, 'customerLeads'])->name('chat.customer-leads');
         Route::get('/chat/customer-orders', [WhatsappController::class, 'customerOrders'])->name('chat.customer-orders');
         Route::get('/chat/customer-data', [WhatsappController::class, 'customerData'])->name('chat.customer-data');
+        Route::post('/chat/open-order', [WhatsappController::class, 'openOrderChat'])->name('chat.open-order');
+        Route::post('/chat/open-lead', [WhatsappController::class, 'openLeadChat'])->name('chat.open-lead');
         Route::get('/chat/templates', [WhatsappController::class, 'getTemplates'])->name('chat.templates');
         Route::post('/chat/send-template', [WhatsappController::class, 'sendTemplate'])->name('chat.send-template');
+        Route::post('/chat/close-session', [WhatsappController::class, 'closeChatSession'])->name('chat.close-session');
     });
 
     Route::prefix('career')->group(function () {
@@ -123,6 +126,7 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/updateUser/{id}', [LeadsController::class, 'updateUser']);
 
     // Plugins Management
+    Route::get('/call-history', [PluginController::class, 'callHistory'])->name('call.history');
     Route::get('/plugins', [PluginController::class, 'index'])->name('plugins.direct');
     Route::prefix('admin/plugins')->name('plugins.')->group(function () {
         Route::get('/', [PluginController::class, 'index'])->name('index');
@@ -138,7 +142,19 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/twilio/call-history', [PluginController::class, 'callHistory'])->name('twilio.call.history');
         Route::post('/twilio/log-call', [PluginController::class, 'logCall'])->name('twilio.log.call');
         Route::post('/twilio/status-callback', [PluginController::class, 'statusCallback'])->name('twilio.status.callback');
+        // Next2Call Softphone Plugin
+        Route::post('/next2call/save', [PluginController::class, 'saveNext2call'])->name('next2call.save');
+        Route::post('/next2call/test', [PluginController::class, 'testNext2call'])->name('next2call.test');
+        Route::post('/next2call/login', [PluginController::class, 'next2callLogin'])->name('next2call.login');
+        Route::get('/next2call/call-report', [PluginController::class, 'next2callCallReport'])->name('next2call.call-report');
+        Route::get('/next2call', [PluginController::class, 'next2callPage'])->name('next2call.page');
+        Route::match(['get', 'post'], '/next2call/save-recording', [PluginController::class, 'next2callSaveRecording'])->name('next2call.save-recording');
+        Route::post('/next2call/sync', [PluginController::class, 'next2callSyncNow'])->name('next2call.sync');
     });
+
+    Route::get('/next2call', [PluginController::class, 'next2callPage'])->name('next2call.page');
+    Route::match(['get', 'post'], '/next2call/save-recording', [PluginController::class, 'next2callSaveRecording'])->name('next2call.save-recording');
+    Route::post('/next2call/sync', [PluginController::class, 'next2callSyncNow'])->name('next2call.sync');
 
 
     // User Managment
@@ -272,6 +288,10 @@ Route::middleware(['auth'])->group(function () {
     route::get('edit/{id}', [OrderController::class, 'orderEditPage'])->name('edit');
     route::get('call/{id}', [OrderController::class, 'orderCallPage'])->name('call');
     Route::post('/softphone/call-url', [OrderController::class, 'softphoneCallUrl'])->name('softphone.call-url');
+    Route::match(['get', 'post'], '/softphone/whitelist-ip', [OrderController::class, 'whitelistNext2CallIp'])->name('softphone.whitelist-ip');
+    Route::get('/softphone/client', [OrderController::class, 'next2callClient'])->name('softphone.client');
+    Route::post('/next2call/login', [PluginController::class, 'next2callLogin'])->name('next2call.login');
+    Route::get('/next2call/call-report', [PluginController::class, 'next2callCallReport'])->name('next2call.call-report');
     route::get('comment/{id}', [OrderController::class, 'orderCommentPage'])->name('comment');
     route::get('orderpayments/{id}', [OrderController::class, 'orderPayment'])->name('orderpayments');
     route::delete('orderpayments/{id}', [OrderController::class, 'orderPayment_delete'])->name('orderpayments.delete');
@@ -311,6 +331,10 @@ Route::middleware(['auth'])->group(function () {
     // Team Allowtment For Order
     Route::get('/teams', [TeamController::class, 'index'])->name('teams.index');
     Route::post('/teams', [TeamController::class, 'store'])->name('teams.store');
+    Route::get('/teams/active-list', [TeamController::class, 'getActiveTeams'])->name('teams.active.list');
+    Route::get('/teams/unassigned-members', [TeamController::class, 'getUnassignedMembers'])->name('teams.unassigned.members');
+    Route::get('/teams/members-table', [TeamController::class, 'getMembersTable'])->name('teams.members.table');
+    Route::post('/teams/unassign-member', [TeamController::class, 'unassignMember'])->name('teams.unassign.member');
     Route::get('/teams/{id}/edit', [TeamController::class, 'edit'])->name('teams.edit');
     Route::post('/teams/update', [TeamController::class, 'update'])->name('teams.update');
     Route::delete('/teams/{id}', [TeamController::class, 'destroy'])->name('teams.destroy');
@@ -448,7 +472,15 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/next-lead/store', [\App\Http\Controllers\NextLeadController::class, 'store'])->name('nextlead.store');
         Route::get('/next-lead/list', [\App\Http\Controllers\NextLeadController::class, 'list'])->name('nextlead.list');
         Route::post('/next-lead/convert/{id}', [\App\Http\Controllers\NextLeadController::class, 'convert'])->name('nextlead.convert');
+
+        // Lead Followup Routes
+        Route::get('/followups/{id}', [LeadsController::class, 'getFollowups'])->name('lead.followups.get');
+        Route::post('/followups/{id}', [LeadsController::class, 'storeFollowup'])->name('lead.followups.store');
+        Route::post('/followups/{id}/done', [LeadsController::class, 'markFollowupDone'])->name('lead.followups.done');
+        Route::get('/next-followups', [LeadsController::class, 'showNextFollowups'])->name('lead.next-followups');
     });
+
+    Route::get('/next-followups', [LeadsController::class, 'showNextFollowups'])->name('next-followups');
 
     // Order management
     Route::prefix('orders')->group(function () {

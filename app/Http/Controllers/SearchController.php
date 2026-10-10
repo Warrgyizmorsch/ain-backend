@@ -23,43 +23,209 @@ class SearchController extends Controller
 
     public function search(Request $request)
     {
-        $query = trim((string)$request->input('user'));
+        $query = trim((string)($request->input('user') ?? $request->input('query') ?? $request->input('term') ?? $request->input('search') ?? $request->input('q')));
     
-        if (!$query || strlen($query) < 2) {
+        if (!$query || (strlen($query) < 2 && !is_numeric($query))) {
             return response()->json([]);
         }
 
         $hasAsterisk = strpos($query, '*') !== false;
         $userIds = find_user_ids_by_search_term($query);
         $cleanDigits = preg_replace('/\D+/', '', $query);
-        $pattern = $hasAsterisk ? preg_replace('/\*+/', '%', preg_replace('/[^0-9*]/', '', $query)) : '';
+        $pattern = $hasAsterisk ? str_replace('*', '_', preg_replace('/[^0-9*]/', '', $query)) : '';
         $cleanPattern = ltrim($pattern, '0');
 
         // Fetch data from the database based on the query, limiting to 10 results
         $results = User::select('id', 'name', 'email', 'mobile_no', 'mobile_no2', 'countrycode')
                         ->where(function($q) use ($query, $userIds, $cleanDigits, $hasAsterisk, $pattern, $cleanPattern) {
+                            if ($hasAsterisk) {
+                                if (!empty($userIds)) {
+                                    $q->whereIn('id', $userIds);
+                                } else {
+                                    $q->whereRaw('0 = 1');
+                                }
+                                return;
+                            }
+
                             if (!empty($userIds)) {
                                 $q->whereIn('id', $userIds);
                             }
+                            if (is_numeric($query) && strlen($query) <= 8) {
+                                $q->orWhere('id', (int) $query);
+                            }
                             $q->orWhere('name', 'like', "%$query%")
                                 ->orWhere('email', 'like', "%$query%");
-                            if ($hasAsterisk) {
-                                if (!empty($cleanPattern) && preg_match('/\d/', $cleanPattern)) {
-                                    $q->orWhere('mobile_no', 'like', "%$cleanPattern%")
-                                      ->orWhere('mobile_no2', 'like', "%$cleanPattern%")
-                                      ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile_no, '')) LIKE ?", ["%$cleanPattern%"])
-                                      ->orWhereRaw("CONCAT(IFNULL(countrycode2, ''), IFNULL(mobile_no2, '')) LIKE ?", ["%$cleanPattern%"]);
-                                }
-                            } else if (strlen($cleanDigits) >= 2) {
+                            if (strlen($cleanDigits) >= 2) {
+                                $last10 = (strlen($cleanDigits) >= 10) ? substr($cleanDigits, -10) : $cleanDigits;
                                 $q->orWhere('mobile_no', 'like', "%$cleanDigits%")
                                   ->orWhere('mobile_no2', 'like', "%$cleanDigits%")
+                                  ->orWhere('mobile_no', 'like', "%$last10%")
+                                  ->orWhere('mobile_no2', 'like', "%$last10%")
                                   ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile_no, '')) LIKE ?", ["%$cleanDigits%"]);
                             }
                         })
                         ->take(10)
                         ->get();
 
+        // Also search Orders by order_id or title
+        $cleanSearch = trim(preg_replace('/^[#\s]+|^order[:\s-]*/i', '', $query));
+        $noSpaces = strtoupper(str_replace(' ', '', $cleanSearch));
+        $orderCodes = array_values(array_filter(array_unique([
+            $cleanSearch,
+            $noSpaces,
+            is_numeric($noSpaces) ? ('UKS' . $noSpaces) : null,
+            str_starts_with($noSpaces, 'UKS') ? substr($noSpaces, 3) : null,
+        ])));
+
+        $orderMatches = collect();
+        if (!empty($orderCodes)) {
+            $matchingOrders = Order::with('user:id,name,email,mobile_no,countrycode')
+                ->where(function ($oq) use ($orderCodes, $noSpaces) {
+                    $oq->whereIn('order_id', $orderCodes);
+                    if (str_starts_with($noSpaces, 'UKS') && strlen($noSpaces) >= 4) {
+                        $oq->orWhere('order_id', 'like', $noSpaces . '%');
+                    } elseif (is_numeric($noSpaces) && strlen($noSpaces) >= 4) {
+                        $oq->orWhere('order_id', 'like', 'UKS' . $noSpaces . '%');
+                    }
+                })
+                ->orderByDesc('id')
+                ->take(5)
+                ->get();
+
+            foreach ($matchingOrders as $ord) {
+                $rawEmail = $ord->user->email ?? ('Order #' . $ord->order_id);
+                $rawMob = $ord->user->mobile_no ?? '';
+                $rawCC = $ord->user->countrycode ?? null;
+                if ((str_contains((string)$rawMob, '*') || str_contains((string)$rawEmail, '*')) && $ord->lead_id) {
+                    $ld = \App\Models\Leads::find($ord->lead_id);
+                    if ($ld) {
+                        if (str_contains((string)$rawMob, '*') && !empty($ld->mobile) && !str_contains((string)$ld->mobile, '*')) {
+                            $rawMob = $ld->mobile;
+                            $rawCC = $ld->countrycode ?: $rawCC;
+                        }
+                        if (str_contains((string)$rawEmail, '*') && !empty($ld->email) && !str_contains((string)$ld->email, '*')) {
+                            $rawEmail = $ld->email;
+                        }
+                    }
+                }
+                $userObj = (object)[
+                    'id' => $ord->uid ?: $ord->id,
+                    'name' => '[' . $ord->order_id . '] ' . ($ord->user->name ?? $ord->title ?? 'Order'),
+                    'email' => $rawEmail,
+                    'mobile_no' => $rawMob,
+                    'mobile_no2' => null,
+                    'countrycode' => $rawCC,
+                    'order_id' => $ord->order_id,
+                ];
+                $orderMatches->push($userObj);
+            }
+        }
+
+        if ($orderMatches->isNotEmpty()) {
+            $results = $orderMatches->concat($results)->take(10);
+        }
+
+        // Also search Leads table so customer phone numbers, emails, or names on leads are found
+        if ($results->count() < 10) {
+            $existingMobiles = $results->pluck('mobile_no')->filter()->map(function($m) {
+                return preg_replace('/\D+/', '', (string)$m);
+            })->toArray();
+            $existingEmails = $results->pluck('email')->filter()->map(function($e) {
+                return strtolower(trim((string)$e));
+            })->toArray();
+
+            $last10Digits = (strlen($cleanDigits) >= 10) ? substr($cleanDigits, -10) : $cleanDigits;
+
+            $leadMatches = \App\Models\Leads::select('emp_id as id', 'user_name as name', 'email', 'mobile as mobile_no', 'countrycode')
+                ->where(function($lq) use ($query, $cleanDigits, $last10Digits, $hasAsterisk, $cleanPattern) {
+                    if ($hasAsterisk && !empty($cleanPattern)) {
+                        $lq->where('mobile', 'like', $cleanPattern)
+                           ->orWhere('mobile2', 'like', $cleanPattern)
+                           ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile, '')) LIKE ?", [$cleanPattern]);
+                    } elseif (strlen($cleanDigits) >= 2) {
+                        $lq->where('mobile', 'like', "%{$cleanDigits}%")
+                           ->orWhere('mobile2', 'like', "%{$cleanDigits}%")
+                           ->orWhere('mobile', 'like', "%{$last10Digits}%")
+                           ->orWhere('mobile2', 'like', "%{$last10Digits}%")
+                           ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile, '')) LIKE ?", ["%{$cleanDigits}%"]);
+                    } else {
+                        $lq->where('user_name', 'like', "%{$query}%")
+                           ->orWhere('email', 'like', "%{$query}%");
+                    }
+                })
+                ->whereNotNull('user_name')
+                ->where('user_name', '!=', '')
+                ->orderBy('id', 'desc')
+                ->take(15)
+                ->get();
+
+            foreach ($leadMatches as $leadItem) {
+                $rawMob = preg_replace('/\D+/', '', (string)$leadItem->mobile_no);
+                $rawEmail = strtolower(trim((string)$leadItem->email));
+
+                if (!empty($rawMob) && in_array($rawMob, $existingMobiles)) {
+                    continue;
+                }
+                if (!empty($rawEmail) && in_array($rawEmail, $existingEmails)) {
+                    continue;
+                }
+
+                if (!empty($rawMob)) {
+                    $existingMobiles[] = $rawMob;
+                }
+                if (!empty($rawEmail)) {
+                    $existingEmails[] = $rawEmail;
+                }
+
+                $results->push($leadItem);
+
+                if ($results->count() >= 10) {
+                    break;
+                }
+            }
+        }
+
         $results->transform(function ($user) {
+            $isSuperAdmin = auth()->check() && (int) auth()->user()->role_id === 1;
+
+            if ($isSuperAdmin) {
+                // For Super Admin: NEVER mask. Fallback to clean lead if DB row had asterisks
+                if ((str_contains((string)$user->mobile_no, '*') || str_contains((string)$user->email, '*')) && !empty($user->id)) {
+                    $cleanLead = \App\Models\Leads::where(function($lq) use ($user) {
+                        $lq->where('emp_id', $user->id)->orWhere('u_id', $user->id);
+                    })->where('mobile', 'not like', '%*%')
+                      ->where('email', 'not like', '%*%')
+                      ->whereNotNull('mobile')
+                      ->where('mobile', '!=', '')
+                      ->orderByDesc('id')
+                      ->first();
+
+                    if ($cleanLead) {
+                        if (str_contains((string)$user->mobile_no, '*') && !empty($cleanLead->mobile)) {
+                            $user->mobile_no = $cleanLead->mobile;
+                            $user->countrycode = $cleanLead->countrycode ?: $user->countrycode;
+                        }
+                        if (str_contains((string)$user->email, '*') && !empty($cleanLead->email)) {
+                            $user->email = $cleanLead->email;
+                        }
+                    }
+                }
+
+                $user->display_name = (string)$user->name;
+                $user->countrycode = null;
+                return $user;
+            }
+
+            if (isset($user->order_id)) {
+                $user->masked_mobile = mask_mobile_only($user->countrycode, $user->mobile_no);
+                $user->masked_email = mask_email_for_display($user->email);
+                $user->display_name = (string)$user->name;
+                $user->mobile_no = $user->masked_mobile;
+                $user->email = $user->masked_email;
+                $user->countrycode = null;
+                return $user;
+            }
+
             $user->masked_mobile = mask_mobile_only($user->countrycode, $user->mobile_no);
             $user->masked_email = mask_email_for_display($user->email);
 
@@ -102,6 +268,9 @@ class SearchController extends Controller
                 if (!empty($userIds)) {
                     $userQuery->whereIn('id', $userIds);
                 }
+                if (is_numeric($query)) {
+                    $userQuery->orWhere('id', (int) $query);
+                }
                 $userQuery->orWhere('name', 'like', "%{$query}%")
                     ->orWhere('email', 'like', "%{$query}%");
 
@@ -138,8 +307,36 @@ class SearchController extends Controller
             ->get();
 
         $results->transform(function ($user) {
+            $isSuperAdmin = auth()->check() && (int) auth()->user()->role_id === 1;
             $cleanCC = preg_replace('/\D+/', '', (string)$user->countrycode);
             $cleanMob = preg_replace('/\D+/', '', (string)$user->mobile_no);
+
+            if ($isSuperAdmin) {
+                if ((str_contains((string)$user->mobile_no, '*') || str_contains((string)$user->email, '*')) && !empty($user->id)) {
+                    $cleanLead = \App\Models\Leads::where(function($lq) use ($user) {
+                        $lq->where('emp_id', $user->id)->orWhere('u_id', $user->id);
+                    })->where('mobile', 'not like', '%*%')
+                      ->where('email', 'not like', '%*%')
+                      ->whereNotNull('mobile')
+                      ->where('mobile', '!=', '')
+                      ->orderByDesc('id')
+                      ->first();
+
+                    if ($cleanLead) {
+                        if (str_contains((string)$user->mobile_no, '*') && !empty($cleanLead->mobile)) {
+                            $user->mobile_no = $cleanLead->mobile;
+                            $user->countrycode = $cleanLead->countrycode ?: $user->countrycode;
+                        }
+                        if (str_contains((string)$user->email, '*') && !empty($cleanLead->email)) {
+                            $user->email = $cleanLead->email;
+                        }
+                    }
+                }
+                $user->display_name = (string)$user->name;
+                $user->countrycode = !empty($cleanCC) ? ('+' . $cleanCC) : '+44';
+                $user->raw_mobile = preg_replace('/\D+/', '', (string)$user->mobile_no);
+                return $user;
+            }
 
             $user->masked_mobile = mask_mobile_only($user->countrycode, $user->mobile_no);
             $user->masked_mobile2 = mask_mobile_only(null, $user->mobile_no2);
@@ -156,12 +353,10 @@ class SearchController extends Controller
             $user->countrycode = !empty($cleanCC) ? ('+' . $cleanCC) : '+44';
             $user->raw_mobile = $cleanMob;
 
-            if (auth()->check() && auth()->user()->role_id != 1) {
-                $user->mobile_no = $user->masked_mobile;
-                $user->mobile_no2 = $user->masked_mobile2;
-                $user->email = $user->masked_email;
-                $user->name = $user->display_name;
-            }
+            $user->mobile_no = $user->masked_mobile;
+            $user->mobile_no2 = $user->masked_mobile2;
+            $user->email = $user->masked_email;
+            $user->name = $user->display_name;
 
             return $user;
         });
@@ -442,6 +637,9 @@ class SearchController extends Controller
                       ->orWhere('title', 'like', '%' . $searchTerm . '%');
                 if (!empty($searchUserIds)) {
                     $query->orWhereIn('uid', $searchUserIds);
+                }
+                if (is_numeric($searchTerm)) {
+                    $query->orWhere('uid', (int) $searchTerm);
                 }
             });
         }

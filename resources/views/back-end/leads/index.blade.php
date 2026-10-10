@@ -2,6 +2,8 @@
 
 @section('content')
 @include('back-end.group-master.user-modal')
+{{-- mk 7 10 26 - Include changeTeamModal for manual team assignment popup in leads --}}
+@include('back-end.order.partials.team-modals')
 <div class="margin-top-on-desktop" id="kt_content">
     <script>
         if (localStorage.getItem('lead_filters')) {
@@ -98,7 +100,8 @@
                     <div class="col-md-3 fv-row">
                         <select id="lead_group_id" class="form-select form-select-solid">
                             <option value="">All User Groups</option>
-                            @foreach(\App\Models\GroupMaster::where('status',1)->orderBy('name')->get(['id','name']) as $group)
+                            {{-- mk 5 10 26 - Use cached $groupMasters instead of querying DB in blade --}}
+                            @foreach($groupMasters ?? \Illuminate\Support\Facades\Cache::remember('leads_active_group_masters', 120, fn() => \App\Models\GroupMaster::where('status', 1)->orderBy('name')->get(['id','name'])) as $group)
                             <option value="{{ $group->id }}">{{ $group->name }}</option>
                             @endforeach
                         </select>
@@ -191,6 +194,18 @@
                                 </tr>
                             @endif
                         </tbody>
+                        <tbody id="spinner-row" style="display: none;">
+                            <tr>
+                                <td colspan="100%" style="text-align: left; padding: 12px 16px;">
+                                    <div style="display: inline-flex; align-items: center; gap: 10px;">
+                                        <div class="loading-spinner" style="margin-left: 10px;"></div>
+                                        <div style="font-size: 14px; color: #555; font-weight: 500;">
+                                            Please wait while loading data...
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
                     </table>
                     <div id="load-more-wrapper" class="text-center mt-4" @if(($status_counts['All'] ?? 0) <= count($leads)) style="display:none;" @endif>
                         <button id="load-more" class="btn btn-light-primary">Load More</button>
@@ -202,6 +217,7 @@
     @include('back-end.leads.partials.create')
     @include('back-end.leads.partials.create-next-lead')
     @include('back-end.leads.partials.next-leads-list-modal', ['nextLeads' => collect(), 'creators' => $employees ?? collect()])
+    @include('back-end.leads.partials.followup-drawer')
 </div>
 @include('back-end.leads.partials.preloader')
 @if(isset($lead) || (isset($leads) && count($leads)))
@@ -223,10 +239,8 @@
             let d = String(digits).replace(/\D/g, '');
             if (d.length === 11 && d.startsWith('0')) d = d.slice(1);
             const len = d.length;
-            if (len <= 2) return d;
-            if (len <= 6) return d.slice(0, 2) + '*'.repeat(len - 2);
-            if (len <= 9) return d.slice(0, 2) + '*'.repeat(4) + d.slice(6);
-            return d.slice(0, 2) + '*'.repeat(Math.max(6, len - 6)) + d.slice(-4);
+            if (len <= 4) return '*'.repeat(Math.max(4, len));
+            return '******' + d.slice(-4);
         }
 
         function fillNextLeadUser(user) {
@@ -356,8 +370,21 @@
                     let startPart = parts[0] || '';
                     let endPart = parts[parts.length - 1] || '';
                     let displayVal = cleanMasked;
-                    if (startPart.length >= 2 && endPart.length >= 4) {
-                        displayVal = startPart.slice(0, 2) + '******' + endPart.slice(-4);
+                    if (endPart.length >= 4) {
+                        displayVal = '******' + endPart.slice(-4);
+                    }
+
+                    let resolved = (typeof window.resolveMaskedToken === 'function') 
+                        ? (window.resolveMaskedToken(text) || window.resolveMaskedToken(cleanMasked) || window.resolveMaskedToken(displayVal)) 
+                        : '';
+                    if (resolved) {
+                        let cleanResolved = resolved.replace(/\D/g, '');
+                        nextLeadRawBuffer = cleanResolved;
+                        $('#next_lead_mobile_real').val(cleanResolved);
+                        $('#next_lead_user_id').val('');
+                        $(this).val(displayVal);
+                        doNextLeadLookup(cleanResolved);
+                        return;
                     }
 
                     nextLeadRawBuffer = displayVal;
@@ -462,10 +489,27 @@
                 }
             });
 
+            $('#next_lead_email_display').on('paste', function (e) {
+                let text = (e.originalEvent.clipboardData || window.clipboardData).getData('text') || '';
+                text = text.trim();
+                if (text.includes('*')) {
+                    let resolved = (typeof window.resolveMaskedToken === 'function') ? window.resolveMaskedToken(text) : '';
+                    if (resolved) {
+                        e.preventDefault();
+                        $('#next_lead_email_real').val(resolved);
+                        $(this).val(text);
+                        return;
+                    }
+                }
+            });
+
             $('#next_lead_email_display').on('input', function () {
                 let val = $(this).val();
                 if (!val.includes('*')) {
                     $('#next_lead_email_real').val(val);
+                } else {
+                    let resolved = (typeof window.resolveMaskedToken === 'function') ? window.resolveMaskedToken(val) : '';
+                    if (resolved) $('#next_lead_email_real').val(resolved);
                 }
             });
         }
@@ -493,17 +537,30 @@
                 let userId = $('#next_lead_user_id').val();
                 let realMobile = $('#next_lead_mobile_real').val().replace(/\D/g, '');
                 let displayVal = $('#next_lead_mobile').val().trim();
-                if (!realMobile && displayVal && !displayVal.includes('*')) {
-                    realMobile = displayVal.replace(/\D/g, '');
-                    $('#next_lead_mobile_real').val(realMobile);
+                if (!realMobile && displayVal) {
+                    if (!displayVal.includes('*')) {
+                        realMobile = displayVal.replace(/\D/g, '');
+                        $('#next_lead_mobile_real').val(realMobile);
+                    } else {
+                        let resolvedMob = (typeof window.resolveMaskedToken === 'function') ? window.resolveMaskedToken(displayVal) : '';
+                        if (resolvedMob) {
+                            realMobile = resolvedMob.replace(/\D/g, '');
+                            $('#next_lead_mobile_real').val(realMobile);
+                        }
+                    }
                 }
                 if (!userId && (!realMobile || realMobile.length < 5)) {
                     alert('Please enter a valid mobile number.');
                     return false;
                 }
                 let displayEmail = $('#next_lead_email_display').val().trim();
-                if (!$('#next_lead_email_real').val() && displayEmail && !displayEmail.includes('*')) {
-                    $('#next_lead_email_real').val(displayEmail);
+                if (!$('#next_lead_email_real').val() && displayEmail) {
+                    if (!displayEmail.includes('*')) {
+                        $('#next_lead_email_real').val(displayEmail);
+                    } else {
+                        let resolvedEm = (typeof window.resolveMaskedToken === 'function') ? window.resolveMaskedToken(displayEmail) : '';
+                        if (resolvedEm) $('#next_lead_email_real').val(resolvedEm);
+                    }
                 }
             }
 
@@ -717,6 +774,28 @@
         .margin-top-on-desktop {
             margin-top: 0px;
         }
+    }
+
+    /* mk 7 10 26 - Lead star rating styling, active amber/gold color and interactive hover */
+    .star-rating {
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        vertical-align: middle;
+        user-select: none;
+    }
+    .star-rating .star {
+        font-size: 14px;
+        color: #cbd5e1;
+        cursor: pointer;
+        transition: color 0.15s ease, transform 0.1s ease;
+    }
+    .star-rating .star:hover {
+        color: #ffad0f;
+        transform: scale(1.2);
+    }
+    .star-rating .star.active {
+        color: #ffad0f !important;
     }
 </style>
 

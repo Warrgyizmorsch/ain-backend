@@ -8,9 +8,12 @@ use Illuminate\Database\Eloquent\Model;
 class Leads extends Model
 {
     use HasFactory;
+
     protected $casts = [
-    'assign_type' => 'integer',
-];
+        'assign_type' => 'integer',
+        'next_followup_date' => 'date',
+    ];
+
     protected $fillable = [
         'user_name',
         'email',
@@ -43,6 +46,8 @@ class Leads extends Model
         'coupon_discount_value',
         'coupon_discount_amount',
         'coupon_original_amount',
+        'created_by',
+        'next_followup_date',
     ];
 
     protected static function booted()
@@ -61,6 +66,16 @@ class Leads extends Model
                 }
             }
         });
+    }
+
+    public function followups()
+    {
+        return $this->hasMany(LeadFollowup::class, 'lead_id')->orderBy('created_at', 'desc');
+    }
+
+    public function latestFollowup()
+    {
+        return $this->hasOne(LeadFollowup::class, 'lead_id')->latestOfMany();
     }
 
     public function call()
@@ -91,5 +106,11 @@ class Leads extends Model
     public function creator()
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    // mk 7 10 26 - Relationship to Order to fetch team_id and order info without database changes
+    public function order()
+    {
+        return $this->hasOne(Order::class, 'order_id', 'order_id');
     }
 }

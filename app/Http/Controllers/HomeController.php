@@ -589,107 +589,95 @@ class HomeController extends Controller
             return view('dashboard');
         }
 
-        // chart-2 
+        // mk 5 10 26 - Selected date parameter
         $selectedDate = $request->input('selectedDate', null);
-        $stats = $this->getCountryWiseUsers();
 
-        // --- Country Wise Users Logic Start ---
-        // --- Country Wise Users Logic Start ---
-        $countryWiseData = DB::table('users')
-            ->select(
-                DB::raw("countrycode as code"),
-                DB::raw("count(*) as total")
-            )
-            ->whereNotNull('countrycode')
-            ->where('countrycode', '!=', '')
+        // mk 5 10 26 - Cache country-wise client distribution (180s) to avoid full group by query on every request
+        // mk 5 10 26 - Removed unused $this->getCountryWiseUsers() call that loaded 14k user rows into memory
+        $countryStats = Cache::remember('dashboard_country_stats', 180, function () {
+            $countryWiseData = DB::table('users')
+                ->select(
+                    DB::raw("countrycode as code"),
+                    DB::raw("count(*) as total")
+                )
+                ->whereNotNull('countrycode')
+                ->where('countrycode', '!=', '')
+                ->groupBy('countrycode')
+                ->get();
 
-            ->groupBy('countrycode')
-            ->get();
+            $countryMapping = [
+                '1' => 'USA/Canada',
+                '44' => 'UK',
+                '61' => 'Australia',
+                '64' => 'New Zealand',
+                '91' => 'India',
+                '971' => 'UAE',
+                '353' => 'Ireland',
+                '359' => 'Bulgaria',
+                '92' => 'Pakistan',
+                '880' => 'Bangladesh',
+                '977' => 'Nepal',
+                '94' => 'Sri Lanka',
+                '234' => 'Nigeria',
+                '233' => 'Ghana',
+                '27' => 'South Africa',
+                '966' => 'Saudi Arabia',
+                '974' => 'Qatar',
+                '965' => 'Kuwait',
+                '968' => 'Oman',
+                '973' => 'Bahrain',
+            ];
 
-        $countryMapping = [
-            '1' => 'USA/Canada',
-            '44' => 'UK',
-            '61' => 'Australia',
-            '64' => 'New Zealand',
-            '91' => 'India',
-            '971' => 'UAE',
-            '353' => 'Ireland',
-            '359' => 'Bulgaria',
-            '92' => 'Pakistan',
-            '880' => 'Bangladesh',
-            '977' => 'Nepal',
-            '94' => 'Sri Lanka',
-            '234' => 'Nigeria',
-            '233' => 'Ghana',
-            '27' => 'South Africa',
-            '966' => 'Saudi Arabia',
-            '974' => 'Qatar',
-            '965' => 'Kuwait',
-            '968' => 'Oman',
-            '973' => 'Bahrain',
-        ];
+            $countryFinalData = [];
+            $otherTotal = 0;
 
-        $countryFinalData = [];
-        $otherTotal = 0;
+            foreach ($countryWiseData as $row) {
+                $cleanCode = preg_replace('/[^0-9]/', '', $row->code);
+                $cleanCode = ltrim($cleanCode, '0');
 
-        foreach ($countryWiseData as $row) {
-            $cleanCode = preg_replace('/[^0-9]/', '', $row->code);
-            $cleanCode = ltrim($cleanCode, '0');
+                if ($cleanCode && isset($countryMapping[$cleanCode])) {
+                    $countryName = $countryMapping[$cleanCode];
 
-            if ($cleanCode && isset($countryMapping[$cleanCode])) {
-                $countryName = $countryMapping[$cleanCode];
+                    if (!isset($countryFinalData[$countryName])) {
+                        $countryFinalData[$countryName] = 0;
+                    }
 
-                if (!isset($countryFinalData[$countryName])) {
-                    $countryFinalData[$countryName] = 0;
+                    $countryFinalData[$countryName] += $row->total;
+                } else {
+                    $otherTotal += $row->total;
                 }
-
-                $countryFinalData[$countryName] += $row->total;
-            } else {
-                $otherTotal += $row->total;
             }
-        }
 
-        if ($otherTotal > 0) {
-            $countryFinalData['Other'] = $otherTotal;
-        }
+            if ($otherTotal > 0) {
+                $countryFinalData['Other'] = $otherTotal;
+            }
 
-        arsort($countryFinalData);
+            arsort($countryFinalData);
 
-        $countryStats = [
-            'labels' => array_keys($countryFinalData),
-            'data' => array_values($countryFinalData),
-        ];
+            return [
+                'labels' => array_keys($countryFinalData),
+                'data' => array_values($countryFinalData),
+            ];
+        });
         // --- Country Wise Users Logic End ---
 
-       // ==========================================
+        // ==========================================
         // --- DUE PAYMENTS LOGIC START (OPTIMIZED) ---
         // ==========================================
+        // mk 5 10 26 - Eager load only necessary columns for user and payment to save memory and avoid heavy full-table payload joins
         $dueOrdersList = Order::with([
-            'user',
+            'user:id,name,mobile_no',
             'payment' => function ($query) {
-                $query->orderBy('id', 'desc');
+                $query->select('id', 'order_id', 'payment_date')->orderBy('id', 'desc');
             }
         ])
             ->where('uid', '!=', 0)
-            
-            // OPTIMIZATION 1: whereDate ki jagah simple 'where' use kiya. 
-            // Isse database Date column par laga Index use karega aur result milliseconds me dega.
             ->where('order_date', '>=', '2026-01-01 00:00:00')
-            
             ->whereRaw('CAST(amount AS SIGNED) > CAST(received_amount AS SIGNED)')
-            // Sorting by Due Amount (Highest Due First)
             ->orderByRaw('(CAST(amount AS SIGNED) - CAST(received_amount AS SIGNED)) DESC')
-            // Pagination apply karein
             ->paginate(10);
 
-        // OPTIMIZATION 2: Alag se Count query chalane ki jagah Laravel Pagination ka in-built total() function use kiya. 
-        // Isse 1 puri Database Query ka time bach gaya!
         $totalDueOrdersCount = $dueOrdersList->total();
-
-        // dd([
-        //     'Message' => 'Testing',
-        //     'Total_Pending_Orders_After_2025' => $totalDueOrdersCount
-        // ]);
         // ==========================================
         // --- DUE PAYMENTS LOGIC END ---
         // ==========================================
@@ -697,28 +685,33 @@ class HomeController extends Controller
         // ==========================================
         // --- SEO LEADS (FRONTEND) GRAPH LOGIC START ---
         // ==========================================
-         // =========================
-    // FILTER VALUES
-    // =========================
-            $seoFilter = request()->input('seo_filter', 'last_year');
-            $seoFrom   = request()->input('seo_from');
-            $seoTo     = request()->input('seo_to');
+        $seoFilter = request()->input('seo_filter', 'last_year');
+        $seoFrom   = request()->input('seo_from');
+        $seoTo     = request()->input('seo_to');
 
-            [$seoStartDate, $seoEndDate] = $this->resolveSeoDateRange($seoFilter, $seoFrom, $seoTo);
-            $seoStats = $this->getSeoLeadStats($seoStartDate, $seoEndDate);
-            $totalSeoLeads = $seoStats['total'];
-            $convertedLeads = $seoStats['converted'];
-            $notConvertedLeads = $seoStats['not_converted'];
-            $seoReportFrom = $seoStartDate->toDateString();
-            $seoReportTo = $seoEndDate->toDateString();
+        [$seoStartDate, $seoEndDate] = $this->resolveSeoDateRange($seoFilter, $seoFrom, $seoTo);
 
-            // =========================
-            // CHART DATA
-            // =========================
-            $seoChartData = [
-                'Converted' => $convertedLeads,
-                'Not Converted' => $notConvertedLeads,
+        // mk 5 10 26 - Short-cache SEO leads stats (60s) to avoid repeating table scans
+        $seoCacheKey = 'dashboard_seo_' . md5($seoFilter . '_' . (string)$seoFrom . '_' . (string)$seoTo);
+        $seoDataCached = Cache::remember($seoCacheKey, 60, function () use ($seoStartDate, $seoEndDate) {
+            $stats = $this->getSeoLeadStats($seoStartDate, $seoEndDate);
+            return [
+                'total' => $stats['total'],
+                'converted' => $stats['converted'],
+                'not_converted' => $stats['not_converted'],
+                'chart' => [
+                    'Converted' => $stats['converted'],
+                    'Not Converted' => $stats['not_converted'],
+                ],
             ];
+        });
+
+        $totalSeoLeads = $seoDataCached['total'];
+        $convertedLeads = $seoDataCached['converted'];
+        $notConvertedLeads = $seoDataCached['not_converted'];
+        $seoReportFrom = $seoStartDate->toDateString();
+        $seoReportTo = $seoEndDate->toDateString();
+        $seoChartData = $seoDataCached['chart'];
         // ==========================================
         // --- SEO LEADS GRAPH LOGIC END ---
         // ==========================================
@@ -726,28 +719,30 @@ class HomeController extends Controller
         // ==========================================
         // --- LEAD SOURCES GRAPH LOGIC START (NEW) ---
         // ==========================================
-        $leadSourcesCount = DB::table('leads')
-            ->join('sources', 'leads.lead_source', '=', 'sources.id')
-            ->whereIn('sources.source_name', [
-                'source_106', 
-                'source_1696', 
-                'source_insta', 
-                'source_facebook', 
-                'source_whatsapp'
-            ])
-            ->select('sources.source_name', DB::raw('COUNT(leads.id) as count'))
-            ->groupBy('sources.source_name')
-            ->pluck('count', 'source_name')
-            ->toArray();
+        // mk 5 10 26 - Short-cache lead sources count (60s)
+        $sourceData = Cache::remember('dashboard_lead_sources', 60, function () {
+            $leadSourcesCount = DB::table('leads')
+                ->join('sources', 'leads.lead_source', '=', 'sources.id')
+                ->whereIn('sources.source_name', [
+                    'source_106', 
+                    'source_1696', 
+                    'source_insta', 
+                    'source_facebook', 
+                    'source_whatsapp'
+                ])
+                ->select('sources.source_name', DB::raw('COUNT(leads.id) as count'))
+                ->groupBy('sources.source_name')
+                ->pluck('count', 'source_name')
+                ->toArray();
 
-        // Data ko aapas me map kar rahe hain
-        $sourceData = [
-            'Source 106'      => $leadSourcesCount['source_106'] ?? 0,
-            'Source 1696'     => $leadSourcesCount['source_1696'] ?? 0,
-            'Source insta'    => $leadSourcesCount['source_insta'] ?? 0,
-            'Source facebook' => $leadSourcesCount['source_facebook'] ?? 0,
-            'Source whatsapp' => $leadSourcesCount['source_whatsapp'] ?? 0,
-        ];
+            return [
+                'Source 106'      => $leadSourcesCount['source_106'] ?? 0,
+                'Source 1696'     => $leadSourcesCount['source_1696'] ?? 0,
+                'Source insta'    => $leadSourcesCount['source_insta'] ?? 0,
+                'Source facebook' => $leadSourcesCount['source_facebook'] ?? 0,
+                'Source whatsapp' => $leadSourcesCount['source_whatsapp'] ?? 0,
+            ];
+        });
 
         $totalSourceLeads = array_sum($sourceData);
         // ==========================================
@@ -768,7 +763,12 @@ class HomeController extends Controller
             $currentMonthEnd   = Carbon::now()->endOfMonth();
         }
 
-        $conversionStats = $this->getConversionRatioStats($currentMonthStart, $currentMonthEnd);
+        // mk 5 10 26 - Short-cache conversion ratio stats (60s)
+        $convCacheKey = 'dashboard_conv_' . $currentMonthStart->toDateString() . '_' . $currentMonthEnd->toDateString();
+        $conversionStats = Cache::remember($convCacheKey, 60, function () use ($currentMonthStart, $currentMonthEnd) {
+            return $this->getConversionRatioStats($currentMonthStart, $currentMonthEnd);
+        });
+
         $totalLeads1Year = $conversionStats['total'];
         $convertedOrders1Year = $conversionStats['converted'];
         $notConvertedCount = $conversionStats['not_converted'];
@@ -786,40 +786,47 @@ class HomeController extends Controller
         $currentMonth = date('m', strtotime($selectedDate));
         $currentYear = date('Y', strtotime($selectedDate));
 
-        $totalOrderCount = Order::whereMonth('order_date', $currentMonth)
-            ->whereYear('order_date', $currentYear)
-            ->whereNotNull('admin_id')
-            ->where('admin_id', '!=', 0)
-            ->get()
-            ->groupBy('wid');
+        // mk 5 10 26 - Fast Date Range for Chart 2 (WID) to utilize index on order_date and avoid full-table scans
+        $startDate1 = Carbon::createFromDate((int)$currentYear, (int)$currentMonth, 1)->startOfMonth()->toDateString();
+        $endDate1 = Carbon::createFromDate((int)$currentYear, (int)$currentMonth, 1)->endOfMonth()->toDateString();
 
-        $totalOrderChartCount = Order::whereMonth('order_date', $currentMonth)
-            ->whereYear('order_date', $currentYear)
+        $widOrdersQuery = DB::table('orders')
+            ->whereBetween('order_date', [$startDate1, $endDate1])
             ->whereNotNull('admin_id')
-            ->where('admin_id', '!=', 0)
-            ->count();
+            ->where('admin_id', '!=', 0);
+
+        $totalOrderChartCount = (clone $widOrdersQuery)->count();
+
+        $widCounts = (clone $widOrdersQuery)
+            ->whereNotNull('wid')
+            ->where('wid', '!=', 0)
+            ->groupBy('wid')
+            ->select('wid', DB::raw('count(*) as count'))
+            ->pluck('count', 'wid');
+
+        // mk 5 10 26 - Batch preload user names in 1 query instead of N+1 queries in loop
+        $wids = $widCounts->keys()->filter()->values();
+        $userNames = $wids->isNotEmpty() ? User::whereIn('id', $wids)->pluck('name', 'id') : collect();
 
         $userByWid = [];
-        $othersOrder = 0; // Initialize a variable to keep track of orders where user name is null or empty
-
-        foreach ($totalOrderCount as $wid => $orders) {
-            // Get the user associated with this 'wid'
-            $user = User::where('id', $wid)->first();
-
-            // Check if user name is not empty or null
-            if (!empty($user->name)) {
-                // Store user details along with the orders
+        $othersOrder = 0;
+        foreach ($widCounts as $wid => $count) {
+            $uName = $userNames[$wid] ?? null;
+            if (!empty($uName)) {
                 $userByWid[] = [
-                    'user' => $user->name,
-                    'orders' => $orders->count(),
+                    'user' => $uName,
+                    'orders' => (int) $count,
                 ];
             } else {
-                // Increment othersOrder count if user name is null or empty
-                $othersOrder += $orders->count();
+                $othersOrder += (int) $count;
             }
         }
+        $assignedWidOrdersCount = $widCounts->sum();
+        $unassignedWidCount = $totalOrderChartCount - $assignedWidOrdersCount;
+        if ($unassignedWidCount > 0) {
+            $othersOrder += $unassignedWidCount;
+        }
 
-        // Include 'Others' order count if there are any orders with null or empty user names
         if ($othersOrder > 0) {
             $userByWid[] = [
                 'user' => 'Not Assign',
@@ -827,7 +834,6 @@ class HomeController extends Controller
             ];
         }
 
-        // Include total orders count
         $userByWid[] = [
             'user' => 'Total Orders',
             'orders' => $totalOrderChartCount,
@@ -835,48 +841,49 @@ class HomeController extends Controller
 
         // chart-3
         $selectedDate2 = $request->input('selectedDate', null);
-
-        // If no date is selected, use current month and year
         if (!$selectedDate2) {
             $selectedDate2 = date('Y-m'); // Default to current year and month
         }
 
-        // Extract selected month and year from the selected date
         $currentMonth2 = date('m', strtotime($selectedDate2));
         $currentYear2 = date('Y', strtotime($selectedDate2));
 
-        $totalOrderCount2 = Order::whereMonth('order_date', $currentMonth2)
-            ->whereYear('order_date', $currentYear2)
-            ->where('uid', '!=', 0)
-            ->get()
-            ->groupBy('writer_name');
+        // mk 5 10 26 - Fast Date Range for Chart 3 (Writer) to utilize index on order_date and avoid full-table scans
+        $startDate2 = Carbon::createFromDate((int)$currentYear2, (int)$currentMonth2, 1)->startOfMonth()->toDateString();
+        $endDate2 = Carbon::createFromDate((int)$currentYear2, (int)$currentMonth2, 1)->endOfMonth()->toDateString();
 
-        $totalOrderChartCount2 = Order::whereMonth('order_date', $currentMonth2)
-            ->whereYear('order_date', $currentYear2)
-            ->where('uid', '!=', 0)
-            ->count();
+        $writerOrdersQuery = DB::table('orders')
+            ->whereBetween('order_date', [$startDate2, $endDate2])
+            ->where('uid', '!=', 0);
+
+        $totalOrderChartCount2 = (clone $writerOrdersQuery)->count();
+
+        $writerCounts = (clone $writerOrdersQuery)
+            ->whereNotNull('writer_name')
+            ->where('writer_name', '!=', '')
+            ->groupBy('writer_name')
+            ->select('writer_name', DB::raw('count(*) as count'))
+            ->pluck('count', 'writer_name');
 
         $userByWid2 = [];
-        $othersOrder2 = 0; // Initialize a variable to keep track of orders where user name is null or empty
-
-        foreach ($totalOrderCount2 as $writer_name => $orders) {
-            // Get the user associated with this 'writer_name'
-            $teamMembers = Order::where('writer_name', $writer_name)->first();
-
-            // Check if user name is not empty or null
-            if (!empty($teamMembers->writer_name)) {
-                // Store user details along with the orders
+        $othersOrder2 = 0;
+        foreach ($writerCounts as $writer_name => $count) {
+            $wName = trim((string) $writer_name);
+            if (!empty($wName)) {
                 $userByWid2[] = [
-                    'user' => $teamMembers->writer_name,
-                    'orders' => $orders->count(),
+                    'user' => $wName,
+                    'orders' => (int) $count,
                 ];
             } else {
-                // Increment othersOrder count if user name is null or empty
-                $othersOrder2 += $orders->count();
+                $othersOrder2 += (int) $count;
             }
         }
+        $assignedWriterCount = $writerCounts->sum();
+        $unassignedWriterCount = $totalOrderChartCount2 - $assignedWriterCount;
+        if ($unassignedWriterCount > 0) {
+            $othersOrder2 += $unassignedWriterCount;
+        }
 
-        // Include 'Others' order count if there are any orders with null or empty user names
         if ($othersOrder2 > 0) {
             $userByWid2[] = [
                 'user' => 'Not Assign',
@@ -884,101 +891,46 @@ class HomeController extends Controller
             ];
         }
 
-        // Include total orders count
         $userByWid2[] = [
             'user' => 'Total Orders',
             'orders' => $totalOrderChartCount2,
         ];
 
         // --- Basic Stats ---
-        $totalOrderCount = Order::count();
-        $notAssignOrderCount = Order::Where('admin_id', '8392')->where(function ($query) {
-            $query->whereNotNull('writer_status')
-                ->orWhere('writer_status', '!=', '');
-        })
-            ->count();
+        // mk 5 10 26 - Short-cache Basic Stats (30s-180s) with fast indexed date ranges
+        $totalOrderCount = Cache::remember('dashboard_total_order_count', 180, fn() => Order::count());
+        $totalUserCount = Cache::remember('dashboard_total_user_count', 180, fn() => User::count());
+        $todayOrdersCount = Cache::remember('dashboard_today_orders_count', 30, fn() => Order::where('uid', '!=', 0)->where('created_at', '>=', Carbon::today()->startOfDay())->count());
+        $feedbackCount = Cache::remember('dashboard_feedback_count', 60, fn() => Order::where('status_issue', 'Issue Raised')->count());
+        $currentMonthOrdersCount = Cache::remember('dashboard_month_orders_count', 60, fn() => Order::where('created_at', '>=', Carbon::now()->startOfMonth())->count());
 
-        $inprogressOrder13 = Order::where('writer_status', 'In Progress')->count();
-        $completeOrder13 = Order::where('writer_status', 'Completed')->count();
-        $totalwritertl = Order::where('admin_id', '8392')->count();
+        // mk 5 10 26 - Single consolidated query for 5 project status counts instead of 5 individual full table queries (cached 60s)
+        // mk 5 10 26 - Removed 12 unused queries for writer/subwriter/team13/payments that are not used in admin dashboard
+        $projectStatusCounts = Cache::remember('dashboard_project_status_counts', 60, function () {
+            return DB::table('orders')
+                ->whereIn('projectstatus', ['Other', 'Cancelled', 'Pending', 'Hold Work', 'In Progress'])
+                ->groupBy('projectstatus')
+                ->select('projectstatus', DB::raw('count(*) as total'))
+                ->pluck('total', 'projectstatus');
+        });
 
-        // Writer
-        $writerOrder = Order::where('wid', auth()->user()->id)->count();
-
-        $writerNotAssignOrderCount = Order::
-            Where('writer_status', '')
-            ->where('wid', auth()->user()->id)
-            ->count();
-
-        // Subwriter
-        $subWriterOrder = Order::where('swid', auth()->user()->id)->count();
-
-        // Total User Count
-        $totalUserCount = User::count();
-
-        // Today's Order Count
-        $todayOrdersCount = Order::where('uid', '!=', 0)->whereDate('created_at', Carbon::today())->count();
-
-        // Feedback Count
-        $feedbackCount = Order::where('status_issue', 'Issue Raised')->count();
-
-        // Order Count for the Current Month
-        $currentMonthOrdersCount = Order::whereMonth('created_at', Carbon::now()->month)->count();
-
-        // Order by status
-        $otherOrder = Order::where('projectstatus', 'Other')->count();
-        $cancelledOrder = Order::where('projectstatus', 'Cancelled')->count();
-        $pendingOrder = Order::where('projectstatus', 'Pending')->count();
-        $holdWorkOrder = Order::where('projectstatus', 'Hold Work')->count();
-        $inprogressOrder = Order::where('projectstatus', 'In Progress')->count();
-
-        $userData = User::where('tl_id', auth()->user()->id)->get();
-        $userData2 = User::where('role_id', 6)->where('flag', 0)->get();
-        $data = ['Team' => $userData, 'writer' => $userData2];
-
-        $Paymentstotal = Payment::count();
-        $checkedPayments = Payment::where('account_status', 0)->count();
-        $uncheckedpayment = Payment::where('account_status', 1)->count();
-        $todaypaymentcheckked = Payment::where('account_status', 1)->where('created_at', Carbon::today())->count();
+        $otherOrder = (int) ($projectStatusCounts['Other'] ?? 0);
+        $cancelledOrder = (int) ($projectStatusCounts['Cancelled'] ?? 0);
+        $pendingOrder = (int) ($projectStatusCounts['Pending'] ?? 0);
+        $holdWorkOrder = (int) ($projectStatusCounts['Hold Work'] ?? 0);
+        $inprogressOrder = (int) ($projectStatusCounts['In Progress'] ?? 0);
 
         // --- Chart Data Logic Start ---
         $year = date('Y');
 
-        $months = [];
-        $newUsersData = [];
-        $retainedUsersData = [];
-        $loyalUsersData = [];
+        // mk 5 10 26 - Cache 12-month user retention & acquisition chart data (180s) to avoid 84 redundant queries per request
+        $chartData = Cache::remember('dashboard_chart_data_' . $year, 180, function () use ($year) {
+            $months = [];
+            $newUsersData = [];
+            $retainedUsersData = [];
+            $loyalUsersData = [];
 
-        for ($m = 1; $m <= 12; $m++) {
-
-            $monthStart = \Carbon\Carbon::create($year, $m, 1)->startOfMonth();
-            $monthEnd   = \Carbon\Carbon::create($year, $m, 1)->endOfMonth();
-
-            $months[] = $monthStart->format('M/y');
-
-            $fromDate = $monthStart->format('Y-m-d') . ' 00:00:00';
-            $toDate   = $monthEnd->format('Y-m-d') . ' 23:59:59';
-
-            $threeMonthsAgo = date('Y-m-d H:i:s', strtotime('-3 months', strtotime($fromDate)));
-
-            $convertedUserIds = Leads::where('is_converted', 1)
-                ->whereBetween('create_at', [$fromDate, $toDate])
-                ->pluck('emp_id')
-                ->unique()
-                ->filter()
-                ->values();
-
-            $notConvertedUserIds = Leads::where('is_converted', 0)
-                ->whereBetween('create_at', [$fromDate, $toDate])
-                ->pluck('emp_id')
-                ->unique()
-                ->filter()
-                ->values();
-
-            $notConvertedOnlyUserIds = $notConvertedUserIds
-                ->diff($convertedUserIds)
-                ->values();
-
+            // mk 5 10 26 - Fetch all loyal user IDs once outside the loop instead of repeating heavy query 12 times
             $allLoyalUserIds = Leads::where('is_converted', 1)
                 ->groupBy('emp_id')
                 ->havingRaw('COUNT(*) >= 10')
@@ -987,75 +939,108 @@ class HomeController extends Controller
                 ->filter()
                 ->values();
 
-            // Converted users
-            $convertedNewUserIds = User::whereIn('id', $convertedUserIds)
-                ->whereBetween('created_at', [$fromDate, $toDate])
-                ->pluck('id');
+            for ($m = 1; $m <= 12; $m++) {
+                $monthStart = \Carbon\Carbon::create($year, $m, 1)->startOfMonth();
+                $monthEnd   = \Carbon\Carbon::create($year, $m, 1)->endOfMonth();
 
-            $convertedOldUserIds = $convertedUserIds->diff($convertedNewUserIds);
+                $months[] = $monthStart->format('M/y');
 
-            $convertedLoyalUserIds = $convertedOldUserIds
-                ->intersect($allLoyalUserIds);
+                $fromDate = $monthStart->format('Y-m-d') . ' 00:00:00';
+                $toDate   = $monthEnd->format('Y-m-d') . ' 23:59:59';
 
-            $convertedRetainUserIds = User::whereIn('id', $convertedOldUserIds)
-                ->where('created_at', '<', $threeMonthsAgo)
-                ->whereNotIn('id', $convertedLoyalUserIds)
-                ->pluck('id');
+                $threeMonthsAgo = date('Y-m-d H:i:s', strtotime('-3 months', strtotime($fromDate)));
 
-            $convertedRegularUsers = $convertedOldUserIds
-                ->diff($convertedLoyalUserIds)
-                ->diff($convertedRetainUserIds)
-                ->count();
+                $convertedUserIds = Leads::where('is_converted', 1)
+                    ->whereBetween('create_at', [$fromDate, $toDate])
+                    ->pluck('emp_id')
+                    ->unique()
+                    ->filter()
+                    ->values();
 
-            // Not converted users
-            $notConvertedNewUserIds = User::whereIn('id', $notConvertedOnlyUserIds)
-                ->whereBetween('created_at', [$fromDate, $toDate])
-                ->pluck('id');
+                $notConvertedUserIds = Leads::where('is_converted', 0)
+                    ->whereBetween('create_at', [$fromDate, $toDate])
+                    ->pluck('emp_id')
+                    ->unique()
+                    ->filter()
+                    ->values();
 
-            $notConvertedOldUserIds = $notConvertedOnlyUserIds
-                ->diff($notConvertedNewUserIds);
+                $notConvertedOnlyUserIds = $notConvertedUserIds
+                    ->diff($convertedUserIds)
+                    ->values();
 
-            $notConvertedLoyalUserIds = $notConvertedOldUserIds
-                ->intersect($allLoyalUserIds);
+                // Converted users
+                $convertedNewUserIds = User::whereIn('id', $convertedUserIds)
+                    ->whereBetween('created_at', [$fromDate, $toDate])
+                    ->pluck('id');
 
-            $notConvertedRetainUserIds = User::whereIn('id', $notConvertedOldUserIds)
-                ->where('created_at', '<', $threeMonthsAgo)
-                ->whereNotIn('id', $notConvertedLoyalUserIds)
-                ->pluck('id');
+                $convertedOldUserIds = $convertedUserIds->diff($convertedNewUserIds);
 
-            $notConvertedRegularUsers = $notConvertedOldUserIds
-                ->diff($notConvertedLoyalUserIds)
-                ->diff($notConvertedRetainUserIds)
-                ->count();
+                $convertedLoyalUserIds = $convertedOldUserIds
+                    ->intersect($allLoyalUserIds);
 
-            // Final chart values same as User Report
-            $newUsersData[] =
-                $convertedNewUserIds->count()
-                + $notConvertedNewUserIds->count();
+                $convertedRetainUserIds = User::whereIn('id', $convertedOldUserIds)
+                    ->where('created_at', '<', $threeMonthsAgo)
+                    ->whereNotIn('id', $convertedLoyalUserIds)
+                    ->pluck('id');
 
-            $retainedUsersData[] =
-                $convertedRetainUserIds->count()
-                + $convertedRegularUsers
-                + $notConvertedRetainUserIds->count()
-                + $notConvertedRegularUsers;
+                $convertedRegularUsers = $convertedOldUserIds
+                    ->diff($convertedLoyalUserIds)
+                    ->diff($convertedRetainUserIds)
+                    ->count();
 
-            $loyalUsersData[] =
-                $convertedLoyalUserIds->count()
-                + $notConvertedLoyalUserIds->count();
-        }
+                // Not converted users
+                $notConvertedNewUserIds = User::whereIn('id', $notConvertedOnlyUserIds)
+                    ->whereBetween('created_at', [$fromDate, $toDate])
+                    ->pluck('id');
 
-        $chartData = [
-            'labels' => $months,
-            'newUsers' => $newUsersData,
-            'retained' => $retainedUsersData,
-            'loyal' => $loyalUsersData
-        ];
+                $notConvertedOldUserIds = $notConvertedOnlyUserIds
+                    ->diff($notConvertedNewUserIds);
+
+                $notConvertedLoyalUserIds = $notConvertedOldUserIds
+                    ->intersect($allLoyalUserIds);
+
+                $notConvertedRetainUserIds = User::whereIn('id', $notConvertedOldUserIds)
+                    ->where('created_at', '<', $threeMonthsAgo)
+                    ->whereNotIn('id', $notConvertedLoyalUserIds)
+                    ->pluck('id');
+
+                $notConvertedRegularUsers = $notConvertedOldUserIds
+                    ->diff($notConvertedLoyalUserIds)
+                    ->diff($notConvertedRetainUserIds)
+                    ->count();
+
+                // Final chart values same as User Report
+                $newUsersData[] =
+                    $convertedNewUserIds->count()
+                    + $notConvertedNewUserIds->count();
+
+                $retainedUsersData[] =
+                    $convertedRetainUserIds->count()
+                    + $convertedRegularUsers
+                    + $notConvertedRetainUserIds->count()
+                    + $notConvertedRegularUsers;
+
+                $loyalUsersData[] =
+                    $convertedLoyalUserIds->count()
+                    + $notConvertedLoyalUserIds->count();
+            }
+
+            return [
+                'labels' => $months,
+                'newUsers' => $newUsersData,
+                'retained' => $retainedUsersData,
+                'loyal' => $loyalUsersData
+            ];
+        });
         // --- Chart Data Logic End ---
 
         if (auth()->check()) {
             switch (auth()->user()->role_id) {
                 case 1:
-                    $employees = \App\Models\User::where('role_id', '!=', 2)->get();
+                    // mk 5 10 26 - Cache non-client employees list (180s)
+                    $employees = Cache::remember('dashboard_employees', 180, function () {
+                        return \App\Models\User::where('role_id', '!=', 2)->select('id', 'name', 'role_id')->get();
+                    });
                     // NEW VARIABLES ADDED TO COMPACT: sourceData, totalSourceLeads
                     return view('dashboard', compact('userByWid2', 'userByWid', 'totalOrderCount', 'totalUserCount', 'todayOrdersCount', 'feedbackCount', 'otherOrder', 'cancelledOrder', 'pendingOrder', 'holdWorkOrder', 'inprogressOrder', 'currentMonthOrdersCount', 'chartData', 'employees', 'countryStats', 'dueOrdersList', 'totalDueOrdersCount', 'seoChartData', 'totalSeoLeads', 'seoFilter', 'seoFrom', 'seoTo', 'seoReportFrom', 'seoReportTo', 'totalLeads1Year', 'convertedOrders1Year', 'notConvertedCount', 'conversionRatio', 'sourceData', 'totalSourceLeads'));
                 case 3:
@@ -1452,22 +1437,36 @@ class HomeController extends Controller
     }
     
     private function cleanBlogContent($html)
-{
-    // span remove karo but andar ka content + h2/h3/p/ul/ol safe rahe
-    $html = preg_replace('/<span[^>]*>/is', '', $html);
-    $html = preg_replace('/<\/span>/is', '', $html);
+    {
+        // Protect CTA boxes before stripping classes/styles
+        $ctaPlaceholders = [];
+        $html = preg_replace_callback('/<div[^>]*data-cta-key=["\']([^"\']+)["\'][^>]*>.*?<\/div>/is', function ($matches) use (&$ctaPlaceholders) {
+            $key = $matches[1];
+            $token = '___CTA_TOKEN_' . count($ctaPlaceholders) . '___';
+            $ctaPlaceholders[$token] = '[' . $key . ']';
+            return $token;
+        }, $html);
 
-    // inline CSS remove karo, tag mat badlo
-    $html = preg_replace('/\sstyle=("|\')(.*?)("|\')/is', '', $html);
-    $html = preg_replace('/\sclass=("|\')(.*?)("|\')/is', '', $html);
-    $html = preg_replace('/\sdir=("|\')(.*?)("|\')/is', '', $html);
+        // span remove karo but andar ka content + h2/h3/p/ul/ol safe rahe
+        $html = preg_replace('/<span[^>]*>/is', '', $html);
+        $html = preg_replace('/<\/span>/is', '', $html);
 
-    $html = str_replace('&nbsp;', ' ', $html);
-    $html = preg_replace('/<p>\s*<\/p>/i', '', $html);
-    $html = preg_replace('/<p><br><\/p>/i', '', $html);
+        // inline CSS remove karo, tag mat badlo
+        $html = preg_replace('/\sstyle=("|\')(.*?)("|\')/is', '', $html);
+        $html = preg_replace('/\sclass=("|\')(.*?)("|\')/is', '', $html);
+        $html = preg_replace('/\sdir=("|\')(.*?)("|\')/is', '', $html);
 
-    return trim($html);
-}
+        $html = str_replace('&nbsp;', ' ', $html);
+        $html = preg_replace('/<p>\s*<\/p>/i', '', $html);
+        $html = preg_replace('/<p><br><\/p>/i', '', $html);
+
+        // Restore protected CTAs as clean token blocks
+        foreach ($ctaPlaceholders as $token => $val) {
+            $html = str_replace($token, $val, $html);
+        }
+
+        return trim($html);
+    }
 
     public function blog_store(Request $request)
     {

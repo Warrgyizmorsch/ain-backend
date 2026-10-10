@@ -25,10 +25,10 @@
                             </div>
                             <div class="d-flex flex-wrap fw-bold fs-6 mb-4 pe-2">
                                 <span class="d-flex align-items-center text-gray-400 text-hover-primary me-5 mb-2">
-                                    <i class="fa fa-envelope me-2"></i> {{ $user->email ?? 'N/A' }}
+                                    <i class="fa fa-envelope me-2"></i> {{ mask_email_for_display($user->email ?? '') }}
                                 </span>
                                 <span class="d-flex align-items-center text-gray-400 text-hover-primary me-5 mb-2">
-                                    <i class="fa fa-phone me-2"></i> {{ $user->countrycode ?? '' }} {{ $user->mobile_no ?? 'N/A' }}
+                                    <i class="fa fa-phone me-2"></i> {{ mask_phone_for_display($user->countrycode, $user->mobile_no) }}
                                 </span>
                                 <span class="d-flex align-items-center text-gray-400 text-hover-primary mb-2">
                                     <i class="fa fa-globe me-2"></i> {{ $user->countrycode ? 'Code: ' . $user->countrycode : 'Unknown' }}

@@ -22,6 +22,27 @@ class TwilioVoiceService
     }
 
     /**
+     * Get setting value with automatic fallback to .env or known defaults.
+     */
+    public function getSettingValue(string $key): ?string
+    {
+        $val = $this->plugin ? $this->plugin->getSetting($key) : null;
+        if (!empty($val)) {
+            return (string) $val;
+        }
+
+        return match ($key) {
+            'account_sid' => env('TWILIO_ACCOUNT_SID', env('TWILIO_SID')),
+            'auth_token' => env('TWILIO_AUTH_TOKEN', env('TWILIO_TOKEN')),
+            'twilio_number' => env('TWILIO_NUMBER', env('TWILIO_PHONE_NUMBER', env('TWILIO_FROM'))),
+            'api_key_sid' => env('TWILIO_API_KEY_SID', env('TWILIO_API_KEY')),
+            'api_secret' => env('TWILIO_API_SECRET', env('TWILIO_SECRET')),
+            'twiml_app_sid' => env('TWILIO_TWIML_APP_SID', env('TWILIO_APP_SID')),
+            default => null,
+        };
+    }
+
+    /**
      * Check if Twilio Voice Call plugin is enabled and configured.
      */
     public function isConfigured(): bool
@@ -30,11 +51,10 @@ class TwilioVoiceService
             return false;
         }
 
-        $sid = $this->plugin->getSetting('account_sid');
-        $token = $this->plugin->getSetting('auth_token');
-        $from = $this->plugin->getSetting('twilio_number');
+        $sid = $this->getSettingValue('account_sid');
+        $from = $this->getSettingValue('twilio_number');
 
-        return !empty($sid) && !empty($token) && !empty($from);
+        return !empty($sid) && !empty($from);
     }
 
     public function isWebRtcConfigured(): bool
@@ -43,10 +63,10 @@ class TwilioVoiceService
             return false;
         }
 
-        $accountSid = $this->plugin->getSetting('account_sid');
-        $apiKey = $this->plugin->getSetting('api_key_sid');
-        $apiSecret = $this->plugin->getSetting('api_secret');
-        $appSid = $this->plugin->getSetting('twiml_app_sid');
+        $accountSid = $this->getSettingValue('account_sid');
+        $apiKey = $this->getSettingValue('api_key_sid');
+        $apiSecret = $this->getSettingValue('api_secret');
+        $appSid = $this->getSettingValue('twiml_app_sid');
 
         return !empty($accountSid) && !empty($apiKey) && !empty($apiSecret) && !empty($appSid);
     }
@@ -71,8 +91,10 @@ class TwilioVoiceService
             return '';
         }
 
-        if (str_starts_with($number, '+')) {
-            return $number;
+        // Strip leading zeros (e.g. 09610092299 -> 9610092299)
+        $number = ltrim($number, '0');
+        if (empty($number)) {
+            return '';
         }
 
         if (!empty($countryCode)) {
@@ -83,7 +105,17 @@ class TwilioVoiceService
             return '+' . $cc . $number;
         }
 
-        return '+' . ltrim($number, '+');
+        // If number already has 91 country code and 12 digits total
+        if (str_starts_with($number, '91') && strlen($number) === 12) {
+            return '+' . $number;
+        }
+
+        // If number is a 10-digit Indian mobile number (starts with 6, 7, 8, 9)
+        if (strlen($number) === 10 && in_array($number[0], ['6', '7', '8', '9'])) {
+            return '+91' . $number;
+        }
+
+        return '+' . $number;
     }
 
     /**
@@ -92,11 +124,11 @@ class TwilioVoiceService
     public function generateAccessToken(string $identity, int $ttl = 86400): array
     {
         $this->plugin = PluginSetting::where('plugin_key', 'twilio_call')->first();
-        $accountSid = $this->plugin?->getSetting('account_sid') ?: 'ACce3d9633593afbeda1054ac03f555ab3';
-        $apiKey = $this->plugin?->getSetting('api_key_sid') ?: 'SK68c36d375a7551364289a1b85a83e38b';
-        $apiSecret = $this->plugin?->getSetting('api_secret') ?: 'rNXWstz1t72NSD4n60eT1uz2mZZLzfWe';
-        $appSid = $this->plugin?->getSetting('twiml_app_sid') ?: 'APde9388f580c06d9c737fbc995a3601a7';
-        $twilioNumber = $this->plugin?->getSetting('twilio_number') ?: '+15054963739';
+        $accountSid = $this->getSettingValue('account_sid');
+        $apiKey = $this->getSettingValue('api_key_sid');
+        $apiSecret = $this->getSettingValue('api_secret');
+        $appSid = $this->getSettingValue('twiml_app_sid');
+        $twilioNumber = $this->getSettingValue('twilio_number');
 
         if (empty($accountSid) || empty($apiKey) || empty($apiSecret) || empty($appSid)) {
             return [
@@ -202,6 +234,35 @@ class TwilioVoiceService
         }
 
         // Case 2: Inbound call from a customer dialing our Twilio Number -> Ring active web softphones
+        $callSid = $request->input('CallSid');
+        if (!empty($callSid)) {
+            $customerName = null;
+            $digits = preg_replace('/\D/', '', $rawFrom);
+            if (strlen($digits) >= 7) {
+                $last10 = substr($digits, -10);
+                $customer = \App\Models\User::whereRaw("REPLACE(REPLACE(mobile_no, ' ', ''), '-', '') LIKE ?", ['%' . $last10])->first();
+                if ($customer) {
+                    $customerName = $customer->name;
+                }
+            }
+
+            try {
+                \App\Models\TwilioCallLog::firstOrCreate(
+                    ['call_sid' => $callSid],
+                    [
+                        'direction'     => 'inbound',
+                        'status'        => 'missed', // Default to missed until answered
+                        'from_number'   => $rawFrom ?: 'Unknown',
+                        'to_number'     => $callerId,
+                        'customer_name' => $customerName,
+                        'started_at'    => now(),
+                    ]
+                );
+            } catch (\Throwable $e) {
+                Log::error('Failed to pre-log inbound Twilio call: ' . $e->getMessage());
+            }
+        }
+
         return '<?xml version="1.0" encoding="UTF-8"?>'
             . '<Response>'
             . '<Say voice="alice">Connecting to customer support, please hold.</Say>'
@@ -220,8 +281,8 @@ class TwilioVoiceService
     public function autoGenerateAndSaveApiKey(): array
     {
         $this->plugin = PluginSetting::where('plugin_key', 'twilio_call')->first();
-        $accountSid = $this->plugin?->getSetting('account_sid');
-        $authToken = $this->plugin?->getSetting('auth_token');
+        $accountSid = $this->getSettingValue('account_sid');
+        $authToken = $this->getSettingValue('auth_token');
 
         if (empty($accountSid) || empty($authToken)) {
             return [

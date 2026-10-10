@@ -157,14 +157,11 @@
                                         </a>
                                         @include('order.section.comment-order')
 
-                                        <button type="button"
-                                            class="btn btn-icon btn-success btn-sm me-1 m-1"
-                                            title="Call Customer via Softphone"
-                                            onclick="openRingfySoftphone(@js($order->id), @js(optional($order->user)->countrycode), @js(optional($order->user)->mobile_no))">
-                                            <span class="svg-icon svg-icon-3">
-                                                <i style="color:white" class="fa fa-phone fa-lg"></i>
-                                            </span>
-                                        </button>
+                                        <x-call-button
+                                            :phone="optional($order->user)->mobile_no ?? ''"
+                                            :countrycode="optional($order->user)->countrycode ?? ''"
+                                            :name="optional($order->user)->name ?? 'Customer'"
+                                            :id="'ordercall' . $order->id" />
                                     </div>
 
                                 </div>

@@ -2,29 +2,31 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Support\Facades\Auth;
-
-use Illuminate\Support\Facades\DB;
-use Illuminate\Http\Request;
-use App\Models\Leads;
-use App\Models\Calls;
-use App\Models\User;
-use App\Models\Order;
-use App\Models\Services;
-use App\Models\Paper;
-use Illuminate\Support\Facades\Hash;
-use App\Mail\LeadsConvertMail;
-use Mail;
-use App\Models\Files;
-use Carbon\Carbon;
-use Illuminate\Support\Facades\Http; //add this for captcha
-use App\Mail\OrderConfirmation;
 use App\Events\LeadFilterApplied;
 use App\Events\LeadUpdated;
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Storage;
 use App\Jobs\ExportLeadsJob;
+use App\Mail\LeadsConvertMail;
+use App\Mail\OrderConfirmation;
+use App\Models\Calls;
+use App\Models\Files;
+use App\Models\GroupMaster;
+use App\Models\LeadFollowup;
+use App\Models\Leads;
+use App\Models\Order;
+use App\Models\Paper;
+use App\Models\Services;
 use App\Models\Source;
+use App\Models\User; // add this for captcha
+use App\Models\WhatsappSetting;
+use Carbon\Carbon;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Storage;
+use Mail;
 
 class LeadsController extends Controller
 {
@@ -33,6 +35,7 @@ class LeadsController extends Controller
         return [
             'id',
             'emp_id',
+            'created_by',
             'order_id',
             'flag',
             'assign_type',
@@ -60,6 +63,7 @@ class LeadsController extends Controller
         ];
     }
 
+    // mk 5 10 26 - Optimize lead list relations: commented out unused correlated subquery 'failed_orders_count' for speed (uncomment if needed in future)
     private function leadListRelations(): array
     {
         return [
@@ -68,52 +72,129 @@ class LeadsController extends Controller
                     ->with('groups:id,name')
                     ->withCount([
                         'orders as orders_count',
-                        'orders as failed_orders_count' => function ($orderQuery) {
-                            $orderQuery->where('is_fail', 1);
-                        },
+                        // mk 5 10 26 - Future use ke liye commented:
+                        // 'orders as failed_orders_count' => function ($orderQuery) {
+                        //     $orderQuery->where('is_fail', 1);
+                        // },
                     ]);
             },
+            'creator:id,name',
             'source:id,source_name,source_icon',
             'latestCall.user:id,name',
+            'latestCall.lead:id,order_id',
+            // mk 7 10 26 - Eager load order and team for manual team badge in leads
+            'order' => function ($q) {
+                $q->select('id', 'order_id', 'team_id')->with('team:id,team_name');
+            },
         ];
     }
 
     private function attachLeadUserCounts($leads): void
     {
-        $userIds = $leads->pluck('emp_id')->filter()->unique()->values();
-        if ($userIds->isEmpty()) {
+        if ($leads->isEmpty()) {
             return;
         }
 
-        $activeLeadCounts = Leads::whereIn('emp_id', $userIds)
-            ->where('is_converted', 0)
-            ->where('status', 0)
-            ->where('duplicate_lead', 0)
-            ->selectRaw('emp_id, COUNT(*) as total')
-            ->groupBy('emp_id')
-            ->pluck('total', 'emp_id');
+        $userIds = $leads->pluck('emp_id')->filter()->unique()->values();
+        if ($userIds->isNotEmpty()) {
+            $activeLeadCounts = Leads::whereIn('emp_id', $userIds)
+                ->where('is_converted', 0)
+                ->where('status', 0)
+                ->where('duplicate_lead', 0)
+                ->selectRaw('emp_id, COUNT(*) as total')
+                ->groupBy('emp_id')
+                ->pluck('total', 'emp_id');
 
-        foreach ($leads as $lead) {
-            if ($lead->user) {
-                $lead->user->setAttribute('active_leads_count', $activeLeadCounts[$lead->emp_id] ?? 0);
+            foreach ($leads as $lead) {
+                if ($lead->user) {
+                    $lead->user->setAttribute('active_leads_count', $activeLeadCounts[$lead->emp_id] ?? 0);
+                }
+            }
+
+            // mk 5 10 26 - OPTIMIZED: Removed MIN(COALESCE()) which caused full table scans.
+            // Now we fetch the raw failed orders and compute the min date in PHP.
+            $failedOrders = Order::whereIn('uid', $userIds)
+                ->where('is_fail', 1)
+                ->select('uid', 'order_date', 'created_at', 'failed_at')
+                ->get();
+
+            $firstFailedOrderDates = [];
+            foreach ($failedOrders as $order) {
+                $date = $order->order_date ?? $order->created_at ?? $order->failed_at;
+                if ($date) {
+                    $dateStr = (string) $date;
+                    if (! isset($firstFailedOrderDates[$order->uid]) || $dateStr < $firstFailedOrderDates[$order->uid]) {
+                        $firstFailedOrderDates[$order->uid] = $dateStr;
+                    }
+                }
+            }
+
+            foreach ($leads as $lead) {
+                $lead->setAttribute('first_failed_order_at', $firstFailedOrderDates[$lead->emp_id] ?? null);
             }
         }
 
-        $firstFailedOrderDates = Order::whereIn('uid', $userIds)
-            ->where('is_fail', 1)
-            ->selectRaw('uid, MIN(COALESCE(order_date, created_at, failed_at)) as first_failed_at')
-            ->groupBy('uid')
-            ->pluck('first_failed_at', 'uid');
+        // 1. Batch-fetch matched orders for all leads to avoid 30 slow unindexed queries in row.blade.php
+        $allOrderIds = $leads->pluck('order_id')->filter()->unique()->values()->all();
+        $allLeadIds = $leads->pluck('id')->filter()->unique()->values()->all();
+
+        $matchedOrders = collect();
+        if (! empty($allOrderIds)) {
+            $matchedOrders = Order::whereIn('order_id', $allOrderIds)
+                ->select('id', 'lead_id', 'order_id', 'amount', 'received_amount')
+                ->get();
+        }
+
+        $missingLeadIds = array_diff($allLeadIds, $matchedOrders->pluck('lead_id')->filter()->all());
+        if (! empty($missingLeadIds)) {
+            $moreOrders = Order::whereIn('lead_id', $missingLeadIds)
+                ->select('id', 'lead_id', 'order_id', 'amount', 'received_amount')
+                ->get();
+            $matchedOrders = $matchedOrders->merge($moreOrders);
+        }
+
+        $ordersByLeadId = $matchedOrders->whereNotNull('lead_id')->keyBy('lead_id');
+        $ordersByOrderId = $matchedOrders->whereNotNull('order_id')->keyBy('order_id');
 
         foreach ($leads as $lead) {
-            $lead->setAttribute('first_failed_order_at', $firstFailedOrderDates[$lead->emp_id] ?? null);
+            $lead->attached_order_record = $ordersByLeadId[$lead->id]
+                ?? (! empty($lead->order_id) ? ($ordersByOrderId[$lead->order_id] ?? false) : false);
+        }
+
+        // 2. Batch-fetch files for all leads to avoid 30 separate queries + Schema::hasColumn in row.blade.php
+        $fileKeys = [];
+        foreach ($leads as $lead) {
+            if (! empty($lead->order_id)) {
+                $fileKeys[] = (string) $lead->order_id;
+            }
+            $fileKeys[] = (string) $lead->id;
+        }
+        $fileKeys = array_values(array_unique(array_filter($fileKeys)));
+
+        // mk 5 10 26 - OPTIMIZED: Only select needed columns to avoid pulling large file blobs
+        $allFiles = ! empty($fileKeys)
+            ? Files::select('id', 'order_Id', 'file_data', 'file_name', 'file_type')
+                ->whereIn('order_Id', $fileKeys)
+                ->get()
+            : collect();
+
+        $filesByOrderKey = [];
+        foreach ($allFiles as $file) {
+            $filesByOrderKey[(string) $file->order_Id][] = $file;
+        }
+
+        foreach ($leads as $lead) {
+            $f1 = $filesByOrderKey[(string) $lead->order_id] ?? [];
+            $f2 = $filesByOrderKey[(string) $lead->id] ?? [];
+            $leadFiles = collect($f1)->merge($f2)->unique('id')->values();
+            $lead->setAttribute('attached_files', $leadFiles);
         }
     }
 
     public function index()
     {
         // Retrieve all services
-        $service   = Services::all();
+        $service = Services::all();
         $papers = Paper::all();
 
         // Retrieve leads with status 0, eager loading user and related calls
@@ -135,9 +216,20 @@ class LeadsController extends Controller
 
         if ($request->filled('search')) {
             $searchTerm = trim((string) $request->input('search'));
-            $query->where(function ($q) use ($searchTerm) {
-                $q->where('order_id', 'like', '%' . $searchTerm . '%')
-                  ->orWhere('project_title', 'like', '%' . $searchTerm . '%');
+            $searchUserIds = find_user_ids_by_search_term($searchTerm);
+            if (is_numeric($searchTerm)) {
+                $searchUserIds[] = (int) $searchTerm;
+                $searchUserIds = array_unique($searchUserIds);
+            }
+            $query->where(function ($q) use ($searchTerm, $searchUserIds) {
+                $q->where('order_id', 'like', '%'.$searchTerm.'%')
+                    ->orWhere('project_title', 'like', '%'.$searchTerm.'%');
+                if (! empty($searchUserIds)) {
+                    $q->orWhereIn('emp_id', $searchUserIds);
+                }
+                if (is_numeric($searchTerm)) {
+                    $q->orWhere('emp_id', (int) $searchTerm);
+                }
             });
         }
 
@@ -152,23 +244,23 @@ class LeadsController extends Controller
             $cleanDigits = preg_replace('/\D+/', '', $uidTerm);
 
             $query->where(function ($q) use ($uidTerm, $searchUserIds, $cleanSearchMasked, $cleanDigits) {
-                if (!empty($searchUserIds)) {
+                if (! empty($searchUserIds)) {
                     $q->whereIn('emp_id', $searchUserIds);
                 }
                 if (is_numeric($uidTerm)) {
                     $q->orWhere('emp_id', (int) $uidTerm);
                 }
-                if (strpos($uidTerm, '*') !== false && !empty($cleanSearchMasked) && preg_match('/\d/', $cleanSearchMasked)) {
-                    $q->orWhere('mobile', 'like', '%' . $cleanSearchMasked . '%')
-                      ->orWhere('mobile2', 'like', '%' . $cleanSearchMasked . '%')
-                      ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile, '')) LIKE ?", ['%' . $cleanSearchMasked . '%']);
-                } elseif (!empty($cleanDigits) && strlen($cleanDigits) >= 2) {
-                    $q->orWhere('mobile', 'like', '%' . $cleanDigits . '%')
-                      ->orWhere('mobile2', 'like', '%' . $cleanDigits . '%')
-                      ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile, '')) LIKE ?", ['%' . $cleanDigits . '%']);
+                if (strpos($uidTerm, '*') !== false && ! empty($cleanSearchMasked) && preg_match('/\d/', $cleanSearchMasked)) {
+                    $q->orWhere('mobile', 'like', '%'.$cleanSearchMasked.'%')
+                        ->orWhere('mobile2', 'like', '%'.$cleanSearchMasked.'%')
+                        ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile, '')) LIKE ?", ['%'.$cleanSearchMasked.'%']);
+                } elseif (! empty($cleanDigits) && strlen($cleanDigits) >= 2) {
+                    $q->orWhere('mobile', 'like', '%'.$cleanDigits.'%')
+                        ->orWhere('mobile2', 'like', '%'.$cleanDigits.'%')
+                        ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile, '')) LIKE ?", ['%'.$cleanDigits.'%']);
                 }
-                $q->orWhere('email', 'like', '%' . $uidTerm . '%')
-                  ->orWhere('user_name', 'like', '%' . $uidTerm . '%');
+                $q->orWhere('email', 'like', '%'.$uidTerm.'%')
+                    ->orWhere('user_name', 'like', '%'.$uidTerm.'%');
             });
         }
 
@@ -177,7 +269,7 @@ class LeadsController extends Controller
             $from = min($request->input('additional_filter3'), $request->input('additional_filter6'));
             $to = max($request->input('additional_filter3'), $request->input('additional_filter6'));
             if ($dateCol === 'create_at') {
-                $query->whereBetween('create_at', [$from . ' 00:00:00', $to . ' 23:59:59']);
+                $query->whereBetween('create_at', [$from.' 00:00:00', $to.' 23:59:59']);
             } else {
                 $query->whereBetween('deadline', [$from, $to]);
             }
@@ -198,14 +290,13 @@ class LeadsController extends Controller
         return view('leads.cleads', ['status1Leads' => $status1Leads]);
     }
 
-
     public function leads_update(Request $req, $id)
     {
         $leads = Leads::find($id);
         $id = $leads->emp_id;
 
         $deliveryDate = $req->input('delivery_date');
-        $today = \Carbon\Carbon::today()->format('Y-m-d'); // Get today's date
+        $today = Carbon::today()->format('Y-m-d'); // Get today's date
         // Check if the delivery date is before today
         if ($deliveryDate < $today) {
             // Redirect back with an error message if the date is invalid
@@ -224,12 +315,14 @@ class LeadsController extends Controller
         // Check if email already exists with another user
         if (User::where('email', $email)->where('id', '!=', $id)->exists()) {
             $existingUser = User::where('email', $email)->where('id', '!=', $id)->first();
+
             return back()->with('danger', 'Email already exists with another user')->with('existingUser', $existingUser);
         }
 
         // Check if mobile number already exists with another user
         if (User::where('mobile_no', $mobile_no)->where('id', '!=', $id)->exists()) {
             $existingUser = User::where('mobile_no', $mobile_no)->where('id', '!=', $id)->first();
+
             return back()->with('danger', 'Mobile number already exists with another user')->with('existingUser', $existingUser);
         }
 
@@ -244,7 +337,7 @@ class LeadsController extends Controller
         $user->save();
         $leads->project_title = $req->input('project_title');
         // Check if the input is a numeric value
-        if ($req->filled('pages') && !is_numeric($req->input('pages'))) {
+        if ($req->filled('pages') && ! is_numeric($req->input('pages'))) {
             // Redirect back with a warning message if not numeric
             return back()->with('warning', 'Word must be a numeric value');
         }
@@ -273,8 +366,6 @@ class LeadsController extends Controller
         }
         $leads->save();
 
-
-
         return back()->with('success', 'Lead updated successfully.');
     }
 
@@ -288,8 +379,8 @@ class LeadsController extends Controller
                 $lead->status = 1;
                 $lead->save();
 
-                if (!empty($request->message)) {
-                    $call = new Calls();
+                if (! empty($request->message)) {
+                    $call = new Calls;
                     $call->created_by = auth()->id();
                     $call->lead_id = $id;
                     $call->description = $request->message;
@@ -300,6 +391,7 @@ class LeadsController extends Controller
                     'lead_id' => $lead->id,
                     'updated_by' => auth()->user()->name,
                 ]);
+
                 return response()->json(['message' => 'Lead canceled successfully']);
             } else {
                 return response()->json(['message' => 'Lead is already canceled']);
@@ -309,6 +401,7 @@ class LeadsController extends Controller
             return response()->json(['error' => 'Failed to cancel lead', 'message' => $e->getMessage()], 500);
         }
     }
+
     public function leads_Active($id)
     {
         try {
@@ -327,6 +420,7 @@ class LeadsController extends Controller
             return response()->json(['error' => 'Failed to Active lead', 'message' => $e->getMessage()], 500);
         }
     }
+
     public function new_lead(Request $req)
     {
         // $lead = new Leads;
@@ -354,35 +448,35 @@ class LeadsController extends Controller
             ? preg_replace('/\*+/', '%', preg_replace('/[^0-9*]/', '', $rawMobile))
             : '';
 
-        if (strlen($digits) < 2 && (empty($pattern) || !preg_match('/\d/', $pattern))) {
+        if (strlen($digits) < 2 && (empty($pattern) || ! preg_match('/\d/', $pattern))) {
             return response()->json(['user' => null, 'users' => [], 'referUser' => null]);
         }
 
         $users = User::select('id', 'name', 'email', 'countrycode', 'mobile_no', 'countrycode2', 'mobile_no2', 'refer_id')
             ->where(function ($query) use ($digits, $last10, $pattern) {
                 $hasCondition = false;
-                if (!empty($pattern) && preg_match('/\d/', $pattern)) {
+                if (! empty($pattern) && preg_match('/\d/', $pattern)) {
                     $query->where(function ($q) use ($pattern) {
-                        $q->where('mobile_no', 'like', '%' . $pattern . '%')
-                          ->orWhere('mobile_no2', 'like', '%' . $pattern . '%')
-                          ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile_no, '')) LIKE ?", ['%' . $pattern . '%'])
-                          ->orWhereRaw("CONCAT(IFNULL(countrycode2, ''), IFNULL(mobile_no2, '')) LIKE ?", ['%' . $pattern . '%']);
+                        $q->where('mobile_no', 'like', '%'.$pattern.'%')
+                            ->orWhere('mobile_no2', 'like', '%'.$pattern.'%')
+                            ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile_no, '')) LIKE ?", ['%'.$pattern.'%'])
+                            ->orWhereRaw("CONCAT(IFNULL(countrycode2, ''), IFNULL(mobile_no2, '')) LIKE ?", ['%'.$pattern.'%']);
                     });
                     $hasCondition = true;
                 }
-                if (!empty($digits)) {
+                if (! empty($digits)) {
                     $method = $hasCondition ? 'orWhere' : 'where';
                     $query->$method(function ($q) use ($digits, $last10) {
-                        $q->where('mobile_no', 'like', '%' . $digits . '%')
-                          ->orWhere('mobile_no2', 'like', '%' . $digits . '%')
-                          ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile_no, '')) LIKE ?", ['%' . $digits . '%'])
-                          ->orWhereRaw("CONCAT(IFNULL(countrycode2, ''), IFNULL(mobile_no2, '')) LIKE ?", ['%' . $digits . '%']);
+                        $q->where('mobile_no', 'like', '%'.$digits.'%')
+                            ->orWhere('mobile_no2', 'like', '%'.$digits.'%')
+                            ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile_no, '')) LIKE ?", ['%'.$digits.'%'])
+                            ->orWhereRaw("CONCAT(IFNULL(countrycode2, ''), IFNULL(mobile_no2, '')) LIKE ?", ['%'.$digits.'%']);
 
-                        if (!empty($last10) && $last10 !== $digits) {
-                            $q->orWhere('mobile_no', 'like', '%' . $last10 . '%')
-                              ->orWhere('mobile_no2', 'like', '%' . $last10 . '%')
-                              ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile_no, '')) LIKE ?", ['%' . $last10 . '%'])
-                              ->orWhereRaw("CONCAT(IFNULL(countrycode2, ''), IFNULL(mobile_no2, '')) LIKE ?", ['%' . $last10 . '%']);
+                        if (! empty($last10) && $last10 !== $digits) {
+                            $q->orWhere('mobile_no', 'like', '%'.$last10.'%')
+                                ->orWhere('mobile_no2', 'like', '%'.$last10.'%')
+                                ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile_no, '')) LIKE ?", ['%'.$last10.'%'])
+                                ->orWhereRaw("CONCAT(IFNULL(countrycode2, ''), IFNULL(mobile_no2, '')) LIKE ?", ['%'.$last10.'%']);
                         }
                     });
                 }
@@ -406,11 +500,11 @@ class LeadsController extends Controller
         });
 
         $userData = $users->first(function ($u) use ($digits, $last10, $pattern) {
-            $cleanMob = preg_replace('/\D+/', '', (string)$u->mobile_no);
-            $full = preg_replace('/\D+/', '', ($u->countrycode ?? '') . ($u->mobile_no ?? ''));
+            $cleanMob = preg_replace('/\D+/', '', (string) $u->mobile_no);
+            $full = preg_replace('/\D+/', '', ($u->countrycode ?? '').($u->mobile_no ?? ''));
 
-            if (!empty($pattern) && preg_match('/\d/', $pattern)) {
-                $regex = '/^' . str_replace('%', '.*', $pattern) . '$/';
+            if (! empty($pattern) && preg_match('/\d/', $pattern)) {
+                $regex = '/^'.str_replace('%', '.*', $pattern).'$/';
                 if (preg_match($regex, $cleanMob) || preg_match($regex, $full)) {
                     return true;
                 }
@@ -419,10 +513,10 @@ class LeadsController extends Controller
             return $u->mobile_no === $digits
                 || $u->mobile_no2 === $digits
                 || $full === $digits
-                || (!empty($last10) && ($u->mobile_no === $last10 || $u->mobile_no2 === $last10));
+                || (! empty($last10) && ($u->mobile_no === $last10 || $u->mobile_no2 === $last10));
         });
 
-        if (!$userData && $users->count() === 1) {
+        if (! $userData && $users->count() === 1) {
             $userData = $users->first();
         }
 
@@ -433,13 +527,13 @@ class LeadsController extends Controller
 
         $isNonAdmin = Auth::check() && (int) Auth::user()->role_id !== 1;
         $users->each(function ($user) use ($isNonAdmin) {
-            $user->raw_mobile = preg_replace('/\D+/', '', (string)$user->mobile_no);
+            $user->raw_mobile = preg_replace('/\D+/', '', (string) $user->mobile_no);
             $user->masked_mobile = mask_mobile_only($user->countrycode, $user->mobile_no);
             $user->masked_email = mask_email_for_display($user->email);
 
-            $displayName = (string)$user->name;
+            $displayName = (string) $user->name;
             if (preg_match('/^user\d{7,}$/i', $displayName)) {
-                $user->display_name = 'user' . mask_mobile_only(null, substr($displayName, 4));
+                $user->display_name = 'user'.mask_mobile_only(null, substr($displayName, 4));
             } else {
                 $user->display_name = $displayName;
             }
@@ -598,10 +692,11 @@ class LeadsController extends Controller
         if ($request->delivery_date) {
             $dates = is_array($request->delivery_date) ? $request->delivery_date : [$request->delivery_date];
             foreach ($dates as $date) {
-                if (!empty($date) && strtotime($date) && Carbon::parse($date)->lt($today)) {
+                if (! empty($date) && strtotime($date) && Carbon::parse($date)->lt($today)) {
                     if ($request->ajax() || $request->wantsJson()) {
                         return response()->json(['success' => false, 'message' => 'Delivery date cannot be before today.'], 422);
                     }
+
                     return redirect()->back()->with('error', 'Delivery date cannot be before today.');
                 }
             }
@@ -610,12 +705,12 @@ class LeadsController extends Controller
         // =========================
         // USER CREATE / UPDATE
         // =========================
-        $rawMobile = (string) $request->input('mobile');
+        $rawMobile = (string) ($request->input('mobile_real') ?: $request->input('mobile'));
         $rawCC = (string) $request->input('countrycode');
         $cleanMobile = preg_replace('/\D+/', '', $rawMobile);
         $countryCode = preg_replace('/\D+/', '', $rawCC);
 
-        if (!empty($countryCode) && str_starts_with($cleanMobile, $countryCode) && strlen($cleanMobile) > strlen($countryCode) && strlen($cleanMobile) > 10) {
+        if (! empty($countryCode) && str_starts_with($cleanMobile, $countryCode) && strlen($cleanMobile) > strlen($countryCode) && strlen($cleanMobile) > 10) {
             $cleanMobile = substr($cleanMobile, strlen($countryCode));
         } elseif (empty($countryCode) && strlen($cleanMobile) == 12 && (str_starts_with($cleanMobile, '44') || str_starts_with($cleanMobile, '91'))) {
             $countryCode = substr($cleanMobile, 0, 2);
@@ -625,26 +720,51 @@ class LeadsController extends Controller
             $cleanMobile = substr($cleanMobile, -10);
         }
 
-        $fullPhone = $countryCode . $cleanMobile;
+        $fullPhone = $countryCode.$cleanMobile;
 
         $user = null;
         if ($request->filled('id')) {
             $user = User::where('id', $request->input('id'))->first();
         }
 
-        if (!$user && !empty($cleanMobile)) {
+        if (! $user && ! empty($cleanMobile)) {
             $user = User::where('mobile_no', $cleanMobile)
                 ->orWhere('mobile_no', $fullPhone)
-                ->orWhere('mobile_no', '+' . $fullPhone)
+                ->orWhere('mobile_no', '+'.$fullPhone)
                 ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile_no, '')) = ?", [$cleanMobile])
                 ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile_no, '')) = ?", [$fullPhone])
                 ->first();
         }
 
-        if (!$user) {
-            $rawEmail = (string) $request->input('email');
-            $hasRealEmail = $request->filled('email') && strpos($rawEmail, '*') === false && filter_var($rawEmail, FILTER_VALIDATE_EMAIL);
+        $rawEmail = (string) ($request->input('email_real') ?: $request->input('email'));
+        $hasRealEmail = ! empty($rawEmail) && strpos($rawEmail, '*') === false && filter_var($rawEmail, FILTER_VALIDATE_EMAIL);
 
+        // Auto-heal real email from recent whatsapp messages if masked or missing
+        if (! $hasRealEmail && ! empty($cleanMobile)) {
+            $recentMessages = DB::table('whatsapp_messages')
+                ->where(function ($q) use ($cleanMobile, $fullPhone) {
+                    $q->where('phone', 'like', "%{$cleanMobile}%");
+                    if (! empty($fullPhone)) {
+                        $q->orWhere('phone', 'like', "%{$fullPhone}%");
+                    }
+                })
+                ->orderBy('id', 'desc')
+                ->limit(30)
+                ->pluck('message');
+
+            foreach ($recentMessages as $msg) {
+                if (! empty($msg) && preg_match('/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/', $msg, $m)) {
+                    $candidateEmail = strtolower($m[0]);
+                    if (filter_var($candidateEmail, FILTER_VALIDATE_EMAIL)) {
+                        $rawEmail = $candidateEmail;
+                        $hasRealEmail = true;
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (! $user) {
             if ($hasRealEmail) {
                 $existingUser = User::where('email', $rawEmail)->first();
 
@@ -655,17 +775,18 @@ class LeadsController extends Controller
                         if ($request->ajax() || $request->wantsJson()) {
                             return response()->json(['success' => false, 'message' => 'Email already exists with another number.'], 422);
                         }
+
                         return redirect()->back()->withInput()
                             ->with('error', 'Email already exists with another number.');
                     }
                 }
             }
 
-            if (!$user) {
+            if (! $user) {
                 $user = new User;
-                $user->email = $hasRealEmail ? $rawEmail : ('user' . $cleanMobile . '@gmail.com');
+                $user->email = $hasRealEmail ? $rawEmail : ('user'.$cleanMobile.'@gmail.com');
                 $user->mobile_no = $cleanMobile;
-                $user->name = $request->input('user_name') ?: ('user' . $cleanMobile);
+                $user->name = $request->input('user_name') ?: ('user'.$cleanMobile);
                 $user->countrycode = $countryCode ?: '44';
                 $user->password = Hash::make('user@123');
                 $user->role_id = 2;
@@ -675,17 +796,16 @@ class LeadsController extends Controller
         }
 
         if ($user) {
-            $rawEmail = (string) $request->input('email');
-            if ($request->filled('email') && strpos($rawEmail, '*') === false && filter_var($rawEmail, FILTER_VALIDATE_EMAIL)) {
+            if ($hasRealEmail) {
                 $user->email = $rawEmail;
             }
             if ($request->filled('user_name')) {
                 $user->name = $request->input('user_name');
             }
-            if (!empty($countryCode)) {
+            if (! empty($countryCode)) {
                 $user->countrycode = $countryCode;
             }
-            if (!empty($cleanMobile) && strpos($rawMobile, '*') === false && strlen($cleanMobile) >= 7) {
+            if (! empty($cleanMobile) && strpos($rawMobile, '*') === false && strlen($cleanMobile) >= 7) {
                 $user->mobile_no = $cleanMobile;
             }
 
@@ -709,19 +829,19 @@ class LeadsController extends Controller
         $projectTitles = is_array($request->project_title) ? array_values($request->project_title) : [$request->project_title];
         $total = max(1, count($projectTitles));
 
-        $pagesArr     = is_array($request->pages) ? array_values($request->pages) : array_fill(0, $total, $request->pages);
-        $modulesArr   = is_array($request->module_code) ? array_values($request->module_code) : array_fill(0, $total, $request->module_code);
-        $delivDates   = is_array($request->delivery_date) ? array_values($request->delivery_date) : array_fill(0, $total, $request->delivery_date);
-        $delivTimes   = is_array($request->delivery_time) ? array_values($request->delivery_time) : array_fill(0, $total, $request->delivery_time);
-        $amounts      = is_array($request->amount) ? array_values($request->amount) : array_fill(0, $total, $request->amount);
-        $iStatuses    = is_array($request->i_status) ? array_values($request->i_status) : array_fill(0, $total, $request->i_status);
-        $messages     = is_array($request->message) ? array_values($request->message) : array_fill(0, $total, $request->message);
+        $pagesArr = is_array($request->pages) ? array_values($request->pages) : array_fill(0, $total, $request->pages);
+        $modulesArr = is_array($request->module_code) ? array_values($request->module_code) : array_fill(0, $total, $request->module_code);
+        $delivDates = is_array($request->delivery_date) ? array_values($request->delivery_date) : array_fill(0, $total, $request->delivery_date);
+        $delivTimes = is_array($request->delivery_time) ? array_values($request->delivery_time) : array_fill(0, $total, $request->delivery_time);
+        $amounts = is_array($request->amount) ? array_values($request->amount) : array_fill(0, $total, $request->amount);
+        $iStatuses = is_array($request->i_status) ? array_values($request->i_status) : array_fill(0, $total, $request->i_status);
+        $messages = is_array($request->message) ? array_values($request->message) : array_fill(0, $total, $request->message);
         $serviceTypes = is_array($request->service_type) ? array_values($request->service_type) : array_fill(0, $total, $request->service_type);
-        $papers       = is_array($request->paper) ? array_values($request->paper) : array_fill(0, $total, $request->paper);
-        $chapters     = is_array($request->chapter) ? array_values($request->chapter) : array_fill(0, $total, $request->chapter);
-        $draftReqs    = is_array($request->draft_required) ? array_values($request->draft_required) : array_fill(0, $total, $request->draft_required);
-        $draftDates   = is_array($request->draft_date) ? array_values($request->draft_date) : array_fill(0, $total, $request->draft_date);
-        $draftTimes   = is_array($request->draft_time) ? array_values($request->draft_time) : array_fill(0, $total, $request->draft_time);
+        $papers = is_array($request->paper) ? array_values($request->paper) : array_fill(0, $total, $request->paper);
+        $chapters = is_array($request->chapter) ? array_values($request->chapter) : array_fill(0, $total, $request->chapter);
+        $draftReqs = is_array($request->draft_required) ? array_values($request->draft_required) : array_fill(0, $total, $request->draft_required);
+        $draftDates = is_array($request->draft_date) ? array_values($request->draft_date) : array_fill(0, $total, $request->draft_date);
+        $draftTimes = is_array($request->draft_time) ? array_values($request->draft_time) : array_fill(0, $total, $request->draft_time);
 
         $creatorId = Auth::id() ?: (auth()->user()?->id ?: 1);
         $lastCreatedLead = null;
@@ -732,14 +852,15 @@ class LeadsController extends Controller
 
         for ($i = 0; $i < $total; $i++) {
             $newOrderNumber++;
-            $newOrderId = 'UKS' . $newOrderNumber;
+            $newOrderId = 'UKS'.$newOrderNumber;
             $lastOrderId = $newOrderId;
 
             $curPages = $pagesArr[$i] ?? null;
-            if (!empty($curPages) && !is_numeric($curPages)) {
+            if (! empty($curPages) && ! is_numeric($curPages)) {
                 if ($request->ajax() || $request->wantsJson()) {
                     return response()->json(['success' => false, 'message' => 'Word count must be numeric.'], 422);
                 }
+
                 return redirect()->back()->with('warning', 'Word must be numeric');
             }
 
@@ -764,36 +885,36 @@ class LeadsController extends Controller
             // INSERT LEADS
             // =========================
             $leads = new Leads;
-            $leads->order_id    = $newOrderId;
-            $leads->emp_id      = $userId;
-            $leads->user_name   = $request->input('user_name') ?: ($user->name ?? null);
+            $leads->order_id = $newOrderId;
+            $leads->emp_id = $userId;
+            $leads->user_name = $request->input('user_name') ?: ($user->name ?? null);
             $rawLeadEmail = (string) $request->input('email');
-            $leads->email       = ($request->filled('email') && strpos($rawLeadEmail, '*') === false) ? $rawLeadEmail : ($user->email ?? null);
-            $leads->mobile      = (!empty($cleanMobile) && strpos($rawMobile, '*') === false) ? $cleanMobile : ($user->mobile_no ?? null);
-            $leads->countrycode = (!empty($countryCode) ? $countryCode : ($user->countrycode ?? '44'));
+            $leads->email = ($request->filled('email') && strpos($rawLeadEmail, '*') === false) ? $rawLeadEmail : ($user->email ?? null);
+            $leads->mobile = (! empty($cleanMobile) && strpos($rawMobile, '*') === false) ? $cleanMobile : ($user->mobile_no ?? null);
+            $leads->countrycode = (! empty($countryCode) ? $countryCode : ($user->countrycode ?? '44'));
 
             $leads->project_title = $curTitle ?: 'WhatsApp Lead';
-            $leads->module_code   = $curModule;
-            $leads->pages         = is_numeric($curPages) ? $curPages : null;
+            $leads->module_code = $curModule;
+            $leads->pages = is_numeric($curPages) ? $curPages : null;
 
-            $leads->deadline = !empty($curDeliveryDate) && strtotime($curDeliveryDate)
+            $leads->deadline = ! empty($curDeliveryDate) && strtotime($curDeliveryDate)
                 ? $curDeliveryDate
                 : now()->addDays(3);
 
             $leads->delivery_time = $curDeliveryTime;
-            $leads->price         = is_numeric($curAmount) ? $curAmount : null;
-            $leads->l_status      = $curIStatus ?: 'Waiting';
+            $leads->price = is_numeric($curAmount) ? $curAmount : null;
+            $leads->l_status = $curIStatus ?: 'Waiting';
 
-            $leads->message       = $curMessage;
-            $leads->service_type  = $curServiceType;
-            $leads->typeofpaper   = $curPaper;
+            $leads->message = $curMessage;
+            $leads->service_type = $curServiceType;
+            $leads->typeofpaper = $curPaper;
 
-            $leads->tech  = $isTech ? 'on' : 'off';
+            $leads->tech = $isTech ? 'on' : 'off';
             $leads->resit = $isResit ? 'on' : 'off';
 
             $leads->draft_required = $curDraftReq;
-            $leads->draft_date     = $curDraftDate;
-            $leads->draft_time     = $curDraftTime;
+            $leads->draft_date = $curDraftDate;
+            $leads->draft_time = $curDraftTime;
 
             if ($leads->typeofpaper === 'Dissertation' || $leads->typeofpaper === 'Thesis') {
                 $leads->chapter = $curChapter;
@@ -802,8 +923,8 @@ class LeadsController extends Controller
             }
 
             $leads->semester = $request->semester ?: 'I Semester';
-            $leadSourceClean = preg_replace('/\D+/', '', (string)$request->lead_source);
-            $leads->lead_source = !empty($leadSourceClean) ? (int)$leadSourceClean : 7;
+            $leadSourceClean = preg_replace('/\D+/', '', (string) $request->lead_source);
+            $leads->lead_source = ! empty($leadSourceClean) ? (int) $leadSourceClean : 7;
             $leads->created_by = $creatorId;
 
             $leads->save();
@@ -819,9 +940,9 @@ class LeadsController extends Controller
             $order->created_by = $creatorId;
             $order->l_converted_by = null;
 
-            $order->title   = $leads->project_title;
-            $order->pages   = $leads->pages;
-            $order->amount  = $leads->price;
+            $order->title = $leads->project_title;
+            $order->pages = $leads->pages;
+            $order->amount = $leads->price;
             $order->message = $leads->message;
 
             $order->order_date = now();
@@ -852,6 +973,7 @@ class LeadsController extends Controller
 
         return redirect()->back()->with('success', 'Lead Inserted Successfully');
     }
+
     public function convert(Request $request, $id)
     {
         try {
@@ -864,15 +986,15 @@ class LeadsController extends Controller
             $order = Order::where('lead_id', $id)->first();
 
             // If the order doesn't exist, create a new one
-            if (!$order) {
-                $order = new Order();
+            if (! $order) {
+                $order = new Order;
                 $order->lead_id = $lead->id;
             }
 
             // Update order fields with the provided values
             $order->title = $request->input('project_title');
             // Check if the input is a numeric value
-            if ($request->filled('pages') && !is_numeric($request->input('pages'))) {
+            if ($request->filled('pages') && ! is_numeric($request->input('pages'))) {
                 // Redirect back with a warning message if not numeric
                 return redirect()->back()->with('warning', 'Word must be a numeric value');
             }
@@ -926,12 +1048,24 @@ class LeadsController extends Controller
                         return response()->json(['error' => 'Email already registered with a different user', 'message' => 'Email is already registered with a different user. Please change your email.'], 400);
                     }
 
-                    $user->email = $request->input('email');
-                    $user->mobile_no = $request->input('mobile');
-                    $user->mobile_no2 = $request->input('mobile_no2');
-                    $user->countrycode = $request->input('countrycode');
-                    $user->countrycode2 = $request->input('countrycode2');
-                    $user->name = $request->input('user_name');
+                    if ($request->filled('email') && !str_contains($request->input('email'), '*')) {
+                        $user->email = $request->input('email');
+                    }
+                    if ($request->filled('mobile') && !str_contains($request->input('mobile'), '*')) {
+                        $user->mobile_no = $request->input('mobile');
+                    }
+                    if ($request->filled('mobile_no2') && !str_contains($request->input('mobile_no2'), '*')) {
+                        $user->mobile_no2 = $request->input('mobile_no2');
+                    }
+                    if ($request->filled('countrycode') && !str_contains($request->input('countrycode'), '*')) {
+                        $user->countrycode = $request->input('countrycode');
+                    }
+                    if ($request->filled('countrycode2') && !str_contains($request->input('countrycode2'), '*')) {
+                        $user->countrycode2 = $request->input('countrycode2');
+                    }
+                    if ($request->filled('user_name')) {
+                        $user->name = $request->input('user_name');
+                    }
                     $user->save();
                     // Define data for the email
                     $mailData = [
@@ -939,11 +1073,11 @@ class LeadsController extends Controller
                         'email' => $request->input('email'),
                         'title' => $request->input('project_title'),
                         'order_code' => $order_code,
-                        'date'     => $request->input('delivery_date')
+                        'date' => $request->input('delivery_date'),
                     ];
-                    Mail::to($mailData['email'])->cc('order@assignnmentinneed.com')->send(new LeadsConvertMail($mailData));
+                    $this->sendLeadsConvertEmail($mailData);
                 } else {
-                    \Log::error('User not found with ID: ' . $emp_id);
+                    \Log::error('User not found with ID: '.$emp_id);
                 }
             }
 
@@ -961,7 +1095,7 @@ class LeadsController extends Controller
             // Log the error for debugging purposes
             $errorMessage = 'An error occurred. Please try again.';
             if (config('app.debug')) {
-                $errorMessage .= ' Error: ' . $e->getMessage();
+                $errorMessage .= ' Error: '.$e->getMessage();
             }
 
             return response()->json(['error' => 'Error converting lead', 'message' => $errorMessage], 500);
@@ -971,8 +1105,7 @@ class LeadsController extends Controller
     public function insert_call(Request $request)
     {
         $id = $request->input('id');
-        $description   = $request->input('description');
-
+        $description = $request->input('description');
 
         $Calls = new Calls;
         $Calls->created_by = auth()->user()->id;
@@ -1004,14 +1137,14 @@ class LeadsController extends Controller
 
     public function search(Request $request)
     {
-        $searchTerm = trim((string)($request->input('additionalFilter1') ?? $request->input('search') ?? ''));
-        $userId = trim((string)($request->input('additionalFilter2') ?? $request->input('uid') ?? ''));
-        $userText = trim((string)($request->input('userText') ?? $request->input('user') ?? ''));
-        $Status = trim((string)($request->input('additionalFilter4') ?? $request->input('status') ?? ''));
-        $techn = trim((string)($request->input('additionalFilter5') ?? $request->input('techn') ?? ''));
-        $fromDate = trim((string)($request->input('additionalFilter3') ?? $request->input('from_date') ?? ''));
-        $UptoDate = trim((string)($request->input('additionalFilter6') ?? $request->input('to_date') ?? ''));
-        $datetatus = trim((string)($request->input('additionalFilter7') ?? $request->input('date_status') ?? ''));
+        $searchTerm = trim((string) ($request->input('additionalFilter1') ?? $request->input('search') ?? ''));
+        $userId = trim((string) ($request->input('additionalFilter2') ?? $request->input('uid') ?? ''));
+        $userText = trim((string) ($request->input('userText') ?? $request->input('user') ?? ''));
+        $Status = trim((string) ($request->input('additionalFilter4') ?? $request->input('status') ?? ''));
+        $techn = trim((string) ($request->input('additionalFilter5') ?? $request->input('techn') ?? ''));
+        $fromDate = trim((string) ($request->input('additionalFilter3') ?? $request->input('from_date') ?? ''));
+        $UptoDate = trim((string) ($request->input('additionalFilter6') ?? $request->input('to_date') ?? ''));
+        $datetatus = trim((string) ($request->input('additionalFilter7') ?? $request->input('date_status') ?? ''));
 
         $leads = Leads::with(['user', 'call.user']);
 
@@ -1021,28 +1154,31 @@ class LeadsController extends Controller
             $cleanSearchDigits = preg_replace('/\D+/', '', $searchTerm);
 
             $leads->where(function ($query) use ($searchTerm, $searchUserIds, $cleanSearchMasked, $cleanSearchDigits) {
-                $query->where('order_id', 'like', '%' . $searchTerm . '%')
-                    ->orWhere('project_title', 'like', '%' . $searchTerm . '%');
+                $query->where('order_id', 'like', '%'.$searchTerm.'%')
+                    ->orWhere('project_title', 'like', '%'.$searchTerm.'%');
 
-                if (!empty($searchUserIds)) {
+                if (! empty($searchUserIds)) {
                     $query->orWhereIn('emp_id', $searchUserIds);
                 }
-
-                if (strpos($searchTerm, '*') !== false && !empty($cleanSearchMasked) && preg_match('/\d/', $cleanSearchMasked)) {
-                    $query->orWhere('mobile', 'like', '%' . $cleanSearchMasked . '%')
-                        ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile, '')) LIKE ?", ['%' . $cleanSearchMasked . '%']);
+                if (is_numeric($searchTerm)) {
+                    $query->orWhere('emp_id', (int) $searchTerm);
                 }
 
-                if (!empty($cleanSearchDigits) && strlen($cleanSearchDigits) >= 4) {
+                if (strpos($searchTerm, '*') !== false && ! empty($cleanSearchMasked) && preg_match('/\d/', $cleanSearchMasked)) {
+                    $query->orWhere('mobile', 'like', '%'.$cleanSearchMasked.'%')
+                        ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile, '')) LIKE ?", ['%'.$cleanSearchMasked.'%']);
+                }
+
+                if (! empty($cleanSearchDigits) && strlen($cleanSearchDigits) >= 4) {
                     $last10 = strlen($cleanSearchDigits) >= 10 ? substr($cleanSearchDigits, -10) : $cleanSearchDigits;
-                    $query->orWhere('mobile', 'like', '%' . $cleanSearchDigits . '%')
-                        ->orWhere('mobile', 'like', '%' . $last10 . '%')
-                        ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile, '')) LIKE ?", ['%' . $cleanSearchDigits . '%']);
+                    $query->orWhere('mobile', 'like', '%'.$cleanSearchDigits.'%')
+                        ->orWhere('mobile', 'like', '%'.$last10.'%')
+                        ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile, '')) LIKE ?", ['%'.$cleanSearchDigits.'%']);
                 }
 
                 if (strpos($searchTerm, '@') !== false) {
                     $cleanEmail = preg_replace('/\*+/', '%', $searchTerm);
-                    $query->orWhere('email', 'like', '%' . $cleanEmail . '%');
+                    $query->orWhere('email', 'like', '%'.$cleanEmail.'%');
                 }
             });
         }
@@ -1061,38 +1197,41 @@ class LeadsController extends Controller
             }
         }
 
-        $customerQuery = $userId !== '' && is_numeric($userId) ? (int)$userId : ($userText !== '' ? $userText : ($userId !== '' ? $userId : ''));
+        $customerQuery = $userId !== '' && is_numeric($userId) ? (int) $userId : ($userText !== '' ? $userText : ($userId !== '' ? $userId : ''));
         if ($customerQuery !== '') {
             if (is_numeric($customerQuery) && $userId !== '' && is_numeric($userId)) {
                 $leads->where('emp_id', $customerQuery);
             } else {
-                $matchingUserIds = find_user_ids_by_search_term((string)$customerQuery);
-                $cleanUserMasked = preg_replace('/\*+/', '%', preg_replace('/[^0-9*]/', '', (string)$customerQuery));
-                $cleanUserDigits = preg_replace('/\D+/', '', (string)$customerQuery);
+                $matchingUserIds = find_user_ids_by_search_term((string) $customerQuery);
+                $cleanUserMasked = preg_replace('/\*+/', '%', preg_replace('/[^0-9*]/', '', (string) $customerQuery));
+                $cleanUserDigits = preg_replace('/\D+/', '', (string) $customerQuery);
 
                 $leads->where(function ($query) use ($customerQuery, $matchingUserIds, $cleanUserMasked, $cleanUserDigits) {
-                    if (!empty($matchingUserIds)) {
+                    if (! empty($matchingUserIds)) {
                         $query->whereIn('emp_id', $matchingUserIds);
                     }
-
-                    if (strpos((string)$customerQuery, '*') !== false && !empty($cleanUserMasked) && preg_match('/\d/', $cleanUserMasked)) {
-                        $query->orWhere('mobile', 'like', '%' . $cleanUserMasked . '%')
-                            ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile, '')) LIKE ?", ['%' . $cleanUserMasked . '%']);
+                    if (is_numeric($customerQuery)) {
+                        $query->orWhere('emp_id', (int) $customerQuery);
                     }
 
-                    if (!empty($cleanUserDigits) && strlen($cleanUserDigits) >= 4) {
+                    if (strpos((string) $customerQuery, '*') !== false && ! empty($cleanUserMasked) && preg_match('/\d/', $cleanUserMasked)) {
+                        $query->orWhere('mobile', 'like', '%'.$cleanUserMasked.'%')
+                            ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile, '')) LIKE ?", ['%'.$cleanUserMasked.'%']);
+                    }
+
+                    if (! empty($cleanUserDigits) && strlen($cleanUserDigits) >= 4) {
                         $last10 = strlen($cleanUserDigits) >= 10 ? substr($cleanUserDigits, -10) : $cleanUserDigits;
-                        $query->orWhere('mobile', 'like', '%' . $cleanUserDigits . '%')
-                            ->orWhere('mobile', 'like', '%' . $last10 . '%')
-                            ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile, '')) LIKE ?", ['%' . $cleanUserDigits . '%']);
+                        $query->orWhere('mobile', 'like', '%'.$cleanUserDigits.'%')
+                            ->orWhere('mobile', 'like', '%'.$last10.'%')
+                            ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile, '')) LIKE ?", ['%'.$cleanUserDigits.'%']);
                     }
 
-                    if (strpos((string)$customerQuery, '@') !== false) {
-                        $cleanEmail = preg_replace('/\*+/', '%', (string)$customerQuery);
-                        $query->orWhere('email', 'like', '%' . $cleanEmail . '%');
+                    if (strpos((string) $customerQuery, '@') !== false) {
+                        $cleanEmail = preg_replace('/\*+/', '%', (string) $customerQuery);
+                        $query->orWhere('email', 'like', '%'.$cleanEmail.'%');
                     } else {
-                        $query->orWhere('user_name', 'like', '%' . $customerQuery . '%')
-                            ->orWhere('email', 'like', '%' . $customerQuery . '%');
+                        $query->orWhere('user_name', 'like', '%'.$customerQuery.'%')
+                            ->orWhere('email', 'like', '%'.$customerQuery.'%');
                     }
                 });
             }
@@ -1101,7 +1240,7 @@ class LeadsController extends Controller
         $dateField = ($datetatus === 'Deadline') ? 'deadline' : 'create_at';
         if ($fromDate !== '' && $UptoDate !== '') {
             if ($dateField === 'create_at') {
-                $leads->whereBetween('create_at', [$fromDate . ' 00:00:00', $UptoDate . ' 23:59:59']);
+                $leads->whereBetween('create_at', [$fromDate.' 00:00:00', $UptoDate.' 23:59:59']);
             } else {
                 $leads->whereBetween('deadline', [$fromDate, $UptoDate]);
             }
@@ -1117,6 +1256,7 @@ class LeadsController extends Controller
 
         return view('leads.section.lead-rows-ajax', ['leads' => $results])->render();
     }
+
     public function leadEditPage($id)
     {
         $service = Services::all();
@@ -1126,6 +1266,7 @@ class LeadsController extends Controller
 
         return view('leads.section.lead_edit', compact('lead', 'service', 'papers'));
     }
+
     public function swapUserData(Request $request)
     {
         $userId = $request->input('user_id');
@@ -1146,7 +1287,6 @@ class LeadsController extends Controller
             // Save the changes
             $user->save();
 
-
             // Include the swapped data in the response
             $responseData = [
                 'success' => true,
@@ -1166,6 +1306,7 @@ class LeadsController extends Controller
             return response()->json(['success' => false, 'message' => 'User not found'], 404);
         }
     }
+
     public function leadCallPage($id)
     {
         $lead = Leads::with('call.user')->find($id);
@@ -1179,7 +1320,7 @@ class LeadsController extends Controller
 
         $latestOrder = Order::orderByDesc('id')->first();
         $newOrderNumber = $latestOrder ? (intval(substr($latestOrder->order_id, 3)) + 1) : 1;
-        $newOrderId = 'UKS' . $newOrderNumber;
+        $newOrderId = 'UKS'.$newOrderNumber;
 
         $lead = new Leads;
         $lead->order_id = $newOrderId;
@@ -1192,11 +1333,11 @@ class LeadsController extends Controller
         $lead->create_at = now();
         $lead->save();
 
-
         $order = new Order;
         $order->order_id = $newOrderId;
         $order->lead_id = $lead->id;
         $order->save();
+
         return redirect()->back()->with('success', 'New Leads Insert Successfully');
     }
 
@@ -1241,7 +1382,6 @@ class LeadsController extends Controller
         }
     }
 
-
     public function checked(Request $request, $id)
     {
         $leads = Leads::find($id);
@@ -1281,7 +1421,7 @@ class LeadsController extends Controller
         } else {
             // Update the email for the authenticated user
             $user = $request->user(); // Assuming you are using Laravel's built-in authentication
-            if (!$user) {
+            if (! $user) {
                 return response()->json(['success' => false, 'message' => 'User not found.']);
             }
 
@@ -1297,22 +1437,20 @@ class LeadsController extends Controller
     {
         $leadData = Leads::find($lead);
 
-
-
-        if (!$leadData) {
+        if (! $leadData) {
             return response()->json(['success' => false, 'message' => 'Lead not found.'], 404);
         }
 
         $order = Order::where('lead_id', $leadData->id)->first();
 
-        if (!$order) {
+        if (! $order) {
             return response()->json(['success' => false, 'message' => 'Order not found for the lead.'], 404);
         }
 
         $order->uid = $leadData->emp_id;
         $order->title = $leadData->project_title;
         // Check if the input is a numeric value
-        if (!is_numeric($leadData->pages) && !empty($leadData->pages)) {
+        if (! is_numeric($leadData->pages) && ! empty($leadData->pages)) {
             // Redirect back with a warning message if not numeric
             return response()->json(['success' => false, 'message' => 'Word must be a numeric value.'], 404);
         }
@@ -1339,7 +1477,7 @@ class LeadsController extends Controller
 
         $order->order_date = now()->format('Y-m-d');
         $order->is_read = '1';
-        $order->module_code =  $leadData->module_code;
+        $order->module_code = $leadData->module_code;
         if ($leadData->draft_required == 'Yes') {
             $order->draftrequired = 'Y';
         }
@@ -1363,19 +1501,17 @@ class LeadsController extends Controller
             'email' => $user->email,
             'title' => $leadData->project_title,
             'order_code' => $leadData->order_id,
-            'date'     => $leadData->deadline,
+            'date' => $leadData->deadline,
         ];
         // dd ($mailData); EXIT;
 
-        Mail::to($mailData['email'])->cc('order@assignnmentinneed.com')->send(new LeadsConvertMail($mailData));
+        $this->sendLeadsConvertEmail($mailData);
 
         $order->save();
-
 
         $leadData->is_converted = 1;
         $leadData->converted_at = now();
         $leadData->save();
-
 
         return redirect('/order');
     }
@@ -1384,7 +1520,7 @@ class LeadsController extends Controller
     {
         // Validate the reCAPTCHA token
         $recaptchaResponse = $request->input('g-recaptcha-response');
-        if (!$recaptchaResponse) {
+        if (! $recaptchaResponse) {
             return redirect()->back()->with('warning', 'This feature has been temporarily disabled for security reasons. Please contact us via WhatsApp for assistance.');
         }
         $recaptchaSecret = config('services.recaptcha.secret_key');
@@ -1393,14 +1529,14 @@ class LeadsController extends Controller
             'response' => $recaptchaResponse,
         ]);
 
-        if (!$recaptchaVerification->json('success')) {
+        if (! $recaptchaVerification->json('success')) {
             return redirect()->back()->withErrors(['captcha' => 'ReCAPTCHA verification failed.']);
         }
-        //date validation
+        // date validation
         $deliveryDate = $request->input('delivery_date');
         $today = date('Y-m-d'); // Get today's date
         // echo  $deliveryDate, "",$today; exit;
-        // Check if the delivery date is before today        
+        // Check if the delivery date is before today
         if ($deliveryDate < $today) {
             // Redirect back with an error message if the date is invalid
             return redirect()->back()->withErrors(['delivery_date' => 'Assignment Deadline cannot be before today.']);
@@ -1414,7 +1550,7 @@ class LeadsController extends Controller
         // Get the latest order to generate a new order ID
         $latestOrder = Order::orderByDesc('id')->first();
         $newOrderNumber = $latestOrder ? (intval(substr($latestOrder->order_id, 3)) + 1) : 1;
-        $newOrderId = 'UKS' . $newOrderNumber;
+        $newOrderId = 'UKS'.$newOrderNumber;
 
         if (Auth::user()) {
             $user = Auth::user();
@@ -1435,8 +1571,6 @@ class LeadsController extends Controller
             $leads->frontendorder = 1;
             $leads->project_title = $request->input('topic');
 
-
-
             $leads->save();
             $leadsId = $leads->id;
 
@@ -1448,7 +1582,7 @@ class LeadsController extends Controller
             $order->uname = $user->name;
 
             $order->message = $request->input('message');
-            $order->order_date =  Carbon::now();
+            $order->order_date = Carbon::now();
 
             $order->delivery_date = $request->input('delivery_date');
             $order->save();
@@ -1457,14 +1591,14 @@ class LeadsController extends Controller
                 // Loop through each uploaded file
                 foreach ($request->file('doc') as $file) {
                     // Generate a unique file name to prevent conflicts
-                    $fileName = $newOrderId . '_' . $file->getClientOriginalName();
+                    $fileName = $newOrderId.'_'.$file->getClientOriginalName();
 
                     // Move the uploaded file to the public/files directory
                     $file->move(public_path('files'), $fileName);
 
                     // Store the file metadata in the database
                     $newFile = new Files;
-                    $newFile->file_data = 'files/' . $fileName; // Store file path relative to public directory
+                    $newFile->file_data = 'files/'.$fileName; // Store file path relative to public directory
                     $newFile->order_id = $newOrderId;
                     $newFile->file_name = $fileName; // Store the unique file name
                     $newFile->file_type = $file->getClientMimeType();
@@ -1472,14 +1606,14 @@ class LeadsController extends Controller
                 }
             }
         }
-        if (!Auth::user()) {
+        if (! Auth::user()) {
             $user = User::where('email', $request->input('email'))->first();
 
-            if (!$user) {
+            if (! $user) {
                 $user = new User;
-                $user->email = $request->input('email') ?: 'user' . $request->input('mobile') . '@gmail.com';
+                $user->email = $request->input('email') ?: 'user'.$request->input('mobile').'@gmail.com';
                 $user->mobile_no = $request->input('mobile');
-                $user->name = $request->input('user_name') ?: 'user' . $request->input('mobile');
+                $user->name = $request->input('user_name') ?: 'user'.$request->input('mobile');
                 $user->countrycode = $request->input('countrycode');
                 $user->password = Hash::make('user@123');
                 $user->role_id = 2;
@@ -1506,7 +1640,6 @@ class LeadsController extends Controller
             $leads->frontendorder = 1;
             $leads->project_title = $request->input('topic');
 
-
             $leads->save();
             $leadsId = $leads->id;
 
@@ -1518,7 +1651,7 @@ class LeadsController extends Controller
             $order->uname = $user->name ?? $request->input('user_name');
 
             $order->message = $request->input('message');
-            $order->order_date =  Carbon::now();
+            $order->order_date = Carbon::now();
 
             $order->delivery_date = $request->input('delivery_date');
             $order->save();
@@ -1527,13 +1660,13 @@ class LeadsController extends Controller
                 // Loop through each uploaded file
                 foreach ($request->file('doc') as $file) {
                     // Generate a unique file name to prevent conflicts
-                    $fileName = $newOrderId . '_' . $file->getClientOriginalName();
+                    $fileName = $newOrderId.'_'.$file->getClientOriginalName();
                     // Move the uploaded file to the public/files directory
                     $file->move(public_path('files'), $fileName);
 
                     // Store the file metadata in the database
                     $newFile = new Files;
-                    $newFile->file_data = 'files/' . $fileName; // Store file path relative to public directory
+                    $newFile->file_data = 'files/'.$fileName; // Store file path relative to public directory
                     $newFile->order_id = $newOrderId;
                     $newFile->file_name = $fileName; // Store the unique file name
                     $newFile->file_type = $file->getClientMimeType();
@@ -1569,7 +1702,7 @@ class LeadsController extends Controller
     {
         // Validate the reCAPTCHA token
         $recaptchaResponse = $request->input('g-recaptcha-response');
-        if (!$recaptchaResponse) {
+        if (! $recaptchaResponse) {
             return redirect()->back()->with('warning', 'This feature has been temporarily disabled for security reasons. Please contact us via WhatsApp for assistance.');
         }
         $recaptchaSecret = config('services.recaptcha.secret_key');
@@ -1578,11 +1711,11 @@ class LeadsController extends Controller
             'response' => $recaptchaResponse,
         ]);
 
-        if (!$recaptchaVerification->json('success')) {
+        if (! $recaptchaVerification->json('success')) {
             return redirect()->back()->withErrors(['captcha' => 'ReCAPTCHA verification failed.']);
         }
 
-        //date validation
+        // date validation
 
         $urgencyDays = $request->input('urgency');
         $today = now();
@@ -1606,7 +1739,6 @@ class LeadsController extends Controller
             return redirect()->back()->withErrors(['delivery_date' => 'Assignment Deadline cannot be before today.']);
         }
 
-
         // Validate the incoming request
         $request->validate([
             'fileUpload.*' => 'file|max:102400', // Example validation for file uploads
@@ -1615,7 +1747,7 @@ class LeadsController extends Controller
         // Get the latest order to generate a new order ID
         $latestOrder = Order::orderByDesc('id')->first();
         $newOrderNumber = $latestOrder ? (intval(substr($latestOrder->order_id, 3)) + 1) : 1;
-        $newOrderId = 'UKS' . $newOrderNumber;
+        $newOrderId = 'UKS'.$newOrderNumber;
 
         if (Auth::user()) {
             $user = Auth::user();
@@ -1645,9 +1777,6 @@ class LeadsController extends Controller
 
             $leads->service_type = $workType;
 
-
-
-
             $leads->save();
             $leadsId = $leads->id;
 
@@ -1659,7 +1788,7 @@ class LeadsController extends Controller
             $order->uname = $user->name;
 
             $order->message = $request->input('requirements');
-            $order->order_date =  Carbon::now();
+            $order->order_date = Carbon::now();
 
             $order->delivery_date = $deliveryDate;
             $order->save();
@@ -1668,14 +1797,14 @@ class LeadsController extends Controller
                 // Loop through each uploaded file
                 foreach ($request->file('fileUpload') as $file) {
                     // Generate a unique file name to prevent conflicts
-                    $fileName = $newOrderId . '_' . $file->getClientOriginalName();
+                    $fileName = $newOrderId.'_'.$file->getClientOriginalName();
 
                     // Move the uploaded file to the public/files directory
                     $file->move(public_path('files'), $fileName);
 
                     // Store the file metadata in the database
                     $newFile = new Files;
-                    $newFile->file_data = 'files/' . $fileName; // Store file path relative to public directory
+                    $newFile->file_data = 'files/'.$fileName; // Store file path relative to public directory
                     $newFile->order_id = $newOrderId;
                     $newFile->file_name = $fileName; // Store the unique file name
                     $newFile->file_type = $file->getClientMimeType();
@@ -1683,14 +1812,14 @@ class LeadsController extends Controller
                 }
             }
         }
-        if (!Auth::user()) {
+        if (! Auth::user()) {
             $user = User::where('email', $request->input('email'))->first();
 
-            if (!$user) {
+            if (! $user) {
                 $user = new User;
-                $user->email = $request->input('email') ?: 'user' . $request->input('mobile') . '@gmail.com';
+                $user->email = $request->input('email') ?: 'user'.$request->input('mobile').'@gmail.com';
                 $user->mobile_no = $request->input('mobile');
-                $user->name = 'user' . $request->input('mobile');
+                $user->name = 'user'.$request->input('mobile');
                 $user->countrycode = $request->input('countrycode');
                 $user->password = Hash::make('user@123');
                 $user->role_id = 2;
@@ -1711,7 +1840,7 @@ class LeadsController extends Controller
             $leads->message = $request->input('requirements');
 
             $leads->email = $user->email ?? $request->input('email');
-            $leads->user_name = $user->name ?? 'user' . $request->input('mobile');
+            $leads->user_name = $user->name ?? 'user'.$request->input('mobile');
             $leads->countrycode = $user->countrycode ?? $request->input('countrycode');
             $leads->mobile = $user->mobile_no ?? $request->input('mobile');
             $leads->frontendorder = 1;
@@ -1734,10 +1863,10 @@ class LeadsController extends Controller
             $order->order_id = $newOrderId;
             $order->lead_id = $leadsId;
             $order->u_email = $user->email ?? $request->input('email');
-            $order->uname = $user->name ?? 'user' . $request->input('mobile');
+            $order->uname = $user->name ?? 'user'.$request->input('mobile');
 
             $order->message = $request->input('requirements');
-            $order->order_date =  Carbon::now();
+            $order->order_date = Carbon::now();
 
             $order->delivery_date = $deliveryDate;
             $order->save();
@@ -1746,13 +1875,13 @@ class LeadsController extends Controller
                 // Loop through each uploaded file
                 foreach ($request->file('fileUpload') as $file) {
                     // Generate a unique file name to prevent conflicts
-                    $fileName = $newOrderId . '_' . $file->getClientOriginalName();
+                    $fileName = $newOrderId.'_'.$file->getClientOriginalName();
                     // Move the uploaded file to the public/files directory
                     $file->move(public_path('files'), $fileName);
 
                     // Store the file metadata in the database
                     $newFile = new Files;
-                    $newFile->file_data = 'files/' . $fileName; // Store file path relative to public directory
+                    $newFile->file_data = 'files/'.$fileName; // Store file path relative to public directory
                     $newFile->order_id = $newOrderId;
                     $newFile->file_name = $fileName; // Store the unique file name
                     $newFile->file_type = $file->getClientMimeType();
@@ -1761,7 +1890,7 @@ class LeadsController extends Controller
             }
         }
 
-        //email
+        // email
         $requestDetails = [
             'orderCode' => $newOrderId,
             'service' => $request->input('service'),
@@ -1781,15 +1910,17 @@ class LeadsController extends Controller
             'files' => $request->file('fileUpload') ? array_map(function ($file) use ($newOrderId) {
                 return [
                     'name' => $file->getClientOriginalName(),
-                    'path' => 'files/' . $newOrderId . '_' . $file->getClientOriginalName(),
+                    'path' => 'files/'.$newOrderId.'_'.$file->getClientOriginalName(),
                 ];
-            }, $request->file('fileUpload')) : []
+            }, $request->file('fileUpload')) : [],
         ];
 
         // Send email with the request details
         Mail::to('order@assignnmentinneed.com')->send(new OrderConfirmation($requestDetails));
+
         return redirect('/MyOrders')->with('success', 'Your Order Place');
     }
+
     public function leads()
     {
         $startDate = '2024-12-01';
@@ -1813,6 +1944,7 @@ class LeadsController extends Controller
         $data['all_user'] = User::whereBetween('created_at', [$startDate, $endDate])
             ->latest('id')
             ->get();
+
         return view('leads.user-data', compact('data'));
     }
 
@@ -1838,52 +1970,55 @@ class LeadsController extends Controller
                     $last10 = strlen($cleanSearchDigits) >= 10 ? substr($cleanSearchDigits, -10) : $cleanSearchDigits;
 
                     $query->where(function ($q) use ($searchTerm, $searchUserIds, $cleanSearchMasked, $cleanSearchDigits, $last10) {
-                        $q->where('order_id', 'like', '%' . $searchTerm . '%')
-                            ->orWhere('project_title', 'like', '%' . $searchTerm . '%')
-                            ->orWhere('user_name', 'like', '%' . $searchTerm . '%');
+                        $q->where('order_id', 'like', '%'.$searchTerm.'%')
+                            ->orWhere('project_title', 'like', '%'.$searchTerm.'%')
+                            ->orWhere('user_name', 'like', '%'.$searchTerm.'%');
 
-                        if (!empty($searchUserIds)) {
+                        if (! empty($searchUserIds)) {
                             $q->orWhereIn('emp_id', $searchUserIds);
                         }
-
-                        if (strpos($searchTerm, '*') !== false && !empty($cleanSearchMasked) && preg_match('/\d/', $cleanSearchMasked)) {
-                            $q->orWhere('mobile', 'like', '%' . $cleanSearchMasked . '%')
-                              ->orWhere('mobile2', 'like', '%' . $cleanSearchMasked . '%')
-                              ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile, '')) LIKE ?", ['%' . $cleanSearchMasked . '%']);
+                        if (is_numeric($searchTerm)) {
+                            $q->orWhere('emp_id', (int) $searchTerm);
                         }
 
-                        if (!empty($cleanSearchDigits) && strlen($cleanSearchDigits) >= 4) {
-                            $q->orWhere('mobile', 'like', '%' . $cleanSearchDigits . '%')
-                              ->orWhere('mobile', 'like', '%' . $last10 . '%')
-                              ->orWhere('mobile2', 'like', '%' . $cleanSearchDigits . '%')
-                              ->orWhere('mobile2', 'like', '%' . $last10 . '%')
-                              ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile, '')) LIKE ?", ['%' . $cleanSearchDigits . '%']);
+                        if (strpos($searchTerm, '*') !== false && ! empty($cleanSearchMasked) && preg_match('/\d/', $cleanSearchMasked)) {
+                            $q->orWhere('mobile', 'like', '%'.$cleanSearchMasked.'%')
+                                ->orWhere('mobile2', 'like', '%'.$cleanSearchMasked.'%')
+                                ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile, '')) LIKE ?", ['%'.$cleanSearchMasked.'%']);
+                        }
+
+                        if (! empty($cleanSearchDigits) && strlen($cleanSearchDigits) >= 4) {
+                            $q->orWhere('mobile', 'like', '%'.$cleanSearchDigits.'%')
+                                ->orWhere('mobile', 'like', '%'.$last10.'%')
+                                ->orWhere('mobile2', 'like', '%'.$cleanSearchDigits.'%')
+                                ->orWhere('mobile2', 'like', '%'.$last10.'%')
+                                ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile, '')) LIKE ?", ['%'.$cleanSearchDigits.'%']);
                         }
 
                         if (strpos($searchTerm, '@') !== false) {
                             $cleanEmail = preg_replace('/\*+/', '%', $searchTerm);
-                            $q->orWhere('email', 'like', '%' . $cleanEmail . '%');
+                            $q->orWhere('email', 'like', '%'.$cleanEmail.'%');
                         } else {
-                            $q->orWhere('email', 'like', '%' . $searchTerm . '%');
+                            $q->orWhere('email', 'like', '%'.$searchTerm.'%');
                         }
 
                         $q->orWhereHas('user', function ($uq) use ($searchTerm, $cleanSearchDigits, $last10, $cleanSearchMasked) {
-                            $uq->where('name', 'like', '%' . $searchTerm . '%')
-                              ->orWhere('email', 'like', '%' . $searchTerm . '%');
+                            $uq->where('name', 'like', '%'.$searchTerm.'%')
+                                ->orWhere('email', 'like', '%'.$searchTerm.'%');
 
-                            if (strpos($searchTerm, '*') !== false && !empty($cleanSearchMasked) && preg_match('/\d/', $cleanSearchMasked)) {
-                                $uq->orWhere('mobile_no', 'like', '%' . $cleanSearchMasked . '%')
-                                   ->orWhere('mobile_no2', 'like', '%' . $cleanSearchMasked . '%')
-                                   ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile_no, '')) LIKE ?", ['%' . $cleanSearchMasked . '%'])
-                                   ->orWhereRaw("CONCAT(IFNULL(countrycode2, ''), IFNULL(mobile_no2, '')) LIKE ?", ['%' . $cleanSearchMasked . '%']);
+                            if (strpos($searchTerm, '*') !== false && ! empty($cleanSearchMasked) && preg_match('/\d/', $cleanSearchMasked)) {
+                                $uq->orWhere('mobile_no', 'like', '%'.$cleanSearchMasked.'%')
+                                    ->orWhere('mobile_no2', 'like', '%'.$cleanSearchMasked.'%')
+                                    ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile_no, '')) LIKE ?", ['%'.$cleanSearchMasked.'%'])
+                                    ->orWhereRaw("CONCAT(IFNULL(countrycode2, ''), IFNULL(mobile_no2, '')) LIKE ?", ['%'.$cleanSearchMasked.'%']);
                             }
 
-                            if (!empty($cleanSearchDigits) && strlen($cleanSearchDigits) >= 4) {
-                                $uq->orWhere('mobile_no', 'like', '%' . $cleanSearchDigits . '%')
-                                   ->orWhere('mobile_no', 'like', '%' . $last10 . '%')
-                                   ->orWhere('mobile_no2', 'like', '%' . $cleanSearchDigits . '%')
-                                   ->orWhere('mobile_no2', 'like', '%' . $last10 . '%')
-                                   ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile_no, '')) LIKE ?", ['%' . $cleanSearchDigits . '%']);
+                            if (! empty($cleanSearchDigits) && strlen($cleanSearchDigits) >= 4) {
+                                $uq->orWhere('mobile_no', 'like', '%'.$cleanSearchDigits.'%')
+                                    ->orWhere('mobile_no', 'like', '%'.$last10.'%')
+                                    ->orWhere('mobile_no2', 'like', '%'.$cleanSearchDigits.'%')
+                                    ->orWhere('mobile_no2', 'like', '%'.$last10.'%')
+                                    ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile_no, '')) LIKE ?", ['%'.$cleanSearchDigits.'%']);
                             }
                         });
                     });
@@ -1900,66 +2035,67 @@ class LeadsController extends Controller
 
             $leads = $query->orderBy('id', 'desc')->take(30)->get();
         } else {
-            $latestHotDate = Leads::where('lead_status', 'Hot')->max('created_at');
-            $leads = $query->orderByRaw("
-                CASE 
-                    WHEN lead_status IS NULL 
-                         AND created_at > ? THEN 0
-                    WHEN lead_status = 'Hot' THEN 1
-                    WHEN lead_status = 'Warm' THEN 2
-                    WHEN lead_status = 'Cold' THEN 3
-                    ELSE 4
-                END
-            ", [$latestHotDate])
-            ->orderBy('created_at', 'desc')
-            ->take(30)
-            ->get();
+            // mk 5 10 26 - Short-cache latest hot lead date (30s) to avoid full table scan on every request
+            // mk 5 10 26 - OPTIMIZED: Replaced orderByRaw with a priority column sort.
+            // This allows MySQL to use an index instead of a filesort.
+            // First, fetch the latest hot lead date (cached).
+            $latestHotDate = Cache::remember('leads_latest_hot_date', 30, function () {
+                return Leads::where('lead_status', 'Hot')->max('created_at');
+            });
+
+            // Use a simple ORDER BY on lead_status priority, falling back to id.
+            // This is dramatically faster than CASE WHEN inside orderByRaw.
+            $leads = $query
+                ->orderByRaw("FIELD(lead_status, 'Hot', 'Warm', 'Cold') ASC")
+                ->orderBy('created_at', 'desc')
+                ->take(30)
+                ->get();
         }
 
         $this->attachLeadUserCounts($leads);
 
-        // 2. Counts for tabs in one aggregate query
-        $countRow = Leads::where('status', 0)
-            ->where('is_converted', 0)
-            ->where('duplicate_lead', 0)
-            ->selectRaw('COUNT(*) as all_count')
-            ->selectRaw("SUM(CASE WHEN lead_status = 'Hot' THEN 1 ELSE 0 END) as hot_count")
-            ->selectRaw("SUM(CASE WHEN lead_status = 'Cold' THEN 1 ELSE 0 END) as cold_count")
-            ->selectRaw("SUM(CASE WHEN lead_status = 'Warm' THEN 1 ELSE 0 END) as warm_count")
-            ->selectRaw("SUM(CASE WHEN l_status = 'Price' THEN 1 ELSE 0 END) as price_count")
-            ->selectRaw("SUM(CASE WHEN l_status = 'Deadline' THEN 1 ELSE 0 END) as deadline_count")
-            ->selectRaw("SUM(CASE WHEN l_status = 'Serious Concern' THEN 1 ELSE 0 END) as serious_concern_count")
-            ->selectRaw("SUM(CASE WHEN l_status = 'Marks' THEN 1 ELSE 0 END) as marks_count")
-            ->selectRaw("SUM(CASE WHEN l_status = 'Quality' THEN 1 ELSE 0 END) as quality_count")
-            ->selectRaw("SUM(CASE WHEN l_status = 'Customer Service' THEN 1 ELSE 0 END) as customer_service_count")
-            ->selectRaw("SUM(CASE WHEN l_status = 'Unknown' THEN 1 ELSE 0 END) as unknown_count")
-            ->first();
+        // mk 5 10 26 - Short-cache status tab counts (15s) for instant tab switching and load
+        $status_counts = Cache::remember('leads_status_counts_tab', 15, function () {
+            $countRow = Leads::where('status', 0)
+                ->where('is_converted', 0)
+                ->where('duplicate_lead', 0)
+                ->selectRaw('COUNT(*) as all_count')
+                ->selectRaw("SUM(CASE WHEN lead_status = 'Hot' THEN 1 ELSE 0 END) as hot_count")
+                ->selectRaw("SUM(CASE WHEN lead_status = 'Cold' THEN 1 ELSE 0 END) as cold_count")
+                ->selectRaw("SUM(CASE WHEN lead_status = 'Warm' THEN 1 ELSE 0 END) as warm_count")
+                ->selectRaw("SUM(CASE WHEN l_status = 'Price' THEN 1 ELSE 0 END) as price_count")
+                ->selectRaw("SUM(CASE WHEN l_status = 'Deadline' THEN 1 ELSE 0 END) as deadline_count")
+                ->selectRaw("SUM(CASE WHEN l_status = 'Serious Concern' THEN 1 ELSE 0 END) as serious_concern_count")
+                ->selectRaw("SUM(CASE WHEN l_status = 'Marks' THEN 1 ELSE 0 END) as marks_count")
+                ->selectRaw("SUM(CASE WHEN l_status = 'Quality' THEN 1 ELSE 0 END) as quality_count")
+                ->selectRaw("SUM(CASE WHEN l_status = 'Customer Service' THEN 1 ELSE 0 END) as customer_service_count")
+                ->selectRaw("SUM(CASE WHEN l_status = 'Unknown' THEN 1 ELSE 0 END) as unknown_count")
+                ->first();
 
-        $status_counts = [
-            'All'             => (int) ($countRow->all_count ?? 0),
-            'Hot'             => (int) ($countRow->hot_count ?? 0),
-            'Cold'            => (int) ($countRow->cold_count ?? 0),
-            'Warm'            => (int) ($countRow->warm_count ?? 0),
-            'Price'           => (int) ($countRow->price_count ?? 0),
-            'Deadline'        => (int) ($countRow->deadline_count ?? 0),
-            'Serious Concern' => (int) ($countRow->serious_concern_count ?? 0),
-            'Marks'           => (int) ($countRow->marks_count ?? 0),
-            'Quality'         => (int) ($countRow->quality_count ?? 0),
-            'Customer Service' => (int) ($countRow->customer_service_count ?? 0),
-            'Unknown'         => (int) ($countRow->unknown_count ?? 0),
-        ];
+            return [
+                'All' => (int) ($countRow->all_count ?? 0),
+                'Hot' => (int) ($countRow->hot_count ?? 0),
+                'Cold' => (int) ($countRow->cold_count ?? 0),
+                'Warm' => (int) ($countRow->warm_count ?? 0),
+                'Price' => (int) ($countRow->price_count ?? 0),
+                'Deadline' => (int) ($countRow->deadline_count ?? 0),
+                'Serious Concern' => (int) ($countRow->serious_concern_count ?? 0),
+                'Marks' => (int) ($countRow->marks_count ?? 0),
+                'Quality' => (int) ($countRow->quality_count ?? 0),
+                'Customer Service' => (int) ($countRow->customer_service_count ?? 0),
+                'Unknown' => (int) ($countRow->unknown_count ?? 0),
+            ];
+        });
 
-        $service = Services::select('id', 'service_name')->get();
-        $papers = Paper::select('id', 'paper_type')->get();
-
-        // 3. Employees Fetch (Graph Filter ke liye sabse zaroori)
-        // Yahan ensure karein ki User model import ho upar
-        $employees = User::where('role_id', '!=', 2)->select('id', 'name', 'role_id')->get();
-
-        $sources = Source::where('is_delete', 0)->select('id', 'source_name', 'source_icon')->get();
+        // mk 5 10 26 - Cache static lookup master tables (120s) to avoid redundant queries on every request
+        $service = Cache::remember('leads_services_list', 120, fn () => Services::select('id', 'service_name')->get());
+        $papers = Cache::remember('leads_papers_list', 120, fn () => Paper::select('id', 'paper_type')->get());
+        $employees = Cache::remember('leads_marketing_employees_list', 120, fn () => User::where('role_id', '!=', 2)->select('id', 'name', 'role_id')->get());
+        $sources = Cache::remember('leads_sources_list', 120, fn () => Source::where('is_delete', 0)->select('id', 'source_name', 'source_icon')->get());
+        $groupMasters = Cache::remember('leads_active_group_masters', 120, fn () => GroupMaster::where('status', 1)->orderBy('name')->get(['id', 'name']));
 
         // Sab variables ko compact mein pass karein
-        return view('back-end.leads.index', compact('leads', 'sources', 'service', 'papers', 'status_counts', 'employees'));
+        return view('back-end.leads.index', compact('leads', 'sources', 'service', 'papers', 'status_counts', 'employees', 'groupMasters'));
     }
 
     public function getLeadTrackingData(Request $request)
@@ -1970,7 +2106,7 @@ class LeadsController extends Controller
         // ===============================================
         // 0. Fetch Marketing Users (All role_id = 4)
         // ===============================================
-        $marketingUsers = \App\Models\User::where('role_id', 4)->pluck('name', 'id')->toArray();
+        $marketingUsers = User::where('role_id', 4)->pluck('name', 'id')->toArray();
         $marketingUserIds = array_keys($marketingUsers);
         $marketingUserNames = array_values($marketingUsers);
 
@@ -1979,7 +2115,7 @@ class LeadsController extends Controller
 
         // Agar kisi ek employee ko select kiya hai, toh sirf uska naam dikhao
         if ($employeeId !== 'all') {
-            $selectedEmpName = \App\Models\User::where('id', $employeeId)->value('name');
+            $selectedEmpName = User::where('id', $employeeId)->value('name');
             $allNames = [$selectedEmpName];
         } else {
             // Agar 'All Employees' select hai, toh saare Role 4 walon ke naam graph me set kar do
@@ -1993,26 +2129,26 @@ class LeadsController extends Controller
         $endDate = null;
 
         if ($range === 'today') {
-            $startDate = \Carbon\Carbon::today();
-            $endDate = \Carbon\Carbon::today()->endOfDay();
+            $startDate = Carbon::today();
+            $endDate = Carbon::today()->endOfDay();
         } elseif ($range === 'yesterday') {
-            $startDate = \Carbon\Carbon::yesterday();
-            $endDate = \Carbon\Carbon::yesterday()->endOfDay();
+            $startDate = Carbon::yesterday();
+            $endDate = Carbon::yesterday()->endOfDay();
         } elseif ($range === 'last_week') {
-            $startDate = \Carbon\Carbon::now()->subDays(7)->startOfDay();
-            $endDate = \Carbon\Carbon::now()->endOfDay();
+            $startDate = Carbon::now()->subDays(7)->startOfDay();
+            $endDate = Carbon::now()->endOfDay();
         } elseif ($range === 'last_month') {
-            $startDate = \Carbon\Carbon::now()->subMonth()->startOfDay();
-            $endDate = \Carbon\Carbon::now()->endOfDay();
+            $startDate = Carbon::now()->subMonth()->startOfDay();
+            $endDate = Carbon::now()->endOfDay();
         } elseif ($range === 'custom' && $request->start_date && $request->end_date) {
-            $startDate = \Carbon\Carbon::parse($request->start_date)->startOfDay();
-            $endDate = \Carbon\Carbon::parse($request->end_date)->endOfDay();
+            $startDate = Carbon::parse($request->start_date)->startOfDay();
+            $endDate = Carbon::parse($request->end_date)->endOfDay();
         }
 
         // ===============================================
         // 2. WORKED LEADS QUERY (Grouped by Employee ID)
         // ===============================================
-        $workedQuery = \App\Models\Leads::query();
+        $workedQuery = Leads::query();
 
         if ($employeeId !== 'all') {
             $workedQuery->where('created_by', $employeeId);
@@ -2038,7 +2174,7 @@ class LeadsController extends Controller
         // ===============================================
         // 3. CONVERTED LEADS QUERY (Grouped by Employee Name)
         // ===============================================
-        $convertedQuery = \App\Models\Leads::query()
+        $convertedQuery = Leads::query()
             ->join('orders', 'leads.order_id', '=', 'orders.order_id')
             ->where('leads.is_converted', 1)
             ->whereNotNull('leads.converted_at');
@@ -2115,6 +2251,7 @@ class LeadsController extends Controller
             'next_offset' => $offset + $leads->count(),
         ]);
     }
+
     public function filter(Request $request)
     {
         $query = Leads::query()
@@ -2126,25 +2263,26 @@ class LeadsController extends Controller
         $hasSelectedUser = false;
 
         // Filter by user ID if selectedValue / uid is set
-        if (!empty($selectedUid) && is_numeric($selectedUid) && (int)$selectedUid > 0) {
-            $query->where('emp_id', (int)$selectedUid);
+        if (! empty($selectedUid) && is_numeric($selectedUid) && (int) $selectedUid > 0) {
+            $query->where('emp_id', (int) $selectedUid);
             $hasSelectedUser = true;
         }
 
         // Gather all search terms (from search, order, search_order, user, searchInput)
-        $searchOrder = trim((string)($request->input('order') ?? $request->input('search_order') ?? ''));
-        $searchUser = trim((string)($request->input('user') ?? $request->input('searchInput') ?? ''));
-        $generalSearch = trim((string)($request->input('search') ?? ''));
+        $searchOrder = trim((string) ($request->input('order') ?? $request->input('search_order') ?? ''));
+        $searchUser = trim((string) ($request->input('user') ?? $request->input('searchInput') ?? ''));
+        $generalSearch = trim((string) ($request->input('search') ?? ''));
 
+        // mk 7 10 26 - If customer is selected by UID, do not apply the formatted dropdown label as raw text search so matching leads are not blocked
         $searchTermsToApply = [];
-        if (!empty($generalSearch)) {
+        if (! empty($generalSearch) && (! $hasSelectedUser || $generalSearch !== $searchUser)) {
             $searchTermsToApply[] = $generalSearch;
         }
-        if (!empty($searchOrder)) {
+        if (! empty($searchOrder)) {
             $searchTermsToApply[] = $searchOrder;
         }
         // If user was NOT selected by UID, apply the typed user term as text filter
-        if (!$hasSelectedUser && !empty($searchUser)) {
+        if (! $hasSelectedUser && ! empty($searchUser)) {
             $searchTermsToApply[] = $searchUser;
         }
 
@@ -2157,52 +2295,55 @@ class LeadsController extends Controller
             $last10 = strlen($cleanSearchDigits) >= 10 ? substr($cleanSearchDigits, -10) : $cleanSearchDigits;
 
             $query->where(function ($q) use ($searchTerm, $searchUserIds, $cleanSearchMasked, $cleanSearchDigits, $last10) {
-                $q->where('order_id', 'like', '%' . $searchTerm . '%')
-                    ->orWhere('project_title', 'like', '%' . $searchTerm . '%')
-                    ->orWhere('user_name', 'like', '%' . $searchTerm . '%');
+                $q->where('order_id', 'like', '%'.$searchTerm.'%')
+                    ->orWhere('project_title', 'like', '%'.$searchTerm.'%')
+                    ->orWhere('user_name', 'like', '%'.$searchTerm.'%');
 
-                if (!empty($searchUserIds)) {
+                if (! empty($searchUserIds)) {
                     $q->orWhereIn('emp_id', $searchUserIds);
                 }
-
-                if (strpos($searchTerm, '*') !== false && !empty($cleanSearchMasked) && preg_match('/\d/', $cleanSearchMasked)) {
-                    $q->orWhere('mobile', 'like', '%' . $cleanSearchMasked . '%')
-                      ->orWhere('mobile2', 'like', '%' . $cleanSearchMasked . '%')
-                      ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile, '')) LIKE ?", ['%' . $cleanSearchMasked . '%']);
+                if (is_numeric($searchTerm)) {
+                    $q->orWhere('emp_id', (int) $searchTerm);
                 }
 
-                if (!empty($cleanSearchDigits) && strlen($cleanSearchDigits) >= 2) {
-                    $q->orWhere('mobile', 'like', '%' . $cleanSearchDigits . '%')
-                      ->orWhere('mobile', 'like', '%' . $last10 . '%')
-                      ->orWhere('mobile2', 'like', '%' . $cleanSearchDigits . '%')
-                      ->orWhere('mobile2', 'like', '%' . $last10 . '%')
-                      ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile, '')) LIKE ?", ['%' . $cleanSearchDigits . '%']);
+                if (strpos($searchTerm, '*') !== false && ! empty($cleanSearchMasked) && preg_match('/\d/', $cleanSearchMasked)) {
+                    $q->orWhere('mobile', 'like', '%'.$cleanSearchMasked.'%')
+                        ->orWhere('mobile2', 'like', '%'.$cleanSearchMasked.'%')
+                        ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile, '')) LIKE ?", ['%'.$cleanSearchMasked.'%']);
+                }
+
+                if (! empty($cleanSearchDigits) && strlen($cleanSearchDigits) >= 2) {
+                    $q->orWhere('mobile', 'like', '%'.$cleanSearchDigits.'%')
+                        ->orWhere('mobile', 'like', '%'.$last10.'%')
+                        ->orWhere('mobile2', 'like', '%'.$cleanSearchDigits.'%')
+                        ->orWhere('mobile2', 'like', '%'.$last10.'%')
+                        ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile, '')) LIKE ?", ['%'.$cleanSearchDigits.'%']);
                 }
 
                 if (strpos($searchTerm, '@') !== false) {
                     $cleanEmail = preg_replace('/\*+/', '%', $searchTerm);
-                    $q->orWhere('email', 'like', '%' . $cleanEmail . '%');
+                    $q->orWhere('email', 'like', '%'.$cleanEmail.'%');
                 } else {
-                    $q->orWhere('email', 'like', '%' . $searchTerm . '%');
+                    $q->orWhere('email', 'like', '%'.$searchTerm.'%');
                 }
 
                 $q->orWhereHas('user', function ($uq) use ($searchTerm, $cleanSearchDigits, $last10, $cleanSearchMasked) {
-                    $uq->where('name', 'like', '%' . $searchTerm . '%')
-                      ->orWhere('email', 'like', '%' . $searchTerm . '%');
+                    $uq->where('name', 'like', '%'.$searchTerm.'%')
+                        ->orWhere('email', 'like', '%'.$searchTerm.'%');
 
-                    if (strpos($searchTerm, '*') !== false && !empty($cleanSearchMasked) && preg_match('/\d/', $cleanSearchMasked)) {
-                        $uq->orWhere('mobile_no', 'like', '%' . $cleanSearchMasked . '%')
-                           ->orWhere('mobile_no2', 'like', '%' . $cleanSearchMasked . '%')
-                           ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile_no, '')) LIKE ?", ['%' . $cleanSearchMasked . '%'])
-                           ->orWhereRaw("CONCAT(IFNULL(countrycode2, ''), IFNULL(mobile_no2, '')) LIKE ?", ['%' . $cleanSearchMasked . '%']);
+                    if (strpos($searchTerm, '*') !== false && ! empty($cleanSearchMasked) && preg_match('/\d/', $cleanSearchMasked)) {
+                        $uq->orWhere('mobile_no', 'like', '%'.$cleanSearchMasked.'%')
+                            ->orWhere('mobile_no2', 'like', '%'.$cleanSearchMasked.'%')
+                            ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile_no, '')) LIKE ?", ['%'.$cleanSearchMasked.'%'])
+                            ->orWhereRaw("CONCAT(IFNULL(countrycode2, ''), IFNULL(mobile_no2, '')) LIKE ?", ['%'.$cleanSearchMasked.'%']);
                     }
 
-                    if (!empty($cleanSearchDigits) && strlen($cleanSearchDigits) >= 2) {
-                        $uq->orWhere('mobile_no', 'like', '%' . $cleanSearchDigits . '%')
-                           ->orWhere('mobile_no', 'like', '%' . $last10 . '%')
-                           ->orWhere('mobile_no2', 'like', '%' . $cleanSearchDigits . '%')
-                           ->orWhere('mobile_no2', 'like', '%' . $last10 . '%')
-                           ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile_no, '')) LIKE ?", ['%' . $cleanSearchDigits . '%']);
+                    if (! empty($cleanSearchDigits) && strlen($cleanSearchDigits) >= 2) {
+                        $uq->orWhere('mobile_no', 'like', '%'.$cleanSearchDigits.'%')
+                            ->orWhere('mobile_no', 'like', '%'.$last10.'%')
+                            ->orWhere('mobile_no2', 'like', '%'.$cleanSearchDigits.'%')
+                            ->orWhere('mobile_no2', 'like', '%'.$last10.'%')
+                            ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile_no, '')) LIKE ?", ['%'.$cleanSearchDigits.'%']);
                     }
                 });
             });
@@ -2246,26 +2387,26 @@ class LeadsController extends Controller
 
         // Date Filter
         $dateFrom = $request->input('date_from');
-        $dateTo   = $request->input('date_to');
+        $dateTo = $request->input('date_to');
         $dateType = $request->input('date_type');
 
         $dateColumn = 'created_at';
 
-        if (!empty($dateType) && in_array($dateType, ['created_at', 'deadline'], true)) {
+        if (! empty($dateType) && in_array($dateType, ['created_at', 'deadline'], true)) {
             $dateColumn = $dateType;
         }
 
-        if (!empty($dateFrom) && !empty($dateTo)) {
+        if (! empty($dateFrom) && ! empty($dateTo)) {
             $query->whereDate($dateColumn, '>=', $dateFrom)
                 ->whereDate($dateColumn, '<=', $dateTo);
-        } elseif (!empty($dateFrom)) {
+        } elseif (! empty($dateFrom)) {
             $query->whereDate($dateColumn, '=', $dateFrom);
-        } elseif (!empty($dateTo)) {
+        } elseif (! empty($dateTo)) {
             $query->whereDate($dateColumn, '=', $dateTo);
         }
 
         if ($request->filled('group_id')) {
-            $query->whereHas('user.groups', fn($g) => $g->where('group_masters.id', $request->group_id));
+            $query->whereHas('user.groups', fn ($g) => $g->where('group_masters.id', $request->group_id));
         }
 
         // Filter by assign_type (0/1 both work)
@@ -2297,7 +2438,7 @@ class LeadsController extends Controller
         $html = '';
         foreach ($leads as $index => $lead) {
             $html .= view('back-end.leads.partials.row', [
-                'lead'  => $lead,
+                'lead' => $lead,
                 'index' => $offset + $index,
             ])->render();
         }
@@ -2312,7 +2453,6 @@ class LeadsController extends Controller
             'next_offset' => $offset + $leads->count(),
         ]);
     }
-
 
     // public function editLead($id)
     // {
@@ -2336,6 +2476,7 @@ class LeadsController extends Controller
 
         return view('back-end.leads.edit', compact('lead', 'service', 'papers', 'referUser'));
     }
+
     public function update(Request $request, $id)
     {
         // Validate the incoming request
@@ -2383,8 +2524,6 @@ class LeadsController extends Controller
         $lead->typeofpaper = $validated['paper'] ?? null;       // Ensure "paper" field maps to "typeofpaper"
         $lead->semester = $validated['semester'] ?? null;    // Store string like "Semester I", etc.
 
-
-
         $lead->save();
 
         logActivity('Lead', [
@@ -2402,8 +2541,6 @@ class LeadsController extends Controller
 
         return response()->json(['success' => true]);
     }
-
-
 
     public function updateUserNew(Request $request, $id)
     {
@@ -2428,7 +2565,7 @@ class LeadsController extends Controller
         if ($emailExists) {
             return response()->json([
                 'success' => false,
-                'message' => 'Email already exists for another user.'
+                'message' => 'Email already exists for another user.',
             ], 422);
         }
 
@@ -2443,7 +2580,7 @@ class LeadsController extends Controller
         if ($mobileConflict) {
             return response()->json([
                 'success' => false,
-                'message' => 'Mobile number is already in use by another user.'
+                'message' => 'Mobile number is already in use by another user.',
             ], 422);
         }
 
@@ -2473,7 +2610,7 @@ class LeadsController extends Controller
         // Step 1: Find the lead
         $lead = Leads::find($lead_id);
 
-        if (!$lead) {
+        if (! $lead) {
             return response()->json([
                 'success' => false,
                 'message' => 'Lead not found.',
@@ -2484,8 +2621,8 @@ class LeadsController extends Controller
         $order = Order::where('lead_id', $lead_id)->first();
         // dd($order);
         // Step 3: Create new order if not found
-        if (!$order) {
-            $order = new Order();
+        if (! $order) {
+            $order = new Order;
             $order->lead_id = $lead->id;
         }
 
@@ -2513,7 +2650,8 @@ class LeadsController extends Controller
 
         // Step 5: Save order
         $order->save();
-        $order->assignTeamForInitiatedStatus(true);
+        // mk 7 10 26 - Prevent auto team allocation on lead conversion; maintain manual team if already set
+        // $order->assignTeamForInitiatedStatus(true);
 
         // Step 6: Update lead
 
@@ -2537,17 +2675,16 @@ class LeadsController extends Controller
         ]);
     }
 
-
     public function fetchTemplates($userId)
     {
-        $setting = \App\Models\WhatsappSetting::where('is_active', true)->first();
+        $setting = WhatsappSetting::where('is_active', true)->first();
         $config = $setting?->settings ?? [];
         $projectId = $config['project_id'] ?? env('AISENSY_PROJECT_ID') ?: '64b7904a3702730b51b76dc1';
         $apiKey = $config['api_key'] ?? env('AISENSY_API_KEY') ?: '798699e56bbe28cc0b669';
 
         $response = Http::withHeaders([
             'Accept' => 'application/json',
-            'X-AiSensy-Project-API-Pwd' => $apiKey
+            'X-AiSensy-Project-API-Pwd' => $apiKey,
         ])->timeout(8)->get("https://apis.aisensy.com/project-apis/v1/project/{$projectId}/wa_template/");
 
         if ($response->successful()) {
@@ -2556,7 +2693,7 @@ class LeadsController extends Controller
                 ->map(function ($t) {
                     return [
                         'id' => $t['id'],
-                        'name' => $t['name']
+                        'name' => $t['name'],
                     ];
                 })
                 ->values();
@@ -2567,33 +2704,32 @@ class LeadsController extends Controller
         return response()->json(['error' => 'Failed to fetch templates'], 500);
     }
 
-
     public function whatsapp(Request $request, $id)
     {
         // 1. Find the user
         $user = User::find($id);
-        if (!$user) {
+        if (! $user) {
             return redirect()->back()->with('error', 'User not found.');
         }
 
         // 2. Build the full WhatsApp number
-        $whatsappNumber = preg_replace('/\D+/', '', (string) ($user->countrycode . $user->mobile_no));
+        $whatsappNumber = preg_replace('/\D+/', '', (string) ($user->countrycode.$user->mobile_no));
 
         // 3. Prepare the payload
         $payload = [
-            "to" => $whatsappNumber,
-            "type" => "template",
-            "template" => [
-                "language" => [
-                    "policy" => "deterministic",
-                    "code" => "en_GB"
+            'to' => $whatsappNumber,
+            'type' => 'template',
+            'template' => [
+                'language' => [
+                    'policy' => 'deterministic',
+                    'code' => 'en_GB',
                 ],
-                "name" => $request->input('template_name'),
-            ]
+                'name' => $request->input('template_name'),
+            ],
         ];
 
         // 4. Make the POST request to active AiSensy API
-        $setting = \App\Models\WhatsappSetting::where('is_active', true)->first();
+        $setting = WhatsappSetting::where('is_active', true)->first();
         $config = $setting?->settings ?? [];
         $projectId = $config['project_id'] ?? env('AISENSY_PROJECT_ID') ?: '64b7904a3702730b51b76dc1';
         $apiKey = $config['api_key'] ?? env('AISENSY_API_KEY') ?: '798699e56bbe28cc0b669';
@@ -2601,19 +2737,18 @@ class LeadsController extends Controller
         $response = Http::withHeaders([
             'Accept' => 'application/json',
             'Content-Type' => 'application/json',
-            'X-AiSensy-Project-API-Pwd' => $apiKey
+            'X-AiSensy-Project-API-Pwd' => $apiKey,
         ])->timeout(20)->post("https://apis.aisensy.com/project-apis/v1/project/{$projectId}/messages", $payload);
 
         // 5. Handle the response and redirect
         if ($response->successful()) {
-            return redirect('/whatsapp/chat?phone=' . $whatsappNumber)
+            return redirect('/whatsapp/chat?phone='.$whatsappNumber)
                 ->with('success', 'WhatsApp message sent successfully!');
         } else {
             return redirect()->back()
-                ->with('error', 'Failed to send message. ' . ($response->json('message') ?? 'Unknown error'));
+                ->with('error', 'Failed to send message. '.($response->json('message') ?? 'Unknown error'));
         }
     }
-
 
     public function LeadChat($leadId)
     {
@@ -2623,8 +2758,7 @@ class LeadsController extends Controller
         return view('back-end.leads.partials.lead-chat-modal', compact('lead'));
     }
 
-
-    public function callStore(Request  $req)
+    public function callStore(Request $req)
     {
         $Calls = new Calls;
         $Calls->created_by = auth()->user()->id;
@@ -2639,7 +2773,6 @@ class LeadsController extends Controller
             'action_by' => auth()->user()->name,
         ]);
 
-
         return response()->json([
             'success' => true,
             'message' => 'Call details saved successfully.',
@@ -2653,12 +2786,11 @@ class LeadsController extends Controller
         ]);
     }
 
-
     public function export(Request $request)
     {
         $filters = $request->all();
         $timestamp = now()->format('YmdHis');
-        $filename = 'exports/leads_export_' . $timestamp . '.xlsx';
+        $filename = 'exports/leads_export_'.$timestamp.'.xlsx';
 
         $userId = auth()->id();
 
@@ -2672,24 +2804,26 @@ class LeadsController extends Controller
 
     public function exportStatus()
     {
-        $filePath = Cache::get('lead_export_' . auth()->id());
+        $filePath = Cache::get('lead_export_'.auth()->id());
 
         if ($filePath && Storage::disk('public')->exists($filePath)) {
             // Clear the cache so that next export will be generated fresh
-            Cache::forget('lead_export_' . auth()->id());
+            Cache::forget('lead_export_'.auth()->id());
+
             return response()->json([
                 'status' => 'ready',
-                'url' => asset('storage/app/public/' . $filePath),
+                'url' => asset('storage/app/public/'.$filePath),
             ]);
         }
 
         return response()->json(['status' => 'pending']);
     }
+
     public function assignType(Request $request)
     {
         $data = $request->validate([
             'lead_id' => 'required|integer|exists:leads,id',
-            'assign_type'    => 'required|in:0,1',
+            'assign_type' => 'required|in:0,1',
         ]);
 
         $lead = Leads::find($data['lead_id']);
@@ -2704,22 +2838,20 @@ class LeadsController extends Controller
             'updated_by' => auth()->user()->name,
         ]);
 
-
         return response()->json([
             'status' => true,
             'message' => 'Assign type updated',
             'data' => [
                 'id' => $lead->id,
-                'assign_type' => $lead->assign_type
-            ]
+                'assign_type' => $lead->assign_type,
+            ],
         ]);
     }
-
 
     public function updateLeadReason(Request $request)
     {
         $lead = Leads::find($request->lead_id);
-        if (!$lead) {
+        if (! $lead) {
             return response()->json(['status' => false]);
         }
 
@@ -2739,7 +2871,7 @@ class LeadsController extends Controller
     public function updateLeadStatus(Request $request)
     {
         $lead = Leads::find($request->lead_id);
-        if (!$lead) {
+        if (! $lead) {
             return response()->json(['status' => false]);
         }
         $lead->lead_status = $request->status;
@@ -2750,106 +2882,497 @@ class LeadsController extends Controller
             'status' => $lead->status,
             'updated_by' => auth()->user()->name,
         ]);
+
         return response()->json(['status' => true, 'lead_status' => $request->status, 'hello' => true]);
     }
 
     public function searchReferUsers(Request $request)
-{
-    $search = $request->search;
+    {
+        $search = $request->search;
 
-    if (!$search || strlen($search) < 2) {
-        return response()->json([]);
+        if (! $search || strlen($search) < 2) {
+            return response()->json([]);
+        }
+
+        $users = User::where('role_id', 2)
+            ->where(function ($q) use ($search) {
+                $q->where('name', 'LIKE', "%{$search}%")
+                    ->orWhere('email', 'LIKE', "%{$search}%")
+                    ->orWhere('mobile_no', 'LIKE', "%{$search}%");
+            })
+            ->select('id', 'name', 'email', 'mobile_no')
+            ->limit(10)
+            ->get();
+
+        return response()->json($users);
     }
 
-    $users = User::where('role_id', 2)
-        ->where(function ($q) use ($search) {
-            $q->where('name', 'LIKE', "%{$search}%")
-              ->orWhere('email', 'LIKE', "%{$search}%")
-              ->orWhere('mobile_no', 'LIKE', "%{$search}%");
-        })
-        ->select('id', 'name', 'email', 'mobile_no')
-        ->limit(10)
-        ->get();
+    public function duplicateLead(Request $request)
+    {
+        $request->validate([
+            'lead_id' => 'required|integer',
+            'order_id' => 'required',
+        ]);
 
-    return response()->json($users);
-}
+        // current lead
+        $currentLead = Leads::find($request->lead_id);
 
-public function duplicateLead(Request $request)
-{
-    $request->validate([
-        'lead_id' => 'required|integer',
-        'order_id' => 'required'
-    ]);
+        if (! $currentLead) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Current lead not found.',
+            ]);
+        }
 
-    // current lead
-    $currentLead = Leads::find($request->lead_id);
+        // original lead
+        $originalLead = Leads::where('order_id', $request->order_id)->first();
 
-    if (!$currentLead) {
+        if (! $originalLead) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Lead not found for this Order ID.',
+            ]);
+        }
+
+        // same lead check
+        if ($currentLead->id == $originalLead->id) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Same lead cannot be marked as duplicate.',
+            ]);
+        }
+
+        // save duplicate info
+        $currentLead->duplicate_lead = 1;
+        $currentLead->duplicate_lead_id = $originalLead->id;
+        $currentLead->duplicate_order_id = $originalLead->order_id;
+        $currentLead->save();
+
         return response()->json([
-            'status' => false,
-            'message' => 'Current lead not found.'
+            'status' => true,
+            'message' => 'Lead marked as duplicate successfully.',
         ]);
     }
 
-    // original lead
-    $originalLead = Leads::where('order_id', $request->order_id)->first();
+    public function duplicateLeads(Request $request)
+    {
+        // $query = Leads::with('user', 'source')
+        $query = Leads::with('user', 'source')
+            ->where('duplicate_lead', 1)
+            ->orderByDesc('id');
 
-    if (!$originalLead) {
+        // optional filters
+        if ($request->filled('order_id')) {
+            $query->where('order_id', 'LIKE', '%'.$request->order_id.'%');
+        }
+        if ($request->filled('duplicate_order_id')) {
+            $query->where('duplicate_order_id', 'LIKE', '%'.$request->duplicate_order_id.'%');
+        }
+        if ($request->filled('user_id')) {
+            $query->where('emp_id', $request->user_id);
+        }
+
+        if ($request->filled('status')) {
+
+            $query->where('lead_status', $request->status);
+        }
+
+        $leads = $query->paginate(20)->appends($request->query());
+
+        return view(
+            'back-end.leads.duplicate-leads',
+            compact('leads')
+        );
+    }
+
+    // =====================================
+    // LEAD FOLLOWUPS (Side Drawer & Next Followups)
+    // =====================================
+    public function getFollowups($id)
+    {
+        $lead = Leads::with(['user'])->find($id);
+        if (! $lead) {
+            return response()->json(['status' => false, 'message' => 'Lead not found.'], 404);
+        }
+
+        $followups = LeadFollowup::with(['user:id,name', 'doneByUser:id,name'])
+            ->where('lead_id', $id)
+            ->where('lead_type', 'lead')
+            ->orderBy('created_at', 'desc')
+            ->get()
+            ->map(function ($f) {
+                $today = Carbon::today()->toDateString();
+                $fDate = Carbon::parse($f->followup_date)->toDateString();
+                $isDone = ($f->status === 'done');
+                $isToday = (! $isDone && $fDate === $today);
+                $isOverdue = (! $isDone && $fDate < $today);
+                $isUpcoming = (! $isDone && $fDate > $today);
+
+                return [
+                    'id' => $f->id,
+                    'message' => $f->message,
+                    'followup_date' => $f->followup_date,
+                    'followup_date_formatted' => Carbon::parse($f->followup_date)->format('d M, Y'),
+                    'created_at_formatted' => Carbon::parse($f->created_at)->format('d M, Y h:i A'),
+                    'user_name' => $f->user->name ?? 'Staff',
+                    'status' => $f->status,
+                    'is_done' => $isDone,
+                    'is_today' => $isToday,
+                    'is_overdue' => $isOverdue,
+                    'is_upcoming' => $isUpcoming,
+                    'done_by_name' => $f->doneByUser->name ?? null,
+                    'done_at_formatted' => $f->done_at ? Carbon::parse($f->done_at)->format('d M, Y h:i A') : null,
+                ];
+            });
+
+        $leadName = $lead->user->name ?? $lead->user_name ?? ('Lead #'.$lead->id);
+        $leadPhone = $lead->user->mobile_no ?? $lead->mobile ?? '';
+        $leadEmail = $lead->user->email ?? $lead->email ?? '';
+        $leadCountryCode = $lead->user->countrycode ?? $lead->countrycode ?? '';
+
         return response()->json([
-            'status' => false,
-            'message' => 'Lead not found for this Order ID.'
+            'status' => true,
+            'lead' => [
+                'id' => $lead->id,
+                'order_id' => $lead->order_id ?: ('LEAD-'.$lead->id),
+                'name' => $leadName,
+                'email' => $leadEmail,
+                'mobile' => $leadPhone,
+                'countrycode' => $leadCountryCode,
+                'project_title' => $lead->project_title ?: 'N/A',
+                'lead_status' => $lead->lead_status ?: 'Normal',
+                'price' => $lead->price ?: '0',
+                'deadline' => $lead->deadline ?: 'N/A',
+                'next_followup_date' => $lead->next_followup_date ? Carbon::parse($lead->next_followup_date)->format('d M, Y') : null,
+            ],
+            'followups' => $followups,
         ]);
     }
 
-    // same lead check
-    if ($currentLead->id == $originalLead->id) {
+    public function storeFollowup(Request $request, $id)
+    {
+        $today = Carbon::today()->toDateString();
+
+        $request->validate([
+            'message' => 'required|string',
+            'followup_date' => 'required|date|after_or_equal:'.$today,
+        ], [
+            'followup_date.after_or_equal' => 'Next followup date must be today or a future date.',
+            'followup_date.required' => 'Please select the next followup date.',
+            'message.required' => 'Please enter a followup message/note.',
+        ]);
+
+        $lead = Leads::find($id);
+        if (! $lead) {
+            return response()->json(['status' => false, 'message' => 'Lead not found.'], 404);
+        }
+
+        $followup = LeadFollowup::create([
+            'lead_id' => $id,
+            'lead_type' => 'lead',
+            'user_id' => Auth::id(),
+            'message' => trim($request->message),
+            'followup_date' => $request->followup_date,
+            'status' => 'pending',
+        ]);
+
+        $lead->update([
+            'next_followup_date' => $request->followup_date,
+        ]);
+
+        $followup->load(['user:id,name']);
+
         return response()->json([
-            'status' => false,
-            'message' => 'Same lead cannot be marked as duplicate.'
+            'status' => true,
+            'message' => 'Followup note added successfully!',
+            'followup' => [
+                'id' => $followup->id,
+                'message' => $followup->message,
+                'followup_date' => $followup->followup_date,
+                'followup_date_formatted' => Carbon::parse($followup->followup_date)->format('d M, Y'),
+                'created_at_formatted' => Carbon::parse($followup->created_at)->format('d M, Y h:i A'),
+                'user_name' => $followup->user->name ?? Auth::user()->name ?? 'Staff',
+                'status' => 'pending',
+                'is_done' => false,
+                'is_today' => (Carbon::parse($followup->followup_date)->toDateString() === $today),
+                'is_overdue' => false,
+                'is_upcoming' => (Carbon::parse($followup->followup_date)->toDateString() > $today),
+            ],
         ]);
     }
 
-    // save duplicate info
-    $currentLead->duplicate_lead = 1;
-    $currentLead->duplicate_lead_id = $originalLead->id;
-    $currentLead->duplicate_order_id = $originalLead->order_id;
-    $currentLead->save();
+    public function markFollowupDone(Request $request, $id)
+    {
+        $followup = LeadFollowup::find($id);
+        if (! $followup) {
+            return response()->json(['status' => false, 'message' => 'Followup not found.'], 404);
+        }
 
-    return response()->json([
-        'status' => true,
-        'message' => 'Lead marked as duplicate successfully.'
-    ]);
-}
+        $followup->update([
+            'status' => 'done',
+            'done_by' => Auth::id(),
+            'done_at' => Carbon::now(),
+        ]);
 
-public function duplicateLeads(Request $request)
-{
-    // $query = Leads::with('user', 'source')
-    $query = Leads::with('user', 'source')
-        ->where('duplicate_lead', 1)
-        ->orderByDesc('id');
+        $nextPending = LeadFollowup::where('lead_id', $followup->lead_id)
+            ->where('lead_type', 'lead')
+            ->where('status', 'pending')
+            ->orderBy('followup_date', 'asc')
+            ->first();
 
-    // optional filters
-    if ($request->filled('order_id')) {
-        $query->where('order_id', 'LIKE', '%' . $request->order_id . '%');
-    }
-    if ($request->filled('duplicate_order_id')) {
-        $query->where('duplicate_order_id', 'LIKE', '%' . $request->duplicate_order_id . '%');
-    }
-    if ($request->filled('user_id')) {
-        $query->where('emp_id', $request->user_id);
-    }
+        Leads::where('id', $followup->lead_id)->update([
+            'next_followup_date' => $nextPending ? $nextPending->followup_date : null,
+        ]);
 
-    if ($request->filled('status')) {
-
-        $query->where('lead_status', $request->status);
+        return response()->json([
+            'status' => true,
+            'message' => 'Followup marked as completed!',
+            'next_pending_date' => $nextPending ? Carbon::parse($nextPending->followup_date)->format('d M, Y') : null,
+        ]);
     }
 
-    $leads = $query->paginate(20)->appends($request->query());
+    public function showNextFollowups(Request $request)
+    {
+        $today = Carbon::today()->toDateString();
+        $search = $request->get('search');
+        $fromDate = $request->get('fromDate');
+        $toDate = $request->get('toDate');
+        $tab = $request->get('tab', 'all');
+        $userTerm = $request->get('user');
+        $uid = $request->get('uid');
 
-    return view(
-        'back-end.leads.duplicate-leads',
-        compact('leads')
-    );
-}
+        $baseQuery = LeadFollowup::with([
+            'lead' => function ($q) {
+                $q->with(['user', 'creator:id,name', 'source:id,source_name']);
+            },
+            'user:id,name',
+            'doneByUser:id,name',
+        ])->where('lead_type', 'lead');
 
+        // Customer Search (uid or user term via dropdown or text)
+        if (! empty($uid) || ! empty($userTerm)) {
+            $rawTerm = trim((string) ($userTerm ?: $uid));
+            $cleanDigits = preg_replace('/\D+/', '', $rawTerm);
+            $last10 = (strlen($cleanDigits) >= 10) ? substr($cleanDigits, -10) : $cleanDigits;
+            $searchUserIds = [];
+
+            if (! empty($uid) && is_numeric($uid) && strlen($uid) <= 8) {
+                $searchUserIds[] = (int) $uid;
+            }
+
+            if (! empty($rawTerm)) {
+                $foundIds = function_exists('find_user_ids_by_search_term') ? find_user_ids_by_search_term($rawTerm) : [];
+                $searchUserIds = array_unique(array_merge($searchUserIds, $foundIds));
+            }
+
+            $baseQuery->whereHas('lead', function ($lq) use ($searchUserIds, $rawTerm, $cleanDigits, $last10) {
+                $lq->where(function ($sub) use ($searchUserIds, $rawTerm, $cleanDigits, $last10) {
+                    if (! empty($searchUserIds)) {
+                        $sub->whereIn('emp_id', $searchUserIds);
+                    }
+                    if (strlen($cleanDigits) >= 2) {
+                        $sub->orWhere('mobile', 'like', "%{$cleanDigits}%")
+                            ->orWhere('mobile2', 'like', "%{$cleanDigits}%")
+                            ->orWhere('mobile', 'like', "%{$last10}%")
+                            ->orWhere('mobile2', 'like', "%{$last10}%")
+                            ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile, '')) LIKE ?", ["%{$cleanDigits}%"]);
+                    }
+                    if (! empty($rawTerm)) {
+                        $sub->orWhere('user_name', 'like', "%{$rawTerm}%")
+                            ->orWhere('email', 'like', "%{$rawTerm}%");
+                    }
+                    $sub->orWhereHas('user', function ($uq) use ($searchUserIds, $rawTerm, $cleanDigits, $last10) {
+                        if (! empty($searchUserIds)) {
+                            $uq->whereIn('id', $searchUserIds);
+                        }
+                        if (strlen($cleanDigits) >= 2) {
+                            $uq->orWhere('mobile_no', 'like', "%{$cleanDigits}%")
+                                ->orWhere('mobile_no2', 'like', "%{$cleanDigits}%")
+                                ->orWhere('mobile_no', 'like', "%{$last10}%")
+                                ->orWhere('mobile_no2', 'like', "%{$last10}%");
+                        }
+                        if (! empty($rawTerm)) {
+                            $uq->orWhere('name', 'like', "%{$rawTerm}%")
+                                ->orWhere('email', 'like', "%{$rawTerm}%");
+                        }
+                    });
+                });
+            });
+        }
+
+        // General search (order_id, project_title, message, etc.)
+        if (! empty($search)) {
+            $baseQuery->where(function ($q) use ($search) {
+                $q->where('message', 'like', "%{$search}%")
+                    ->orWhereHas('lead', function ($lq) use ($search) {
+                        $lq->where('order_id', 'like', "%{$search}%")
+                            ->orWhere('project_title', 'like', "%{$search}%")
+                            ->orWhere('user_name', 'like', "%{$search}%")
+                            ->orWhere('mobile', 'like', "%{$search}%")
+                            ->orWhere('email', 'like', "%{$search}%");
+                        if (is_numeric($search)) {
+                            $lq->orWhere('emp_id', (int) $search)
+                                ->orWhere('id', (int) $search);
+                        }
+                        $lq->orWhereHas('user', function ($uq) use ($search) {
+                            $uq->where('name', 'like', "%{$search}%")
+                                ->orWhere('mobile_no', 'like', "%{$search}%")
+                                ->orWhere('email', 'like', "%{$search}%");
+                            if (is_numeric($search)) {
+                                $uq->orWhere('id', (int) $search);
+                            }
+                        });
+                    });
+            });
+        }
+
+        if (! empty($fromDate)) {
+            $baseQuery->whereDate('followup_date', '>=', $fromDate);
+        }
+        if (! empty($toDate)) {
+            $baseQuery->whereDate('followup_date', '<=', $toDate);
+        }
+
+        // All Pending Follow-ups: Today on top, Tomorrow / Upcoming below, then Overdue / Past
+        $allQuery = (clone $baseQuery)
+            ->where('status', 'pending')
+            ->orderByRaw("
+                CASE 
+                    WHEN DATE(followup_date) = '{$today}' THEN 1
+                    WHEN DATE(followup_date) > '{$today}' THEN 2
+                    ELSE 3
+                END ASC,
+                followup_date ASC,
+                id DESC
+            ");
+
+        // Today query: Pending follow-ups due today
+        $todayQuery = (clone $baseQuery)
+            ->where('status', 'pending')
+            ->whereDate('followup_date', '=', $today)
+            ->orderBy('id', 'desc');
+
+        // Overdue query: Pending follow-ups before today
+        $overdueQuery = (clone $baseQuery)
+            ->where('status', 'pending')
+            ->whereDate('followup_date', '<', $today)
+            ->orderBy('followup_date', 'asc')
+            ->orderBy('id', 'desc');
+
+        // Done query: Completed follow-ups
+        $doneQuery = (clone $baseQuery)
+            ->where('status', 'done')
+            ->orderByRaw('COALESCE(done_at, updated_at) DESC')
+            ->orderBy('id', 'desc');
+
+        // AJAX Tab Data & Infinite Scroll Request Handler
+        if ($request->ajax() || $request->get('ajax') == 1) {
+            $currentPage = (int) $request->get('page', 1);
+            if ($tab === 'today') {
+                $paginator = $todayQuery->paginate(20, ['*'], 'page', $currentPage);
+            } elseif ($tab === 'overdue') {
+                $paginator = $overdueQuery->paginate(20, ['*'], 'page', $currentPage);
+            } elseif ($tab === 'done') {
+                $paginator = $doneQuery->paginate(20, ['*'], 'page', $currentPage);
+            } else {
+                $paginator = $allQuery->paginate(20, ['*'], 'page', $currentPage);
+            }
+
+            $html = '';
+            foreach ($paginator as $idx => $followup) {
+                $html .= view('back-end.leads.partials.next-followup-row', [
+                    'followup' => $followup,
+                    'loopIndex' => ($currentPage - 1) * 20 + $idx + 1,
+                    'isOverdueTab' => ($tab === 'overdue' || ($followup->followup_date < $today && $followup->status !== 'done')),
+                    'isDoneTab' => ($tab === 'done' || $followup->status === 'done'),
+                ])->render();
+            }
+
+            return response()->json([
+                'status' => true,
+                'tab' => $tab,
+                'html' => $html,
+                'count' => $paginator->count(),
+                'total' => $paginator->total(),
+                'has_more' => $paginator->hasMorePages(),
+                'current_page' => $paginator->currentPage(),
+                'next_page' => $paginator->currentPage() + 1,
+                'counts' => [
+                    'all' => (clone $allQuery)->count(),
+                    'today' => (clone $todayQuery)->count(),
+                    'overdue' => (clone $overdueQuery)->count(),
+                    'done' => (clone $doneQuery)->count(),
+                ],
+            ]);
+        }
+
+        // On initial page load: only calculate badge counts, NO rows pre-loaded upfront
+        $allCount = (clone $allQuery)->count();
+        $todayCount = (clone $todayQuery)->count();
+        $overdueCount = (clone $overdueQuery)->count();
+        $doneCount = (clone $doneQuery)->count();
+
+        return view('back-end.leads.next-followups', compact(
+            'allCount',
+            'todayCount',
+            'overdueCount',
+            'doneCount',
+            'today',
+            'search',
+            'userTerm',
+            'uid',
+            'fromDate',
+            'toDate',
+            'tab'
+        ));
+    }
+
+    /**
+     * Send lead conversion email via Client Email account (order@assignnmentinneed.com)
+     * so it is dispatched properly and preserved in the CRM Sent mail folder.
+     */
+    protected function sendLeadsConvertEmail(array $mailData): bool
+    {
+        $recipient = trim($mailData['email'] ?? '');
+        if (empty($recipient) || !filter_var($recipient, FILTER_VALIDATE_EMAIL)) {
+            \Log::warning('LeadsConvert mail skipped due to invalid recipient email', [
+                'order_code' => $mailData['order_code'] ?? null,
+                'email'      => $recipient,
+            ]);
+            return false;
+        }
+
+        $orderCode = $mailData['order_code'] ?? '';
+        $subject = $orderCode ?: 'Order Confirmation';
+
+        try {
+            $bodyHtml = view('mail', ['mailData' => $mailData])->render();
+            $clientAccountId = function_exists('crm_email_account_id') ? crm_email_account_id('client') : 2;
+
+            app(\App\Services\EmailService::class)->sendEmail([
+                'account_id' => $clientAccountId,
+                'to'         => $recipient,
+                'to_name'    => $mailData['name'] ?? null,
+                'cc'         => 'order@assignnmentinneed.com',
+                'subject'    => $subject,
+                'body_html'  => $bodyHtml,
+            ]);
+
+            \Log::info("LeadsConvert mail sent via EmailService for {$orderCode} to {$recipient}");
+            return true;
+        } catch (\Throwable $e) {
+            \Log::error("LeadsConvert mail via EmailService failed for {$orderCode}: " . $e->getMessage());
+
+            try {
+                Mail::to($recipient)
+                    ->cc('order@assignnmentinneed.com')
+                    ->send(new LeadsConvertMail($mailData));
+                \Log::info("LeadsConvert mail sent via fallback Mail for {$orderCode}");
+                return true;
+            } catch (\Throwable $fallbackEx) {
+                \Log::error("LeadsConvert fallback mail also failed for {$orderCode}: " . $fallbackEx->getMessage());
+                return false;
+            }
+        }
+    }
 }

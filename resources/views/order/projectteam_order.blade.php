@@ -72,6 +72,7 @@
 													</button>
 												@endif
 											</div>
+											{!! get_order_duration_gap_badge($order) !!}
 											<br>
                                             @if($order->is_fail == 1)
 												<span class="badge badge-light-danger fs-7 fw-bold">Fail Order</span>
@@ -249,7 +250,8 @@
 				};
 				$.ajax({
 					type: 'POST',
-					url: 'update_status',
+					// mk 6/10/2026: Use named route to avoid 404 errors on subpaths/trailing slashes
+					url: '{{ route('update_status') }}',
 					data: updateData,
 					success: function(response) {
 						if (response.warning) {

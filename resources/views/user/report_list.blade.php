@@ -141,8 +141,8 @@
                     <td class="text-start">
                         <div class="d-flex flex-column">
                             <a href="#" class="text-gray-800 text-hover-primary mb-1 fs-5">{{ $user->name ?? 'N/A' }}</a>
-                            <span class="text-muted fs-7"><i class="fa fa-envelope text-primary"></i> {{ $user->email ?? 'N/A' }}</span>
-                            <span class="text-muted fs-7"><i class="fa fa-phone text-success"></i> {{ $user->countrycode }} {{ $user->mobile_no ?? 'N/A' }}</span>
+                            <span class="text-muted fs-7"><i class="fa fa-envelope text-primary"></i> {{ mask_email_for_display($user->email ?? '') }}</span>
+                            <span class="text-muted fs-7"><i class="fa fa-phone text-success"></i> {{ mask_phone_for_display($user->countrycode, $user->mobile_no) }}</span>
                             <span class="text-muted fs-7">
                                 <i class="fa fa-globe text-info"></i>
                                 {{ isset($codeToCountry[$user->countrycode]) ? $codeToCountry[$user->countrycode] : 'Unknown' }}

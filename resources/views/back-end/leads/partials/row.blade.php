@@ -17,8 +17,8 @@
 
     <td class="text-center align-middle" style="min-width: 165px; padding: 6px;">
         <div class="d-flex flex-column align-items-center justify-content-center gap-1">
-            <!-- 4x2 Grid for Buttons & Switches -->
-            <div style="display: grid; grid-template-columns: repeat(4, 32px); gap: 6px; align-items: center; justify-items: center;">
+            <!-- 5x2 Grid for Buttons & Switches -->
+            <div style="display: grid; grid-template-columns: repeat(5, 32px); gap: 6px; align-items: center; justify-items: center;">
                 
                 <!-- Row 1, Col 1: Flag Checkbox -->
                 <div class="form-check form-check-sm form-check-custom form-check-solid m-0 p-0 d-flex align-items-center justify-content-center">
@@ -50,6 +50,25 @@
                     <i style="color: white;" class="fa fa-edit"></i>
                 </a>
 
+                <!-- Row 1, Col 5: Orders Button -->
+                @if($lead->user)
+                    <a href="{{ url('/orders') }}?uid={{ $lead->user->id }}&user={{ urlencode($lead->user->name) }}" target="_blank" 
+                        class="btn btn-sm btn-icon p-0 d-inline-flex align-items-center justify-content-center shadow-xs position-relative"
+                        style="background-color: #009ef7; color: white; width: 28px; height: 28px; border-radius: 6px;" title="View User Orders">
+                        <span class="fw-bolder" style="font-size: 13px;">O</span>
+                        @php
+                            $orderCount = $lead->user->orders()->count();
+                        @endphp
+                        @if($orderCount > 0)
+                            <span style="position:absolute; top:-5px; right:-5px; background:#e53e3e; color:#ffffff; font-size:9px; font-weight:700; line-height:1; padding:2px 4px; border-radius:10px; box-shadow:0 1px 2px rgba(0,0,0,0.3);">
+                                {{ $orderCount }}
+                            </span>
+                        @endif
+                    </a>
+                @else
+                    <div></div>
+                @endif
+
                 <!-- Row 2, Col 1: Convert / Sync Button -->
                 <button type="button" class="btn btn-sm btn-primary btn-icon p-0 d-inline-flex align-items-center justify-content-center shadow-xs" 
                     style="width: 28px; height: 28px; border-radius: 6px;" onclick="convert(this, {{ $lead->id }})"
@@ -63,22 +82,36 @@
                     <i class="fa fa-phone fs-8 text-white"></i>
                 </button>
 
-                <!-- Row 2, Col 2b: Twilio Call Button -->
+                <!-- Row 2, Col 2b: Call Buttons: Twilio & Next2Call -->
                 @php
                     $leadPhone = $lead->user->mobile_no ?? $lead->mobile ?? '';
                     $leadCC = preg_replace('/\D+/', '', (string)($lead->user->countrycode ?? $lead->countrycode ?? ''));
                     $leadName = addslashes($lead->user->name ?? $lead->user_name ?? 'Customer');
                 @endphp
                 @if($leadPhone)
+                {{-- Twilio Call Button --}}
                 <a href="#"
                    id="twilioCallBtnlead{{ $lead->id }}"
-                   onclick="event.preventDefault(); event.stopPropagation(); initiateCustomerCall('{{ $leadCC . $leadPhone }}', '{{ $leadName }}');"
+                   onclick="event.preventDefault(); event.stopPropagation(); initiateTwilioCall('{{ $leadCC . $leadPhone }}', '{{ $leadName }}');"
                    class="btn btn-sm btn-icon p-0 d-inline-flex align-items-center justify-content-center shadow-xs"
                    style="width:28px;height:28px;border-radius:6px;background-color:#25D366;color:#ffffff;transition:transform 0.2s ease,background-color 0.2s ease;"
                    onmouseover="this.style.backgroundColor='#1ebd58';this.style.transform='scale(1.1)';"
                    onmouseout="this.style.backgroundColor='#25D366';this.style.transform='scale(1)';"
                    title="Call via Twilio">
                     <i class="fa fa-phone text-white" style="font-size:12px;"></i>
+                </a>
+
+                {{-- Next2Call Button (with red 2 badge) --}}
+                <a href="#"
+                   id="n2cCallBtnlead{{ $lead->id }}"
+                   onclick="event.preventDefault(); event.stopPropagation(); initiateNext2Call('{{ $leadCC . $leadPhone }}', '{{ $leadName }}');"
+                   class="btn btn-sm btn-icon p-0 d-inline-flex align-items-center justify-content-center shadow-xs position-relative"
+                   style="width:28px;height:28px;border-radius:6px;background-color:#25D366;color:#ffffff;transition:transform 0.2s ease,background-color 0.2s ease;"
+                   onmouseover="this.style.backgroundColor='#1ebd58';this.style.transform='scale(1.1)';"
+                   onmouseout="this.style.backgroundColor='#25D366';this.style.transform='scale(1)';"
+                   title="Call via Next2Call">
+                    <i class="fa fa-phone text-white" style="font-size:12px;"></i>
+                    <span style="position:absolute;bottom:-2px;right:-1px;background:#e53e3e;color:#ffffff;font-size:8px;font-weight:900;line-height:1;padding:1px 2.5px;border-radius:2px;box-shadow:0 1px 2px rgba(0,0,0,0.3);font-family:Arial,sans-serif;pointer-events:none;">2</span>
                 </a>
                 @endif
 
@@ -97,6 +130,25 @@
                     style="width: 28px; height: 28px; border-radius: 6px;" data-bs-toggle="modal" data-bs-target="#hideLeadModal" 
                     onclick="openDuplicateLeadModal({{ $lead->id }})" title="Mark Duplicate Lead">
                     D
+                </button>
+            </div>
+
+            <!-- Follow-up Button -->
+            <div class="w-100 d-flex justify-content-center mt-1">
+                <button type="button" 
+                        onclick="openLeadFollowupDrawer({{ $lead->id }})" 
+                        class="btn btn-sm btn-light-primary w-100 py-1 px-2 fs-8 fw-bolder d-flex align-items-center justify-content-center gap-1 shadow-xs" 
+                        style="max-width: 148px; border: 1px solid #b5d8ff;"
+                        title="Lead Follow-ups">
+                    <i class="fa fa-calendar-check-o text-primary fs-8"></i>
+                    <span>Followup</span>
+                    @if(!empty($lead->next_followup_date))
+                        <span id="lead_followup_badge_{{ $lead->id }}" class="badge badge-primary px-1 py-0 fs-9 ms-1" title="Next Followup: {{ \Carbon\Carbon::parse($lead->next_followup_date)->format('d M') }}">
+                            {{ \Carbon\Carbon::parse($lead->next_followup_date)->format('d M') }}
+                        </span>
+                    @else
+                        <span id="lead_followup_badge_{{ $lead->id }}" class="badge badge-secondary px-1 py-0 fs-9 ms-1 d-none"></span>
+                    @endif
                 </button>
             </div>
 
@@ -119,109 +171,6 @@
                 </select>
             </div>
         </div>
-
-        <style>
-            .action-checkbox {
-                width: 18px !important;
-                height: 18px !important;
-                border: 2px solid #64748b !important;
-                border-radius: 4px !important;
-                cursor: pointer;
-                transition: all 0.2s ease-in-out;
-            }
-            .action-checkbox:checked {
-                background-color: #009ef7 !important;
-                border-color: #009ef7 !important;
-            }
-            .action-reason-dropdown {
-                border: 1.5px solid #cbd5e1 !important;
-                border-radius: 6px !important;
-                background-color: #f8fafc !important;
-                color: #1e293b !important;
-                box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-                cursor: pointer;
-                transition: all 0.2s ease-in-out;
-            }
-            .action-reason-dropdown:hover, .action-reason-dropdown:focus {
-                border-color: #009ef7 !important;
-                background-color: #ffffff !important;
-                box-shadow: 0 0 0 3px rgba(0, 158, 247, 0.15) !important;
-            }
-            .assign-toggle {
-                transform: scale(1.05);
-                cursor: pointer;
-            }
-            .assign-toggle:not(:checked) {
-                background-color: #FFC107 !important;
-                border-color: #e0a800 !important;
-            }
-            .assign-toggle:checked {
-                background-color: #28a745 !important;
-                border-color: #1e7e34 !important;
-            }
-        </style>
-        <script>
-            if (typeof handleTypeToggle === 'undefined') {
-                window.handleTypeToggle = function(el, leadId) {
-                    let assign_type = el.checked ? 1 : 0;
-                    Swal.fire({
-                        title: 'Are you sure?',
-                        text: 'Do you want to change assign type?',
-                        icon: 'warning',
-                        showCancelButton: true,
-                        confirmButtonText: 'Yes',
-                        cancelButtonText: 'No'
-                    }).then((result) => {
-                        if (result.isConfirmed) {
-                            fetch("{{ url('/lead/assign-type') }}", {
-                                method: "POST",
-                                headers: {
-                                    "Content-Type": "application/json",
-                                    "X-CSRF-TOKEN": "{{ csrf_token() }}"
-                                },
-                                body: JSON.stringify({
-                                    lead_id: leadId,
-                                    assign_type: assign_type
-                                })
-                            })
-                            .then(res => res.json())
-                            .then(data => {
-                                if (!data.status) {
-                                    alert("Failed to update");
-                                }
-                            })
-                            .catch(() => alert("Server error"));
-                        } else {
-                            el.checked = !el.checked;
-                        }
-                    });
-                };
-            }
-
-            if (typeof handleLeadReason === 'undefined') {
-                window.handleLeadReason = function(leadId) {
-                    let value = document.getElementById('leadReason' + leadId).value;
-                    fetch("{{ url('/lead-reason-update') }}", {
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/json",
-                            "X-CSRF-TOKEN": "{{ csrf_token() }}"
-                        },
-                        body: JSON.stringify({
-                            lead_id: leadId,
-                            l_status: value 
-                        })
-                    })
-                    .then(res => res.json())
-                    .then(data => {
-                        if (!data.status) {
-                            alert("Update failed");
-                        }
-                    })
-                    .catch(() => alert("Server error"));
-                };
-            }
-        </script>
     </td>
     <td class="text-center" id="lead-recent-chat-{{ $lead->id }}">
         @php
@@ -276,15 +225,65 @@
         </div>
         <br>
         @php
-            $creatorUser = $lead->creator ?? (is_numeric($lead->created_by) ? \App\Models\User::find($lead->created_by) : null);
-            $creatorDisplay = $creatorUser 
-                ? $creatorUser->name . ' (ID: ' . $creatorUser->id . ')'
-                : ($lead->created_by ?: (auth()->user()?->name ? auth()->user()->name . ' (ID: ' . auth()->user()->id . ')' : 'Admin User'));
+            $creatorUser = $lead->creator;
+            if (!$creatorUser && !empty($lead->created_by) && is_numeric($lead->created_by)) {
+                $creatorUser = \App\Models\User::select('id', 'name')->find($lead->created_by);
+            }
+            if ($creatorUser) {
+                $creatorDisplay = $creatorUser->name . ' (ID: ' . $creatorUser->id . ')';
+            } elseif (!empty($lead->created_by) && !is_numeric($lead->created_by)) {
+                $creatorDisplay = $lead->created_by;
+            } elseif (!empty($lead->frontendorder) && $lead->frontendorder == 1) {
+                $creatorDisplay = 'Website / Frontend';
+            } elseif (!empty($lead->lead_source) && $lead->lead_source == 8) {
+                $creatorDisplay = 'WhatsApp Bot';
+            } else {
+                $creatorDisplay = 'Website / System';
+            }
         @endphp
         <span class="badge badge-light-info fs-8 mt-1 fw-semibold" title="Lead Creator">
             Created By: {{ $creatorDisplay }}
         </span>
         <br>
+        {{-- mk 7 10 26 - Manual team assignment popup modal (strictly for Super Admin role 1 and Sub Admin role 9) --}}
+        @php
+            $leadOrder = $lead->order ?? (!empty($lead->order_id) ? \App\Models\Order::where('order_id', $lead->order_id)->first() : null);
+            $orderDbId = $leadOrder ? $leadOrder->id : null;
+            $leadTeam = $leadOrder?->team;
+            $canAssignTeam = auth()->check() && in_array((int) auth()->user()->role_id, [1, 9]);
+        @endphp
+        @if($orderDbId && ($leadTeam?->team_name || $canAssignTeam))
+            <div class="d-inline-flex align-items-center justify-content-center gap-1 mt-1 order-team-badge-container-{{ $orderDbId }}">
+                @if($leadTeam?->team_name)
+                    @if($canAssignTeam)
+                        <span 
+                            class="badge badge-light-primary fs-7 fw-bold cursor-pointer"
+                            data-bs-toggle="modal"
+                            data-bs-target="#changeTeamModal"
+                            onclick="openTeamModal('{{ $orderDbId }}', '{{ $leadOrder->team_id }}')"
+                            title="Click to change team"
+                        >
+                            <i class="fas fa-users fs-9 me-1"></i>{{ $leadTeam->team_name }}
+                        </span>
+                    @else
+                        <span class="badge badge-light-primary fs-7 fw-bold" title="Assigned Team">
+                            <i class="fas fa-users fs-9 me-1"></i>{{ $leadTeam->team_name }}
+                        </span>
+                    @endif
+                @elseif($canAssignTeam)
+                    <span 
+                        class="badge badge-light-secondary text-muted fs-8 fw-bold cursor-pointer"
+                        data-bs-toggle="modal"
+                        data-bs-target="#changeTeamModal"
+                        onclick="openTeamModal('{{ $orderDbId }}', '')"
+                        title="Click to assign team"
+                    >
+                        <i class="fas fa-plus fs-9 me-1"></i> Assign Team
+                    </span>
+                @endif
+            </div>
+            <br>
+        @endif
         @if ($lead['resit'] == 'on')
         <span class="badge badge-light-danger fs-7 fw-bold">Resit Work</span>
         @endif
@@ -293,15 +292,7 @@
         @endif
 
         @php
-            $filesList = \App\Models\Files::where(function($q) use ($lead) {
-                if (!empty($lead->order_id)) {
-                    $q->where('order_id', (string)$lead->order_id);
-                }
-                $q->orWhere('order_id', (string)$lead->id);
-                if (\Illuminate\Support\Facades\Schema::hasColumn('files', 'lead_id')) {
-                    $q->orWhere('lead_id', (string)$lead->id);
-                }
-            })->get();
+            $filesList = $lead->attached_files ?? collect();
         @endphp
 
         @if($filesList->count() > 0)
@@ -326,6 +317,17 @@
         @endphp
 
         <div class="fw-bold">{{ $lead->user->name ?? 'No Name' }}</div>
+        @php
+            $rowUserId = $lead->user->id ?? $lead->emp_id ?? null;
+        @endphp
+        @if(!empty($rowUserId))
+            <div class="d-inline-flex align-items-center gap-1 my-1">
+                <span class="badge badge-light-dark fs-8 fw-bold">ID: {{ $rowUserId }}</span>
+                <button type="button" class="btn btn-icon btn-sm btn-active-light-dark p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy User ID" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $rowUserId }}', 'User ID copied!');">
+                    <i class="fa fa-clone fs-8 text-muted"></i>
+                </button>
+            </div><br>
+        @endif
         @if($lead->user)<span data-user-group-badges="{{ $lead->user->id }}">@foreach($lead->user->groups as $group)<span class="badge badge-light-primary fs-8 me-1">{{ $group->name }}</span>@endforeach</span><br>@endif
 
         <span class="badge badge-light-primary fs-8 fw-bold ms-1">
@@ -388,6 +390,31 @@
             </div><br>
         @endif
 
+        @php
+            $rawLeadWAPhone = preg_replace('/\D+/', '', (string)(($leadCountryCode ?? '') . ($leadUserMobile ?? '')));
+            $leadRawEmail = $lead->user->email ?? $lead->email ?? '';
+            $leadEmailUrl = !empty($leadRawEmail) ? route('emails.index', ['search' => $leadRawEmail]) : route('emails.index');
+        @endphp
+
+        {{-- Direct Contact Actions: WhatsApp & Email --}}
+        <div class="d-inline-flex align-items-center justify-content-center gap-2 my-1">
+            <form method="POST" action="{{ route('whatsapp.chat.open-lead') }}" target="_blank" class="d-inline-flex m-0">
+                @csrf
+                <input type="hidden" name="lead_ref" value="{{ $lead->id }}">
+                <button type="submit" class="btn btn-icon btn-sm crm-btn-wa" title="Open WhatsApp Chat">
+                <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 16 16">
+                    <path d="M13.601 2.326A7.85 7.85 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.364 2.76 1.057 3.965L0 16l4.204-1.102a7.9 7.9 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.9 7.9 0 0 0 13.6 2.326zM7.994 14.521a6.6 6.6 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.56 6.56 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592m3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.73.73 0 0 0-.529.247c-.182.198-.691.677-.691 1.654s.707 2.002.806 2.134c.098.133 1.392 2.123 3.372 2.978.471.204.838.326 1.124.418.473.15.905.129 1.246.078.38-.058 1.17-.479 1.338-.943.166-.464.166-.862.116-.944-.049-.082-.182-.133-.38-.232"/>
+                </svg>
+                </button>
+            </form>
+            <a href="{{ $leadEmailUrl }}" target="_blank" class="btn btn-icon btn-sm crm-btn-email" title="Email: {{ $leadRawEmail ?: 'Open Emails' }}">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 16 16">
+                    <path d="M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2zm2-1a1 1 0 0 0-1 1v.217l7 4.2 7-4.2V4a1 1 0 0 0-1-1zm13 2.383-4.708 2.825L15 11.105zm-.034 6.876-5.64-3.471L8 9.583l-1.326-.795-5.64 3.47A1 1 0 0 0 2 13h12a1 1 0 0 0 .966-.741M1 11.105l4.708-2.897L1 5.383z"/>
+                </svg>
+            </a>
+        </div>
+        <br>
+
         @if(!empty($lead->user))
         <div class="d-flex justify-content-center align-items-center gap-2 mt-2">
             <button type="button" class="btn btn-icon btn-sm btn-light-info"
@@ -395,10 +422,18 @@
                 <span class="fw-bold fs-6">B</span>
             </button>
 
+            @php
+                // mk 7 10 26 - Pre-calculate active star count from lead_status so stars render colored immediately on server render
+                $leadStarCount = 0;
+                $currentLeadStatus = strtolower(trim((string)($lead->lead_status ?? '')));
+                if ($currentLeadStatus === 'cold') $leadStarCount = 1;
+                elseif ($currentLeadStatus === 'warm') $leadStarCount = 2;
+                elseif ($currentLeadStatus === 'hot') $leadStarCount = 3;
+            @endphp
             <div class="star-rating" data-id="{{ $lead->id }}" data-current="{{ e($lead->lead_status) }}">
-                <i class="fa fa-star star" data-value="1"></i>
-                <i class="fa fa-star star" data-value="2"></i>
-                <i class="fa fa-star star" data-value="3"></i>
+                <i class="fa fa-star star {{ $leadStarCount >= 1 ? 'active' : '' }}" data-value="1"></i>
+                <i class="fa fa-star star {{ $leadStarCount >= 2 ? 'active' : '' }}" data-value="2"></i>
+                <i class="fa fa-star star {{ $leadStarCount >= 3 ? 'active' : '' }}" data-value="3"></i>
             </div>
         </div>
         @endif
@@ -438,9 +473,16 @@
         @endif
     </td>
     <td class="text-center">
-        {!! $lead->project_title
-        ? e($lead->project_title)
-        : '<span class="badge badge-light-danger fs-7 fw-bold">No Title</span>' !!}
+        @if($lead->project_title)
+            <div class="d-inline-flex align-items-center justify-content-center flex-wrap">
+                <span>{{ $lead->project_title }}</span>
+                <button type="button" class="btn btn-icon btn-sm btn-active-light-primary ms-1 p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Project Title" data-copy-text="{{ $lead->project_title }}" onclick="event.stopPropagation(); crmCopyToClipboard(this.getAttribute('data-copy-text'), 'Project Title copied!');">
+                    <i class="fa fa-clone fs-8 text-muted"></i>
+                </button>
+            </div>
+        @else
+            <span class="badge badge-light-danger fs-7 fw-bold">No Title</span>
+        @endif
         @if ($lead->semester)
         <br><span class="badge badge-light-success fs-7">Semester: {{ $lead->semester }}</span>
         @endif
@@ -448,7 +490,13 @@
         <br><span class="badge badge-light-success fs-7">Technical Work</span>
         @endif
         @if ($lead->module_code)
-        <br><span class="badge badge-light-danger fs-7">{{ $lead->module_code }}</span>
+            <br>
+            <div class="d-inline-flex align-items-center justify-content-center mt-1">
+                <span class="badge badge-light-danger fs-7">{{ $lead->module_code }}</span>
+                <button type="button" class="btn btn-icon btn-sm btn-active-light-primary ms-1 p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Module Code" data-copy-text="{{ $lead->module_code }}" onclick="event.stopPropagation(); crmCopyToClipboard(this.getAttribute('data-copy-text'), 'Module Code copied!');">
+                    <i class="fa fa-clone fs-8 text-muted"></i>
+                </button>
+            </div>
         @endif
     </td>
     <td class="text-center">
@@ -463,12 +511,15 @@
     </td>
     <td class="text-center">
         @php
-            $orderRecord = $lead->attached_order_record ?? \App\Models\Order::where(function($q) use ($lead) {
-                $q->where('lead_id', $lead->id);
-                if (!empty($lead->order_id)) {
-                    $q->orWhere('order_id', (string)$lead->order_id);
-                }
-            })->first();
+            // mk 5 10 26 - Avoid running individual DB query inside loop when attached_order_record is set
+            $orderRecord = isset($lead->attached_order_record)
+                ? ($lead->attached_order_record ?: null)
+                : \App\Models\Order::where(function($q) use ($lead) {
+                    $q->where('lead_id', $lead->id);
+                    if (!empty($lead->order_id)) {
+                        $q->orWhere('order_id', (string)$lead->order_id);
+                    }
+                })->first();
 
             $basePriceAmt = $orderRecord && is_numeric($orderRecord->amount) 
                 ? (float)$orderRecord->amount 
@@ -601,375 +652,3 @@
     </div>
 </div>
 @endif
-
-<div class="modal fade" id="hideLeadModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">
-                    Mark Duplicate Lead
-                </h5>
-                <button type="button"
-                        class="btn-close"
-                        data-bs-dismiss="modal">
-                </button>
-            </div>
-            <div class="modal-body">
-                <label class="form-label fw-bold">
-                    Order ID
-                </label>
-                <input type="hidden" id="duplicate_lead_id">
-                <input type="text"
-                       id="hide_order_id"
-                       class="form-control"
-                       placeholder="Enter Order ID">
-                {{-- <small class="text-muted mt-2 d-block">
-                    This lead will be hidden from lead list but not deleted.
-                </small> --}}
-            </div>
-            <div class="modal-footer">
-                <button type="button"
-                        class="btn btn-light"
-                        data-bs-dismiss="modal">
-                    Cancel
-                </button>
-                <button type="button"
-                        class="btn btn-danger"
-                        onclick="hideLeadByOrderId()">
-
-                    <i class="fa fa-eye-slash"></i>
-                    Mark Duplicate
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="modal fade" id="clientReviewModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered mw-400px">
-        <div class="modal-content">
-            <div class="modal-header pb-0 border-0 justify-content-end">
-                <div class="btn btn-sm btn-icon btn-active-color-primary" data-bs-dismiss="modal">
-                    <i class="fa fa-times"></i>
-                </div>
-            </div>
-            <div class="modal-body scroll-y pt-0 pb-10 mx-5">
-                <div class="text-center mb-10">
-                    <h3 class="mb-3">Client Behaviour</h3>
-                    <div class="text-muted fw-bold fs-6">Add notes about client behaviour and interaction</div>
-                </div>
-
-                <form id="clientReviewForm" class="form">
-                    <input type="hidden" id="review_user_id">
-
-                    <div class="d-flex flex-column mb-8 fv-row">
-                        <textarea class="form-control form-control-solid" rows="4" id="review_text" placeholder="Enter client behaviour details..."></textarea>
-                    </div>
-
-                    <div class="text-center">
-                        <button type="button" data-bs-dismiss="modal" class="btn btn-light me-3 btn-sm">Cancel</button>
-                        <button type="button" class="btn btn-primary btn-sm" onclick="saveClientReview()">
-                            Save Behaviour
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
-
-<style>
-
-    .lead-comment-box {
-    background: #f5f8fa;
-    border: 1px solid #e4e6ef;
-    border-radius: 8px;
-    padding: 12px 14px;
-    width: 260px;
-    min-height: 92px;
-    margin: 0 auto;
-    text-align: left;
-    box-shadow: none;
-    }
-
-    .lead-comment-box .text-gray-800 {
-        color: #3f4254;
-        font-size: 14px;
-        line-height: 1.4;
-    }
-
-    .lead-comment-box .fs-8 {
-        font-size: 12px !important;
-    }
-    /* Slide-in animation */
-    @keyframes slideInRight {
-        from {
-            transform: translateX(100%);
-            opacity: 0;
-        }
-
-        to {
-            transform: translateX(0);
-            opacity: 1;
-        }
-    }
-
-    /* Desktop defaults */
-
-
-    .modal.fade.custom-slide-right .modal-dialog {
-        position: fixed;
-        top: 0;
-        right: 0;
-        margin: 0;
-        height: 100vh;
-
-        width: 40%;
-        transform: translateX(100%);
-        transition: transform 0.4s ease-out;
-        display: flex;
-        flex-direction: column;
-    }
-
-    .modal.fade.custom-slide-right.show .modal-dialog {
-        transform: translateX(0);
-        animation: slideInRight 0.4s ease-out;
-        border-radius: 0;
-    }
-
-    /* Modal content should fill height */
-    /* .modal-content {
-        height: 100vh;
-        display: flex;
-        flex-direction: column;
-        border-radius: 0;
-    } */
-
-    .modals {
-        height: 100vh;
-        display: flex;
-        flex-direction: column;
-        border-radius: 0;
-    }
-
-    /* Body grows and scrolls as needed */
-    .modal-body {
-        flex: 1;
-        overflow-y: auto;
-    }
-
-    /* Responsive for mobile */
-    @media (max-width: 768px) {
-        .modal.fade.custom-slide-right .modal-dialog {
-            width: 100%;
-        }
-    }
-</style>
-
-<script>
-    window.initLeadStars = function(container = document) {
-        const ratings = container.matches && container.matches('.star-rating')
-            ? [container]
-            : container.querySelectorAll('.star-rating');
-
-        ratings.forEach(rating => {
-            const stars = rating.querySelectorAll('.star');
-            const current = rating.getAttribute('data-current');
-
-            let fillCount = 0;
-            if (current === 'Cold') fillCount = 1;
-            if (current === 'Warm') fillCount = 2;
-            if (current === 'Hot') fillCount = 3;
-
-            stars.forEach(star => star.classList.remove('active'));
-            for (let i = 0; i < fillCount; i++) {
-                stars[i].classList.add('active');
-            }
-        });
-    };
-
-    window.updateLeadStatusTabCount = function(status, change) {
-        if (!['Cold', 'Warm', 'Hot'].includes(status) || change === 0) return;
-
-        const badge = document.querySelector(`.lead-status-tabs .nav-link[data-status="${status}"] .lead-tab-count`);
-        if (!badge) return;
-
-        const current = parseInt((badge.textContent || '0').trim(), 10) || 0;
-        badge.textContent = Math.max(0, current + change);
-    };
-
-    document.addEventListener('DOMContentLoaded', function() {
-
-        // ⭐ Auto fill from DB (run once)
-        document.querySelectorAll('.star-rating').forEach(rating => {
-
-            const stars = rating.querySelectorAll('.star');
-            const current = rating.getAttribute('data-current');
-
-            let fillCount = 0;
-            if (current === 'Cold') fillCount = 1;
-            if (current === 'Warm') fillCount = 2;
-            if (current === 'Hot') fillCount = 3;
-
-            for (let i = 0; i < fillCount; i++) {
-                stars[i].classList.add('active');
-            }
-        });
-
-    });
-
-
-    // ⭐ Click handler (EVENT DELEGATION - only once)
-    if (!window.leadStarClickHandlerBound) {
-    window.leadStarClickHandlerBound = true;
-    document.addEventListener('click', function(e) {
-
-        if (!e.target.classList.contains('star')) return;
-
-        let star = e.target;
-        let rating = star.closest('.star-rating');
-
-        let stars = rating.querySelectorAll('.star');
-        let value = star.getAttribute('data-value');
-        let leadId = rating.getAttribute('data-id');
-        let oldStatus = rating.getAttribute('data-current') || '';
-
-        // 🔒 Prevent multiple API calls
-        if (rating.dataset.loading === "1") return;
-        rating.dataset.loading = "1";
-
-        // UI update
-        stars.forEach(s => s.classList.remove('active'));
-        for (let i = 0; i < value; i++) {
-            stars[i].classList.add('active');
-        }
-
-        // Mapping
-        let status = '';
-        if (value == 1) status = 'Cold';
-        if (value == 2) status = 'Warm';
-        if (value == 3) status = 'Hot';
-
-       console.log('hh');
-        fetch("{{ route('update-leads-status') }}", {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': "{{ csrf_token() }}"
-                },
-                body: JSON.stringify({
-                    lead_id: leadId,
-                    status: status
-                })
-            })
-            .then(res => res.json())
-            .then(data => {
-                console.log(data);
-                if (data.status) {
-                    if (oldStatus !== status) {
-                        window.updateLeadStatusTabCount(oldStatus, -1);
-                        window.updateLeadStatusTabCount(status, 1);
-                    }
-                    rating.setAttribute('data-current', status);
-                } else {
-                    window.initLeadStars(rating);
-                    alert("Failed to update status");
-                }
-            })
-            .catch(err => {
-                window.initLeadStars(rating);
-                console.error(err);
-            })
-            .finally(() => {
-                rating.dataset.loading = "0";
-            });
-
-    });
-    }
-</script>
-<script>
-    function openReviewModal(userId, existingReview) {
-        $('#review_user_id').val(userId);
-        $('#review_text').val(existingReview);
-        $('#clientReviewModal').modal('show');
-    }
-
-    function saveClientReview() {
-        let userId = $('#review_user_id').val();
-        let reviewText = $('#review_text').val();
-
-        $.ajax({
-            url: "{{ route('user.save.review') }}",
-            type: "POST",
-            data: {
-                _token: "{{ csrf_token() }}",
-                user_id: userId,
-                client_review: reviewText
-            },
-            success: function(response) {
-                if (response.success) {
-                    $('#clientReviewModal').modal('hide');
-                    Swal.fire({
-                        text: "Review saved successfully!",
-                        icon: "success",
-                        buttonsStyling: false,
-                        confirmButtonText: "Ok, got it!",
-                        customClass: {
-                            confirmButton: "btn btn-primary"
-                        }
-                    });
-                }
-            },
-            error: function() {
-                alert("Something went wrong!");
-            }
-        });
-    }
-</script>
-
-<script>
-    function openDuplicateLeadModal(leadId) {
-        $('#duplicate_lead_id').val(leadId);
-        $('#hide_order_id').val('');
-    }
-
-    function hideLeadByOrderId() {
-        let leadId = $('#duplicate_lead_id').val();
-        let orderId = $('#hide_order_id').val();
-
-        if (!leadId) {
-            Swal.fire('Error', 'Lead ID missing', 'error');
-            return;
-        }
-        if (!orderId) {
-            Swal.fire('Error', 'Please enter Order ID', 'error');
-            return;
-        }
-        $.ajax({
-            url: "{{ route('lead.duplicate') }}",
-            type: "POST",
-            data: {
-                _token: "{{ csrf_token() }}",
-                lead_id: leadId,
-                order_id: orderId
-            },
-            success: function(response) {
-                if (response.status) {
-                    Swal.fire('Success', response.message, 'success')
-                        .then(() => {
-                            $('#hideLeadModal').modal('hide');
-                            $('#hide_order_id').val('');
-                            $('#duplicate_lead_id').val('');
-                            location.reload();
-                        });
-                } else {
-                    Swal.fire('Error', response.message, 'error');
-                }
-            },
-            error: function(xhr) {
-                Swal.fire('Error', 'Something went wrong!', 'error');
-                console.log(xhr.responseText);
-            }
-        });
-    }
-</script>

@@ -32,6 +32,7 @@
                     <tr class="fw-bolder text-muted bg-light">
                         <th class="ps-4 min-w-50px">ID</th>
                         <th class="min-w-100px">Order ID</th>
+                        <th class="min-w-150px">User</th>
                         <th class="min-w-150px">Experience</th>
                         <th class="min-w-100px">Scope</th>
                         <th class="min-w-150px">Suggestion</th>
@@ -59,11 +60,82 @@
                                 <span class="badge badge-light-dark">{{ $fb->order_id }}</span>
                             @endif
                         </td>
+                        <td>
+                            @php
+                                $customerUserId = $fb->customer_id ?? ($fb->customer_uid ?? null);
+                            @endphp
+                            @if($customerUserId)
+                                <div class="d-flex align-items-center gap-1 mb-1">
+                                    <span class="badge badge-light-dark fs-8 fw-bold">ID: {{ $customerUserId }}</span>
+                                    <button type="button" class="btn btn-icon btn-sm btn-active-light-dark p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy User ID" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $customerUserId }}', 'User ID copied!');">
+                                        <i class="fa fa-copy text-muted" style="font-size:11px;"></i>
+                                    </button>
+                                </div>
+                            @endif
+                            @if(!empty($fb->customer_name))
+                                <div class="fw-bold text-gray-800">{{ $fb->customer_name }}</div>
+                            @endif
+                            @if(!empty($fb->customer_email))
+                                <div class="text-muted fs-8">{{ mask_email_for_display($fb->customer_email) }}</div>
+                            @endif
+                        </td>
                         <td>{{ $fb->experience ?? 'N/A' }}</td>
                         <td><span class="badge badge-light-primary">{{ $fb->feedback_scope ?? 'N/A' }}</span></td>
                         <td>{{ $fb->your_suggestion ?? 'N/A' }}</td>
                         <td>{{ \Carbon\Carbon::parse($fb->created_at)->format('d M Y') }}</td>
                         <td class="text-end">
+                            @php
+                                $fbPhone = $fb->customer_mobile ?? '';
+                                $fbEmail = $fb->customer_email ?? '';
+                                $fbCC = preg_replace('/\D+/', '', (string)($fb->customer_countrycode ?? ''));
+                                $fbName = addslashes($fb->customer_name ?? 'Customer');
+                                $fbWAPhone = $fbCC . $fbPhone;
+                                $fbEmailUrl = route('emails.index', array_filter(['account_id' => 2, 'search' => $fbEmail]));
+                            @endphp
+
+                            @if(!empty($fbPhone))
+                                <a href="#" 
+                                   onclick="event.preventDefault(); event.stopPropagation(); initiateTwilioCall('{{ $fbCC . $fbPhone }}', '{{ $fbName }}');"
+                                   class="btn btn-icon btn-sm me-1 shadow-sm"
+                                   style="width:28px;height:28px;min-width:28px;border-radius:6px;background-color:#25D366;color:#ffffff;display:inline-flex;align-items:center;justify-content:center;transition:transform 0.2s ease,background-color 0.2s ease;"
+                                   onmouseover="this.style.backgroundColor='#1ebd58';this.style.transform='scale(1.1)';"
+                                   onmouseout="this.style.backgroundColor='#25D366';this.style.transform='scale(1)';"
+                                   title="Call via Twilio: {{ $fbCC . $fbPhone }}">
+                                    <i class="fa fa-phone text-white" style="font-size:12px;"></i>
+                                </a>
+
+                                <a href="#" 
+                                   onclick="event.preventDefault(); event.stopPropagation(); initiateNext2Call('{{ $fbCC . $fbPhone }}', '{{ $fbName }}');"
+                                   class="btn btn-icon btn-sm me-1 shadow-sm position-relative"
+                                   style="width:28px;height:28px;min-width:28px;border-radius:6px;background-color:#25D366;color:#ffffff;display:inline-flex;align-items:center;justify-content:center;transition:transform 0.2s ease,background-color 0.2s ease;"
+                                   onmouseover="this.style.backgroundColor='#1ebd58';this.style.transform='scale(1.1)';"
+                                   onmouseout="this.style.backgroundColor='#25D366';this.style.transform='scale(1)';"
+                                   title="Call via Next2Call: {{ $fbCC . $fbPhone }}">
+                                    <i class="fa fa-phone text-white" style="font-size:12px;"></i>
+                                    <span style="position:absolute;bottom:-2px;right:-1px;background:#e53e3e;color:#ffffff;font-size:8px;font-weight:900;line-height:1;padding:1px 2.5px;border-radius:2px;box-shadow:0 1px 2px rgba(0,0,0,0.3);font-family:Arial,sans-serif;pointer-events:none;">2</span>
+                                </a>
+
+                                @if(!empty($fb->order_primary_id))
+                                <form method="POST" action="{{ route('whatsapp.chat.open-order') }}" target="_blank" class="d-inline-flex m-0 me-1">
+                                    @csrf
+                                    <input type="hidden" name="order_ref" value="{{ $fb->order_primary_id }}">
+                                    <button type="submit" class="btn btn-icon btn-sm crm-btn-wa" style="width: 28px !important; height: 28px !important; min-width: 28px !important;" title="Open WhatsApp Chat">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 16 16">
+                                        <path d="M13.601 2.326A7.85 7.85 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.364 2.76 1.057 3.965L0 16l4.204-1.102a7.9 7.9 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.9 7.9 0 0 0 13.6 2.326zM7.994 14.521a6.6 6.6 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.56 6.56 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592m3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.73.73 0 0 0-.529.247c-.182.198-.691.677-.691 1.654s.707 2.002.806 2.134c.098.133 1.392 2.123 3.372 2.978.471.204.838.326 1.124.418.473.15.905.129 1.246.078.38-.058 1.17-.479 1.338-.943.166-.464.166-.862.116-.944-.049-.082-.182-.133-.38-.232"/>
+                                    </svg>
+                                    </button>
+                                </form>
+                                @endif
+                            @endif
+
+                            @if(!empty($fbEmail))
+                                <a href="{{ $fbEmailUrl }}" target="_blank" class="btn btn-icon btn-sm me-1 crm-btn-email" style="width: 28px !important; height: 28px !important; min-width: 28px !important;" title="Email: {{ $fbEmail ?: 'Open Emails' }}">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 16 16">
+                                        <path d="M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2zm2-1a1 1 0 0 0-1 1v.217l7 4.2 7-4.2V4a1 1 0 0 0-1-1zm13 2.383-4.708 2.825L15 11.105zm-.034 6.876-5.64-3.471L8 9.583l-1.326-.795-5.64 3.47A1 1 0 0 0 2 13h12a1 1 0 0 0 .966-.741M1 11.105l4.708-2.897L1 5.383z"/>
+                                    </svg>
+                                </a>
+                            @endif
+
                             <button class="btn btn-icon btn-bg-light btn-active-color-primary btn-sm me-1" 
                                     data-bs-toggle="modal" data-bs-target="#editModal{{ $fb->id }}">
                                 <i class="fa fa-edit"></i>
@@ -109,7 +181,7 @@
                     </div>
 
                     @empty
-                    <tr><td colspan="7" class="text-center text-danger">No records found.</td></tr>
+                    <tr><td colspan="8" class="text-center text-danger">No records found.</td></tr>
                     @endforelse
                 </tbody>
             </table>

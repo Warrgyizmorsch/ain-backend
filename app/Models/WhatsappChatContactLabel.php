@@ -14,4 +14,14 @@ class WhatsappChatContactLabel extends Model
         'label_id',
         'assigned_by',
     ];
+
+    public function label()
+    {
+        return $this->belongsTo(WhatsappChatLabel::class, 'label_id');
+    }
+
+    public function assignedBy()
+    {
+        return $this->belongsTo(User::class, 'assigned_by');
+    }
 }

@@ -61,11 +61,39 @@
         }
 
         .message {
+            position: relative;
             max-width: 70%;
-            padding: 10px;
+            padding: 10px 32px 10px 12px;
             border-radius: 10px;
             font-size: 14px;
             line-height: 1.4;
+        }
+
+        .copy-msg-btn {
+            position: absolute;
+            top: 6px;
+            right: 6px;
+            background: rgba(255, 255, 255, 0.9);
+            border: 1px solid rgba(0, 0, 0, 0.12);
+            border-radius: 4px;
+            width: 22px;
+            height: 22px;
+            padding: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            opacity: 0;
+            transition: opacity 0.15s, background 0.15s;
+            color: #555;
+        }
+        .message:hover .copy-msg-btn {
+            opacity: 1;
+        }
+        .copy-msg-btn.copied {
+            opacity: 1 !important;
+            background: #e8f5e9 !important;
+            color: #16a34a !important;
         }
 
         .incoming {
@@ -129,6 +157,12 @@
             <div class="chat-box">
                 @foreach($messages as $msg)
                     <div class="message {{ $msg->direction === 'inbound' ? 'incoming' : 'outgoing' }}">
+                        <button type="button" class="copy-msg-btn" onclick="copySimpleMsg(this, {{ json_encode($msg->message) }})" title="Copy message">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                            </svg>
+                        </button>
                         {{ $msg->message }}
                         <div style="font-size: 10px; color: #666; margin-top: 4px;">
                             {{ $msg->created_at->format('d M, h:i A') }}
@@ -218,13 +252,42 @@ window.Echo.private('chat.{{ $phone }}')
         const msgDiv = document.createElement('div');
         msgDiv.classList.add('message', e.message.direction === 'inbound' ? 'incoming' : 'outgoing');
         msgDiv.innerHTML = `
+            <button type="button" class="copy-msg-btn" onclick="copySimpleMsg(this, ${JSON.stringify(e.message.message)})" title="Copy message">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                </svg>
+            </button>
             ${e.message.message}
             <div style="font-size: 10px; color: #666; margin-top: 4px;"> ${dayjs().format('D MMM, h:mm A')}</div>
         `;
         chatBox.appendChild(msgDiv);
         chatBox.scrollTop = chatBox.scrollHeight;
     });
+</script>
 
+<script>
+    function copySimpleMsg(btn, text) {
+        if (!text) return;
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(text);
+        } else {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+        }
+        btn.classList.add('copied');
+        btn.setAttribute('title', 'Copied!');
+        setTimeout(() => {
+            btn.classList.remove('copied');
+            btn.setAttribute('title', 'Copy message');
+        }, 1500);
+    }
 </script>
 
 </body>

@@ -127,6 +127,7 @@
                                         @php
                                             $leadUser = $lead->user;
                                             $rawLeadName = $leadUser->name ?? $lead->user_name ?? '';
+                                            $leadUserId = $leadUser->id ?? $lead->emp_id ?? null;
                                             $rawLeadEmail = $leadUser->email ?? $lead->email ?? '';
                                             $leadCC = $leadUser->countrycode ?? $lead->countrycode ?? '';
                                             $cleanLeadCC = preg_replace('/\D+/', '', (string)$leadCC);
@@ -142,6 +143,14 @@
                                                         <i class="fa fa-clone fs-8 text-muted"></i>
                                                     </button>
                                                 </div>
+                                            @endif
+                                            @if(!empty($leadUserId))
+                                                <div class="d-inline-flex align-items-center gap-1 my-1">
+                                                    <span class="badge badge-light-dark fs-8 fw-bold">ID: {{ $leadUserId }}</span>
+                                                    <button type="button" class="btn btn-icon btn-sm btn-active-light-dark p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy User ID" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $leadUserId }}', 'User ID copied!');">
+                                                        <i class="fa fa-clone fs-8 text-muted"></i>
+                                                    </button>
+                                                </div><br>
                                             @endif
                                             @if(!empty($displayLeadEmail))
                                                 <div class="d-inline-flex align-items-center my-1">

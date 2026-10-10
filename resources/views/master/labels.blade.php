@@ -63,21 +63,28 @@
                                         </label>
                                     </div>
                                     <div class="form-check form-check-custom form-check-solid">
-                                        <input class="form-check-input" type="checkbox" name="is_email" value="1" id="createCheckEmail" checked>
-                                        <label class="form-check-label fw-bold text-dark fs-7 cursor-pointer d-flex align-items-center gap-1.5" for="createCheckEmail">
-                                            <i class="fa fa-envelope text-primary"></i>
-                                            <span>Email Threads</span>
-                                        </label>
-                                    </div>
-                                    <div class="form-check form-check-custom form-check-solid">
                                         <input class="form-check-input" type="checkbox" name="is_crm" value="1" id="createCheckCrm" checked>
                                         <label class="form-check-label fw-bold text-dark fs-7 cursor-pointer d-flex align-items-center gap-1.5" for="createCheckCrm">
                                             <i class="fa fa-shopping-cart text-warning"></i>
                                             <span>CRM / Orders</span>
                                         </label>
                                     </div>
+                                    <div class="form-check form-check-custom form-check-solid">
+                                        <input class="form-check-input" type="checkbox" name="is_client_email" value="1" id="createCheckClientEmail" checked>
+                                        <label class="form-check-label fw-bold text-dark fs-7 cursor-pointer d-flex align-items-center gap-1.5" for="createCheckClientEmail">
+                                            <i class="fa fa-envelope text-primary"></i>
+                                            <span>Client Email</span>
+                                        </label>
+                                    </div>
+                                    <div class="form-check form-check-custom form-check-solid">
+                                        <input class="form-check-input" type="checkbox" name="is_writer_email" value="1" id="createCheckWriterEmail" checked>
+                                        <label class="form-check-label fw-bold text-dark fs-7 cursor-pointer d-flex align-items-center gap-1.5" for="createCheckWriterEmail">
+                                            <i class="fa fa-pencil-square-o text-info"></i>
+                                            <span>Writer Email</span>
+                                        </label>
+                                    </div>
                                 </div>
-                                <div class="text-muted fs-8 mt-1">Checked channels will automatically sync when this label is tagged on a customer.</div>
+                                <div class="text-muted fs-8 mt-1">Checked channels will automatically sync when this label is tagged.</div>
                             </div>
 
                             {{-- Preset Color Palette (5-6 Options) --}}
@@ -171,16 +178,22 @@
                                                             <span>WA</span>
                                                         </span>
                                                     @endif
-                                                    @if($label->is_email)
-                                                        <span class="badge badge-light-primary py-1 px-2 fs-9 d-inline-flex align-items-center gap-1" title="Email Threads enabled">
-                                                            <i class="fa fa-envelope text-primary" style="font-size: 11px;"></i>
-                                                            <span>Email</span>
-                                                        </span>
-                                                    @endif
                                                     @if($label->is_crm)
                                                         <span class="badge badge-light-warning py-1 px-2 fs-9 d-inline-flex align-items-center gap-1" title="CRM / Orders enabled">
                                                             <i class="fa fa-shopping-cart text-warning" style="font-size: 11px;"></i>
                                                             <span>CRM</span>
+                                                        </span>
+                                                    @endif
+                                                    @if($label->is_client_email)
+                                                        <span class="badge badge-light-primary py-1 px-2 fs-9 d-inline-flex align-items-center gap-1" title="Client Email enabled">
+                                                            <i class="fa fa-envelope text-primary" style="font-size: 11px;"></i>
+                                                            <span>Client Email</span>
+                                                        </span>
+                                                    @endif
+                                                    @if($label->is_writer_email)
+                                                        <span class="badge badge-light-info py-1 px-2 fs-9 d-inline-flex align-items-center gap-1" title="Writer Email enabled">
+                                                            <i class="fa fa-pencil-square-o text-info" style="font-size: 11px;"></i>
+                                                            <span>Writer Email</span>
                                                         </span>
                                                     @endif
                                                 </div>
@@ -255,17 +268,24 @@
                                                                         </label>
                                                                     </div>
                                                                     <div class="form-check form-check-custom form-check-solid">
-                                                                        <input class="form-check-input" type="checkbox" name="is_email" value="1" id="editCheckEmail{{ $label->id }}" {{ $label->is_email ? 'checked' : '' }}>
-                                                                        <label class="form-check-label fw-bold text-dark fs-7 cursor-pointer d-flex align-items-center gap-1.5" for="editCheckEmail{{ $label->id }}">
-                                                                            <i class="fa fa-envelope text-primary"></i>
-                                                                            <span>Email Threads</span>
-                                                                        </label>
-                                                                    </div>
-                                                                    <div class="form-check form-check-custom form-check-solid">
                                                                         <input class="form-check-input" type="checkbox" name="is_crm" value="1" id="editCheckCrm{{ $label->id }}" {{ $label->is_crm ? 'checked' : '' }}>
                                                                         <label class="form-check-label fw-bold text-dark fs-7 cursor-pointer d-flex align-items-center gap-1.5" for="editCheckCrm{{ $label->id }}">
                                                                             <i class="fa fa-shopping-cart text-warning"></i>
                                                                             <span>CRM / Orders</span>
+                                                                        </label>
+                                                                    </div>
+                                                                    <div class="form-check form-check-custom form-check-solid">
+                                                                        <input class="form-check-input" type="checkbox" name="is_client_email" value="1" id="editCheckClientEmail{{ $label->id }}" {{ $label->is_client_email ? 'checked' : '' }}>
+                                                                        <label class="form-check-label fw-bold text-dark fs-7 cursor-pointer d-flex align-items-center gap-1.5" for="editCheckClientEmail{{ $label->id }}">
+                                                                            <i class="fa fa-envelope text-primary"></i>
+                                                                            <span>Client Email</span>
+                                                                        </label>
+                                                                    </div>
+                                                                    <div class="form-check form-check-custom form-check-solid">
+                                                                        <input class="form-check-input" type="checkbox" name="is_writer_email" value="1" id="editCheckWriterEmail{{ $label->id }}" {{ $label->is_writer_email ? 'checked' : '' }}>
+                                                                        <label class="form-check-label fw-bold text-dark fs-7 cursor-pointer d-flex align-items-center gap-1.5" for="editCheckWriterEmail{{ $label->id }}">
+                                                                            <i class="fa fa-pencil-square-o text-info"></i>
+                                                                            <span>Writer Email</span>
                                                                         </label>
                                                                     </div>
                                                                 </div>

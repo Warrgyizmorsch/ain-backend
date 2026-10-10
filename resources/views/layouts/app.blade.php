@@ -16,21 +16,34 @@
 
     {{-- Phone masking: full numbers are admin-only (role_id 1) --}}
     <script>
-        window.canViewFullPhone = @json(auth()->check() && auth()->user()->role_id == 1);
+        window.canViewFullPhone = @json(auth()->check() && (int)auth()->user()->role_id === 1);
+        window.loggedInRoleId = @json(auth()->check() ? (int)auth()->user()->role_id : null);
         window.maskPhoneForDisplay = function (phone) {
             if (!phone) return '';
-            if (window.canViewFullPhone) return phone;
             const str = String(phone).trim();
+            if (window.canViewFullPhone) return str;
             if (str.includes('*')) return str;
             const digits = str.replace(/\D+/g, '');
             let d = digits;
-            if ((d.startsWith('44') || d.startsWith('91')) && d.length > 10) {
+            let prefix = '';
+            const trimmed = str.trim();
+            if (trimmed.startsWith('+')) {
+                const m = trimmed.match(/^(\+(?:1|44|91|61|971|86|33|49|81|65|60|64|\d{1,3}))/);
+                if (m) {
+                    prefix = m[1];
+                    const ccDigits = m[1].replace(/\D+/g, '');
+                    if (d.startsWith(ccDigits)) d = d.slice(ccDigits.length);
+                }
+            } else if ((d.startsWith('44') || d.startsWith('91')) && d.length > 10) {
+                prefix = '+' + d.slice(0, 2);
                 d = d.slice(2);
+            } else if (d.length > 10) {
+                prefix = '+' + d.slice(0, d.length - 10);
+                d = d.slice(-10);
             }
             if (d.length === 11 && d.startsWith('0')) d = d.slice(1);
-            if (d.length <= 4) return d.slice(0, 1) + '*'.repeat(d.length - 1);
-            if (d.length <= 6) return d.slice(0, 2) + '*'.repeat(d.length - 2);
-            return d.slice(0, 2) + '*'.repeat(Math.max(6, d.length - 6)) + d.slice(-4);
+            if (d.length <= 4) return prefix + '*'.repeat(Math.max(4, d.length));
+            return prefix + '******' + d.slice(-4);
         };
         window.maskEmailForDisplay = function (email) {
             if (window.canViewFullPhone) return email || '';
@@ -40,9 +53,179 @@
             if (parts.length !== 2) return str;
             const name = parts[0];
             const domain = parts[1];
-            if (name.length <= 2) return name[0] + '***@' + domain;
-            if (name.length <= 4) return name[0] + '***' + name.slice(-1) + '@' + domain;
-            return name.slice(0, 2) + '****' + name.slice(-2) + '@' + domain;
+            if (name.length <= 1) return name + '******@' + domain;
+            return name[0] + '******' + name.slice(-1) + '@' + domain;
+        };
+
+        window.chatMaskedTokens = window.chatMaskedTokens || {};
+
+        window.registerMaskedToken = function(maskedVal, realVal) {
+            if (!maskedVal || !realVal) return;
+            const cleanMasked = String(maskedVal).trim();
+            const cleanReal = String(realVal).trim();
+            window.chatMaskedTokens[cleanMasked] = cleanReal;
+            window.chatMaskedTokens[cleanMasked.toLowerCase()] = cleanReal;
+            window.chatMaskedTokens[cleanMasked.replace(/\s+/g, '')] = cleanReal;
+            window.chatMaskedTokens[cleanMasked.replace(/[^0-9*]/g, '')] = cleanReal;
+            try {
+                sessionStorage.setItem('masked_' + cleanMasked, cleanReal);
+                sessionStorage.setItem('masked_' + cleanMasked.replace(/\s+/g, ''), cleanReal);
+                sessionStorage.setItem('masked_' + cleanMasked.replace(/[^0-9*]/g, ''), cleanReal);
+            } catch (e) {}
+        };
+
+        window.resolveMaskedToken = function(val) {
+            if (!val) return '';
+            const clean = String(val).trim();
+            if (window.chatMaskedTokens && window.chatMaskedTokens[clean]) {
+                return window.chatMaskedTokens[clean];
+            }
+            if (window.chatMaskedTokens && window.chatMaskedTokens[clean.toLowerCase()]) {
+                return window.chatMaskedTokens[clean.toLowerCase()];
+            }
+            if (window.chatMaskedTokens && window.chatMaskedTokens[clean.replace(/\s+/g, '')]) {
+                return window.chatMaskedTokens[clean.replace(/\s+/g, '')];
+            }
+            const cleanDigitsAndStars = clean.replace(/[^0-9*]/g, '');
+            if (cleanDigitsAndStars && window.chatMaskedTokens && window.chatMaskedTokens[cleanDigitsAndStars]) {
+                return window.chatMaskedTokens[cleanDigitsAndStars];
+            }
+            try {
+                return sessionStorage.getItem('masked_' + clean) || 
+                       sessionStorage.getItem('masked_' + clean.replace(/\s+/g, '')) || 
+                       (cleanDigitsAndStars ? sessionStorage.getItem('masked_' + cleanDigitsAndStars) : '') || '';
+            } catch (e) {
+                return '';
+            }
+        };
+
+        window.copyMaskedEntity = function(maskedVal, el, event) {
+            if (event) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+            if (!maskedVal) return;
+            const realVal = el?.getAttribute('data-real') || window.resolveMaskedToken(maskedVal);
+            if (realVal) {
+                window.registerMaskedToken(maskedVal, realVal);
+            }
+            const textToCopy = maskedVal;
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(textToCopy);
+            } else {
+                const ta = document.createElement('textarea');
+                ta.value = textToCopy;
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+            }
+            if (typeof toastr !== 'undefined') {
+                toastr.success('Copied! Can be pasted into Create Lead modal', '', { timeOut: 1800 });
+            }
+            if (el) {
+                el.classList.add('wab-entity-copied');
+                setTimeout(() => el.classList.remove('wab-entity-copied'), 1500);
+            }
+        };
+
+        window.maskChatText = function(text) {
+            if (!text) return '';
+            if (window.canViewFullPhone) return String(text);
+            let str = String(text);
+
+            // 1. Mask Email (e.g. a******h@gmail.com)
+            str = str.replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, function(email) {
+                if (email.includes('*')) return email;
+                const masked = window.maskEmailForDisplay(email);
+                window.registerMaskedToken(masked, email);
+                return masked;
+            });
+
+            // 2. Mask 10-13 digit phone numbers (country code + last 4 digits only)
+            str = str.replace(/(?:\+?\d[\d\s\-\(\)\.]{8,18}\d)/g, function(raw) {
+                if (raw.includes('*')) return raw;
+                const digits = raw.replace(/\D+/g, '');
+                if (digits.length >= 10 && digits.length <= 13) {
+                    let prefix = '';
+                    let mobileDigits = digits;
+                    const trimmed = raw.trim();
+                    if (trimmed.startsWith('+')) {
+                        const m = trimmed.match(/^(\+(?:1|44|91|61|971|86|33|49|81|65|60|64|\d{1,3}))/);
+                        if (m) {
+                            prefix = m[1];
+                            const ccDigits = m[1].replace(/\D+/g, '');
+                            if (mobileDigits.startsWith(ccDigits)) {
+                                mobileDigits = mobileDigits.slice(ccDigits.length);
+                            }
+                        }
+                    } else if ((digits.startsWith('91') || digits.startsWith('44')) && digits.length > 10) {
+                        prefix = '+' + digits.slice(0, 2);
+                        mobileDigits = digits.slice(2);
+                    } else if (digits.length > 10) {
+                        prefix = '+' + digits.slice(0, digits.length - 10);
+                        mobileDigits = digits.slice(-10);
+                    }
+                    const masked = prefix + '******' + mobileDigits.slice(-4);
+                    window.registerMaskedToken(masked, digits);
+                    return masked;
+                }
+                return raw;
+            });
+
+            return str;
+        };
+
+        window.maskChatHtml = function(text) {
+            if (!text) return '';
+            if (window.canViewFullPhone) return typeof escapeHtml === 'function' ? escapeHtml(text) : text;
+
+            let str = String(text);
+
+            const div = document.createElement('div');
+            div.textContent = str;
+            let safe = div.innerHTML;
+
+            // 1. Mask Email (e.g. a******h@gmail.com)
+            safe = safe.replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, function(email) {
+                if (email.includes('*')) return email;
+                const masked = window.maskEmailForDisplay(email);
+                window.registerMaskedToken(masked, email);
+                return `<span class="wab-masked-entity wab-masked-email" data-type="email" data-masked="${masked}" data-real="${email}" onclick="window.copyMaskedEntity('${masked}', this, event)" title="Click to copy masked email">${masked}</span>`;
+            });
+
+            // 2. Mask 10-13 digit phone numbers (country code + last 4 digits only)
+            safe = safe.replace(/(?:\+?\d[\d\s\-\(\)\.]{8,18}\d)/g, function(raw) {
+                if (raw.includes('*')) return raw;
+                const digits = raw.replace(/\D+/g, '');
+                if (digits.length >= 10 && digits.length <= 13) {
+                    let prefix = '';
+                    let mobileDigits = digits;
+                    const trimmed = raw.trim();
+                    if (trimmed.startsWith('+')) {
+                        const m = trimmed.match(/^(\+(?:1|44|91|61|971|86|33|49|81|65|60|64|\d{1,3}))/);
+                        if (m) {
+                            prefix = m[1];
+                            const ccDigits = m[1].replace(/\D+/g, '');
+                            if (mobileDigits.startsWith(ccDigits)) {
+                                mobileDigits = mobileDigits.slice(ccDigits.length);
+                            }
+                        }
+                    } else if ((digits.startsWith('91') || digits.startsWith('44')) && digits.length > 10) {
+                        prefix = '+' + digits.slice(0, 2);
+                        mobileDigits = digits.slice(2);
+                    } else if (digits.length > 10) {
+                        prefix = '+' + digits.slice(0, digits.length - 10);
+                        mobileDigits = digits.slice(-10);
+                    }
+                    const masked = prefix + '******' + mobileDigits.slice(-4);
+                    window.registerMaskedToken(masked, digits);
+                    return `<span class="wab-masked-entity wab-masked-phone" data-type="phone" data-masked="${masked}" data-real="${digits}" onclick="window.copyMaskedEntity('${masked}', this, event)" title="Click to copy masked phone">${masked}</span>`;
+                }
+                return raw;
+            });
+
+            return safe;
         };
     </script>
 
@@ -902,7 +1085,8 @@
 
                     return $.ajax({
                         type: 'POST',
-                        url: 'update_status',
+                        // mk 6/10/2026: Use named route to avoid 404 errors on subpaths/trailing slashes
+                        url: '{{ route('update_status') }}',
                         data: {
                             orderId: orderId,
                             status: selectedStatus,
@@ -979,10 +1163,14 @@
     </script>
 
     @auth
+        {{-- Global Next2Call Softphone Dialer Widget & Global Script --}}
+        @include('order.section.softphone-call-script')
         {{-- Global Twilio Softphone Dialer Widget --}}
         @include('back-end.order.partials.twilio-softphone-widget')
         {{-- Global Twilio "Call" button trigger, shared by the call-button component across the app --}}
         @include('layouts.partials.twilio-call-helper')
+        {{-- Global Email Auto-Sync & Real-Time Notification across all CRM Pages --}}
+        @include('layouts.partials.email-global-sync')
     @endauth
 
 </body>

@@ -69,8 +69,8 @@
             <tr>
                 <td>{{ $index + 1 }}</td>
                 <td>{{ $lead->name ?? 'N/A' }}</td>
-                <td>{{ $lead->email ?? 'N/A' }}</td>
-                <td>+{{ $lead->countrycode ?? 'N/A' }} {{ $lead->mobile_no ?? 'N/A' }}</td>
+                <td>{{ mask_email_for_display($lead->email ?? '') }}</td>
+                <td>{{ mask_phone_for_display($lead->countrycode, $lead->mobile_no) }}</td>
                 <td>{{ $lead->created_at ? $lead->created_at->format('Y-m-d') : 'N/A' }}</td>
             </tr>
        @endforeach

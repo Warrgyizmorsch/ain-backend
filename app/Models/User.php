@@ -36,7 +36,9 @@ class User extends Authenticatable
         'Wallet',
         'verifyed',
         'otp',
-        'photo'
+        'photo',
+        'sip',
+        'sip_password'
     ];
 
     /**
@@ -47,6 +49,7 @@ class User extends Authenticatable
     protected $hidden = [
         'password',
         'remember_token',
+        'sip_password',
     ];
 
     /**
@@ -64,6 +67,27 @@ class User extends Authenticatable
 
     protected static function booted()
     {
+        static::saving(function ($user) {
+            if (!empty($user->mobile_no) && str_contains((string)$user->mobile_no, '*')) {
+                $orig = $user->getOriginal('mobile_no');
+                if (!empty($orig) && !str_contains((string)$orig, '*')) {
+                    $user->mobile_no = $orig;
+                }
+            }
+            if (!empty($user->mobile_no2) && str_contains((string)$user->mobile_no2, '*')) {
+                $orig2 = $user->getOriginal('mobile_no2');
+                if (!empty($orig2) && !str_contains((string)$orig2, '*')) {
+                    $user->mobile_no2 = $orig2;
+                }
+            }
+            if (!empty($user->email) && str_contains((string)$user->email, '*')) {
+                $origEmail = $user->getOriginal('email');
+                if (!empty($origEmail) && !str_contains((string)$origEmail, '*')) {
+                    $user->email = $origEmail;
+                }
+            }
+        });
+
         static::saved(function ($user) {
             if (!empty($user->email) || !empty($user->mobile_no)) {
                 try {
@@ -106,12 +130,30 @@ class User extends Authenticatable
     public function groups() { return $this->belongsToMany(GroupMaster::class)->withTimestamps(); }
 
     /**
-     * Get assigned labels for the user (across WhatsApp and Email)
+     * Get assigned CRM labels for the user (applies to all user orders and profile)
+     * Strictly restricted to labels where is_crm == true.
      */
     public function getLabelsAttribute()
     {
         if ($this->relationLoaded('labels')) {
             return $this->getRelation('labels');
+        }
+
+        $labelIds = collect();
+
+        static $hasCrmTable = null;
+        if ($hasCrmTable === null) {
+            try {
+                $hasCrmTable = \Illuminate\Support\Facades\Schema::hasTable('crm_user_labels');
+            } catch (\Throwable $e) {
+                $hasCrmTable = false;
+            }
+        }
+
+        if ($hasCrmTable) {
+            // 1. Direct CRM user labels by user_id
+            $crmIds = \App\Models\CrmUserLabel::where('user_id', $this->id)->pluck('label_id');
+            $labelIds = $labelIds->concat($crmIds);
         }
 
         $phones = [];
@@ -126,15 +168,27 @@ class User extends Authenticatable
             ])));
         }
 
-        $labelIds = collect();
-        if (!empty($phones)) {
-            $waLabelIds = WhatsappChatContactLabel::whereIn('phone', $phones)->pluck('label_id');
-            $labelIds = $labelIds->concat($waLabelIds);
+        // 2. Fallback / supplementary matching by phone & email in crm_user_labels
+        if ($hasCrmTable && !empty($phones)) {
+            $crmPhoneIds = \App\Models\CrmUserLabel::whereIn('phone', $phones)->pluck('label_id');
+            $labelIds = $labelIds->concat($crmPhoneIds);
         }
 
-        if (!empty($this->email)) {
-            $emailLabelIds = \App\Models\EmailThreadLabel::where('email', $this->email)->pluck('label_id');
-            $labelIds = $labelIds->concat($emailLabelIds);
+        if ($hasCrmTable && !empty($this->email)) {
+            $crmEmailIds = \App\Models\CrmUserLabel::where('email', $this->email)->pluck('label_id');
+            $labelIds = $labelIds->concat($crmEmailIds);
+        }
+
+        // 3. Fallback to contact/thread labels (strictly for backward-compat if crm table has not yet synced)
+        if ($labelIds->isEmpty()) {
+            if (!empty($phones)) {
+                $waIds = WhatsappChatContactLabel::whereIn('phone', $phones)->pluck('label_id');
+                $labelIds = $labelIds->concat($waIds);
+            }
+            if (!empty($this->email)) {
+                $emailIds = \App\Models\EmailThreadLabel::where('email', $this->email)->pluck('label_id');
+                $labelIds = $labelIds->concat($emailIds);
+            }
         }
 
         $uniqueIds = $labelIds->unique()->filter()->all();
@@ -144,13 +198,15 @@ class User extends Authenticatable
             return $emptyCollection;
         }
 
+        // Load assigned labels by ID
         $labels = WhatsappChatLabel::whereIn('id', $uniqueIds)->ordered()->get();
         $this->setRelation('labels', $labels);
         return $labels;
     }
 
     /**
-     * Batch attach labels to a collection of users to prevent N+1 queries.
+     * Batch attach CRM labels to a collection of users to prevent N+1 queries.
+     * Strictly restricted to labels where is_crm == true.
      */
     public static function attachLabelsToUsers($users)
     {
@@ -163,6 +219,8 @@ class User extends Authenticatable
         $userPhoneMap = [];
         $userEmailMap = [];
         $allEmails = [];
+        $userIds = $userList->pluck('id')->all();
+        $userLabelIds = [];
 
         foreach ($userList as $u) {
             $uId = $u->id;
@@ -187,25 +245,78 @@ class User extends Authenticatable
             }
         }
 
-        $userLabelIds = [];
-        if (!empty($allPhones)) {
-            $contactLabels = WhatsappChatContactLabel::whereIn('phone', array_unique($allPhones))->get(['phone', 'label_id']);
-            foreach ($contactLabels as $cl) {
-                if (isset($userPhoneMap[$cl->phone])) {
-                    foreach ($userPhoneMap[$cl->phone] as $uId) {
-                        $userLabelIds[$uId][] = (int)$cl->label_id;
+        static $hasCrmTable = null;
+        if ($hasCrmTable === null) {
+            try {
+                $hasCrmTable = \Illuminate\Support\Facades\Schema::hasTable('crm_user_labels');
+            } catch (\Throwable $e) {
+                $hasCrmTable = false;
+            }
+        }
+
+        if ($hasCrmTable) {
+            // 1. Direct fetch from crm_user_labels by user_id
+            $crmUserLabels = \App\Models\CrmUserLabel::whereIn('user_id', $userIds)->get(['user_id', 'label_id']);
+            foreach ($crmUserLabels as $cul) {
+                $userLabelIds[$cul->user_id][] = (int) $cul->label_id;
+            }
+
+            // 2. Fetch by phone / email in crm_user_labels
+            if (!empty($allPhones)) {
+                $crmPhoneLabels = \App\Models\CrmUserLabel::whereIn('phone', array_unique($allPhones))->whereNull('user_id')->get(['phone', 'label_id']);
+                foreach ($crmPhoneLabels as $cl) {
+                    if (isset($userPhoneMap[$cl->phone])) {
+                        foreach ($userPhoneMap[$cl->phone] as $uId) {
+                            $userLabelIds[$uId][] = (int) $cl->label_id;
+                        }
+                    }
+                }
+            }
+
+            if (!empty($allEmails)) {
+                $crmEmailLabels = \App\Models\CrmUserLabel::whereIn('email', array_unique($allEmails))->whereNull('user_id')->get(['email', 'label_id']);
+                foreach ($crmEmailLabels as $el) {
+                    $elEmail = strtolower(trim($el->email));
+                    if (isset($userEmailMap[$elEmail])) {
+                        foreach ($userEmailMap[$elEmail] as $uId) {
+                            $userLabelIds[$uId][] = (int) $el->label_id;
+                        }
                     }
                 }
             }
         }
 
-        if (!empty($allEmails)) {
-            $emailLabels = \App\Models\EmailThreadLabel::whereIn('email', array_unique($allEmails))->get(['email', 'label_id']);
-            foreach ($emailLabels as $el) {
-                $elEmail = strtolower(trim($el->email));
-                if (isset($userEmailMap[$elEmail])) {
-                    foreach ($userEmailMap[$elEmail] as $uId) {
-                        $userLabelIds[$uId][] = (int)$el->label_id;
+        // 3. Backward-compat fallback if user has no crm_user_label records yet
+        $usersWithoutCrmLabels = $userList->filter(fn($u) => empty($userLabelIds[$u->id]));
+        if ($usersWithoutCrmLabels->isNotEmpty()) {
+            $missingPhones = [];
+            $missingEmails = [];
+            foreach ($usersWithoutCrmLabels as $u) {
+                if (!empty($u->mobile_no)) {
+                    $missingPhones[] = preg_replace('/\D+/', '', $u->mobile_no);
+                }
+                if (!empty($u->email)) {
+                    $missingEmails[] = strtolower(trim($u->email));
+                }
+            }
+            if (!empty($missingPhones)) {
+                $contactLabels = WhatsappChatContactLabel::whereIn('phone', array_unique($missingPhones))->get(['phone', 'label_id']);
+                foreach ($contactLabels as $cl) {
+                    if (isset($userPhoneMap[$cl->phone])) {
+                        foreach ($userPhoneMap[$cl->phone] as $uId) {
+                            $userLabelIds[$uId][] = (int)$cl->label_id;
+                        }
+                    }
+                }
+            }
+            if (!empty($missingEmails)) {
+                $emailLabels = \App\Models\EmailThreadLabel::whereIn('email', array_unique($missingEmails))->get(['email', 'label_id']);
+                foreach ($emailLabels as $el) {
+                    $elEmail = strtolower(trim($el->email));
+                    if (isset($userEmailMap[$elEmail])) {
+                        foreach ($userEmailMap[$elEmail] as $uId) {
+                            $userLabelIds[$uId][] = (int)$el->label_id;
+                        }
                     }
                 }
             }
@@ -255,9 +366,10 @@ class User extends Authenticatable
      * - Beginner Customer: 1 order
      * - New Customer: 0 orders
      */
+    // mk 5 10 26 - Optimize customer_type: reuse loaded orders_count & eliminate query on 1 order
     public function getCustomerTypeAttribute()
     {
-        $ordersCount = $this->orders()->count();
+        $ordersCount = isset($this->orders_count) ? (int) $this->orders_count : $this->orders()->count();
         if ($ordersCount === 0) {
             return 'New Customer';
         }
@@ -265,6 +377,11 @@ class User extends Authenticatable
         // 1. Loyal Customer (> 10 Orders)
         if ($ordersCount > 10) {
             return 'Loyal Customer';
+        }
+
+        // 4. Beginner Customer (Exactly 1 order cannot be Retainer or Repeated since they require > 1)
+        if ($ordersCount === 1) {
+            return 'Beginner Customer';
         }
 
         $firstOrder = $this->orders()->oldest('created_at')->first();
@@ -276,16 +393,15 @@ class User extends Authenticatable
         $monthsSinceFirstOrder = $firstOrderDate->diffInMonths(now());
 
         // 2. Retainer Customer (First order placed 9+ months ago AND has repeated purchases)
-        if ($monthsSinceFirstOrder >= 9 && $ordersCount > 1) {
+        if ($monthsSinceFirstOrder >= 9) {
             return 'Retainer Customer';
         }
 
         // 3. Repeated Customer (> 1 orders & placed orders within 3 months)
-        if ($ordersCount > 1 && $monthsSinceFirstOrder <= 3) {
+        if ($monthsSinceFirstOrder <= 3) {
             return 'Repeated Customer';
         }
 
-        // 4. Beginner Customer (1 order or default)
         return 'Beginner Customer';
     }
 }

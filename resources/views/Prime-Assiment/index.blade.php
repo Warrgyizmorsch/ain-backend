@@ -79,8 +79,8 @@
                                     <tr>
                                         <td class="ps-4">
                                             <a href="#" class="text-dark fw-bolder text-hover-primary d-block fs-6">{{ $lead->name ?? 'N/A' }}</a>
-                                            <span class="text-muted fw-bold d-block fs-7 mt-1">{{ $lead->email ?? 'N/A' }}</span>
-                                            <span class="text-muted fw-bold d-block fs-7">{{ $lead->country ?? '' }} {{ $lead->mobile_number ?? 'N/A' }}</span>
+                                            <span class="text-muted fw-bold d-block fs-7 mt-1">{{ mask_email_for_display($lead->email ?? '') }}</span>
+                                            <span class="text-muted fw-bold d-block fs-7">{{ mask_phone_for_display($lead->country, $lead->mobile_number) }}</span>
                                         </td>
                                         <td><span class="badge badge-light-primary fs-7 fw-bold">{{ $lead->services ?? 'N/A' }}</span></td>
                                         <td><span class="text-dark fw-bolder d-block fs-6">{{ $lead->subject ?? 'N/A' }}</span></td>
@@ -95,7 +95,19 @@
                                         </td>
                                         <td>
                                             @if(!empty($lead->source_url))
-                                                <a href="{{ $lead->source_url }}" target="_blank" class="btn btn-sm btn-light-primary px-3 py-2">View</a>
+                                                @php
+                                                    $rawSource = $lead->source_url;
+                                                    $isSpinner = stripos($rawSource, 'Spinner') !== false;
+                                                    $cleanUrl = trim(preg_replace('/^Spinner\s*[\-\+\:]*\s*/i', '', $rawSource));
+                                                @endphp
+                                                @if($isSpinner)
+                                                    <span class="badge badge-light-warning fw-bolder d-inline-block mb-1">🎰 Spinner</span><br>
+                                                @endif
+                                                @if(filter_var($cleanUrl, FILTER_VALIDATE_URL))
+                                                    <a href="{{ $cleanUrl }}" target="_blank" class="btn btn-sm btn-light-primary px-2 py-1 fs-8" title="{{ $rawSource }}">View Page</a>
+                                                @else
+                                                    <span class="text-muted fs-7">{{ $rawSource }}</span>
+                                                @endif
                                             @else
                                                 <span class="badge badge-light-secondary">N/A</span>
                                             @endif

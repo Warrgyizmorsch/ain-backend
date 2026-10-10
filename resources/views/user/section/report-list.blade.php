@@ -13,8 +13,8 @@
         <tr>
             <td>{{ $key + 1 }}</td>
             <td>{{ $user->user_name }}</td>
-            <td>{{ $user->email }}</td>
-            <td>{{ $user->mobile }}</td>
+            <td>{{ mask_email_for_display($user->email) }}</td>
+            <td>{{ mask_phone_for_display(null, $user->mobile) }}</td>
             <td> {{ \Carbon\Carbon::parse($user->create_at)->format('d M Y h:i A') }}
             </td>
         </tr>

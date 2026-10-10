@@ -1,593 +1,544 @@
 @once
+@php
+    $n2cPlugin = \Illuminate\Support\Facades\Cache::remember('plugin_next2call_setting', 300, function() {
+        return \App\Models\PluginSetting::where('plugin_key', 'next2call')->first();
+    });
+    $n2cIsActive = (bool) ($n2cPlugin?->is_active ?? false);
+    if (!auth()->check() || !$n2cIsActive) {
+        return;
+    }
+    $creds = \App\Http\Controllers\PluginController::resolveNext2CallCredentials();
+    $userId = $creds['user_id'];
+    $password = $creds['password'];
+    $sipDomain = $creds['sip_domain'];
+    $clickToDialPath = $creds['click_to_dial_path'];
+
+    $isSuperAdmin = auth()->check() && ((int) auth()->user()->role_id === 1);
+
+    $n2cDialerUrl = "https://{$sipDomain}/api-section/softphone/Phone/index.html?" . http_build_query([
+        'profileName' => $userId,
+        'SipDomain'   => $sipDomain,
+        'SipUsername' => $userId,
+        'SipPassword' => $password,
+    ]);
+
+    $n2cCtcBaseUrl = "https://{$sipDomain}/api-section/softphone/Phone/click-to-dial.html?" . http_build_query([
+        'profileName' => $userId,
+        'SipDomain'   => $sipDomain,
+        'SipUsername' => $userId,
+        'SipPassword' => $password,
+    ]) . '&d=';
+@endphp
+
 <style>
-    .ringfy-softphone-widget {
+    /* Next2Call Softphone Floating Box (Default Next2Call Interface) */
+    .n2c-softphone-box {
         position: fixed;
-        right: 22px;
-        bottom: 22px;
-        width: 330px;
-        max-width: calc(100vw - 24px);
-        background: #111827;
-        border: 1px solid #263241;
-        border-radius: 28px;
-        box-shadow: 0 22px 55px rgba(15, 23, 42, 0.34);
-        z-index: 1085;
+        right: 25px;
+        bottom: 30px;
+        width: 340px;
+        max-width: calc(100vw - 30px);
+        background: #1e1e2d;
+        color: #ffffff;
+        border-radius: 12px;
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.12);
+        z-index: 99999;
         overflow: hidden;
         display: none;
-        padding: 10px;
+        flex-direction: column;
+        animation: n2cSlideUp 0.25s ease-out;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+    @keyframes n2cSlideUp {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    .n2c-softphone-box.is-open {
+        display: flex;
     }
 
-    .ringfy-softphone-launcher {
-        position: fixed;
-        right: 22px;
-        bottom: 22px;
-        width: 58px;
-        height: 58px;
-        border: 0;
-        border-radius: 50%;
-        background: #16a34a;
-        color: #fff;
-        box-shadow: 0 14px 35px rgba(22, 163, 74, 0.34);
-        z-index: 1084;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 22px;
-    }
-
-    .ringfy-softphone-widget.is-open + .ringfy-softphone-launcher {
-        display: none;
-    }
-
-    .ringfy-softphone-widget.is-open {
-        display: block;
-    }
-
-    .ringfy-softphone-widget.is-maximized,
-    .ringfy-softphone-widget.has-frame {
-        width: 430px;
-    }
-
-    .ringfy-softphone-widget.is-minimized .ringfy-softphone-body {
-        display: none;
-    }
-
-    .ringfy-softphone-header {
+    /* Header */
+    .n2c-softphone-header {
+        padding: 10px 14px;
+        background: #151521;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
         display: flex;
         align-items: center;
         justify-content: space-between;
-        gap: 10px;
-        padding: 10px 12px 12px;
-        cursor: move;
-        background: #111827;
-        color: #fff;
+        cursor: grab;
         user-select: none;
     }
-
-    .ringfy-softphone-title {
+    .n2c-softphone-header:active {
+        cursor: grabbing;
+    }
+    .n2c-title-wrap {
         display: flex;
         align-items: center;
         gap: 8px;
-        min-width: 0;
-        font-weight: 700;
-    }
-
-    .ringfy-softphone-title span {
         overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
     }
-
-    .ringfy-softphone-actions {
+    .n2c-title-text {
+        font-weight: 700;
+        font-size: 12px;
+        color: #ffffff;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+        overflow: hidden;
+    }
+    .n2c-header-actions {
         display: flex;
         align-items: center;
         gap: 6px;
         flex-shrink: 0;
     }
-
-    .ringfy-softphone-icon-btn {
-        width: 28px;
-        height: 28px;
+    .n2c-header-btn {
+        background: rgba(255, 255, 255, 0.08);
+        color: #a1a5b7;
         border: 0;
-        border-radius: 50%;
-        color: #fff;
-        background: rgba(255, 255, 255, 0.12);
+        border-radius: 6px;
+        width: 26px;
+        height: 26px;
         display: inline-flex;
         align-items: center;
         justify-content: center;
+        cursor: pointer;
+        font-size: 13px;
+        transition: background 0.15s, color 0.15s;
+    }
+    .n2c-header-btn:hover {
+        background: rgba(255, 255, 255, 0.2);
+        color: #ffffff;
     }
 
-    .ringfy-softphone-icon-btn:hover {
-        background: rgba(255, 255, 255, 0.28);
+    /* Default Next2Call Phone Iframe Container */
+    .n2c-iframe-container {
+        position: relative;
+        width: 100%;
+        height: 560px;
+        background: #151521;
+        overflow: hidden;
     }
-
-    .ringfy-softphone-body {
-        padding: 18px;
-        background: #f8fafc;
-        border-radius: 22px;
-        border: 1px solid #e5e7eb;
-    }
-
-    .ringfy-softphone-number {
-        font-size: 21px;
-        color: #111827;
-        margin: 8px 0 14px;
-        text-align: center;
-        word-break: break-word;
-        font-weight: 700;
-        letter-spacing: 0;
-    }
-
-    .ringfy-softphone-status {
-        color: #16a34a;
-        font-size: 12px;
-        font-weight: 700;
-        text-align: center;
-        text-transform: uppercase;
-    }
-
-    .ringfy-softphone-avatar {
-        width: 58px;
-        height: 58px;
-        margin: 2px auto 10px;
-        border-radius: 50%;
-        background: #dcfce7;
-        color: #15803d;
-        display: flex;
+    .n2c-loading-overlay {
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(circle at center, #1e1e2d 0%, #151521 100%);
+        display: none;
+        flex-direction: column;
         align-items: center;
         justify-content: center;
-        font-size: 24px;
+        z-index: 10;
+        text-align: center;
+        padding: 20px;
+        transition: opacity 0.3s ease;
     }
-
-    .ringfy-softphone-note {
-        color: #64748b;
-        font-size: 13px;
-        line-height: 1.45;
-        margin: 12px 0 16px;
+    .n2c-loader-contact {
+        font-size: 15px;
+        font-weight: 700;
+        color: #ffffff;
+        margin-top: 14px;
     }
-
-    .ringfy-softphone-frame-wrap {
-        display: none;
-        margin-top: 12px;
-        overflow: hidden;
-        border: 1px solid #e2e8f0;
-        border-radius: 16px;
-        background: #fff;
-        min-height: 520px;
+    .n2c-loader-number {
+        font-size: 14px;
+        font-weight: 600;
+        color: #10b981;
+        background: rgba(16, 185, 129, 0.12);
+        border: 1px solid rgba(16, 185, 129, 0.25);
+        padding: 5px 14px;
+        border-radius: 6px;
+        margin: 10px 0 12px;
+        letter-spacing: 0.5px;
     }
-
-    .ringfy-softphone-widget.has-frame .ringfy-softphone-frame-wrap {
-        display: block;
+    .n2c-loader-status {
+        font-size: 11px;
+        color: #a1a5b7;
     }
-
-    .ringfy-softphone-widget.has-frame .ringfy-softphone-avatar,
-    .ringfy-softphone-widget.has-frame .ringfy-softphone-status,
-    .ringfy-softphone-widget.has-frame .ringfy-softphone-number,
-    .ringfy-softphone-widget.has-frame .ringfy-softphone-manual-form,
-    .ringfy-softphone-widget.has-frame .ringfy-softphone-dialpad,
-    .ringfy-softphone-widget.has-frame .ringfy-softphone-note,
-    .ringfy-softphone-widget.has-frame .ringfy-softphone-buttons {
-        display: none;
-    }
-
-    .ringfy-softphone-frame {
+    .n2c-softphone-iframe {
         width: 100%;
-        height: 520px;
+        height: 100%;
         border: 0;
         display: block;
-        background: #fff;
-    }
-
-    .ringfy-softphone-buttons {
-        display: grid;
-        grid-template-columns: 1fr;
-        gap: 10px;
-    }
-
-    .ringfy-softphone-buttons .btn {
-        border-radius: 999px;
-    }
-
-    .ringfy-softphone-dialpad {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 8px;
-        margin: 14px 0;
-    }
-
-    .ringfy-softphone-key {
-        min-height: 36px;
-        border-radius: 10px;
-        background: #eef2f7;
-        color: #334155;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-weight: 700;
-    }
-
-    .ringfy-softphone-manual-form {
-        display: grid;
-        grid-template-columns: 82px 1fr 42px;
-        gap: 8px;
-        margin: 14px 0;
-    }
-
-    .ringfy-softphone-manual-form .form-control,
-    .ringfy-softphone-manual-form .btn {
-        min-height: 40px;
-        border-radius: 12px;
-    }
-
-    .ringfy-softphone-grip {
-        font-size: 12px;
-        opacity: 0.55;
+        background: #ffffff;
     }
 
     @media (max-width: 575.98px) {
-        .ringfy-softphone-widget {
-            right: 12px;
-            bottom: 12px;
-            width: calc(100vw - 24px);
-        }
-
-        .ringfy-softphone-launcher {
-            right: 14px;
-            bottom: 14px;
-        }
-
-        .ringfy-softphone-widget.is-maximized {
-            width: calc(100vw - 24px);
+        .n2c-softphone-box {
+            right: 10px;
+            bottom: 10px;
+            width: calc(100vw - 20px);
         }
     }
 </style>
 
-<div id="ringfySoftphoneWidget" class="ringfy-softphone-widget" aria-live="polite">
-    <div id="ringfySoftphoneHandle" class="ringfy-softphone-header">
-        <div class="ringfy-softphone-title">
-            <i class="fa fa-phone"></i>
-            <span>Ringfy Softphone</span>
-            <span class="ringfy-softphone-grip">drag</span>
+<!-- Next2Call Softphone Floating Widget Box (Default Next2Call Interface) -->
+<div id="ringfySoftphoneWidget" class="n2c-softphone-box" aria-live="polite"
+     data-dialer-url="{!! $n2cDialerUrl !!}"
+     data-ctc-base="{!! $n2cCtcBaseUrl !!}">
+    
+    <!-- Drag Header -->
+    <div id="ringfySoftphoneHandle" class="n2c-softphone-header">
+        <div class="n2c-title-wrap">
+            <i class="fa fa-phone text-success fs-7"></i>
+            <span class="n2c-title-text" id="n2cHeaderTitle">Next2Call Softphone</span>
         </div>
-        <div class="ringfy-softphone-actions">
-            <button type="button" class="ringfy-softphone-icon-btn" id="ringfySoftphoneExternal" title="Open in New Tab">
-                <i class="fa fa-external-link"></i>
+        <div class="n2c-header-actions">
+            <button type="button" class="n2c-header-btn" id="n2cRefreshBtn" title="Re-Login / Refresh 12h Session">
+                <i class="fa fa-sync-alt"></i>
             </button>
-            <button type="button" class="ringfy-softphone-icon-btn" id="ringfySoftphoneMinimize" title="Minimize">
-                <i class="fa fa-minus"></i>
-            </button>
-            <button type="button" class="ringfy-softphone-icon-btn" id="ringfySoftphoneMaximize" title="Maximize">
-                <i class="fa fa-expand"></i>
-            </button>
-            <button type="button" class="ringfy-softphone-icon-btn" id="ringfySoftphoneClose" title="Close">
+            <button type="button" class="n2c-header-btn" id="n2cCloseBtn" title="Close Softphone">
                 <i class="fa fa-times"></i>
             </button>
         </div>
     </div>
-    <div class="ringfy-softphone-body">
-        <div class="ringfy-softphone-avatar">
-            <i class="fa fa-phone"></i>
+
+    <!-- Default Next2Call Phone Iframe Container -->
+    <div id="n2cIframeContainer" class="n2c-iframe-container">
+        <!-- Connecting & Masking Loader Overlay -->
+        <div id="n2cLoadingOverlay" class="n2c-loading-overlay">
+            <div class="spinner-border text-success" role="status" style="width: 2.4rem; height: 2.4rem;"></div>
+            <div class="n2c-loader-contact" id="n2cLoaderContact">Calling Customer...</div>
+            <div class="n2c-loader-number" id="n2cLoaderNumber">+91 ******2299</div>
+            <div class="n2c-loader-status" id="n2cLoaderStatus">Connecting Next2Call 12h Webphone...</div>
         </div>
-        <div class="ringfy-softphone-status">Ready to call</div>
-        <div class="ringfy-softphone-number" id="ringfySoftphoneNumber"></div>
-        <form id="ringfySoftphoneManualForm" class="ringfy-softphone-manual-form">
-            <input type="text" id="ringfySoftphoneCountryCode" class="form-control" placeholder="+91" inputmode="tel" autocomplete="tel-country-code">
-            <input type="text" id="ringfySoftphoneMobile" class="form-control" placeholder="Mobile number" inputmode="tel" autocomplete="tel-national">
-            <button type="submit" class="btn btn-success btn-icon" title="Start call">
-                <i class="fa fa-phone"></i>
-            </button>
-        </form>
-        <div class="ringfy-softphone-dialpad" aria-hidden="true">
-            <span class="ringfy-softphone-key">1</span>
-            <span class="ringfy-softphone-key">2</span>
-            <span class="ringfy-softphone-key">3</span>
-            <span class="ringfy-softphone-key">4</span>
-            <span class="ringfy-softphone-key">5</span>
-            <span class="ringfy-softphone-key">6</span>
-            <span class="ringfy-softphone-key">7</span>
-            <span class="ringfy-softphone-key">8</span>
-            <span class="ringfy-softphone-key">9</span>
-            <span class="ringfy-softphone-key">*</span>
-            <span class="ringfy-softphone-key">0</span>
-            <span class="ringfy-softphone-key">#</span>
-        </div>
-        <p class="ringfy-softphone-note text-center">
-            Ringfy webphone panel. If server is slow, open in new tab below.
-        </p>
-        <div class="ringfy-softphone-frame-wrap">
-            <iframe
-                id="ringfySoftphoneFrame"
-                class="ringfy-softphone-frame"
-                title="Ringfy Softphone"
-                allow="microphone; camera; speaker-selection; display-capture; autoplay; fullscreen"
-                allowfullscreen>
-            </iframe>
-        </div>
-        <div class="ringfy-softphone-buttons text-center mt-2">
-            <button type="button" id="ringfySoftphoneOpenTab" class="btn btn-sm btn-light-primary w-100">
-                <i class="fa fa-external-link me-1"></i> Open Dialer in New Tab
-            </button>
-        </div>
+
+        <iframe
+            id="ringfySoftphoneFrame"
+            class="n2c-softphone-iframe"
+            src=""
+            allow="microphone; camera; speaker-selection; display-capture; autoplay; fullscreen"
+            allowfullscreen>
+        </iframe>
     </div>
 </div>
 
 <script>
-    document.addEventListener('DOMContentLoaded', function () {
+    function initRingfySoftphoneWidget() {
         const widget = document.getElementById('ringfySoftphoneWidget');
         const handle = document.getElementById('ringfySoftphoneHandle');
-        const launcherButton = document.getElementById('ringfySoftphoneLauncher');
-        const manualForm = document.getElementById('ringfySoftphoneManualForm');
-        const countryCodeInput = document.getElementById('ringfySoftphoneCountryCode');
-        const mobileInput = document.getElementById('ringfySoftphoneMobile');
-        const popupButton = document.getElementById('ringfySoftphonePopup');
-        const softphoneFrame = document.getElementById('ringfySoftphoneFrame');
-        const minimizeButton = document.getElementById('ringfySoftphoneMinimize');
-        const maximizeButton = document.getElementById('ringfySoftphoneMaximize');
-        const closeButton = document.getElementById('ringfySoftphoneClose');
-        const savedPosition = localStorage.getItem('ringfySoftphonePosition');
-        const savedCountryCode = localStorage.getItem('ringfySoftphoneCountryCode');
+        const iframeWrap = document.getElementById('n2cIframeContainer');
+        const overlay = document.getElementById('n2cLoadingOverlay');
+        const loaderContact = document.getElementById('n2cLoaderContact');
+        const loaderNumber = document.getElementById('n2cLoaderNumber');
+        const loaderStatus = document.getElementById('n2cLoaderStatus');
 
-        if (savedCountryCode && countryCodeInput) {
-            countryCodeInput.value = savedCountryCode;
+        const closeBtn = document.getElementById('n2cCloseBtn');
+        const refreshBtn = document.getElementById('n2cRefreshBtn');
+
+        function ensureNext2CallIpAllowed(callback) {
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '{{ csrf_token() }}';
+            fetch('https://api.ipify.org?format=json')
+                .then(r => r.json())
+                .then(data => {
+                    return fetch('{{ route('softphone.whitelist-ip') }}', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': csrfToken,
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                        body: JSON.stringify({ client_ip: data.ip })
+                    });
+                })
+                .catch(() => {
+                    return fetch('{{ route('softphone.whitelist-ip') }}', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': csrfToken,
+                            'X-Requested-With': 'XMLHttpRequest',
+                        }
+                    });
+                })
+                .finally(() => {
+                    if (typeof callback === 'function') callback();
+                });
         }
 
-        if (savedPosition) {
-            try {
-                const position = JSON.parse(savedPosition);
-                setRingfyWidgetPosition(position.left, position.top);
-            } catch (error) {
-                localStorage.removeItem('ringfySoftphonePosition');
-            }
+        // Re-Login & Refresh Session right here in the widget (NO duplicate tab!)
+        refreshBtn?.addEventListener('click', function (e) {
+            e.preventDefault();
+            const icon = this.querySelector('i');
+            if (icon) icon.classList.add('fa-spin');
+            if (overlay) overlay.style.display = 'flex';
+            if (loaderContact) loaderContact.textContent = 'Next2Call Softphone';
+            if (loaderNumber) loaderNumber.textContent = 'Re-authenticating...';
+            if (loaderStatus) loaderStatus.textContent = 'Generating fresh 12-hour session in database...';
+
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '{{ csrf_token() }}';
+            fetch('{{ route('softphone.call-url') }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: JSON.stringify({ force_refresh: true }),
+            })
+            .then(r => r.json())
+            .then(res => {
+                if (res && res.success && res.dialer_url) {
+                    const freshDialer = res.dialer_url.replace(/&amp;/g, '&');
+                    if (widget) {
+                        widget.dataset.dialerUrl = freshDialer;
+                        DIALER_URL = freshDialer;
+                        if (res.url) {
+                            const newBase = res.url.split('&d=')[0] + '&d=';
+                            widget.dataset.ctcBase = newBase;
+                            CTC_BASE_URL = newBase;
+                        }
+                    }
+                    const currentFrame = document.getElementById('ringfySoftphoneFrame');
+                    if (currentFrame) {
+                        currentFrame.src = freshDialer;
+                    }
+                }
+            })
+            .catch(err => {
+                console.warn('[Next2Call] Session refresh error:', err);
+            })
+            .finally(() => {
+                ensureNext2CallIpAllowed(function () {
+                    setTimeout(() => {
+                        if (icon) icon.classList.remove('fa-spin');
+                        if (overlay) overlay.style.display = 'none';
+                    }, 1200);
+                });
+            });
+        });
+
+        // Automatically ensure agent IP is whitelisted on Next2Call when page loads
+        ensureNext2CallIpAllowed();
+
+        let DIALER_URL = (widget?.dataset?.dialerUrl || '').replace(/&amp;/g, '&');
+        let CTC_BASE_URL = (widget?.dataset?.ctcBase || '').replace(/&amp;/g, '&');
+
+        let currentFullNumber = '';
+        let callInitiatedAt = 0;
+        let isCallActive = false;
+
+        // Draggable Widget Logic
+        let isDragging = false;
+        let startX = 0, startY = 0;
+
+        function applyWidgetPosition(left, top) {
+            if (!widget) return;
+            const margin = 10;
+            const maxLeft = window.innerWidth - widget.offsetWidth - margin;
+            const maxTop = window.innerHeight - widget.offsetHeight - margin;
+            const safeLeft = Math.max(margin, Math.min(left, maxLeft));
+            const safeTop = Math.max(margin, Math.min(top, maxTop));
+            widget.style.left = safeLeft + 'px';
+            widget.style.top = safeTop + 'px';
+            widget.style.right = 'auto';
+            widget.style.bottom = 'auto';
         }
 
-        let dragging = false;
-        let dragOffsetX = 0;
-        let dragOffsetY = 0;
-
-        function startDrag(clientX, clientY, target) {
-            if (target.closest('button')) {
-                return;
-            }
-
-            dragging = true;
+        handle?.addEventListener('mousedown', function (e) {
+            if (e.target.closest('button')) return;
+            isDragging = true;
             const rect = widget.getBoundingClientRect();
-            dragOffsetX = clientX - rect.left;
-            dragOffsetY = clientY - rect.top;
+            startX = e.clientX - rect.left;
+            startY = e.clientY - rect.top;
             document.body.style.userSelect = 'none';
-        }
-
-        handle?.addEventListener('mousedown', function (event) {
-            startDrag(event.clientX, event.clientY, event.target);
         });
 
-        handle?.addEventListener('touchstart', function (event) {
-            const touch = event.touches[0];
-            startDrag(touch.clientX, touch.clientY, event.target);
-        }, { passive: true });
-
-        document.addEventListener('mousemove', function (event) {
-            if (!dragging) {
-                return;
-            }
-
-            setRingfyWidgetPosition(event.clientX - dragOffsetX, event.clientY - dragOffsetY);
+        document.addEventListener('mousemove', function (e) {
+            if (!isDragging) return;
+            applyWidgetPosition(e.clientX - startX, e.clientY - startY);
         });
-
-        document.addEventListener('touchmove', function (event) {
-            if (!dragging) {
-                return;
-            }
-
-            const touch = event.touches[0];
-            setRingfyWidgetPosition(touch.clientX - dragOffsetX, touch.clientY - dragOffsetY);
-        }, { passive: true });
 
         document.addEventListener('mouseup', function () {
-            finishDrag();
+            if (!isDragging) return;
+            isDragging = false;
+            document.body.style.userSelect = '';
         });
 
-        document.addEventListener('touchend', function () {
-            finishDrag();
-        });
+        function mountIframe(url) {
+            const container = document.getElementById('n2cIframeContainer') || iframeWrap;
+            if (!container) return;
+            const cleanUrl = url ? url.replace(/&amp;/g, '&') : '';
+            const currentFrame = document.getElementById('ringfySoftphoneFrame');
 
-        function finishDrag() {
-            if (!dragging) {
+            if (currentFrame) {
+                if (cleanUrl && currentFrame.src !== cleanUrl) {
+                    currentFrame.src = cleanUrl;
+                }
                 return;
             }
 
-            dragging = false;
-            document.body.style.userSelect = '';
-            const rect = widget.getBoundingClientRect();
-            localStorage.setItem('ringfySoftphonePosition', JSON.stringify({
-                left: rect.left,
-                top: rect.top,
-            }));
+            container.innerHTML = `
+                <div id="n2cLoadingOverlay" class="n2c-loading-overlay">
+                    <div class="spinner-border text-success" role="status" style="width: 2.4rem; height: 2.4rem;"></div>
+                    <div class="n2c-loader-contact" id="n2cLoaderContact">Calling Customer...</div>
+                    <div class="n2c-loader-number" id="n2cLoaderNumber">+91 ******2299</div>
+                    <div class="n2c-loader-status" id="n2cLoaderStatus">Connecting Next2Call 12h Webphone...</div>
+                </div>
+                <iframe
+                    id="ringfySoftphoneFrame"
+                    class="n2c-softphone-iframe"
+                    src="${cleanUrl || ''}"
+                    allow="microphone; camera; speaker-selection; display-capture; autoplay; fullscreen"
+                    allowfullscreen>
+                </iframe>
+            `;
+            attachFrameLoadListener();
         }
 
-        const externalBtn = document.getElementById('ringfySoftphoneExternal');
-        const openTabBtn = document.getElementById('ringfySoftphoneOpenTab');
-
-        function openSoftphoneInNewTab() {
-            const url = widget?.dataset.softphoneUrl;
-            if (url) {
-                window.open(url, '_blank');
-            } else {
-                Swal.fire({
-                    icon: 'info',
-                    title: 'No Active Call',
-                    text: 'Please initiate a call or enter a number first.',
-                });
+        function attachFrameLoadListener() {
+            const frame = document.getElementById('ringfySoftphoneFrame');
+            if (frame) {
+                frame.onload = function () {
+                    const lOverlay = document.getElementById('n2cLoadingOverlay');
+                    if (lOverlay) {
+                        setTimeout(() => {
+                            lOverlay.style.display = 'none';
+                        }, 500);
+                    }
+                };
             }
         }
+        attachFrameLoadListener();
 
-        externalBtn?.addEventListener('click', openSoftphoneInNewTab);
-        openTabBtn?.addEventListener('click', openSoftphoneInNewTab);
+        // Close Widget (Keep 12h session intact - do NOT destroy iframe!)
+        function closeSoftphoneWidget() {
+            isCallActive = false;
+            callInitiatedAt = 0;
 
-        popupButton?.addEventListener('click', function () {
-            const url = widget?.dataset.softphoneUrl;
-            if (url && softphoneFrame) {
-                softphoneFrame.src = url;
-                widget.classList.add('has-frame');
-                keepRingfyWidgetInViewport();
-            }
-        });
-
-        launcherButton?.addEventListener('click', function () {
-            openRingfyDialer();
-        });
-
-        manualForm?.addEventListener('submit', function (event) {
-            event.preventDefault();
-
-            const countryCode = countryCodeInput?.value || '';
-            const mobile = mobileInput?.value || '';
-
-            localStorage.setItem('ringfySoftphoneCountryCode', countryCode.trim());
-            openRingfySoftphone(null, countryCode, mobile);
-        });
-
-        minimizeButton?.addEventListener('click', function () {
-            widget.classList.toggle('is-minimized');
-            minimizeButton.innerHTML = widget.classList.contains('is-minimized')
-                ? '<i class="fa fa-window-restore"></i>'
-                : '<i class="fa fa-minus"></i>';
-        });
-
-        maximizeButton?.addEventListener('click', function () {
-            widget.classList.toggle('is-maximized');
-            maximizeButton.innerHTML = widget.classList.contains('is-maximized')
-                ? '<i class="fa fa-compress"></i>'
-                : '<i class="fa fa-expand"></i>';
-            keepRingfyWidgetInViewport();
-        });
-
-        closeButton?.addEventListener('click', function () {
-            widget.classList.remove('is-open');
-            widget.classList.remove('has-frame');
-            widget.dataset.softphoneUrl = '';
-            if (softphoneFrame) {
-                softphoneFrame.removeAttribute('src');
-            }
-        });
-
-        // Listen for hangup / close events from dialer to handle softphone widget state
-        window.addEventListener("message", (event) => {
-            if (event.origin !== "https://ringfy.next2call.com") return;
-            
-            console.log("Received postMessage from Next2Call:", event.data);
-
-            const isHangup = event.data === "CALL_HANGUP" ||
-                             event.data?.type === "CALL_HANGUP" ||
-                             event.data?.type === "CLOSE_PHONE_POPUP" ||
-                             event.data?.event === "hangup" ||
-                             event.data?.type === "hangup" ||
-                             event.data?.type === "CALL_DISCONNECTED" ||
-                             event.data === "CALL_DISCONNECTED";
-
-            if (isHangup) {
-                console.log("Call disconnected / closed, updating softphone widget...");
+            if (widget) {
                 widget.classList.remove('is-open');
-                widget.classList.remove('has-frame');
-                widget.dataset.softphoneUrl = '';
-                if (softphoneFrame) {
-                    softphoneFrame.removeAttribute('src');
+                widget.style.display = 'none';
+            }
+
+            const lOverlay = document.getElementById('n2cLoadingOverlay');
+            if (lOverlay) lOverlay.style.display = 'none';
+
+            const headerTitleEl = document.getElementById('n2cHeaderTitle');
+            if (headerTitleEl) headerTitleEl.textContent = 'Next2Call Softphone';
+        }
+
+        closeBtn?.addEventListener('click', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            closeSoftphoneWidget();
+        });
+
+        // Close widget with Escape key if needed
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape' && widget && widget.classList.contains('is-open')) {
+                closeSoftphoneWidget();
+            }
+        });
+
+        // Listen for hangup events from Next2Call dialer
+        window.addEventListener('message', function (event) {
+            if (event.origin !== 'https://ringfy.next2call.com') return;
+
+            let data = event.data;
+            if (typeof data === 'string') {
+                try { data = JSON.parse(data); } catch(e){}
+            }
+
+            if (data === 'CALL_HANGUP' || data?.type === 'CALL_HANGUP' || data?.type === 'CLOSE_PHONE_POPUP') {
+                console.log('[Next2Call] Call disconnected / hangup received');
+                isCallActive = false;
+            }
+        });
+
+        // Global Direct Dial Function with Country Code & Masking
+        window.dialNext2CallNumber = function (rawNumber, countryCode = '', contactName = 'Customer') {
+            let inputStr = String(rawNumber || '').trim();
+            // Resolve masked number if contains asterisks
+            if (inputStr.includes('*') && typeof window.resolveMaskedToken === 'function') {
+                const resolved = window.resolveMaskedToken(inputStr);
+                if (resolved) {
+                    inputStr = resolved;
                 }
             }
-        });
-    });
 
-    function setRingfyWidgetPosition(left, top) {
-        const widget = document.getElementById('ringfySoftphoneWidget');
-        const margin = 8;
-        const maxLeft = window.innerWidth - widget.offsetWidth - margin;
-        const maxTop = window.innerHeight - widget.offsetHeight - margin;
-        const safeLeft = Math.max(margin, Math.min(left, maxLeft));
-        const safeTop = Math.max(margin, Math.min(top, maxTop));
+            let num = inputStr.replace(/[^0-9]/g, '');
+            let cc = String(countryCode || '').trim().replace(/[^0-9]/g, '');
+            if (!num) return;
 
-        widget.style.left = safeLeft + 'px';
-        widget.style.top = safeTop + 'px';
-        widget.style.right = 'auto';
-        widget.style.bottom = 'auto';
-    }
+            // Strip leading zero if 11 digits (e.g. 09610092299 -> 9610092299)
+            if (num.startsWith('0') && num.length === 11) {
+                num = num.substring(1);
+            }
 
-    function keepRingfyWidgetInViewport() {
-        const widget = document.getElementById('ringfySoftphoneWidget');
-        const rect = widget.getBoundingClientRect();
-        setRingfyWidgetPosition(rect.left, rect.top);
-    }
+            // Always format with Country Code (e.g. 919610092299)
+            if (cc) {
+                if (!num.startsWith(cc)) {
+                    num = cc + num;
+                }
+            } else if (num.length === 10) {
+                num = '91' + num;
+            } else if (num.startsWith('440')) {
+                num = '44' + num.substring(3);
+            }
 
-    function showRingfySoftphone(url, targetNumber) {
-        const widget = document.getElementById('ringfySoftphoneWidget');
-        const numberElement = document.getElementById('ringfySoftphoneNumber');
-        const softphoneFrame = document.getElementById('ringfySoftphoneFrame');
-        const countryCodeInput = document.getElementById('ringfySoftphoneCountryCode');
-        const mobileInput = document.getElementById('ringfySoftphoneMobile');
+            currentFullNumber = num;
+            callInitiatedAt = Date.now();
+            isCallActive = true;
 
-        console.log("%c[Next2Call Softphone] Setting Iframe SRC:", "color: #50cd89; font-weight: bold;", url);
-        console.log("%c[Next2Call Softphone] Target Number:", "color: #009ef7; font-weight: bold;", targetNumber);
+            // Masked display formatting for UI (e.g. +91 ******2299)
+            let maskedDisplayNum = num;
+            if (num.length >= 6) {
+                const ccPart = num.length > 10 ? ('+' + num.slice(0, num.length - 10)) : '+91';
+                maskedDisplayNum = ccPart + ' ******' + num.slice(-4);
+            }
 
-        widget.dataset.softphoneUrl = url;
-        numberElement.textContent = targetNumber || '';
-        if (countryCodeInput?.value) {
-            localStorage.setItem('ringfySoftphoneCountryCode', countryCodeInput.value.trim());
-        }
-        if (mobileInput && targetNumber && !mobileInput.value) {
-            mobileInput.value = targetNumber;
-        }
+            // Open Widget when call arrives/starts
+            if (widget) {
+                const twilioBox = document.getElementById('twilioSoftphoneBox');
+                if (twilioBox && $(twilioBox).is(':visible') && !widget.style.left) {
+                    widget.style.right = '325px';
+                } else if (!widget.style.left) {
+                    widget.style.right = '25px';
+                }
+                widget.style.display = 'flex';
+                widget.classList.add('is-open');
+            }
 
-        if (softphoneFrame) {
-            softphoneFrame.src = url;
-        }
+            // Update header title with masked phone number
+            const headerTitleEl = document.getElementById('n2cHeaderTitle');
+            if (headerTitleEl) {
+                headerTitleEl.textContent = (contactName && contactName !== 'Customer')
+                    ? (`Call: ${contactName} (${maskedDisplayNum})`)
+                    : (`Next2Call (${maskedDisplayNum})`);
+            }
 
-        widget.classList.add('is-open');
-        widget.classList.add('has-frame');
-        widget.classList.remove('is-minimized');
-        document.getElementById('ringfySoftphoneMinimize').innerHTML = '<i class="fa fa-minus"></i>';
-        keepRingfyWidgetInViewport();
-    }
+            // Show instant loading overlay with customer info & masked number
+            const lOverlay = document.getElementById('n2cLoadingOverlay');
+            const lContact = document.getElementById('n2cLoaderContact');
+            const lNumber = document.getElementById('n2cLoaderNumber');
+            const lStatus = document.getElementById('n2cLoaderStatus');
+            if (lContact) lContact.textContent = (contactName && contactName !== 'Customer') ? contactName : 'Customer';
+            if (lNumber) lNumber.textContent = maskedDisplayNum;
+            if (lStatus) lStatus.textContent = 'Connecting Next2Call 12h Webphone...';
+            if (lOverlay) lOverlay.style.display = 'flex';
 
-    function openRingfyDialer(countryCode = '', mobile = '') {
-        const widget = document.getElementById('ringfySoftphoneWidget');
-        const countryCodeInput = document.getElementById('ringfySoftphoneCountryCode');
-        const mobileInput = document.getElementById('ringfySoftphoneMobile');
+            // Calculate target direct dial URL immediately from base CTC
+            let baseCtc = ((widget?.dataset?.ctcBase) || CTC_BASE_URL || '').replace(/&amp;/g, '&');
+            if (!baseCtc.includes('api-section')) {
+                baseCtc = baseCtc.replace('/softphone/Phone/', '/api-section/softphone/Phone/');
+            }
 
-        if (countryCode && countryCodeInput) {
-            countryCodeInput.value = countryCode;
-        }
+            let targetCallUrl = '';
+            if (baseCtc) {
+                if (baseCtc.includes('&d=')) {
+                    targetCallUrl = baseCtc.replace(/&d=[^&]*/, `&d=${encodeURIComponent(num)}`);
+                } else {
+                    targetCallUrl = `${baseCtc}&d=${encodeURIComponent(num)}`;
+                }
+            }
 
-        if (mobile && mobileInput) {
-            mobileInput.value = mobile;
-        }
+            // Mount and load iframe INSTANTLY without waiting for network AJAX
+            if (targetCallUrl) {
+                mountIframe(targetCallUrl);
+            }
 
-        widget.classList.add('is-open');
-        widget.classList.remove('has-frame');
-        widget.classList.remove('is-minimized');
-        document.getElementById('ringfySoftphoneMinimize').innerHTML = '<i class="fa fa-minus"></i>';
-        keepRingfyWidgetInViewport();
-        mobileInput?.focus();
-    }
-
-    async function openRingfySoftphone(orderId, countryCode = '', mobile = '') {
-        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '{{ csrf_token() }}';
-        const cleanCountryCode = String(countryCode || document.getElementById('country_primary')?.value || document.getElementById('ringfySoftphoneCountryCode')?.value || '').trim();
-        const cleanMobile = String(mobile || document.getElementById('primary')?.value || document.getElementById('ringfySoftphoneMobile')?.value || '').trim();
-
-        console.log("%c[Next2Call Softphone] Direct Call Request...", "color: #ffc700; font-weight: bold;", {
-            orderId: orderId,
-            countryCode: cleanCountryCode,
-            mobile: cleanMobile
-        });
-
-        if (!cleanCountryCode || !cleanMobile) {
-            Swal.fire({
-                icon: 'warning',
-                title: 'Number missing',
-                text: 'Country code or mobile number is missing.',
-            });
-            return;
-        }
-
-        try {
-            const response = await fetch('{{ route('softphone.call-url') }}', {
+            // Background dynamic check to keep session synchronized (non-blocking)
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '{{ csrf_token() }}';
+            fetch('{{ route('softphone.call-url') }}', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -596,32 +547,210 @@
                     'X-Requested-With': 'XMLHttpRequest',
                 },
                 body: JSON.stringify({
-                    order_id: orderId || null,
-                    country_code: cleanCountryCode,
-                    mobile: cleanMobile,
+                    country_code: cc,
+                    mobile: num,
                 }),
+            })
+            .then(r => r.json())
+            .then(res => {
+                if (res && res.success && res.url) {
+                    const freshUrl = res.url.replace(/&amp;/g, '&');
+                    if (widget && res.url.includes('&d=')) {
+                        const newBase = res.url.split('&d=')[0] + '&d=';
+                        widget.dataset.ctcBase = newBase;
+                        CTC_BASE_URL = newBase;
+                    }
+                    if (!targetCallUrl) {
+                        mountIframe(freshUrl);
+                    }
+                }
+            })
+            .catch(err => {
+                console.warn('[Next2Call] background call-url sync error:', err);
             });
+        };
 
-            const data = await response.json();
-
-            console.log("%c[Next2Call Softphone] Direct Call Response:", "color: #50cd89; font-weight: bold;", data);
-
-            if (!response.ok || !data.success) {
-                throw new Error(data.message || 'Softphone call failed.');
+        window.openRingfyDialer = function (mobile = '') {
+            if (mobile) {
+                window.dialNext2CallNumber(mobile);
+                return;
             }
 
-            // Open Next2Call URL directly inside in-page softphone iframe widget (NO new tab/window)
-            showRingfySoftphone(data.url, data.target_number);
+            const currentWidget = document.getElementById('ringfySoftphoneWidget') || widget;
+            if (currentWidget) {
+                const twilioBox = document.getElementById('twilioSoftphoneBox');
+                if (twilioBox && $(twilioBox).is(':visible') && !currentWidget.style.left) {
+                    currentWidget.style.right = '325px';
+                } else if (!currentWidget.style.left) {
+                    currentWidget.style.right = '25px';
+                }
+                currentWidget.style.display = 'flex';
+                currentWidget.classList.add('is-open');
+            }
 
-            navigator.clipboard?.writeText(data.target_number).catch(() => {});
-        } catch (error) {
-            console.error("[Next2Call Softphone] Error:", error);
-            Swal.fire({
-                icon: 'error',
-                title: 'Call failed',
-                text: error.message || 'Unable to open softphone.',
-            });
+            const headerTitleEl = document.getElementById('n2cHeaderTitle');
+            if (headerTitleEl) headerTitleEl.textContent = 'Next2Call Softphone';
+
+            let activeDialerUrl = ((currentWidget?.dataset?.dialerUrl) || DIALER_URL).replace(/&amp;/g, '&');
+            if (!activeDialerUrl.includes('api-section')) {
+                activeDialerUrl = activeDialerUrl.replace('/softphone/Phone/', '/api-section/softphone/Phone/');
+            }
+            mountIframe(activeDialerUrl);
+        };
+
+        window.dialNumber = function (mobile, countryCode = '', contactName = 'Customer') {
+            window.dialNext2CallNumber(mobile, countryCode, contactName);
+        };
+
+        window.openRingfySoftphone = async function (orderId, countryCode = '', mobile = '', contactName = 'Customer') {
+            const cleanCode = String(countryCode || '').trim();
+            let cleanMobile = String(mobile || '').trim();
+
+            if (!cleanMobile && orderId) {
+                try {
+                    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '{{ csrf_token() }}';
+                    const res = await fetch('{{ route('softphone.call-url') }}', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': csrfToken,
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                        body: JSON.stringify({ order_id: orderId }),
+                    });
+                    const data = await res.json();
+                    if (data && data.success && data.target_number) {
+                        dialNext2CallNumber(data.target_number, '', data.customer_name || contactName);
+                        return;
+                    }
+                } catch(e) {}
+            }
+
+            if (!cleanMobile) {
+                Swal?.fire({
+                    icon: 'warning',
+                    title: 'Number Missing',
+                    text: 'Mobile number is required to make a call.',
+                });
+                return;
+            }
+
+            dialNext2CallNumber(cleanMobile, cleanCode, contactName);
+        };
+
+        // =========================================================================
+        // Seamless In-Call Navigation Engine:
+        // Keeps WebRTC voice call 100% active and connected when agent clicks other
+        // CRM pages, orders, menus, or customer history during a live call!
+        // =========================================================================
+        async function n2cSeamlessNavigateTo(url) {
+            try {
+                if ($('#n2c-nav-progress').length === 0) {
+                    $('body').append('<div id="n2c-nav-progress" style="position:fixed;top:0;left:0;height:3px;background:#10b981;width:0%;z-index:999999;transition:width 0.3s ease;box-shadow:0 0 10px #10b981;"></div>');
+                }
+                $('#n2c-nav-progress').css('width', '40%').show();
+
+                const response = await fetch(url, {
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                });
+
+                if (!response.ok) {
+                    window.location.href = url;
+                    return;
+                }
+
+                $('#n2c-nav-progress').css('width', '80%');
+                const html = await response.text();
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+
+                const newTitle = doc.querySelector('title')?.innerText || document.title;
+                const newMain = doc.querySelector('main.content') || doc.querySelector('#kt_content') || doc.querySelector('#kt_wrapper');
+                const currentMain = document.querySelector('main.content') || doc.querySelector('#kt_content') || doc.querySelector('#kt_wrapper');
+
+                if (newMain && currentMain) {
+                    currentMain.innerHTML = newMain.innerHTML;
+                    document.title = newTitle;
+                    window.history.pushState({ path: url }, newTitle, url);
+
+                    // Re-run inline/embedded scripts in the new content
+                    const scripts = newMain.querySelectorAll('script');
+                    scripts.forEach(s => {
+                        const newScript = document.createElement('script');
+                        if (s.src) {
+                            newScript.src = s.src;
+                        } else {
+                            newScript.textContent = s.textContent;
+                        }
+                        document.body.appendChild(newScript);
+                    });
+
+                    // Update active menu link
+                    $('.menu-link').removeClass('active');
+                    $(`a[href="${url}"]`).addClass('active');
+
+                    // Fire ready/resize events
+                    $(document).trigger('ready');
+                    window.dispatchEvent(new Event('resize'));
+                } else {
+                    window.location.href = url;
+                }
+
+                $('#n2c-nav-progress').css('width', '100%');
+                setTimeout(() => $('#n2c-nav-progress').fadeOut(200).css('width', '0%'), 250);
+            } catch (err) {
+                console.error('[Next2Call] Seamless navigation error, falling back:', err);
+                window.location.href = url;
+            }
         }
+
+        // 1. Intercept internal CRM link clicks while softphone widget is open with live call
+        $(document).on('click', 'a[href]', function(e) {
+            const href = $(this).attr('href');
+            if (!href || href.startsWith('#') || href.startsWith('javascript:') || href.startsWith('mailto:') || href.startsWith('tel:') || $(this).attr('target') === '_blank' || $(this).attr('download')) {
+                return;
+            }
+
+            // Only intercept if within same origin (internal CRM navigation)
+            if (href.startsWith('http://') || href.startsWith('https://')) {
+                if (!href.startsWith(window.location.origin)) {
+                    return;
+                }
+            }
+
+            // If a live call is active or softphone popup is open: do NOT reload page, navigate seamlessly!
+            if (widget && widget.classList.contains('is-open')) {
+                e.preventDefault();
+                n2cSeamlessNavigateTo(href);
+            }
+        });
+
+        // 2. Handle browser Back/Forward buttons during active call
+        window.addEventListener('popstate', function(e) {
+            if (widget && widget.classList.contains('is-open')) {
+                n2cSeamlessNavigateTo(window.location.href);
+            }
+        });
+
+        // 3. Beforeunload guard: warn agent if they accidentally hit refresh or close tab during call
+        window.addEventListener('beforeunload', function(e) {
+            if (widget && widget.classList.contains('is-open') && isCallActive) {
+                e.preventDefault();
+                e.returnValue = 'Live Next2Call call chal rahi hai. Page reload karne se call disconnect ho jayegi.';
+                return e.returnValue;
+            }
+        });
+    }
+
+    window.initRingfySoftphoneWidget = initRingfySoftphoneWidget;
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initRingfySoftphoneWidget);
+    } else {
+        initRingfySoftphoneWidget();
     }
 </script>
 @endonce

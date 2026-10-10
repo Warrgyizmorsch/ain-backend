@@ -44,9 +44,9 @@
                         $isSuperAdmin = auth()->check() && (int)auth()->user()->role_id === 1;
                         $displayEmail = $isSuperAdmin ? $order->user->email : mask_email_for_display($order->user->email);
                         $displayCountry = $order->user->countrycode ?? '';
-                        $displayMobile = mask_mobile_only($order->user->countrycode, $order->user->mobile_no);
+                        $displayMobile = $isSuperAdmin ? $order->user->mobile_no : mask_mobile_only($order->user->countrycode, $order->user->mobile_no);
                         $displayCountry2 = $order->user->countrycode2 ?? '';
-                        $displayMobile2 = mask_mobile_only($order->user->countrycode2, $order->user->mobile_no2);
+                        $displayMobile2 = $isSuperAdmin ? $order->user->mobile_no2 : mask_mobile_only($order->user->countrycode2, $order->user->mobile_no2);
                     @endphp
                     <div class="row g-9 mb-8 text-start">
                         <div class="col-md-6 fv-row">

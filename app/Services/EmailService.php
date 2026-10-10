@@ -56,28 +56,65 @@ class EmailService
 
         // Dynamically configure SMTP mailer for this account
         if ($account && !empty($account->host) && !empty($account->username) && !empty($account->password)) {
+            $encryption = $account->encryption === 'none' ? null : ($account->encryption ?: ((int) $account->port === 465 ? 'ssl' : 'tls'));
             config([
                 'mail.default' => 'smtp',
                 'mail.mailers.smtp.transport' => 'smtp',
                 'mail.mailers.smtp.host' => $account->host,
                 'mail.mailers.smtp.port' => (int) $account->port,
-                'mail.mailers.smtp.encryption' => $account->encryption === 'none' ? null : ($account->encryption ?: 'tls'),
+                'mail.mailers.smtp.encryption' => $encryption,
                 'mail.mailers.smtp.username' => $account->username,
                 'mail.mailers.smtp.password' => $account->password,
                 'mail.from.address' => $fromEmail,
                 'mail.from.name' => $fromName,
             ]);
             Mail::purge('smtp');
+
+            // Explicitly set stream options on Symfony Mailer's SocketStream to bypass cPanel / proxy certificate mismatch
+            try {
+                $transport = Mail::mailer('smtp')->getSymfonyTransport();
+                if ($transport instanceof \Symfony\Component\Mailer\Transport\Smtp\EsmtpTransport) {
+                    $stream = $transport->getStream();
+                    if ($stream instanceof \Symfony\Component\Mailer\Transport\Smtp\Stream\SocketStream) {
+                        $stream->setStreamOptions([
+                            'ssl' => [
+                                'allow_self_signed' => true,
+                                'verify_peer' => false,
+                                'verify_peer_name' => false,
+                            ],
+                        ]);
+                    }
+                }
+            } catch (\Throwable $e) {
+                Log::warning("Could not set SMTP stream options: " . $e->getMessage());
+            }
         }
 
-        // Thread resolution
+        // Robust Thread & Reply Resolution Hierarchy
         $inReplyTo = $data['in_reply_to'] ?? null;
         $threadId = $data['thread_id'] ?? null;
+        $parentMessageId = $data['parent_message_id'] ?? null;
 
-        if (!$threadId && $inReplyTo) {
+        $parentMsg = null;
+        if (!empty($parentMessageId)) {
+            $parentMsg = EmailMessage::find($parentMessageId);
+        }
+        if (!$parentMsg && !empty($threadId) && (is_numeric($threadId) || strlen($threadId) < 15)) {
+            $parentMsg = EmailMessage::find($threadId);
+        }
+        if (!$parentMsg && !empty($inReplyTo)) {
             $parentMsg = EmailMessage::where('message_id', $inReplyTo)->first();
-            if ($parentMsg) {
-                $threadId = $parentMsg->thread_id;
+        }
+
+        if ($parentMsg) {
+            $threadId = $parentMsg->thread_id;
+            if (empty($inReplyTo)) {
+                $inReplyTo = $parentMsg->message_id;
+            }
+        } elseif (!empty($threadId)) {
+            $threadMsg = EmailMessage::where('thread_id', $threadId)->orderByDesc('id')->first();
+            if ($threadMsg && empty($inReplyTo)) {
+                $inReplyTo = $threadMsg->message_id;
             }
         }
 
@@ -95,10 +132,34 @@ class EmailService
             ->orderByDesc('id')
             ->first();
 
-            $threadId = $existingMsg ? $existingMsg->thread_id : (string) Str::uuid();
+            if ($existingMsg) {
+                $threadId = $existingMsg->thread_id;
+                if (empty($inReplyTo)) {
+                    $inReplyTo = $existingMsg->message_id;
+                }
+            } else {
+                $threadId = (string) Str::uuid();
+            }
         }
 
-        $messageId = '<' . Str::random(24) . '.' . time() . '@' . (request()->getHost() ?? 'ain-backend.com') . '>';
+        // Build references chain for RFC email threading
+        $threadReferences = null;
+        if ($inReplyTo) {
+            $existingRefs = EmailMessage::where('thread_id', $threadId)
+                ->whereNotNull('message_id')
+                ->where('message_id', '!=', '')
+                ->pluck('message_id')
+                ->unique()
+                ->filter()
+                ->all();
+            if (!in_array($inReplyTo, $existingRefs)) {
+                $existingRefs[] = $inReplyTo;
+            }
+            $threadReferences = implode(' ', $existingRefs);
+        }
+
+        $fromDomain = substr(strrchr($fromEmail, "@"), 1) ?: (request()->getHost() ?? 'ain-backend.com');
+        $messageId = '<' . Str::random(24) . '.' . time() . '@' . $fromDomain . '>';
 
         // If updating an existing draft
         if (!empty($data['draft_id'])) {
@@ -108,6 +169,7 @@ class EmailService
                     'message_id' => $messageId,
                     'email_configuration_id' => $account?->id,
                     'in_reply_to' => $inReplyTo,
+                    'references' => $threadReferences,
                     'thread_id' => $threadId,
                     'from_email' => $fromEmail,
                     'from_name' => $fromName,
@@ -133,6 +195,7 @@ class EmailService
                 'message_id' => $messageId,
                 'email_configuration_id' => $account?->id,
                 'in_reply_to' => $inReplyTo,
+                'references' => $threadReferences,
                 'thread_id' => $threadId,
                 'from_email' => $fromEmail,
                 'from_name' => $fromName,
@@ -153,17 +216,19 @@ class EmailService
             ]);
         }
 
-        // Handle file attachments
+        // Handle file attachments (uploaded files + forwarded attachments)
         $savedAttachments = [];
+
+        // 1. Process newly uploaded files
         if (!empty($uploadedFiles)) {
             foreach ($uploadedFiles as $file) {
                 if ($file && $file->isValid()) {
                     $originalName = $file->getClientOriginalName();
-                    $mimeType = $file->getClientMimeType();
+                    $mimeType = $file->getClientMimeType() ?: 'application/octet-stream';
                     $fileSize = $file->getSize();
                     $path = $file->store('email_attachments', 'local');
 
-                    $attachment = EmailAttachment::create([
+                    EmailAttachment::create([
                         'email_message_id' => $emailMsg->id,
                         'filename' => $originalName,
                         'file_path' => $path,
@@ -180,17 +245,63 @@ class EmailService
                     ];
                 }
             }
+        }
+
+        // 2. Process forwarded attachments from previous email
+        $forwardedIds = $data['forwarded_attachment_ids'] ?? [];
+        if (!empty($forwardedIds) && is_array($forwardedIds)) {
+            $prevAttachments = EmailAttachment::whereIn('id', $forwardedIds)->get();
+            foreach ($prevAttachments as $prevAtt) {
+                $sourcePath = Storage::disk('local')->path($prevAtt->file_path);
+                if (!file_exists($sourcePath)) {
+                    $legacyPath = storage_path('app/public/' . $prevAtt->file_path);
+                    if (file_exists($legacyPath)) {
+                        $sourcePath = $legacyPath;
+                    }
+                }
+
+                if (file_exists($sourcePath)) {
+                    $cleanFilename = iconv_mime_decode($prevAtt->filename, 0, 'UTF-8') ?: $prevAtt->filename;
+                    $cleanFilename = trim(preg_replace('/[\r\n\t]+/', ' ', $cleanFilename));
+                    $safeBaseName = preg_replace('/[^\w\s\.-]/u', '_', $cleanFilename);
+                    $newRelPath = 'email_attachments/' . Str::uuid() . '-' . ($safeBaseName ?: 'attachment');
+
+                    Storage::disk('local')->put($newRelPath, file_get_contents($sourcePath));
+                    $newFileSize = filesize($sourcePath);
+
+                    EmailAttachment::create([
+                        'email_message_id' => $emailMsg->id,
+                        'filename' => $cleanFilename,
+                        'file_path' => $newRelPath,
+                        'mime_type' => $prevAtt->mime_type ?: 'application/octet-stream',
+                        'file_size' => $newFileSize,
+                        'is_inline' => false,
+                    ]);
+
+                    $savedAttachments[] = [
+                        'file' => null,
+                        'filename' => $cleanFilename,
+                        'mime' => $prevAtt->mime_type ?: 'application/octet-stream',
+                        'path' => Storage::disk('local')->path($newRelPath),
+                    ];
+                }
+            }
+        }
+
+        if (!empty($savedAttachments)) {
             $emailMsg->update(['has_attachments' => true]);
         }
 
         // Send via Laravel Mail / SMTP
         try {
-            Mail::send([], [], function ($message) use ($toEmail, $fromEmail, $fromName, $subject, $bodyHtml, $data, $messageId, $inReplyTo, $savedAttachments) {
+            $sentMessage = Mail::send([], [], function ($message) use ($toEmail, $fromEmail, $fromName, $subject, $bodyHtml, $bodyPlain, $data, $messageId, $inReplyTo, $threadReferences, $savedAttachments) {
                 $recipients = array_map('trim', explode(',', $toEmail));
                 $message->to($recipients)
                         ->from($fromEmail, $fromName)
+                        ->replyTo($fromEmail, $fromName)
                         ->subject($subject)
-                        ->html($bodyHtml);
+                        ->html($bodyHtml)
+                        ->text($bodyPlain ?: strip_tags($bodyHtml));
 
                 if (!empty($data['cc'])) {
                     $ccList = array_map('trim', explode(',', $data['cc']));
@@ -204,10 +315,9 @@ class EmailService
 
                 // Custom Headers
                 $headers = $message->getHeaders();
-                $headers->addIdHeader('Message-ID', trim($messageId, '<>'));
                 if ($inReplyTo) {
                     $headers->addTextHeader('In-Reply-To', $inReplyTo);
-                    $headers->addTextHeader('References', $inReplyTo);
+                    $headers->addTextHeader('References', $threadReferences ?: $inReplyTo);
                 }
 
                 // Attach files
@@ -221,7 +331,12 @@ class EmailService
                 }
             });
 
-            $emailMsg->update(['status' => 'sent']);
+            $actualId = $sentMessage ? $sentMessage->getMessageId() : null;
+            $updateData = ['status' => 'sent'];
+            if ($actualId) {
+                $updateData['message_id'] = '<' . trim($actualId, '<>') . '>';
+            }
+            $emailMsg->update($updateData);
         } catch (\Exception $e) {
             Log::error('Email SMTP sending failed: '.$e->getMessage(), ['email_message_id' => $emailMsg->id]);
             $emailMsg->update(['status' => 'failed', 'sent_at' => null]);
@@ -237,16 +352,56 @@ class EmailService
     public function saveDraft(array $data, array $uploadedFiles = []): EmailMessage
     {
         $toEmail = is_array($data['to'] ?? '') ? implode(', ', $data['to']) : ($data['to'] ?? '');
-        $subject = $data['subject'] ?? '';
-        $bodyHtml = $data['body_html'] ?? $data['body'] ?? '';
+        $toEmail = (string) ($toEmail ?? '');
+        $subject = (string) ($data['subject'] ?? '');
+        $bodyHtml = (string) ($data['body_html'] ?? $data['body'] ?? '');
         $bodyPlain = strip_tags($bodyHtml);
         $account = !empty($data['account_id'])
             ? \App\Models\EmailConfiguration::whereKey($data['account_id'])->where('is_active', true)->first()
             : null;
+        if (!$account) {
+            $sessAcc = session('active_email_account_id');
+            if ($sessAcc) {
+                $account = \App\Models\EmailConfiguration::whereKey($sessAcc)->where('is_active', true)->first();
+            }
+        }
+        if (!$account) {
+            $account = \App\Models\EmailConfiguration::where('is_active', true)->first();
+        }
         $fromEmail = $account?->email_address ?: config('mail.from.address', env('MAIL_FROM_ADDRESS', 'noreply@ain-backend.com'));
         $fromName = $account?->from_name ?: ($account?->name ?: config('mail.from.name', env('MAIL_FROM_NAME', 'Assignment In Need')));
 
-        $threadId = $data['thread_id'] ?? (string) Str::uuid();
+        // Thread resolution for draft
+        $inReplyTo = $data['in_reply_to'] ?? null;
+        $threadId = $data['thread_id'] ?? null;
+        $parentMessageId = $data['parent_message_id'] ?? null;
+
+        $parentMsg = null;
+        if (!empty($parentMessageId)) {
+            $parentMsg = EmailMessage::find($parentMessageId);
+        }
+        if (!$parentMsg && !empty($threadId) && (is_numeric($threadId) || strlen($threadId) < 15)) {
+            $parentMsg = EmailMessage::find($threadId);
+        }
+        if (!$parentMsg && !empty($inReplyTo)) {
+            $parentMsg = EmailMessage::where('message_id', $inReplyTo)->first();
+        }
+
+        if ($parentMsg) {
+            $threadId = $parentMsg->thread_id;
+            if (empty($inReplyTo)) {
+                $inReplyTo = $parentMsg->message_id;
+            }
+        } elseif (!empty($threadId)) {
+            $threadMsg = EmailMessage::where('thread_id', $threadId)->orderByDesc('id')->first();
+            if ($threadMsg && empty($inReplyTo)) {
+                $inReplyTo = $threadMsg->message_id;
+            }
+        }
+
+        if (!$threadId) {
+            $threadId = (string) Str::uuid();
+        }
 
         if (!empty($data['draft_id'])) {
             $draft = EmailMessage::find($data['draft_id']);
@@ -267,7 +422,11 @@ class EmailService
             }
         }
 
+        $fromDomain = substr(strrchr($fromEmail, "@"), 1) ?: (request()->getHost() ?? 'ain-backend.com');
+        $messageId = '<' . Str::random(24) . '.' . time() . '@' . $fromDomain . '>';
+
         $draft = EmailMessage::create([
+            'message_id' => $messageId,
             'email_configuration_id' => $account?->id,
             'thread_id' => $threadId,
             'from_email' => $fromEmail,
@@ -409,9 +568,8 @@ class EmailService
     }
 
     /**
-     * Synchronize Incoming Emails via IMAP over Native SSL Socket.
-    /**
-     * Synchronize Incoming Emails via IMAP over Native SSL Socket.
+     * Synchronize Emails via IMAP over Native SSL Socket.
+     * Syncs both INBOX (inbound) and [Gmail]/Sent Mail (outbound sent from Gmail directly).
      * Works with configured EmailConfiguration accounts.
      */
     public function syncImap(?\App\Models\EmailConfiguration $targetAccount = null): array
@@ -440,20 +598,33 @@ class EmailService
                 continue;
             }
 
-            $syncLock = Cache::lock("email-imap-sync-{$account->id}", 55);
+            $authFailKey = "email-imap-auth-fail-{$account->id}";
+            if (Cache::has($authFailKey)) {
+                $failures[] = "{$account->name}: skipped (recent auth failure in cooldown)";
+                continue;
+            }
+
+            $syncLock = Cache::lock("email-imap-sync-{$account->id}", 90);
             if (!$syncLock->get()) {
                 continue;
             }
 
             try {
                 $scheme = $account->incoming_encryption === 'ssl' ? 'ssl://' : 'tcp://';
-                $socket = @fsockopen($scheme . $host, $port, $errno, $errstr, 12);
+                $context = stream_context_create([
+                    'ssl' => [
+                        'allow_self_signed' => true,
+                        'verify_peer' => false,
+                        'verify_peer_name' => false,
+                    ],
+                ]);
+                $socket = @stream_socket_client($scheme . $host . ':' . $port, $errno, $errstr, 5, STREAM_CLIENT_CONNECT, $context);
                 if (!$socket) {
                     $failures[] = "{$account->name}: {$errstr} ({$errno})";
                     continue;
                 }
 
-                stream_set_timeout($socket, 15);
+                stream_set_timeout($socket, 8);
                 fgets($socket); // read greeting
 
                 // 1. LOGIN
@@ -466,69 +637,21 @@ class EmailService
 
                 if (!str_contains($loginRes, 'TAG1 OK')) {
                     $failures[] = "{$account->name}: IMAP authentication failed";
+                    Cache::put($authFailKey, true, now()->addMinutes(5));
                     fclose($socket);
                     continue;
                 }
 
-                // 2. SELECT INBOX, then sync stable UIDs in bounded batches.
-                fputs($socket, "TAG2 SELECT INBOX\r\n");
-                while ($line = fgets($socket)) {
-                    if (str_starts_with($line, 'TAG2 ')) break;
-                }
+                Cache::forget($authFailKey);
 
                 $settings = $account->settings ?: [];
-                if (!array_key_exists('last_imap_uid', $settings)) {
-                    // First connection establishes the mailbox baseline. Historical
-                    // messages are intentionally not imported; only later UIDs are new.
-                    fputs($socket, "TAG3 UID SEARCH ALL\r\n");
-                    $initialUids = [];
-                    while ($line = fgets($socket)) {
-                        if (preg_match('/^\* SEARCH\s*(.*)$/i', trim($line), $matches)) {
-                            $initialUids = array_values(array_filter(array_map('intval', preg_split('/\s+/', trim($matches[1])))));
-                        }
-                        if (str_starts_with($line, 'TAG3 ')) break;
-                    }
-                    $settings['last_imap_uid'] = empty($initialUids) ? 0 : max($initialUids);
-                    $settings['imap_baselined_at'] = now()->toIso8601String();
-                    $account->update(['settings' => $settings]);
-                    fputs($socket, "TAG_OUT LOGOUT\r\n");
-                    fclose($socket);
-                    continue;
-                }
 
-                $lastUid = (int) ($settings['last_imap_uid'] ?? 0);
-                $nextUid = $lastUid + 1;
+                // ── Sync INBOX (inbound emails) ──
+                $totalSynced += $this->syncImapFolder($socket, $account, $settings, 'INBOX', 'inbox', 'inbound', 'last_imap_uid');
 
-                // Query ONLY strictly new messages with UID > lastUid (avoids loading historical emails)
-                fputs($socket, "TAG3 UID SEARCH UID {$nextUid}:*\r\n");
-                $uids = [];
-                while ($line = fgets($socket)) {
-                    if (preg_match('/^\* SEARCH\s*(.*)$/i', trim($line), $matches)) {
-                        $rawUids = array_values(array_filter(array_map('intval', preg_split('/\s+/', trim($matches[1])))));
-                        $uids = array_values(array_filter($rawUids, fn ($u) => $u > $lastUid));
-                    }
-                    if (str_starts_with($line, 'TAG3 ')) break;
-                }
+                // ── Sync [Gmail]/Sent Mail (emails sent directly from Gmail web/app) ──
+                $totalSynced += $this->syncImapFolder($socket, $account, $settings, '"[Gmail]/Sent Mail"', 'sent', 'outbound', 'last_sent_imap_uid');
 
-                $pendingUids = array_slice($uids, 0, 50);
-                foreach ($pendingUids as $uid) {
-                    fputs($socket, "TAG_F{$uid} UID FETCH {$uid} (RFC822)\r\n");
-                    $fetchData = '';
-                    while ($line = fgets($socket)) {
-                        if (str_starts_with($line, "TAG_F{$uid} ")) break;
-                        $fetchData .= $line;
-                    }
-
-                    $parsed = $this->parseRawEmail($fetchData);
-                    if ($parsed && !empty($parsed['from_email'])) {
-                        if (!EmailMessage::where('message_id', $parsed['message_id'])->exists()) {
-                            $this->saveParsedEmail($parsed, $account);
-                            $totalSynced++;
-                        }
-                    }
-                    $lastUid = max($lastUid, $uid);
-                }
-                $settings['last_imap_uid'] = $lastUid;
                 $account->update(['settings' => $settings]);
 
                 // LOGOUT
@@ -550,6 +673,88 @@ class EmailService
             'synced_count' => $totalSynced,
             'errors' => $failures,
         ];
+    }
+
+    /**
+     * Sync a single IMAP folder (INBOX or Sent Mail) for an account.
+     * Returns the number of newly synced messages.
+     */
+    private function syncImapFolder($socket, \App\Models\EmailConfiguration $account, array &$settings, string $folderName, string $localFolder, string $direction, string $uidKey): int
+    {
+        $synced = 0;
+        $tagSeq = 'SF_' . substr(md5($folderName), 0, 4) . '_';
+
+        // SELECT the folder
+        $selectTag = $tagSeq . 'SEL';
+        fputs($socket, "{$selectTag} SELECT {$folderName}\r\n");
+        $selectOk = false;
+        while ($line = fgets($socket)) {
+            if (str_starts_with($line, "{$selectTag} OK")) {
+                $selectOk = true;
+                break;
+            }
+            if (str_starts_with($line, "{$selectTag} ")) break;
+        }
+
+        if (!$selectOk) {
+            // Folder doesn't exist (e.g. non-Gmail), skip silently
+            return 0;
+        }
+
+        if (!array_key_exists($uidKey, $settings)) {
+            // First connection for this folder: baseline from last 20 messages
+            $baseTag = $tagSeq . 'BASE';
+            fputs($socket, "{$baseTag} UID SEARCH ALL\r\n");
+            $initialUids = [];
+            while ($line = fgets($socket)) {
+                if (preg_match('/^\* SEARCH\s*(.*)$/i', trim($line), $matches)) {
+                    $initialUids = array_values(array_filter(array_map('intval', preg_split('/\s+/', trim($matches[1])))));
+                }
+                if (str_starts_with($line, "{$baseTag} ")) break;
+            }
+            $maxUid = empty($initialUids) ? 0 : max($initialUids);
+            $settings[$uidKey] = max(0, $maxUid - 20);
+        }
+
+        $lastUid = (int) ($settings[$uidKey] ?? 0);
+        $nextUid = $lastUid + 1;
+
+        // Search for new UIDs
+        $searchTag = $tagSeq . 'SRCH';
+        fputs($socket, "{$searchTag} UID SEARCH UID {$nextUid}:*\r\n");
+        $uids = [];
+        while ($line = fgets($socket)) {
+            if (preg_match('/^\* SEARCH\s*(.*)$/i', trim($line), $matches)) {
+                $rawUids = array_values(array_filter(array_map('intval', preg_split('/\s+/', trim($matches[1])))));
+                $uids = array_values(array_filter($rawUids, fn ($u) => $u > $lastUid));
+            }
+            if (str_starts_with($line, "{$searchTag} ")) break;
+        }
+
+        // mk 5 10 26 - Batch limit 10 emails per sync burst with 5s socket timeout to avoid 120s script timeout
+        stream_set_timeout($socket, 5);
+        $pendingUids = array_slice($uids, 0, 10);
+        foreach ($pendingUids as $uid) {
+            $fetchTag = $tagSeq . "F{$uid}";
+            fputs($socket, "{$fetchTag} UID FETCH {$uid} (RFC822)\r\n");
+            $fetchData = '';
+            while ($line = fgets($socket)) {
+                if (str_starts_with($line, "{$fetchTag} ")) break;
+                $fetchData .= $line;
+            }
+
+            $parsed = $this->parseRawEmail($fetchData);
+            if ($parsed && !empty($parsed['from_email'])) {
+                if (!EmailMessage::where('message_id', $parsed['message_id'])->exists()) {
+                    $this->saveParsedEmail($parsed, $account, $localFolder, $direction);
+                    $synced++;
+                }
+            }
+            $lastUid = max($lastUid, $uid);
+        }
+        $settings[$uidKey] = $lastUid;
+
+        return $synced;
     }
 
     public function testConnections(\App\Models\EmailConfiguration $account): array
@@ -590,6 +795,8 @@ class EmailService
         if (!str_contains($response, 'T1 OK')) {
             throw new \RuntimeException('IMAP authentication failed.');
         }
+
+        Cache::forget("email-imap-auth-fail-{$account->id}");
 
         return ['smtp' => true, 'imap' => true];
     }
@@ -680,8 +887,10 @@ class EmailService
         }
 
         // Full MIME body extraction
-        $rawCleaned = preg_replace('/TAG_F\d+\s+OK.*/i', '', $raw);
+        $rawCleaned = preg_replace('/^\s*\*\s*\d+\s+FETCH\s*\([^\r\n]*\r?\n?/i', '', $raw);
+        $rawCleaned = preg_replace('/TAG_F\d+\s+OK.*/i', '', $rawCleaned);
         $rawCleaned = preg_replace('/\s*FLAGS\s*\(\\\\Seen\)\s*\)?/i', '', $rawCleaned);
+        $rawCleaned = preg_replace('/\r?\n\)\s*$/', '', $rawCleaned);
 
         $headerBody = preg_split('/\r?\n\r?\n/', $rawCleaned, 2);
         $headerText = $headerBody[0] ?? '';
@@ -710,13 +919,47 @@ class EmailService
             $bodyHtml = nl2br(e($bodyPlain));
         }
 
+        // Final pass Quoted-Printable decoding if bodyHtml still contains soft breaks or =3D
+        if (!empty($bodyHtml) && (strpos($bodyHtml, '=3D') !== false || preg_match('/=\r?\n/', $bodyHtml))) {
+            $bodyHtml = quoted_printable_decode($bodyHtml);
+        }
+        if (!empty($bodyPlain) && (strpos($bodyPlain, '=3D') !== false || preg_match('/=\r?\n/', $bodyPlain))) {
+            $bodyPlain = quoted_printable_decode($bodyPlain);
+        }
+
         // Clean up stray boundary markers and protocol artifacts
+        $bodyHtml = preg_replace('/^\s*\*\s*\d+\s+FETCH\s*\([^\r\n]*\r?\n?/i', '', $bodyHtml);
+        $bodyPlain = preg_replace('/^\s*\*\s*\d+\s+FETCH\s*\([^\r\n]*\r?\n?/i', '', $bodyPlain);
         $bodyHtml = preg_replace('/--[0-9a-zA-Z_\-=.\/]{10,80}(--)?/i', '', $bodyHtml);
         $bodyPlain = preg_replace('/--[0-9a-zA-Z_\-=.\/]{10,80}(--)?/i', '', $bodyPlain);
         $bodyHtml = preg_replace('/Content-Type:\s*text\/(html|plain)[^\r\n]*/i', '', $bodyHtml);
         $bodyPlain = preg_replace('/Content-Type:\s*text\/(html|plain)[^\r\n]*/i', '', $bodyPlain);
         $bodyHtml = preg_replace('/Content-Transfer-Encoding:[^\r\n]*/i', '', $bodyHtml);
         $bodyPlain = preg_replace('/Content-Transfer-Encoding:[^\r\n]*/i', '', $bodyPlain);
+
+        // Clean any residual =3D or raw soft-breaks
+        $bodyHtml = str_replace('=3D', '=', $bodyHtml);
+        $bodyHtml = preg_replace('/=\r?\n/', '', $bodyHtml);
+
+        // Fix Word/Outlook invalid nested paragraphs and collapse huge empty whitespace gaps
+        $bodyHtml = preg_replace('/<p[^>]*>\s*(?:<span[^>]*>)?\s*<p[^>]*>(\s*|&nbsp;| )*<\/p>\s*(?:<\/span>)?\s*<\/p>/i', '<p class="MsoNormal" style="margin: 4px 0;">&nbsp;</p>', $bodyHtml);
+        $bodyHtml = preg_replace('/<p><\/p>/i', '', $bodyHtml);
+        $bodyHtml = preg_replace('/(<p[^>]*>(?:&nbsp;|\s| )*<\/p>\s*){2,}/i', '<p class="MsoNormal" style="margin: 4px 0;">&nbsp;</p>', $bodyHtml);
+
+        // Decode escaped HTML tags like &lt;b&gt;, &lt;/b&gt;, &lt;/tr&gt;, &lt;/html&gt;
+        $bodyHtml = preg_replace_callback('/&lt;(\/?[a-zA-Z0-9_-]+(?:[\s\S]*?)?)&gt;/i', function($m) {
+            $inner = $m[1];
+            if (preg_match('/^\/?(html|body|head|table|tbody|thead|tr|td|th|p|div|span|b|strong|i|em|u|br|hr|img|a)(?:\s+[^>]*)?$/i', $inner)) {
+                return '<' . $inner . '>';
+            }
+            return $m[0];
+        }, $bodyHtml);
+
+        // Remove duplicate consecutive table tags and stray html/body tags
+        $bodyHtml = preg_replace('/(<\/tr>\s*){2,}/i', '</tr>', $bodyHtml);
+        $bodyHtml = preg_replace('/(<\/table>\s*){2,}/i', '</table>', $bodyHtml);
+        $bodyHtml = preg_replace('/(<\/div>\s*){2,}/i', '</div>', $bodyHtml);
+        $bodyHtml = preg_replace('/<\/?(html|body|head)[^>]*>/i', '', $bodyHtml);
 
         // Sanitize binary garbage / corrupt image bytes
         $bodyHtml = preg_replace('/4[\?M]4[\?M]4[\?M][\s\S]*?(?=\[image|\n\n|$)/u', '', $bodyHtml);
@@ -725,6 +968,10 @@ class EmailService
         $bodyPlain = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', '', $bodyPlain);
 
         // Sanitize valid UTF-8
+        if (function_exists('iconv')) {
+            $bodyHtml = @iconv('UTF-8', 'UTF-8//IGNORE', $bodyHtml) ?: $bodyHtml;
+            $bodyPlain = @iconv('UTF-8', 'UTF-8//IGNORE', $bodyPlain) ?: $bodyPlain;
+        }
         $bodyHtml = mb_convert_encoding(trim($bodyHtml), 'UTF-8', 'UTF-8');
         $bodyPlain = mb_convert_encoding(trim($bodyPlain), 'UTF-8', 'UTF-8');
 
@@ -782,14 +1029,18 @@ class EmailService
             $body = quoted_printable_decode($body);
         } elseif ($encoding === 'base64') {
             $body = base64_decode(preg_replace('/\s+/', '', $body), true) ?: '';
+        } elseif (strpos($body, '=3D') !== false || preg_match('/=\r?\n/', $body)) {
+            $body = quoted_printable_decode($body);
         }
 
         $isAttachment = preg_match('/Content-Disposition:\s*attachment/i', $headers)
             || preg_match('/(?:filename|name)=["\']?([^"\'\r\n;]+)/i', $headers);
         if ($isAttachment) {
             if (preg_match('/(?:filename|name)=["\']?([^"\'\r\n;]+)/i', $headers, $filenameMatch)) {
-                $filename = basename(trim($filenameMatch[1]));
-                if ($filename !== '' && strlen($body) <= 20 * 1024 * 1024) {
+                $rawFilename = trim($filenameMatch[1]);
+                $filename = iconv_mime_decode($rawFilename, 0, 'UTF-8') ?: $rawFilename;
+                $filename = basename(trim(preg_replace('/[\r\n\t]+/', ' ', $filename)));
+                if ($filename !== '' && strlen($body) <= 25 * 1024 * 1024) {
                     preg_match('/Content-Type:\s*([^;\r\n]+)/i', $headers, $mimeMatch);
                     $attachments[] = [
                         'filename' => $filename,
@@ -800,6 +1051,10 @@ class EmailService
             }
 
             return ['html' => '', 'plain' => ''];
+        }
+
+        if (function_exists('iconv')) {
+            $body = @iconv('UTF-8', 'UTF-8//IGNORE', $body) ?: $body;
         }
 
         if (preg_match('/Content-Type:\s*text\/html/i', $headers)) {
@@ -815,7 +1070,7 @@ class EmailService
     /**
      * Save parsed email to database with proper threading.
      */
-    public function saveParsedEmail(array $data, ?\App\Models\EmailConfiguration $account = null): EmailMessage
+    public function saveParsedEmail(array $data, ?\App\Models\EmailConfiguration $account = null, string $folder = 'inbox', string $direction = 'inbound'): EmailMessage
     {
         $fromEmail = $data['from_email'];
         $subject = $data['subject'] ?? '(No Subject)';
@@ -845,6 +1100,8 @@ class EmailService
             $threadId = $existingMsg ? $existingMsg->thread_id : (string) Str::uuid();
         }
 
+        $isSent = ($direction === 'outbound');
+
         $message = EmailMessage::create([
             'email_configuration_id' => $account?->id,
             'message_id' => $data['message_id'],
@@ -856,13 +1113,14 @@ class EmailService
             'subject' => $subject,
             'body_html' => $this->htmlSanitizer->sanitize($data['body_html'] ?? ''),
             'body_plain' => $data['body_plain'] ?? '',
-            'folder' => 'inbox',
-            'direction' => 'inbound',
-            'status' => 'received',
-            'is_read' => false,
+            'folder' => $folder,
+            'direction' => $direction,
+            'status' => $isSent ? 'sent' : 'received',
+            'is_read' => $isSent,
             'is_draft' => false,
             'has_attachments' => !empty($data['attachments']),
             'received_at' => $data['received_at'] ?? now(),
+            'sent_at' => $isSent ? ($data['received_at'] ?? now()) : null,
         ]);
 
         foreach ($data['attachments'] ?? [] as $attachment) {

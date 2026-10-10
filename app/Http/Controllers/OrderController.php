@@ -25,10 +25,12 @@ use App\Models\Ordercall;
 use App\Models\ProjectStatusCount;
 use App\Models\FollowUpComment;
 use Illuminate\Pagination\Paginator;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use App\Mail\OrderComplete;
-use Mail;
+use App\Services\EmailService;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\Support\Str;
@@ -38,6 +40,7 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use App\Jobs\ExportOrdersJob;
 use Illuminate\Support\Facades\Log;
+
 use Illuminate\Pagination\LengthAwarePaginator;
 
 
@@ -229,6 +232,7 @@ class OrderController extends Controller
         }
     }
 
+    // FIX: Calculate remaining due accurately with live payments fallback
     private function dueAmount(Order $order): float
     {
         $extraPrice = 0.0;
@@ -241,8 +245,29 @@ class OrderController extends Controller
                 ->sum('additional_price');
         }
 
+        $receivedAmount = 0.0;
+        if ($order->relationLoaded('payment') && $order->payment && $order->payment->count() > 0) {
+            $receivedAmount = (float) $order->received_amount;
+        } else {
+            // Check live sum from payment_details table to prevent stale received_amount column issues
+            $livePaid = (float) DB::table('payment_details')
+                ->where(function ($q) use ($order) {
+                    $q->where('order_id', (string) $order->id)
+                      ->orWhere('order_id', (string) $order->order_id);
+                })
+                ->where(function ($q) {
+                    $q->where('is_revoked', 0)->orWhereNull('is_revoked');
+                })
+                ->sum('paid_amount');
+            $receivedAmount = max((float) $order->received_amount, $livePaid);
+            if ($livePaid > (float) $order->received_amount) {
+                $order->received_amount = $livePaid;
+                $order->saveQuietly();
+            }
+        }
+
         $totalAmount = (float) $order->amount + $extraPrice;
-        return round(max(0, $totalAmount - (float) $order->received_amount), 2);
+        return round(max(0, $totalAmount - $receivedAmount), 2);
     }
 
 
@@ -323,8 +348,8 @@ class OrderController extends Controller
         $filePath = $exportStatus['file_path'] ?? null;
         abort_unless($filePath && Storage::disk('public')->exists($filePath), 404, 'Export file has expired.');
 
-        return Storage::disk('public')->download(
-            $filePath,
+        return response()->download(
+            storage_path('app/public/' . $filePath),
             basename($filePath),
             ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']
         );
@@ -360,32 +385,65 @@ class OrderController extends Controller
 
     private function handleRoleOne(Request $request)
     {
+        $unconverted = Cache::remember('unconverted_leads_filter_set', 300, function() {
+            $leadIds = DB::table('leads')
+                ->where('is_converted', '!=', 1)
+                ->pluck('id')
+                ->all();
+            $orderIds = DB::table('leads')
+                ->where('is_converted', '!=', 1)
+                ->whereNotNull('order_id')
+                ->where('order_id', '!=', '')
+                ->pluck('order_id')
+                ->all();
+            return ['lead_ids' => $leadIds, 'order_ids' => $orderIds];
+        });
+
         $ordersQuery = Order::with('user', 'payment', 'feedback', 'team')
-            ->whereNotNull('uid')->where('uid', '!=', 0)->where('uid', '!=', '0')
-            ->where(function ($q) {
-                $q->where(function ($noLead) {
-                    $noLead->whereDoesntHave('lead')->whereDoesntHave('frontendLead');
-                })
-                ->orWhereHas('lead', fn ($lq) => $lq->where('is_converted', 1))
-                ->orWhereHas('frontendLead', fn ($flq) => $flq->where('is_converted', 1));
-            });
+            ->whereNotNull('uid')->where('uid', '!=', 0)->where('uid', '!=', '0');
+
+        if (!empty($unconverted['lead_ids'])) {
+            $ordersQuery->whereNotIn('orders.lead_id', $unconverted['lead_ids']);
+        }
+        if (!empty($unconverted['order_ids'])) {
+            $ordersQuery->whereNotIn('orders.order_id', $unconverted['order_ids']);
+        }
+
+        if (auth()->check()) {
+            $authUser = auth()->user();
+            if ($authUser->role_id == 9) {
+                if (!empty($authUser->team_id)) {
+                    $ordersQuery->where('orders.team_id', $authUser->team_id);
+                }
+            }
+        }
         $data = [
-            'Team' => Writer::all(),
-            'Status' => Status::all(),
-            'formatting' => Formatting::all(),
-            'service' => Services::all(),
-            'Writting' => Writting::all(),
-            'paper' => Paper::all(),
-            'user' => User::all(),
-            'college' => College::all(),
-            'admin' => User::where('role_id', 8)->where('flag', 0)->get(),
-            'writerTL' => User::where('role_id', 6)->where('flag', 0)->get(),
-            'SubWriter' => User::where('role_id', 7)->where('flag', 0)->get(),
-            'projectStatusCounts' => ProjectStatusCount::all()
+            'Team' => Cache::remember('order_writer_teams', 600, fn () => Writer::all()),
+            'Status' => Cache::remember('order_status_list', 600, fn () => Status::all()),
+            'formatting' => Cache::remember('order_formatting_list', 600, fn () => Formatting::all()),
+            'service' => Cache::remember('order_services_list', 600, fn () => Services::all()),
+            'Writting' => Cache::remember('order_writing_list', 600, fn () => Writting::all()),
+            'paper' => Cache::remember('order_paper_list', 600, fn () => Paper::all()),
+            'user' => collect(),
+            'college' => Cache::remember('order_college_list', 600, fn () => College::all()),
+            'admin' => Cache::remember('order_admin_users', 600, fn () => User::where('role_id', 8)->where('flag', 0)->get()),
+            'writerTL' => Cache::remember('order_writerTL_users', 600, fn () => User::where('role_id', 6)->where('flag', 0)->get()),
+            'SubWriter' => Cache::remember('order_subwriter_users', 600, fn () => User::where('role_id', 7)->where('flag', 0)->get()),
+            'projectStatusCounts' => Cache::remember('order_proj_status_counts', 300, fn () => ProjectStatusCount::all())
         ];
-        $totalOrders = $ordersQuery->count();
-        $totalWordCount = (int) $ordersQuery->clone()->where('pages', 'REGEXP', '^[0-9]+$')->sum('pages');
-        if ($request->input('search') || $request->input('status') || $request->input('writer') || $request->input('writerTL') || $request->input('uid') || $request->input('user') || $request->input('date_status') || $request->input('from_date') || $request->input('to_date') || $request->input('SubWriter') || $request->input('college') || $request->input('extra') || $request->input('secondary_mobile') || $request->input('paper_type')) {
+
+        $isFiltered = (bool) ($request->input('search') || $request->input('status') || $request->input('writer') || $request->input('writerTL') || $request->input('uid') || $request->input('user') || $request->input('date_status') || $request->input('from_date') || $request->input('to_date') || $request->input('SubWriter') || $request->input('college') || $request->input('extra') || $request->input('secondary_mobile') || $request->input('paper_type'));
+
+        if (!$isFiltered) {
+            $cacheTeamKey = isset($authUser->team_id) && !empty($authUser->team_id) ? (string)$authUser->team_id : 'all';
+            $totalOrders = Cache::remember("orders_count_base_{$cacheTeamKey}", 60, fn () => $ordersQuery->count());
+            $totalWordCount = Cache::remember("orders_words_base_{$cacheTeamKey}", 60, fn () => (int) $ordersQuery->clone()->where('pages', 'REGEXP', '^[0-9]+$')->sum('pages'));
+        } else {
+            $totalOrders = $ordersQuery->count();
+            $totalWordCount = (int) $ordersQuery->clone()->where('pages', 'REGEXP', '^[0-9]+$')->sum('pages');
+        }
+
+        if ($isFiltered) {
             if ($request->input('uid')) {
                 $ordersQuery->where('uid', $request->input('uid'));
             } elseif ($request->input('user')) {
@@ -400,6 +458,9 @@ class OrderController extends Controller
                       ->orWhere('title', 'like', '%' . $searchTerm . '%');
                     if (!empty($searchUserIds)) {
                         $q->orWhereIn('uid', $searchUserIds);
+                    }
+                    if (is_numeric($searchTerm)) {
+                        $q->orWhere('uid', (int) $searchTerm);
                     }
                 });
             }
@@ -536,7 +597,7 @@ class OrderController extends Controller
             'service' => Services::all(),
             'Writting' => Writting::all(),
             'paper' => Paper::all(),
-            'user' => User::all(),
+            'user' => collect(),
             'college' => College::all(),
             'admin' => User::where('role_id', 8)->where('flag', 0)->get(),
             'writerTL' => User::where('role_id', 6)->where('flag', 0)->get(),
@@ -647,7 +708,7 @@ class OrderController extends Controller
             'service' => Services::all(),
             'Writting' => Writting::all(),
             'paper' => Paper::all(),
-            'user' => User::all(),
+            'user' => collect(),
             'college' => College::all(),
             'admin' => User::where('role_id', 8)->where('flag', 0)->get(),
             'writerTL' => User::where('role_id', 6)->where('flag', 0)->get(),
@@ -692,7 +753,7 @@ class OrderController extends Controller
             'service' => Services::all(),
             'Writting' => Writting::all(),
             'paper' => Paper::all(),
-            'user' => User::all(),
+            'user' => collect(),
             'college' => College::all(),
             'admin' => User::where('role_id', 8)->where('flag', 0)->get(),
             'writerTL' => User::where('role_id', 6)->where('flag', 0)->where('admin_id', auth()->user()->id)->get(),
@@ -873,20 +934,19 @@ class OrderController extends Controller
                 $order->status_date = Carbon::now('Asia/Kolkata');
                 $order->status_by   = auth()->user()->name;
 
+                $resolvedEmail = (strpos($req->input('email', ''), '*') === false && $req->filled('email'))
+                    ? $req->input('email')
+                    : optional($order->user)->email;
+
                 $orderData = [
                     'name' => $req->input('user_name'),
-                    'email' => $req->input('email'),
+                    'email' => $resolvedEmail,
                     'title' => $req->input('title'),
                     'order_code' => $order->order_id,
                     'date'     => $order->delivery_date,
                     'due'     => $req->input('amount') - $req->input('r_amount'),
                 ];
-                try {
-                    Mail::to($orderData['email'])->cc('order@assignnmentinneed.com')->send(new OrderComplete($orderData));
-                } catch (\Throwable $e) {
-                    // Log the error but do not stop execution
-                    Log::error('Mail sending failed | Error: ' . $e->getMessage());
-                }
+                $this->sendOrderCompleteEmail($orderData);
             } elseif ($req->input('status') == 'Delivered') {
 
                 if ($this->dueAmount($order) > 0) {
@@ -1010,12 +1070,7 @@ class OrderController extends Controller
                     'date'     => $order->delivery_date,
                     'due'     => $req->input('amount') - $req->input('r_amount'),
                 ];
-                try {
-                    Mail::to($orderData['email'])->cc('order@assignnmentinneed.com')->send(new OrderComplete($orderData));
-                } catch (\Throwable $e) {
-                    // Log the error but do not stop execution
-                    Log::error('Mail sending failed | Error: ' . $e->getMessage());
-                }
+                $this->sendOrderCompleteEmail($orderData);
             } elseif ($req->input('status') == 'Delivered') {
                 if ($this->dueAmount($order) > 0) {
                     return redirect()->back()->with('warning', 'Order cannot be marked as Delivered if there is any due payment remaining.');
@@ -1060,27 +1115,29 @@ class OrderController extends Controller
                 $order->chapter = null;
             }
             $user = User::find($order->uid);
-            if ($req->filled('user_name')) {
-                $user->name = $req->input('user_name');
-            }
-            if ($req->filled('mobile')) {
-                $user->mobile_no = $req->input('mobile');
-            }
-            if ($req->filled('country_code')) {
-                $user->countrycode = $req->input('country_code');
-            }
-            if ($req->filled('mobile2')) {
-                $user->mobile_no2 = $req->input('mobile2');
-            }
-            if ($req->filled('country_code2')) {
-                $user->countrycode2 = $req->input('country_code2');
-            }
-            if ($req->filled('email')) {
-                $user->email = $req->input('email');
-            }
+            if ($user) {
+                if ($req->filled('user_name')) {
+                    $user->name = $req->input('user_name');
+                }
+                if ($req->filled('mobile') && !str_contains($req->input('mobile'), '*')) {
+                    $user->mobile_no = $req->input('mobile');
+                }
+                if ($req->filled('country_code') && !str_contains($req->input('country_code'), '*')) {
+                    $user->countrycode = $req->input('country_code');
+                }
+                if ($req->filled('mobile2') && !str_contains($req->input('mobile2'), '*')) {
+                    $user->mobile_no2 = $req->input('mobile2');
+                }
+                if ($req->filled('country_code2') && !str_contains($req->input('country_code2'), '*')) {
+                    $user->countrycode2 = $req->input('country_code2');
+                }
+                if ($req->filled('email') && !str_contains($req->input('email'), '*')) {
+                    $user->email = $req->input('email');
+                }
 
-            // Save user changes
-            $user->save();
+                // Save user changes
+                $user->save();
+            }
         }
 
 
@@ -1088,10 +1145,11 @@ class OrderController extends Controller
         // Save order changes
         $order->save();
 
-        if (Str::lower($req->input('status')) === 'initiated') {
-            $order->assignTeamForInitiatedStatus();
-            event(new \App\Events\OrderStatusChanged($order));
-        }
+        // mk 7 10 26 - Prevent auto team allocation on order update
+        // if (Str::lower($req->input('status')) === 'initiated') {
+        //     $order->assignTeamForInitiatedStatus();
+        //     event(new \App\Events\OrderStatusChanged($order));
+        // }
 
         // Update or create a record in the ProjectStatusCount table
         $statusCount = ProjectStatusCount::where('order_Id', $order->id)
@@ -1158,16 +1216,42 @@ class OrderController extends Controller
             'projectStatusCounts' => collect()
         ];
 
-        $orders = Order::query()
-            ->whereNotNull('uid')->where('uid', '!=', 0)->where('uid', '!=', '0')
+        // Resolve exact and candidate order codes
+        $rawSearch = trim((string)($searchTerm ?? $selectedDataTextBox ?? $userParam ?? ''));
+        $cleanSearch = trim(preg_replace('/^[#\s]+|^order[:\s-]*/i', '', $rawSearch));
+        $noSpaces = strtoupper(str_replace(' ', '', $cleanSearch));
+        $possibleCodes = array_values(array_filter(array_unique([
+            $rawSearch,
+            $cleanSearch,
+            $noSpaces,
+            is_numeric($noSpaces) ? ('UKS' . $noSpaces) : null,
+            str_starts_with($noSpaces, 'UKS') ? substr($noSpaces, 3) : null,
+        ])));
+
+        $matchedOrderIds = [];
+        if (!empty($rawSearch)) {
+            $matchedOrderIds = Order::where(function ($oq) use ($possibleCodes, $noSpaces) {
+                $oq->whereIn('order_id', $possibleCodes);
+                if (str_starts_with($noSpaces, 'UKS') && strlen($noSpaces) >= 4) {
+                    $oq->orWhere('order_id', 'like', $noSpaces . '%');
+                } elseif (is_numeric($noSpaces) && strlen($noSpaces) >= 3) {
+                    $oq->orWhere('order_id', 'like', 'UKS' . $noSpaces . '%')
+                       ->orWhere('order_id', 'like', '%' . $noSpaces . '%');
+                }
+            })->pluck('order_id')->toArray();
+        }
+
+        $orders = Order::query()->select($this->orderListColumns());
+
+        // Enforce uid != 0 and lead conversion (never display unconverted or cancelled leads as orders)
+        $orders->whereNotNull('uid')->where('uid', '!=', 0)->where('uid', '!=', '0')
             ->where(function ($q) {
                 $q->where(function ($noLead) {
                     $noLead->whereDoesntHave('lead')->whereDoesntHave('frontendLead');
                 })
                 ->orWhereHas('lead', fn ($lq) => $lq->where('is_converted', 1))
                 ->orWhereHas('frontendLead', fn ($flq) => $flq->where('is_converted', 1));
-            })
-            ->select($this->orderListColumns());
+            });
 
         if ($semester != '') {
             $orders->where('semester',  $semester);
@@ -1175,11 +1259,19 @@ class OrderController extends Controller
 
         if ($searchTerm != '') {
             $searchUserIds = find_user_ids_by_search_term($searchTerm);
-            $orders->where(function ($query) use ($searchTerm, $searchUserIds) {
-                $query->where('order_id', 'like', '%' . $searchTerm . '%')
-                    ->orWhere('title', 'like', '%' . $searchTerm . '%');
+            $orders->where(function ($query) use ($searchTerm, $searchUserIds, $matchedOrderIds, $possibleCodes) {
+                if (!empty($matchedOrderIds)) {
+                    $query->whereIn('order_id', $matchedOrderIds)
+                          ->orWhereIn('order_id', $possibleCodes);
+                } else {
+                    $query->where('order_id', 'like', '%' . $searchTerm . '%');
+                }
+                $query->orWhere('title', 'like', '%' . $searchTerm . '%');
                 if (!empty($searchUserIds)) {
                     $query->orWhereIn('uid', $searchUserIds);
+                }
+                if (is_numeric($searchTerm)) {
+                    $query->orWhere('uid', (int) $searchTerm);
                 }
             });
         }
@@ -1280,9 +1372,16 @@ class OrderController extends Controller
                 },
                 'payment:id,order_id,paid_amount,is_revoked,payee_name,company_accounts',
                 'team:id,team_name',
-            ])
-            ->orderBy('id', 'desc')
-            ->where('uid', '!=', '0');
+            ]);
+
+        if (!empty($matchedOrderIds)) {
+            $escapedCodes = implode("','", array_map(fn($c) => addslashes($c), $matchedOrderIds));
+            $ordersQueryBuilder->orderByRaw("CASE WHEN orders.order_id IN ('{$escapedCodes}') THEN 0 ELSE 1 END");
+        } else {
+            $ordersQueryBuilder->where('uid', '!=', '0');
+        }
+
+        $ordersQueryBuilder->orderBy('id', 'desc');
 
         if (empty($uid) && empty($userParam)) {
             $ordersQueryBuilder->limit((int) $request->get('limit', 100));
@@ -1331,7 +1430,7 @@ class OrderController extends Controller
                            
                                 </td>  
                             
-                                ' . ($order->user !=  ''  && auth()->user()->role_id !=  '5' ?
+                                ' . ($order->user !=  ''  && auth()->user()?->role_id !=  '5' ?
 
                 '<td>
                                 ' . $order->user->name . '
@@ -1340,7 +1439,7 @@ class OrderController extends Controller
 
                 : '') . '
 
-                                ' . ($order->user ==  ''  &&  auth()->user()->role_id !=  '5'  ?
+                                ' . ($order->user ==  ''  &&  auth()->user()?->role_id !=  '5'  ?
 
                 '<td>
                                 Deleted User
@@ -1354,15 +1453,19 @@ class OrderController extends Controller
                             ' . ($order->delivery_date != null ? \Carbon\Carbon::parse($order->delivery_date)->format('d M Y') : 'Not Available') . '
                             ' . ($order->draftrequired == 'Y' ? '<span class="badge badge-light-success fs-7 fw-bold">' . \Carbon\Carbon::parse($order->draft_date)->format('d M Y') . ' (' . (\Carbon\Carbon::parse($order->draft_time)->format('H:i')) . ')</span>' : '') . '
                             </td>
-                            <td>' . $order->title . '
-                                  ' . (auth()->user()->role_id ==  '1' ||  auth()->user()->role_id ==  '4' ||  auth()->user()->role_id ==  '9' ?
+                            <td>
+                                <div class="d-inline-flex align-items-center flex-wrap">
+                                    <span>' . $order->title . '</span>
+                                    ' . (!empty($order->title) ? '<button type="button" class="btn btn-icon btn-sm btn-active-light-primary ms-1 p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Project Title" data-copy-text="' . htmlspecialchars($order->title, ENT_QUOTES) . '" onclick="event.stopPropagation(); crmCopyToClipboard(this.getAttribute(\'data-copy-text\'), \'Project Title copied!\');"><i class="fa fa-clone fs-8 text-muted"></i></button>' : '') . '
+                                </div>
+                                ' . (auth()->user()->role_id ==  '1' ||  auth()->user()->role_id ==  '4' ||  auth()->user()->role_id ==  '9' ?
                 '
                                  <br>  ' . ($order->semester != '' ? '' . $order->semester . '' : '') . '
                             '
                 : '') . '
                             ' . ($order->chapter != '' ? '<span class="badge badge-light-danger fs-7 fw-bold">' . $order->chapter . '</span>' : '') . '
                             ' . ($order->tech == '1' ? '<span class="badge badge-light-success fs-7 fw-bold">Technical Work</span>' : '') . '
-                            ' . ($order->module_code != '' ? '<span class="badge badge-light-danger fs-7 fw-bold">' . $order->module_code . '</span>' : '') . '
+                            ' . ($order->module_code != '' ? '<br><div class="d-inline-flex align-items-center mt-1"><span class="badge badge-light-danger fs-7 fw-bold">' . $order->module_code . '</span><button type="button" class="btn btn-icon btn-sm btn-active-light-primary ms-1 p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Module Code" data-copy-text="' . htmlspecialchars($order->module_code, ENT_QUOTES) . '" onclick="event.stopPropagation(); crmCopyToClipboard(this.getAttribute(\'data-copy-text\'), \'Module Code copied!\');"><i class="fa fa-clone fs-8 text-muted"></i></button></div>' : '') . '
                             </td>
                             <td onclick="status(' . $order->id . ')">
                             ' . ($order->projectstatus ==  'Pending' ? '<span class="badge badge-light-danger fs-7 fw-bold" style="background:pink; color:white">' . $order->projectstatus . '</span>' : '') . '
@@ -1610,7 +1713,7 @@ class OrderController extends Controller
         $data['Writting'] = Writting::all();
         $data['paper'] = Paper::all();
         $data['college'] = College::all();
-        $data['user'] = User::all();
+        $data['user'] = collect();
 
         $userDetails = $order->user;
 
@@ -1628,6 +1731,7 @@ class OrderController extends Controller
         $countryCode = $validated['country_code'] ?? '';
         $mobile = $validated['mobile'] ?? '';
 
+        $customerName = 'Customer';
         // Fetch countrycode & mobile_no directly from users DB table if order_id is provided
         if (!empty($validated['order_id'])) {
             $order = Order::with('user')->find($validated['order_id']);
@@ -1638,49 +1742,62 @@ class OrderController extends Controller
                 if (!empty($order->user->mobile_no)) {
                     $mobile = $order->user->mobile_no;
                 }
+                if (!empty($order->user->name)) {
+                    $customerName = $order->user->name;
+                }
             }
         }
 
         $targetNumber = $this->normalizeSoftphoneNumber((string)$countryCode, (string)$mobile);
 
-        if (! $targetNumber) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Customer phone number is not valid.',
-            ], 422);
+        $forceRefresh = $request->boolean('force_refresh');
+        $creds = \App\Http\Controllers\PluginController::resolveNext2CallCredentials();
+        $userId = $creds['user_id'];
+        $password = $creds['password'];
+        $sipDomain = $creds['sip_domain'];
+        $clickToDialPath = $creds['click_to_dial_path'];
+
+        // Get 12-hour session from DB (auto-refreshes if >= 12h or forceRefresh requested)
+        $session = \App\Http\Controllers\PluginController::getNext2CallSession($userId, $password, $forceRefresh);
+        $baseCtc = !empty($session['click_to_call_url'])
+            ? str_replace('index.html', 'click-to-dial.html', $session['click_to_call_url'])
+            : ("https://{$sipDomain}/api-section/softphone/Phone/click-to-dial.html?" . http_build_query([
+                'profileName' => $userId,
+                'SipDomain'   => $sipDomain,
+                'SipUsername' => $userId,
+                'SipPassword' => $password,
+            ]) . '&d=');
+        if (!str_contains($baseCtc, 'api-section')) {
+            $baseCtc = str_replace('/softphone/Phone/', '/api-section/softphone/Phone/', $baseCtc);
         }
 
-        $userId = config('services.softphone.user_id', '10101');
-        $password = config('services.softphone.password', 'T2d8d1r5P6x0T8O8iUq');
-        $sipDomain = config('services.softphone.sip_domain', 'ringfy.next2call.com');
-
-        if (auth()->check()) {
-            $user = auth()->user();
-            if (!empty($user->sip)) {
-                $userId = $user->sip;
-            } elseif (!empty($user->call_id)) {
-                $userId = $user->call_id;
-            }
-            if (!empty($user->sip_password)) {
-                $password = $user->sip_password;
-            }
+        $callUrl = null;
+        $maskedNumber = '';
+        if (!empty($targetNumber)) {
+            $callUrl = str_ends_with($baseCtc, '=') ? ($baseCtc . $targetNumber) : ($baseCtc . '&d=' . $targetNumber);
+            $maskedNumber = function_exists('mask_phone_for_display')
+                ? mask_phone_for_display($countryCode, $mobile)
+                : ('+' . substr($targetNumber, 0, -4) . '****');
         }
 
-        // Construct clean click-to-dial URL according to official Next2Call DOCX & HTML sample
-        $query = http_build_query([
-            'profileName' => $userId,
-            'SipDomain'   => $sipDomain,
-            'SipUsername' => $userId,
-            'SipPassword' => $password,
-            'd'           => $targetNumber,
-        ]);
-
-        $callUrl = "https://{$sipDomain}/softphone/Phone/click-to-dial.html?" . $query;
+        $dialerUrl = !empty($session['webphone_url'])
+            ? $session['webphone_url']
+            : ("https://{$sipDomain}/api-section/softphone/Phone/index.html?" . http_build_query([
+                'profileName' => $userId,
+                'SipDomain'   => $sipDomain,
+                'SipUsername' => $userId,
+                'SipPassword' => $password,
+            ]));
+        if (!str_contains($dialerUrl, 'api-section')) {
+            $dialerUrl = str_replace('/softphone/Phone/', '/api-section/softphone/Phone/', $dialerUrl);
+        }
 
         \Illuminate\Support\Facades\Log::info('[Softphone] Generated Click-to-Dial URL', [
             'country_code' => $countryCode,
             'mobile' => $validated['mobile'] ?? '',
             'target_number' => $targetNumber,
+            'masked_number' => $maskedNumber,
+            'user_id' => $userId,
             'url' => $callUrl,
         ]);
 
@@ -1688,8 +1805,80 @@ class OrderController extends Controller
             'success' => true,
             'url' => $callUrl,
             'softphone_url' => $callUrl,
+            'dialer_url' => $dialerUrl,
             'target_number' => $targetNumber,
+            'masked_number' => $maskedNumber,
+            'customer_name' => $customerName,
+            'user_id' => $userId,
+            'token' => $session['token'] ?? null,
+            'expires_at' => $session['expires_at'] ?? null,
         ], 200, [], JSON_UNESCAPED_SLASHES);
+    }
+
+    public function whitelistNext2CallIp(Request $request)
+    {
+        $clientIp = $request->input('client_ip');
+        if (!$clientIp || !filter_var($clientIp, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+            $clientIp = $request->header('cf-connecting-ip')
+                ?: $request->header('x-real-ip')
+                ?: $request->header('x-forwarded-for')
+                ?: $request->ip();
+            if (is_string($clientIp) && str_contains($clientIp, ',')) {
+                $clientIp = trim(explode(',', $clientIp)[0]);
+            }
+        }
+
+        $result = $this->autoAllowNext2CallIp($clientIp, true);
+        return response()->json([
+            'success' => $result['allowed'] ?? false,
+            'ip'      => $result['ip'] ?? $clientIp,
+            'details' => $result,
+        ]);
+    }
+
+    public function next2callClient(Request $request)
+    {
+        $creds = \App\Http\Controllers\PluginController::resolveNext2CallCredentials();
+        $userId = $request->get('SipUsername', $creds['user_id']);
+        $password = $request->get('SipPassword', $creds['password']);
+        $sipDomain = $request->get('SipDomain', $creds['sip_domain']);
+
+        return view('order.section.next2call-client', compact('userId', 'password', 'sipDomain'));
+    }
+
+    private function autoAllowNext2CallIp(?string $clientIp = null, bool $force = false): array
+    {
+        try {
+            $ip = $clientIp;
+            if (!$ip || in_array($ip, ['127.0.0.1', '::1', 'localhost']) || str_starts_with($ip, '192.168.') || str_starts_with($ip, '10.')) {
+                $ip = Cache::remember('next2call_wan_ip', 180, function () {
+                    $ctx = stream_context_create(['http' => ['timeout' => 2]]);
+                    return @trim(file_get_contents('https://api.ipify.org', false, $ctx)) ?: null;
+                });
+            }
+
+            if ($ip && filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+                $lastAllowedIp = Cache::get('next2call_allowed_ip');
+                if ($force || $lastAllowedIp !== $ip) {
+                    $res = Http::timeout(5)->asForm()->post('http://ipallow.next2call.com/ipallow/process_ip.php', [
+                        'client_id'  => 'CLT-5009FAA4F58D',
+                        'ip_address' => $ip,
+                    ]);
+                    $body = $res->json();
+                    if ($res->successful()) {
+                        Cache::put('next2call_allowed_ip', $ip, 600);
+                        Log::info('[Softphone] Auto-allowed IP on Next2Call PBX: ' . $ip, ['res' => $body]);
+                        return ['allowed' => true, 'ip' => $ip, 'res' => $body];
+                    }
+                    return ['allowed' => false, 'ip' => $ip, 'res' => $body];
+                }
+                return ['allowed' => true, 'ip' => $ip, 'cached' => true];
+            }
+        } catch (\Throwable $e) {
+            Log::warning('[Softphone] Auto IP allow error: ' . $e->getMessage());
+            return ['allowed' => false, 'error' => $e->getMessage()];
+        }
+        return ['allowed' => false];
     }
 
     private function fetchSoftphoneToken(string $baseUrl, string $userId, string $password): string
@@ -1760,32 +1949,22 @@ class OrderController extends Controller
             return '';
         }
 
-        // Check if Indian number (country code 91 or starts with 91/0 with 10-12 digits)
-        $isIndia = ($cleanCountryCode === '91')
-            || (str_starts_with($cleanMobile, '91') && strlen($cleanMobile) >= 12)
-            || (empty($cleanCountryCode) && (strlen($cleanMobile) == 10 || (strlen($cleanMobile) == 11 && str_starts_with($cleanMobile, '0'))));
-
-        if ($isIndia) {
-            // Per Next2Call HTML JS sample: contactNumber.startsWith("91") -> "0" + number.substring(2)
-            // Format 10-digit Indian numbers with leading zero for Next2Call SIP Trunk (e.g., 08800826129)
-            $tenDigits = substr($cleanMobile, -10);
-            return '0' . $tenDigits;
+        // If number starts with 0 and is 11 digits (e.g. 09610092299), strip leading 0
+        if (str_starts_with($cleanMobile, '0') && strlen($cleanMobile) === 11) {
+            $cleanMobile = substr($cleanMobile, 1);
         }
 
-        // Check if UK number (country code 44 or starts with 44)
-        $isUK = ($cleanCountryCode === '44')
-            || (str_starts_with($cleanMobile, '44') && strlen($cleanMobile) >= 11);
-
-        if ($isUK) {
-            if (str_starts_with($cleanMobile, '44')) {
+        // If country code is provided
+        if (!empty($cleanCountryCode)) {
+            if (str_starts_with($cleanMobile, $cleanCountryCode)) {
                 return $cleanMobile;
             }
-            return '44' . ltrim($cleanMobile, '0');
+            return $cleanCountryCode . ltrim($cleanMobile, '0');
         }
 
-        // Generic fallback for other country codes
-        if (!empty($cleanCountryCode) && !str_starts_with($cleanMobile, $cleanCountryCode)) {
-            return $cleanCountryCode . ltrim($cleanMobile, '0');
+        // Default 10-digit number without country code: prefix 91 (India)
+        if (strlen($cleanMobile) === 10) {
+            return '91' . $cleanMobile;
         }
 
         return $cleanMobile;
@@ -1870,7 +2049,7 @@ class OrderController extends Controller
         // $query = Order::with(['feedback' => function ($query) {
         //     $query->orderByDesc('id');
         // }, 'feedback.user'])->where('feedbackissue', '1')->orderByDesc('feedback_date');
-        $query = Order::with(['feedback' => function ($query) {
+        $query = Order::with(['user', 'team', 'feedback' => function ($query) {
             $query->orderByDesc('id');
         }, 'feedback.user'])->where('feedbackissue', '1')->orderByDesc(
             Feedback::select('created_at')
@@ -1899,8 +2078,22 @@ class OrderController extends Controller
         }
 
         if ($req->filled('search')) {
-            $order_id = $req->input('search');
-            $query->where('order_id', $order_id);
+            $search = trim((string) $req->input('search'));
+            $searchUserIds = find_user_ids_by_search_term($search);
+            if (is_numeric($search)) {
+                $searchUserIds[] = (int) $search;
+                $searchUserIds = array_unique($searchUserIds);
+            }
+            $query->where(function ($q) use ($search, $searchUserIds) {
+                $q->where('order_id', $search)
+                  ->orWhere('order_id', 'like', '%' . $search . '%');
+                if (!empty($searchUserIds)) {
+                    $q->orWhereIn('uid', $searchUserIds);
+                }
+                if (is_numeric($search)) {
+                    $q->orWhere('uid', (int) $search);
+                }
+            });
         }
         if ($req->filled('ticket_no')) {
             $ticket_no = $req->input('ticket_no');
@@ -2599,12 +2792,32 @@ class OrderController extends Controller
 
 
 
-        if ($fromDate != '') {
-
+        if ($dateStatus != '' || $fromDate != '' || $toDate != '') {
+            $targetField = ($dateStatus == 'draft_date') ? 'draft_date' : 'writer_deadline';
             if ($fromDate != '' && $toDate != '') {
-                $orders->whereBetween('writer_deadline', [$fromDate, $toDate]);
-            } else {
-                $orders->where('writer_deadline', $fromDate);
+                if ($dateStatus == 'draft_date') {
+                    $orders->whereBetween('draft_date', [$fromDate, $toDate])->where('draftrequired', 'y');
+                } else {
+                    $orders->whereBetween($targetField, [$fromDate, $toDate]);
+                }
+            } elseif ($fromDate != '') {
+                if ($dateStatus == 'draft_date') {
+                    $orders->whereDate('draft_date', $fromDate)->where('draftrequired', 'y');
+                } else {
+                    $orders->whereDate($targetField, $fromDate);
+                }
+            } elseif ($toDate != '') {
+                if ($dateStatus == 'draft_date') {
+                    $orders->whereDate('draft_date', '<=', $toDate)->where('draftrequired', 'y');
+                } else {
+                    $orders->whereDate($targetField, '<=', $toDate);
+                }
+            } elseif ($dateStatus != '') {
+                if ($dateStatus == 'draft_date') {
+                    $orders->whereDate('draft_date', Carbon::today())->where('draftrequired', 'y');
+                } else {
+                    $orders->whereDate($targetField, Carbon::today());
+                }
             }
         }
 
@@ -2949,6 +3162,9 @@ class OrderController extends Controller
                 if (!empty($searchUserIds)) {
                     $q->orWhereIn('uid', $searchUserIds);
                 }
+                if (is_numeric($searchTerm)) {
+                    $q->orWhere('uid', (int) $searchTerm);
+                }
             });
         }
 
@@ -3056,7 +3272,7 @@ class OrderController extends Controller
             'service' => Services::all(),
             'Writting' => Writting::all(),
             'paper' => Paper::all(),
-            'user' => User::all(),
+            'user' => collect(),
             'college' => College::all(),
             'admin' => User::where('role_id', 8)->where('flag', 0)->get(),
             'writerTL' => User::where('role_id', 6)->where('flag', 0)->get(),
@@ -3217,11 +3433,17 @@ class OrderController extends Controller
                 return response()->json(['error' => 'Status category not found in database']);
             }
 
+            // FIX: Separate Order and User validation with clear, distinct error messages
             try {
                 $order = Order::findOrFail($orderId);
-                $userDetails = User::findOrFail($order->uid);
             } catch (ModelNotFoundException $e) {
-                return response()->json(['error' => 'Order or User not found']);
+                return response()->json(['error' => 'Order not found']);
+            }
+
+            // FIX: If user is not linked or found, return 'No user'
+            $userDetails = !empty($order->uid) ? User::find($order->uid) : null;
+            if (!$userDetails) {
+                return response()->json(['error' => 'No user']);
             }
 
             // 1. Delivered status validation (Payment check)
@@ -3235,7 +3457,7 @@ class OrderController extends Controller
             }
             $order->projectstatus = $statusName->status;
             $order->status_date = Carbon::now('Asia/Kolkata');
-            $order->status_by = auth()->user()->name;
+            $order->status_by = auth()->user() ? auth()->user()->name : 'System';
             if (trim(Str::lower($statusName->status)) === 'writer query') {
                 $order->writerstatus_date = Carbon::now('Asia/Kolkata');
             }
@@ -3244,9 +3466,10 @@ class OrderController extends Controller
             }
             $order->save();
 
-            if ($order->isInitiatedStatus()) {
-                $order->assignTeamForInitiatedStatus();
-            }
+            // mk 7 10 26 - Prevent auto team allocation when changing status on orders page (Initiated or other status)
+            // if ($order->isInitiatedStatus()) {
+            //     $order->assignTeamForInitiatedStatus();
+            // }
 
             // 3. Feedback Table Entry (Chat Box aur Sheet dono ke liye)
             $feedback = new Feedback();
@@ -3259,41 +3482,28 @@ class OrderController extends Controller
             $feedback->action_comment = $finalComment; // Ye aapki Ticket Sheet mein dikhega
 
             $feedback->status = $statusName->status;
-            $feedback->created_by = auth()->user()->id;
+            $feedback->created_by = auth()->user() ? auth()->user()->id : null;
             $feedback->save();
             $mailSent = null;
             $mailError = null;
 
             if ($statusName->status == 'Completed') {
+                $resolvedEmail = (strpos($userDetails->email ?? '', '*') === false && !empty($userDetails->email))
+                    ? $userDetails->email
+                    : optional($order->user)->email;
 
                 $orderData = [
                     'name' => $userDetails->name,
-                    'email' => $userDetails->email,
+                    'email' => $resolvedEmail,
                     'title' => $order->title,
                     'order_code' => $order->order_id,
                     'date' => $order->delivery_date,
                     'due' => $this->dueAmount($order),
                 ];
 
-                if (!filter_var($orderData['email'], FILTER_VALIDATE_EMAIL)) {
-
-                    $mailSent = false;
-                    $mailError = 'Invalid email address';
-                } else {
-
-                    try {
-                        Mail::to($orderData['email'])
-                            ->cc('order@assignnmentinneed.com')
-                            ->bcc('yourmail@gmail.com')
-                            ->send(new OrderComplete($orderData));
-
-                        $mailSent = true;
-                    } catch (\Throwable $e) {
-                        $mailSent = false;
-                        $mailError = $e->getMessage();
-
-                        Log::error('Completed mail sending failed | Order: ' . $order->order_id . ' | Error: ' . $mailError);
-                    }
+                $mailSent = $this->sendOrderCompleteEmail($orderData);
+                if (!$mailSent) {
+                    $mailError = 'Failed to send completion email';
                 }
             }
 
@@ -3713,8 +3923,8 @@ class OrderController extends Controller
               ->orWhereNotNull('orders.lead_id');
         });
 
-        // ─── Lead Filtering (Performance-Optimized) ──────────────────────────────────
-        $unconvertedOrderCodes = Cache::remember('unconverted_order_codes_in_orders', 60, function () {
+        // mk 5 10 26 - Cache unconverted order codes for 300s to avoid heavy 60,000 order join spikes
+        $unconvertedOrderCodes = Cache::remember('unconverted_order_codes_in_orders', 300, function () {
             return DB::table('orders')
                 ->join('leads', 'orders.order_id', '=', 'leads.order_id')
                 ->where('leads.is_converted', 0)
@@ -3724,6 +3934,72 @@ class OrderController extends Controller
                 ->toArray();
         });
 
+        // Resolve exact and candidate order codes from 'search', 'order', or 'user'
+        $rawSearch = trim((string)($request->search ?? $request->order ?? ''));
+        $cleanSearch = trim(preg_replace('/^[#\s]+|^order[:\s-]*/i', '', $rawSearch));
+        $noSpaces = str_replace(' ', '', $cleanSearch);
+        $upperSearch = strtoupper($noSpaces);
+        $looksLikeOrderCode = (bool) preg_match('/^[A-Z]{1,5}\d{3,7}$/', $upperSearch);
+
+        $possibleCodes = array_values(array_filter(array_unique([
+            $rawSearch,
+            $cleanSearch,
+            $noSpaces,
+            $upperSearch,
+            is_numeric($noSpaces) ? ('UKS' . $noSpaces) : null,
+            str_starts_with($upperSearch, 'UKS') ? substr($upperSearch, 3) : null,
+        ])));
+
+        $matchedOrderIds = [];
+        $exactMatchedOrderIds = [];
+        if (!empty($rawSearch)) {
+            $exactMatchedOrderIds = Order::whereIn('order_id', $possibleCodes)
+                ->pluck('order_id')
+                ->toArray();
+
+            if (!empty($exactMatchedOrderIds)) {
+                $matchedOrderIds = $exactMatchedOrderIds;
+            } else {
+                $matchedOrderIds = Order::where(function ($oq) use ($upperSearch, $noSpaces) {
+                    if (str_starts_with($upperSearch, 'UKS') && strlen($upperSearch) >= 4) {
+                        $oq->where('order_id', 'like', $upperSearch . '%');
+                    } elseif (is_numeric($noSpaces) && strlen($noSpaces) >= 3) {
+                        $oq->where('order_id', 'like', 'UKS' . $noSpaces . '%')
+                           ->orWhere('order_id', 'like', '%' . $noSpaces . '%');
+                    } else {
+                        $oq->whereRaw('0 = 1');
+                    }
+                })->pluck('order_id')->toArray();
+            }
+        }
+
+        // Also check if user typed an order code into the 'user' (searchInput) box
+        $userParam = trim((string)$request->user);
+        if (!empty($userParam)) {
+            $cleanUserParam = strtoupper(str_replace(' ', '', preg_replace('/^[#\s]+|^order[:\s-]*/i', '', $userParam)));
+            $userExactMatchedCodes = Order::whereIn('order_id', array_values(array_filter(array_unique([
+                $userParam,
+                $cleanUserParam,
+                is_numeric($cleanUserParam) ? ('UKS' . $cleanUserParam) : null,
+            ]))))->pluck('order_id')->toArray();
+
+            if (!empty($userExactMatchedCodes)) {
+                $exactMatchedOrderIds = array_values(array_unique(array_merge($exactMatchedOrderIds, $userExactMatchedCodes)));
+                $userMatchedCodes = $userExactMatchedCodes;
+            } else {
+                $userMatchedCodes = Order::where(function ($oq) use ($userParam) {
+                    if (is_numeric($userParam) && strlen($userParam) >= 3) {
+                        $oq->where('order_id', 'like', 'UKS' . $userParam . '%');
+                    } else {
+                        $oq->whereRaw('0 = 1');
+                    }
+                })->pluck('order_id')->toArray();
+            }
+            if (!empty($userMatchedCodes)) {
+                $matchedOrderIds = array_values(array_unique(array_merge($matchedOrderIds, $userMatchedCodes)));
+            }
+        }
+        // Enforce lead conversion (never display unconverted or cancelled leads as orders)
         if (!empty($unconvertedOrderCodes)) {
             $query->whereNotIn('orders.order_id', $unconvertedOrderCodes);
         }
@@ -3732,17 +4008,34 @@ class OrderController extends Controller
 
         if ($request->filled('search')) {
             $search = trim($request->search);
-            $hasOrderCodeMatch = Order::where('order_id', $search)
-                ->orWhere('order_id', 'like', $search . '%')
-                ->exists();
+            $searchUserIds = find_user_ids_by_search_term($search);
+            if (is_numeric($search)) {
+                $searchUserIds[] = (int) $search;
+                $searchUserIds = array_unique($searchUserIds);
+            }
 
-            if ($hasOrderCodeMatch) {
-                $query->where(function ($q) use ($search) {
-                    $q->where('order_id', $search)
-                        ->orWhere('order_id', 'like', $search . '%');
+            if ($looksLikeOrderCode || !empty($exactMatchedOrderIds)) {
+                $query->where(function ($q) use ($possibleCodes, $upperSearch) {
+                    $q->whereIn('orders.order_id', $possibleCodes)
+                      ->orWhereRaw('UPPER(orders.order_id) = ?', [$upperSearch]);
+                });
+            } elseif (!empty($matchedOrderIds)) {
+                $query->where(function ($q) use ($matchedOrderIds, $possibleCodes, $search, $searchUserIds) {
+                    $q->whereIn('orders.order_id', $matchedOrderIds)
+                      ->orWhereIn('orders.order_id', $possibleCodes);
+                    if (!empty($search)) {
+                        $q->orWhere('orders.title', 'like', '%' . $search . '%');
+                    }
+                    if (is_numeric($search)) {
+                        $q->orWhere('orders.uid', (int) $search);
+                    }
+                    if (!empty($searchUserIds)) {
+                        $q->orWhereIn('orders.uid', $searchUserIds)
+                          ->orWhereHas('lead', fn($lq) => $lq->whereIn('emp_id', $searchUserIds))
+                          ->orWhereHas('frontendLead', fn($flq) => $flq->whereIn('emp_id', $searchUserIds));
+                    }
                 });
             } else {
-                $searchUserIds = find_user_ids_by_search_term($search);
                 $hasAsterisk = strpos($search, '*') !== false;
                 $cleanMaskedPattern = $hasAsterisk ? preg_replace('/\*+/', '%', preg_replace('/[^0-9*]/', '', $search)) : null;
                 $cleanDigits = preg_replace('/\D+/', '', $search);
@@ -3756,6 +4049,10 @@ class OrderController extends Controller
                         $q->orWhereIn('orders.uid', $searchUserIds)
                           ->orWhereHas('lead', fn($lq) => $lq->whereIn('emp_id', $searchUserIds))
                           ->orWhereHas('frontendLead', fn($flq) => $flq->whereIn('emp_id', $searchUserIds));
+                    }
+
+                    if (is_numeric($search)) {
+                        $q->orWhere('orders.uid', (int) $search);
                     }
 
                     $q->orWhereHas('user', function ($uq) use ($search, $cleanMaskedPattern, $last10) {
@@ -3811,11 +4108,10 @@ class OrderController extends Controller
 
         if (!empty($selectedUid) && is_numeric($selectedUid) && (int)$selectedUid > 0) {
             $uid = (int) $selectedUid;
-            $query->where(function ($q) use ($uid) {
-                $q->where('orders.uid', $uid)
-                  ->orWhereHas('lead', fn($lq) => $lq->where('emp_id', $uid))
-                  ->orWhereHas('frontendLead', fn($flq) => $flq->where('emp_id', $uid));
-            });
+            // A UID filter represents one exact CRM customer. Including orders
+            // through lead.emp_id can pull unrelated/legacy records and makes
+            // WhatsApp's order count disagree with the Orders page.
+            $query->where('orders.uid', $uid);
         } elseif ($request->filled('user')) {
             $userTerm = trim((string)$request->user);
             $userIds = find_user_ids_by_search_term($userTerm);
@@ -3824,9 +4120,18 @@ class OrderController extends Controller
             $cleanDigits = preg_replace('/\D+/', '', $userTerm);
             $last10 = strlen($cleanDigits) >= 10 ? substr($cleanDigits, -10) : $cleanDigits;
 
-            $query->where(function ($q) use ($userIds, $userTerm, $cleanMaskedPattern, $last10) {
+            $cleanUserOrderCode = strtoupper(str_replace(' ', '', preg_replace('/^[#\s]+|^order[:\s-]*/i', '', $userTerm)));
+            $userLooksLikeOrderCode = (bool) preg_match('/^[A-Z]{1,5}\d{3,7}$/', $cleanUserOrderCode);
+
+            if ($userLooksLikeOrderCode) {
+                $query->whereRaw('UPPER(orders.order_id) = ?', [$cleanUserOrderCode]);
+            } else {
+                $query->where(function ($q) use ($userIds, $userTerm, $cleanMaskedPattern, $last10, $matchedOrderIds) {
+                if (!empty($matchedOrderIds)) {
+                    $q->whereIn('orders.order_id', $matchedOrderIds);
+                }
                 if (!empty($userIds)) {
-                    $q->whereIn('orders.uid', $userIds)
+                    $q->orWhereIn('orders.uid', $userIds)
                       ->orWhereHas('lead', fn($lq) => $lq->whereIn('emp_id', $userIds))
                       ->orWhereHas('frontendLead', fn($flq) => $flq->whereIn('emp_id', $userIds));
                 }
@@ -3843,7 +4148,8 @@ class OrderController extends Controller
                            ->orWhere('mobile2', 'like', '%' . $last10 . '%');
                     }
                 });
-            });
+                });
+            }
         }
 
         $query->when($request->filled('group_id'), fn($q) => $q->whereHas('user.groups', fn($g) => $g->where('group_masters.id', $request->group_id)));
@@ -3898,8 +4204,21 @@ class OrderController extends Controller
                 ->whereColumn('updated_at', '>', 'delivery_date');
         }
 
-        if ($request->filled('team_id') && $request->team_id != '') {
-            $query->where('team_id', $request->team_id);
+        if (auth()->check()) {
+            $authUser = auth()->user();
+            // Marketing (role 4) can view all orders. A team is applied only
+            // when the user explicitly selects the team filter.
+            if ($authUser->role_id == 9) {
+                if (!empty($authUser->team_id)) {
+                    $query->where('orders.team_id', $authUser->team_id);
+                } elseif ($request->filled('team_id') && $request->team_id != '') {
+                    $query->where('orders.team_id', $request->team_id);
+                }
+            } elseif ($request->filled('team_id') && $request->team_id != '') {
+                $query->where('orders.team_id', $request->team_id);
+            }
+        } elseif ($request->filled('team_id') && $request->team_id != '') {
+            $query->where('orders.team_id', $request->team_id);
         }
 
         if ($request->filled('today_deadline_filter')) {
@@ -3912,6 +4231,24 @@ class OrderController extends Controller
 
         if ($request->filled('today_writer_deadline_filter')) {
             $query->whereDate('writer_deadline', Carbon::today());
+        }
+
+        if ($request->filled('duration_gap')) {
+            $gap = $request->input('duration_gap');
+            $query->whereIn('orders.projectstatus', ['Initiated', 'Other', 'initiated', 'other']);
+
+            $query->whereNotNull('orders.delivery_date')
+                  ->where('orders.delivery_date', '>', '2000-01-01');
+
+            if ($gap === '<2' || $gap === '1-2' || $gap === '2') {
+                $query->whereRaw('DATEDIFF(orders.delivery_date, COALESCE(orders.order_date, orders.created_at)) <= 2');
+            } elseif ($gap === '3-5') {
+                $query->whereRaw('DATEDIFF(orders.delivery_date, COALESCE(orders.order_date, orders.created_at)) BETWEEN 3 AND 5');
+            } elseif ($gap === '6-15') {
+                $query->whereRaw('DATEDIFF(orders.delivery_date, COALESCE(orders.order_date, orders.created_at)) BETWEEN 6 AND 15');
+            } elseif ($gap === '15+' || $gap === '15-above') {
+                $query->whereRaw('DATEDIFF(orders.delivery_date, COALESCE(orders.order_date, orders.created_at)) > 15');
+            }
         }
 
         switch ($request->extra) {
@@ -3929,22 +4266,43 @@ class OrderController extends Controller
                 break;
         }
 
-        $from = $request->input('fromDate');
-        $to = $request->input('toDate');
-        $dateField = $request->input('dateStatus');
+        $from = $request->input('fromDate') ?: $request->input('from_date');
+        $to = $request->input('toDate') ?: $request->input('to_date');
+        $dateField = $request->input('dateStatus') ?: $request->input('date_status');
 
-        if ($from && $to && $dateField) {
+        if ($dateField === 'overdue') {
+            $query->whereDate('delivery_date', '<', now())
+                ->whereNotIn('projectstatus', ['Completed', 'Delivered', 'Cancelled', 'Feedback', 'Feedback Delivered']);
+        } elseif ($from && $to && $dateField) {
             if ($dateField === 'draft_date') {
                 $query->whereBetween($dateField, [$from, $to])->where('draftrequired', 'y');
             } else {
                 $query->whereBetween($dateField, [$from, $to]);
             }
+        } elseif ($from && $dateField) {
+            if ($dateField === 'draft_date') {
+                $query->whereDate($dateField, $from)->where('draftrequired', 'y');
+            } else {
+                $query->whereDate($dateField, $from);
+            }
+        } elseif ($to && $dateField) {
+            if ($dateField === 'draft_date') {
+                $query->whereDate($dateField, '<=', $to)->where('draftrequired', 'y');
+            } else {
+                $query->whereDate($dateField, '<=', $to);
+            }
         } elseif ($from && $to) {
             $query->whereBetween('order_date', [$from, $to]);
         } elseif ($from) {
-            $query->where('order_date', $from);
+            $query->whereDate('order_date', $from);
+        } elseif ($to) {
+            $query->whereDate('order_date', '<=', $to);
         } elseif ($dateField) {
-            $query->where('order_date', Carbon::today());
+            if ($dateField === 'draft_date') {
+                $query->whereDate($dateField, Carbon::today())->where('draftrequired', 'y');
+            } else {
+                $query->whereDate($dateField, Carbon::today());
+            }
         }
 
         if ($request->input('payment') === 'empty') {
@@ -3965,15 +4323,18 @@ class OrderController extends Controller
 
     public function indexOrder(Request $request)
     {
-        $data = [
-            'Team' => Writer::select('id', 'writer_name')->get(),
-            'Status' => Status::select('id', 'status')->get(),
-            'paper' => Paper::select('id', 'paper_type')->get(),
-            'college' => College::select('id', 'college_name')->get(),
-            'writerTL' => User::where('role_id', 6)->where('flag', 0)->select('id', 'name')->get(),
-            'SubWriter' => User::where('role_id', 7)->where('flag', 0)->select('id', 'name', 'tl_id')->get(),
-            'projectStatusCounts' => collect(),
-        ];
+        // mk 5 10 26 - Cache static lookup dropdown tables (180s) to avoid 7 redundant queries on every request
+        $data = Cache::remember('orders_index_dropdown_data', 180, function () {
+            return [
+                'Team' => Writer::select('id', 'writer_name')->get(),
+                'Status' => Status::select('id', 'status')->get(),
+                'paper' => Paper::select('id', 'paper_type')->get(),
+                'college' => College::select('id', 'college_name')->get(),
+                'writerTL' => User::where('role_id', 6)->where('flag', 0)->select('id', 'name')->get(),
+                'SubWriter' => User::where('role_id', 7)->where('flag', 0)->select('id', 'name', 'tl_id')->get(),
+            ];
+        });
+        $data['projectStatusCounts'] = collect();
 
         // Show orders with the latest order date first using unified query builder.
         $orders = $this->buildOrderFilterQuery($request)
@@ -4006,9 +4367,12 @@ class OrderController extends Controller
             }),
         ];
 
-        $now = now();
-        $overdueCount = Cache::remember('order_overdue_count', 60, function () use ($now) {
-            return DB::table('orders')
+        // mk 5 10 26 - Short-cache overdue count (30s) to eliminate 60,000 row table scan on every request
+        $currUser = auth()->user();
+        $overdueCacheKey = 'orders_overdue_count_' . ($currUser && $currUser->role_id == 9 ? ($currUser->team_id ?? 'none') : 'all');
+        $overdueCount = Cache::remember($overdueCacheKey, 30, function () use ($currUser) {
+            $now = now();
+            $overdueQuery = DB::table('orders')
                 ->whereNotNull('uid')
                 ->whereNotIn('projectstatus', ['Delivered', 'Completed', 'Cancelled', 'Feedback', 'Feedback Delivered'])
                 ->whereNotNull('delivery_date')
@@ -4019,40 +4383,83 @@ class OrderController extends Controller
                                 ->whereNotNull('delivery_time')
                                 ->where('delivery_time', '<', $now->toTimeString());
                         });
-                })
-                ->count();
+                });
+
+            if ($currUser && $currUser->role_id == 9 && !empty($currUser->team_id)) {
+                $overdueQuery->where('team_id', $currUser->team_id);
+            }
+
+            return $overdueQuery->count();
         });
 
-        $teamCounts = Cache::remember('order_team_counts', 60, function () {
+        // mk 5 10 26 - Cache order team counts for 180s using converted order criteria
+        $unconvertedOrderCodes = Cache::remember('unconverted_order_codes_in_orders', 300, function () {
             return DB::table('orders')
-                ->whereNotNull('uid')
-                ->whereIn('team_id', [1, 2])
-                ->groupBy('team_id')
-                ->select('team_id', DB::raw('COUNT(*) as total'))
-                ->pluck('total', 'team_id');
+                ->join('leads', 'orders.order_id', '=', 'leads.order_id')
+                ->where('leads.is_converted', 0)
+                ->pluck('orders.order_id')
+                ->filter()
+                ->values()
+                ->toArray();
+        });
+
+        $teamCounts = Cache::remember('order_team_counts_v2', 180, function () use ($unconvertedOrderCodes) {
+            $q = DB::table('orders')
+                ->where(function ($w) {
+                    $w->whereNotNull('orders.uid')->orWhereNotNull('orders.lead_id');
+                })
+                ->whereNotNull('orders.team_id');
+            if (!empty($unconvertedOrderCodes)) {
+                $q->whereNotIn('orders.order_id', $unconvertedOrderCodes);
+            }
+            return $q->groupBy('orders.team_id')
+                ->select('orders.team_id', DB::raw('COUNT(*) as total'))
+                ->pluck('total', 'orders.team_id');
         });
         $alphaCount = $teamCounts[1] ?? 0;
         $gigaCount  = $teamCounts[2] ?? 0;
+        $gammaCount = $teamCounts[3] ?? 0;
 
-        $teams = Team::select('id', 'team_name')->get();
-        return view('back-end.order.index', compact('orders', 'totals', 'overdueCount', 'data', 'alphaCount', 'gigaCount', 'teams'));
+        // mk 5 10 26 - Cache active teams list (180s)
+        $teams = Cache::remember('active_teams_list', 180, function () {
+            return Team::where('is_delete', 0)->orderBy('priority', 'asc')->get();
+        });
+        return view('back-end.order.index', compact('orders', 'totals', 'overdueCount', 'data', 'alphaCount', 'gigaCount', 'gammaCount', 'teams', 'teamCounts'));
     }
 
     public function changeTeam(Request $request)
     {
-        // Only Admin
-        if (auth()->user()->role_id != 1) {
+        // mk 7 10 26 - Team assignment is strictly restricted to Super Admin (role 1) and Sub Admin (role 9)
+        if (!auth()->check() || !in_array((int) auth()->user()->role_id, [1, 9])) {
             abort(403);
         }
 
         $order = Order::findOrFail($request->order_id);
 
         $order->team_id = $request->team_id;
-
+        $order->team_assigned_at = now();
         $order->save();
 
+        if (!empty($order->uid)) {
+            Order::where('uid', $order->uid)->update([
+                'team_id' => $request->team_id,
+                'team_assigned_at' => now(),
+            ]);
+            User::where('id', $order->uid)->update([
+                'team_id' => $request->team_id,
+            ]);
+        }
+
+        Cache::forget('order_team_counts');
+
+        $order->load('team');
+
         return response()->json([
-            'success' => true
+            'status' => 'success',
+            'success' => true,
+            'message' => 'Team updated successfully and applied to all orders of this customer!',
+            'team_id' => $order->team_id,
+            'team_name' => $order->team ? $order->team->team_name : 'No Team',
         ]);
     }
 
@@ -4087,7 +4494,7 @@ class OrderController extends Controller
         $filters = $request->all();
 
         // Check if all filters are empty, return a message if so
-        if (empty($filters['search']) && empty($filters['uid']) && empty($filters['user']) && empty($filters['selectedValue']) && empty($filters['group_id']) && empty($filters['status']) && empty($filters['writer']) && empty($filters['dateStatus']) && empty($filters['fromDate']) && empty($filters['toDate']) && empty($filters['from_date']) && empty($filters['to_date']) && empty($filters['WriterTL']) && empty($filters['SubWriter']) && empty($filters['college']) && empty($filters['extra']) && empty($filters['module_code']) &&  empty($filters['paper_type']) && empty($filters['semester']) && empty($filters['month']) && empty($filters['payment']) && empty($filters['deadline_status']) && empty($filters['offer']) && empty($filters['duec']) && empty($filters['marks_filter']) && empty($filters['team_id']) && empty($filters['today_deadline_filter']) && empty($filters['yesterday_deadline_filter']) && empty($filters['today_writer_deadline_filter'])) {
+        if (empty($filters['search']) && empty($filters['uid']) && empty($filters['user']) && empty($filters['selectedValue']) && empty($filters['group_id']) && empty($filters['status']) && empty($filters['writer']) && empty($filters['dateStatus']) && empty($filters['fromDate']) && empty($filters['toDate']) && empty($filters['from_date']) && empty($filters['to_date']) && empty($filters['WriterTL']) && empty($filters['SubWriter']) && empty($filters['college']) && empty($filters['extra']) && empty($filters['module_code']) &&  empty($filters['paper_type']) && empty($filters['semester']) && empty($filters['month']) && empty($filters['payment']) && empty($filters['deadline_status']) && empty($filters['offer']) && empty($filters['duec']) && empty($filters['marks_filter']) && empty($filters['team_id']) && empty($filters['today_deadline_filter']) && empty($filters['yesterday_deadline_filter']) && empty($filters['today_writer_deadline_filter']) && empty($filters['duration_gap'])) {
             return response()->json(['message' => 'No filters applied'], 200);
         }
 
@@ -4097,11 +4504,15 @@ class OrderController extends Controller
                 $startOfMonth = Carbon::parse($request->month . '-01')->startOfMonth();
                 $endOfMonth = Carbon::parse($request->month . '-01')->endOfMonth();
 
-                // Get all UIDs with orders in the selected month (excluding leads without UID)
-                $uidsInMonth = Order::whereNotNull('uid')->where('uid', '!=', 0)->where('uid', '!=', '0')
-                    ->whereBetween('order_date', [$startOfMonth, $endOfMonth])
-                    ->pluck('uid')
-                    ->unique();
+                $uidsQuery = Order::whereNotNull('uid')->where('uid', '!=', 0)->where('uid', '!=', '0')
+                    ->whereBetween('order_date', [$startOfMonth, $endOfMonth]);
+                if (auth()->check()) {
+                    $u = auth()->user();
+                    if ($u->role_id == 9 && !empty($u->team_id)) {
+                        $uidsQuery->where('team_id', $u->team_id);
+                    }
+                }
+                $uidsInMonth = $uidsQuery->pluck('uid')->unique();
 
                 if ($uidsInMonth->isEmpty()) {
                     return response()->json([
@@ -4194,7 +4605,24 @@ class OrderController extends Controller
         $offset = (int) $request->get('offset', 0);
 
         $baseQuery = $this->buildOrderFilterQuery($request);
-        $query = (clone $baseQuery)->orderByDesc('orders.order_date')->orderByDesc('orders.id');
+
+        // Prioritize exact order code matches at the very top (Row #1)
+        $rawSearch = trim((string)($request->search ?? $request->order ?? $request->user ?? ''));
+        $cleanSearch = trim(preg_replace('/^[#\s]+|^order[:\s-]*/i', '', $rawSearch));
+        $noSpaces = strtoupper(str_replace(' ', '', $cleanSearch));
+        $exactCodeCandidates = array_values(array_filter(array_unique([
+            $cleanSearch,
+            $noSpaces,
+            is_numeric($noSpaces) ? ('UKS' . $noSpaces) : null,
+            str_starts_with($noSpaces, 'UKS') ? substr($noSpaces, 3) : null,
+        ])));
+
+        $query = clone $baseQuery;
+        if (!empty($exactCodeCandidates)) {
+            $escapedCodes = implode("','", array_map(fn($c) => addslashes($c), $exactCodeCandidates));
+            $query->orderByRaw("CASE WHEN orders.order_id IN ('{$escapedCodes}') THEN 0 ELSE 1 END");
+        }
+        $query->orderByDesc('orders.order_date')->orderByDesc('orders.id');
 
         $orders = $query->skip($offset)->take($limit + 1)->get();
         $hasMore = $orders->count() > $limit;
@@ -4244,22 +4672,55 @@ class OrderController extends Controller
             ])->render();
         }
 
+        $unconvertedOrderCodes = Cache::remember('unconverted_order_codes_in_orders', 300, function () {
+            return DB::table('orders')
+                ->join('leads', 'orders.order_id', '=', 'leads.order_id')
+                ->where('leads.is_converted', 0)
+                ->pluck('orders.order_id')
+                ->filter()
+                ->values()
+                ->toArray();
+        });
+
+        $teamCounts = Cache::remember('order_team_counts_v2', 180, function () use ($unconvertedOrderCodes) {
+            $q = DB::table('orders')
+                ->where(function ($w) {
+                    $w->whereNotNull('orders.uid')->orWhereNotNull('orders.lead_id');
+                })
+                ->whereNotNull('orders.team_id');
+            if (!empty($unconvertedOrderCodes)) {
+                $q->whereNotIn('orders.order_id', $unconvertedOrderCodes);
+            }
+            return $q->groupBy('orders.team_id')
+                ->select('orders.team_id', DB::raw('COUNT(*) as total'))
+                ->pluck('total', 'orders.team_id');
+        });
+
+        $alphaCount = $teamCounts[1] ?? 0;
+        $gigaCount  = $teamCounts[2] ?? 0;
+        $gammaCount = $teamCounts[3] ?? 0;
+
         if ($offset === 0) {
-            $totalCount = $hasMore ? (clone $baseQuery)->count() : $orders->count();
+            $onlyTeamFilter = $request->filled('team_id') && empty($request->search) && empty($request->uid) && empty($request->user) && empty($request->group_id) && empty($request->status) && empty($request->writer) && empty($request->dateStatus) && empty($request->fromDate) && empty($request->toDate) && empty($request->from_date) && empty($request->to_date) && empty($request->WriterTL) && empty($request->SubWriter) && empty($request->college) && empty($request->extra) && empty($request->module_code) && empty($request->paper_type) && empty($request->semester) && empty($request->month) && empty($request->payment) && empty($request->deadline_status) && empty($request->offer) && empty($request->duec) && empty($request->marks_filter) && empty($request->today_deadline_filter) && empty($request->yesterday_deadline_filter) && empty($request->today_writer_deadline_filter) && empty($request->duration_gap);
+
+            if ($onlyTeamFilter && isset($teamCounts[$request->team_id])) {
+                $totalCount = (int) $teamCounts[$request->team_id];
+            } else {
+                $totalCount = $hasMore ? (clone $baseQuery)->count() : $orders->count();
+            }
         } else {
             $totalCount = (int) $request->get('total', $offset + $orders->count());
         }
-
-        $alphaCount = (clone $baseQuery)->where('orders.team_id', 1)->count();
-        $gigaCount  = (clone $baseQuery)->where('orders.team_id', 2)->count();
 
         return response()->json([
             'html' => $html,
             'totals' => $totals,
             'count' => $orders->count(),
             'total' => $totalCount,
+            'team_counts' => $teamCounts,
             'alpha_count' => $alphaCount,
             'giga_count' => $gigaCount,
+            'gamma_count' => $gammaCount,
             'has_more' => $hasMore,
         ]);
     }
@@ -4338,11 +4799,11 @@ class OrderController extends Controller
             return Redirect::back()->with('error', 'Order not found.');
         }
 
-        // Remaining amount
+        // FIX: Remaining amount calculation with round(..., 2) to prevent floating-point precision discrepancies
         $extraPrice = $order->additionals ? $order->additionals->sum('additional_price') : 0;
-        $remainingAmount = ($order->amount + $extraPrice) - $order->received_amount;
+        $remainingAmount = round((float)($order->amount + $extraPrice) - (float)$order->received_amount, 2);
 
-        $paidAmount       = (float) $request->input('amount');
+        $paidAmount       = round((float) $request->input('amount'), 2);
         $companyAccount   = $request->input('company_accounts');
         $referenceMessage = $request->input('message');
 
@@ -4645,7 +5106,6 @@ class OrderController extends Controller
         ]);
     }
 
-    // feedback Rating
     public function feedbackList(Request $request)
     {
         $query = DB::table('feedbacks')
@@ -4654,19 +5114,38 @@ class OrderController extends Controller
                     'feedbacks.order_id COLLATE utf8mb4_unicode_ci = orders.order_id COLLATE utf8mb4_unicode_ci'
                 );
             })
+            ->leftJoin('users', 'orders.uid', '=', 'users.id')
             ->select(
                 'feedbacks.*',
+                'orders.id as order_primary_id',
+                'orders.uid as customer_uid',
                 'orders.is_fail as order_is_fail',
-                'orders.failed_at as order_failed_at'
+                'orders.failed_at as order_failed_at',
+                'users.id as customer_id',
+                'users.name as customer_name',
+                'users.email as customer_email',
+                'users.mobile_no as customer_mobile',
+                'users.countrycode as customer_countrycode'
             );
 
         // Search Filter
         if ($request->filled('search')) {
-            $searchTerm = $request->search;
-            $query->where(function ($q) use ($searchTerm) {
+            $searchTerm = trim((string) $request->search);
+            $searchUserIds = find_user_ids_by_search_term($searchTerm);
+            if (is_numeric($searchTerm)) {
+                $searchUserIds[] = (int) $searchTerm;
+                $searchUserIds = array_unique($searchUserIds);
+            }
+            $query->where(function ($q) use ($searchTerm, $searchUserIds) {
                 $q->where('feedbacks.order_id', 'like', '%' . $searchTerm . '%')
                     ->orWhere('feedbacks.experience', 'like', '%' . $searchTerm . '%')
                     ->orWhere('feedbacks.feedback_scope', 'like', '%' . $searchTerm . '%');
+                if (!empty($searchUserIds)) {
+                    $q->orWhereIn('orders.uid', $searchUserIds);
+                }
+                if (is_numeric($searchTerm)) {
+                    $q->orWhere('orders.uid', (int) $searchTerm);
+                }
             });
         }
 
@@ -4779,29 +5258,27 @@ class OrderController extends Controller
         $now = now();
         $limit = $now->copy()->addMinutes(30);
 
-        $orders = Order::whereNotIn('projectstatus', ['Completed', 'Delivered', 'Cancelled', 'Feedback', 'Feedback Delivered'])
-            ->whereNotNull('delivery_date')
-            ->get()
-            ->filter(function ($order) use ($now, $limit) {
-
-                $dateTime = $order->delivery_date;
-
-                if ($order->delivery_time) {
-                    $dateTime .= ' ' . $order->delivery_time;
-                }
-
-                try {
-                    $deadline = \Carbon\Carbon::parse($dateTime, config('app.timezone'));
-                } catch (\Exception $e) {
-                    return false;
-                }
-
-                return $deadline->between($now, $limit);
-            })
-            ->sortBy(function ($order) {
-                return $order->delivery_date . ' ' . $order->delivery_time;
-            })
-            ->values();
+        $orders = Cache::remember('urgent_orders_list', 15, function () use ($now, $limit) {
+            return Order::whereNotIn('projectstatus', ['Completed', 'Delivered', 'Cancelled', 'Feedback', 'Feedback Delivered'])
+                ->whereBetween('delivery_date', [$now->toDateString(), $limit->toDateString()])
+                ->get()
+                ->filter(function ($order) use ($now, $limit) {
+                    $dateTime = $order->delivery_date;
+                    if ($order->delivery_time) {
+                        $dateTime .= ' ' . $order->delivery_time;
+                    }
+                    try {
+                        $deadline = \Carbon\Carbon::parse($dateTime, config('app.timezone'));
+                    } catch (\Exception $e) {
+                        return false;
+                    }
+                    return $deadline->between($now, $limit);
+                })
+                ->sortBy(function ($order) {
+                    return $order->delivery_date . ' ' . $order->delivery_time;
+                })
+                ->values();
+        });
 
         return response()->json($orders);
     }
@@ -4878,6 +5355,9 @@ class OrderController extends Controller
                   ->orWhere('title', 'like', "%{$search}%");
                 if (!empty($searchUserIds)) {
                     $q->orWhereIn('uid', $searchUserIds);
+                }
+                if (is_numeric($search)) {
+                    $q->orWhere('uid', (int) $search);
                 }
             });
         }
@@ -5403,7 +5883,7 @@ class OrderController extends Controller
             'projectStatusCounts' => collect()
         ];
 
-        $data['payments'] = Payment::with([
+        $paymentsQuery = Payment::with([
                 'order.user',
                 'order.payment',
                 'order.team',
@@ -5415,11 +5895,56 @@ class OrderController extends Controller
                 'order.additionals'
             ])
             ->where('is_revoked', 1)
-            ->whereHas('order', function ($q) {
+            ->whereHas('order', function ($q) use ($request) {
                 $q->where('uid', '!=', 0);
-            })
-            ->orderByDesc('revoked_at')
-            ->paginate(20);
+
+                if ($request->filled('search')) {
+                    $search = trim((string) $request->search);
+                    $searchUserIds = find_user_ids_by_search_term($search);
+                    if (is_numeric($search)) {
+                        $searchUserIds[] = (int) $search;
+                        $searchUserIds = array_unique($searchUserIds);
+                    }
+                    $q->where(function ($qq) use ($search, $searchUserIds) {
+                        $qq->where('order_id', 'like', "%{$search}%")
+                        ->orWhere('title', 'like', "%{$search}%");
+                        if (!empty($searchUserIds)) {
+                            $qq->orWhereIn('uid', $searchUserIds);
+                        }
+                        if (is_numeric($search)) {
+                            $qq->orWhere('uid', (int) $search);
+                        }
+                    });
+                }
+            });
+
+        if ($request->filled('uid')) {
+            $paymentsQuery->whereHas('order.user', function ($q) use ($request) {
+                $q->where('id', $request->uid);
+            });
+        }
+
+        if ($request->filled('user')) {
+            $user = trim((string) $request->user);
+            $searchUserIds = find_user_ids_by_search_term($user);
+            if (is_numeric($user)) {
+                $searchUserIds[] = (int) $user;
+                $searchUserIds = array_unique($searchUserIds);
+            }
+            $paymentsQuery->whereHas('order.user', function ($q) use ($user, $searchUserIds) {
+                if (!empty($searchUserIds)) {
+                    $q->whereIn('id', $searchUserIds);
+                }
+                if (is_numeric($user)) {
+                    $q->orWhere('id', (int) $user);
+                }
+                $q->orWhere('name', 'like', "%{$user}%")
+                ->orWhere('email', 'like', "%{$user}%")
+                ->orWhere('mobile_no', 'like', "%{$user}%");
+            });
+        }
+
+        $data['payments'] = $paymentsQuery->orderByDesc('revoked_at')->paginate(20);
 
         $now = now();
         $overdueCount = Cache::remember('order_overdue_count', 60, function () use ($now) {
@@ -5439,6 +5964,7 @@ class OrderController extends Controller
         $teamFilterQuery = $this->buildOrderFilterQuery($request);
         $alphaCount = (clone $teamFilterQuery)->where('orders.team_id', 1)->count();
         $gigaCount  = (clone $teamFilterQuery)->where('orders.team_id', 2)->count();
+        $gammaCount = (clone $teamFilterQuery)->where('orders.team_id', 3)->count();
 
         $teams = Team::select('id', 'team_name')->get();
 
@@ -5447,6 +5973,7 @@ class OrderController extends Controller
             'overdueCount',
             'alphaCount',
             'gigaCount',
+            'gammaCount',
             'teams'
         ));
     }
@@ -5476,10 +6003,21 @@ class OrderController extends Controller
                 $q->where('uid', '!=', 0);
 
                 if ($request->filled('search')) {
-                    $search = $request->search;
-                    $q->where(function ($qq) use ($search) {
+                    $search = trim((string) $request->search);
+                    $searchUserIds = find_user_ids_by_search_term($search);
+                    if (is_numeric($search)) {
+                        $searchUserIds[] = (int) $search;
+                        $searchUserIds = array_unique($searchUserIds);
+                    }
+                    $q->where(function ($qq) use ($search, $searchUserIds) {
                         $qq->where('order_id', 'like', "%{$search}%")
                         ->orWhere('title', 'like', "%{$search}%");
+                        if (!empty($searchUserIds)) {
+                            $qq->orWhereIn('uid', $searchUserIds);
+                        }
+                        if (is_numeric($search)) {
+                            $qq->orWhere('uid', (int) $search);
+                        }
                     });
                 }
 
@@ -5543,16 +6081,27 @@ class OrderController extends Controller
             });
 
         if ($request->filled('uid')) {
-            $query->whereHas('order.user', function ($q) use ($request) {
-                $q->where('id', $request->uid);
+            $reqUid = (int) $request->uid;
+            $query->whereHas('order', function ($q) use ($reqUid) {
+                $q->where('uid', $reqUid);
             });
         }
 
         if ($request->filled('user')) {
-            $user = $request->user;
-
-            $query->whereHas('order.user', function ($q) use ($user) {
-                $q->where('name', 'like', "%{$user}%")
+            $user = trim((string) $request->user);
+            $searchUserIds = find_user_ids_by_search_term($user);
+            if (is_numeric($user)) {
+                $searchUserIds[] = (int) $user;
+                $searchUserIds = array_unique($searchUserIds);
+            }
+            $query->whereHas('order.user', function ($q) use ($user, $searchUserIds) {
+                if (!empty($searchUserIds)) {
+                    $q->whereIn('id', $searchUserIds);
+                }
+                if (is_numeric($user)) {
+                    $q->orWhere('id', (int) $user);
+                }
+                $q->orWhere('name', 'like', "%{$user}%")
                 ->orWhere('email', 'like', "%{$user}%")
                 ->orWhere('mobile_no', 'like', "%{$user}%");
             });
@@ -5869,7 +6418,7 @@ public function myRevokePayments(Request $request)
         'service' => Services::all(),
         'Writting' => Writting::all(),
         'paper' => Paper::all(),
-        'user' => User::all(),
+        'user' => collect(),
         'college' => College::all(),
         'admin' => User::where('role_id', 8)->where('flag', 0)->get(),
         'writerTL' => User::where('role_id', 6)->where('flag', 0)->get(),
@@ -5906,6 +6455,7 @@ public function myRevokePayments(Request $request)
 
     $alphaCount = Order::where('team_id', 1)->count();
     $gigaCount = Order::where('team_id', 2)->count();
+    $gammaCount = Order::where('team_id', 3)->count();
     $teams = Team::all();
 
     return view('back-end.reports.my-revoke-payments', compact(
@@ -5913,6 +6463,7 @@ public function myRevokePayments(Request $request)
         'overdueCount',
         'alphaCount',
         'gigaCount',
+        'gammaCount',
         'teams'
     ));
 }
@@ -6119,6 +6670,55 @@ public function myRevokePayments(Request $request)
             'grandTotalPayments', 
             'grandTotalPaidAmount'
         ));
+    }
+
+    /**
+     * Send order completion email via Client Email account (order@assignnmentinneed.com)
+     * so it is dispatched properly and preserved in the CRM Sent mail folder.
+     */
+    protected function sendOrderCompleteEmail(array $orderData): bool
+    {
+        $recipient = trim($orderData['email'] ?? '');
+        if (empty($recipient) || !filter_var($recipient, FILTER_VALIDATE_EMAIL)) {
+            Log::warning('OrderComplete mail skipped due to invalid recipient email', [
+                'order_code' => $orderData['order_code'] ?? null,
+                'email'      => $recipient,
+            ]);
+            return false;
+        }
+
+        $orderCode = $orderData['order_code'] ?? '';
+        $subject = 'Your Assignment is Ready - ' . $orderCode;
+
+        try {
+            $bodyHtml = view('mailordercomplete', ['OrderData' => $orderData])->render();
+            $clientAccountId = function_exists('crm_email_account_id') ? crm_email_account_id('client') : 2;
+
+            app(EmailService::class)->sendEmail([
+                'account_id' => $clientAccountId,
+                'to'         => $recipient,
+                'to_name'    => $orderData['name'] ?? null,
+                'cc'         => 'order@assignnmentinneed.com',
+                'subject'    => $subject,
+                'body_html'  => $bodyHtml,
+            ]);
+
+            Log::info("OrderComplete mail sent via EmailService for {$orderCode} to {$recipient}");
+            return true;
+        } catch (\Throwable $e) {
+            Log::error("OrderComplete mail via EmailService failed for {$orderCode}: " . $e->getMessage());
+
+            try {
+                Mail::to($recipient)
+                    ->cc('order@assignnmentinneed.com')
+                    ->send(new OrderComplete($orderData));
+                Log::info("OrderComplete mail sent via fallback Mail for {$orderCode}");
+                return true;
+            } catch (\Throwable $fallbackEx) {
+                Log::error("OrderComplete fallback mail also failed for {$orderCode}: " . $fallbackEx->getMessage());
+                return false;
+            }
+        }
     }
 }
 

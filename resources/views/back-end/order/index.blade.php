@@ -3,6 +3,7 @@
 @section('content')
 @include('back-end.group-master.user-modal')
 @include('back-end.order.partials.user-label-modal')
+@include('back-end.order.partials.team-modals')
 
 <style>
     /* Red Blinking Animation */
@@ -45,6 +46,28 @@
 
     .timer-missed {
         color: #FFA800;
+    }
+
+    #leads-table thead th.crm-order-column-draggable {
+        cursor: grab;
+        user-select: none;
+        position: relative;
+    }
+
+    #leads-table thead th.crm-order-column-draggable::after {
+        content: '\22EE\22EE';
+        margin-left: 7px;
+        color: #a1a5b7;
+        font-size: 11px;
+        letter-spacing: -3px;
+    }
+
+    #leads-table thead th.crm-order-column-dragging {
+        opacity: .45;
+    }
+
+    #leads-table thead th.crm-order-column-drop-target {
+        box-shadow: inset 3px 0 0 #009ef7;
     }
 </style>
 <div style="margin-top: -20px;" id="kt_content">
@@ -660,7 +683,8 @@
             if (result.isConfirmed) {
                 $.ajax({
                     type: 'POST',
-                    url: 'update_status',
+                    // mk 6/10/2026: Use named route to avoid 404 errors on subpaths/trailing slashes
+                    url: '{{ route('update_status') }}',
                     data: {
                         orderId: orderId,
                         status: result.value.status, // Directly sending status string
@@ -700,6 +724,14 @@
             }
         });
     }
+
+    // mk 6/10/2026: Auto-refresh orders list when returning from payment tab
+    window.addEventListener('focus', function() {
+        if (localStorage.getItem('order_payment_synced')) {
+            localStorage.removeItem('order_payment_synced');
+            location.reload();
+        }
+    });
 </script>
 <script>
     function updateDeliveryDate(orderId) {
@@ -1338,5 +1370,125 @@ function saveReferralAjax(orderId, status, clientWillRefer, comment) {
         }
     });
 }
+</script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const table = document.getElementById('leads-table');
+    const headerRow = table?.querySelector('thead tr');
+    if (!table || !headerRow) return;
+
+    const storageKey = 'crm-order-columns-v2-user-{{ auth()->id() ?? 'guest' }}';
+    const slug = value => value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    const headers = Array.from(headerRow.cells);
+    const duplicateCounts = {};
+
+    headers.forEach((header, index) => {
+        const base = slug(header.textContent) || `column-${index}`;
+        duplicateCounts[base] = (duplicateCounts[base] || 0) + 1;
+        header.dataset.columnKey = duplicateCounts[base] > 1 ? `${base}-${duplicateCounts[base]}` : base;
+    });
+
+    const defaultKeys = headers.map(header => header.dataset.columnKey);
+    const actionKey = headers.find(header => /^actions?$/.test(header.textContent.trim().toLowerCase()))?.dataset.columnKey;
+    let columnKeys = [...defaultKeys];
+
+    try {
+        const saved = JSON.parse(localStorage.getItem(storageKey) || '[]');
+        if (Array.isArray(saved) && saved.length === defaultKeys.length &&
+            saved.every(key => defaultKeys.includes(key))) {
+            columnKeys = saved;
+        }
+    } catch (error) {
+        localStorage.removeItem(storageKey);
+    }
+
+    const reorderRow = (row, sourceKeys, targetKeys) => {
+        const cells = Array.from(row.cells || []);
+        if (cells.length !== sourceKeys.length) return;
+        const cellMap = new Map(sourceKeys.map((key, index) => [key, cells[index]]));
+        targetKeys.forEach(key => {
+            const cell = cellMap.get(key);
+            if (cell) row.appendChild(cell);
+        });
+    };
+
+    const applyOrder = () => {
+        const currentHeaders = Array.from(headerRow.cells);
+        const currentKeys = currentHeaders.map(header => header.dataset.columnKey);
+        const targetKeys = columnKeys;
+
+        table.querySelectorAll('tbody tr').forEach(row => reorderRow(row, currentKeys, targetKeys));
+        const headerMap = new Map(currentHeaders.map(header => [header.dataset.columnKey, header]));
+        targetKeys.forEach(key => headerRow.appendChild(headerMap.get(key)));
+    };
+
+    applyOrder();
+
+    let draggedKey = null;
+    Array.from(headerRow.cells).forEach(header => {
+        const key = header.dataset.columnKey;
+        const isAction = key === actionKey;
+        header.draggable = !isAction;
+        header.title = isAction
+            ? 'Action column cannot be dragged'
+            : 'Drag left or right to place this column anywhere';
+        if (!isAction) {
+            header.classList.add('crm-order-column-draggable');
+            header.addEventListener('dragstart', event => {
+                draggedKey = key;
+                header.classList.add('crm-order-column-dragging');
+                event.dataTransfer.effectAllowed = 'move';
+                event.dataTransfer.setData('text/plain', key);
+            });
+        }
+
+        header.addEventListener('dragover', event => {
+            if (!draggedKey || draggedKey === key) return;
+            event.preventDefault();
+            header.classList.add('crm-order-column-drop-target');
+        });
+
+        header.addEventListener('dragleave', () => header.classList.remove('crm-order-column-drop-target'));
+        header.addEventListener('drop', event => {
+            event.preventDefault();
+            header.classList.remove('crm-order-column-drop-target');
+            if (!draggedKey || draggedKey === key) return;
+
+            const from = columnKeys.indexOf(draggedKey);
+            let to = columnKeys.indexOf(key);
+            if (from < 0 || to < 0) return;
+
+            // Use the pointer position so dropping on the left/right half of a
+            // header inserts the column exactly before/after that header.
+            const placeAfter = event.clientX > header.getBoundingClientRect().left + (header.offsetWidth / 2);
+            columnKeys.splice(from, 1);
+            to = columnKeys.indexOf(key);
+            if (placeAfter) to += 1;
+            columnKeys.splice(to, 0, draggedKey);
+            localStorage.setItem(storageKey, JSON.stringify(columnKeys));
+            applyOrder();
+        });
+
+        header.addEventListener('dragend', () => {
+            draggedKey = null;
+            headerRow.querySelectorAll('th').forEach(item => {
+                item.classList.remove('crm-order-column-dragging', 'crm-order-column-drop-target');
+            });
+        });
+    });
+
+    // Filter/search responses insert fresh rows in the server's default column
+    // order. Reapply this user's saved order to every newly inserted row.
+    const observer = new MutationObserver(mutations => {
+        const targetKeys = columnKeys;
+        mutations.forEach(mutation => mutation.addedNodes.forEach(node => {
+            if (node.nodeType !== Node.ELEMENT_NODE) return;
+            if (node.matches?.('tr')) reorderRow(node, defaultKeys, targetKeys);
+            node.querySelectorAll?.('tr').forEach(row => reorderRow(row, defaultKeys, targetKeys));
+        }));
+    });
+
+    table.querySelectorAll('tbody').forEach(body => observer.observe(body, { childList: true, subtree: true }));
+});
 </script>
 @endsection

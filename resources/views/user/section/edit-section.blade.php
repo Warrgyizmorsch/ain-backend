@@ -86,15 +86,45 @@
 								</div>
 							</div>
 
-							<!-- New password fields -->
+							                            <div class="row mb-6">
+								<label class="col-lg-4 col-form-label fw-bold fs-6">
+									<span class="{{ $user['role_id'] == 4 ? 'required' : '' }}">Team</span>
+								</label>
+								<div class="col-lg-3 fv-row fv-plugins-icon-container">
+                                    <select name="team_id" class="form-select form-select-solid form-select-lg" {{ $user['role_id'] == 4 ? 'required' : '' }}>
+                                        <option value="">Select Team</option>
+                                        @php
+                                            $allTeams = isset($data['teams']) ? $data['teams'] : \App\Models\Team::where('is_delete', false)->orderBy('priority', 'asc')->get();
+                                        @endphp
+                                        @foreach($allTeams as $team)
+                                            <option value="{{ $team->id }}" @if($team->id == ($user->team_id ?? null)) selected @endif>{{ $team->team_name }}</option>
+                                        @endforeach
+                                    </select>
+                                    <div class="fv-plugins-message-container invalid-feedback"></div>
+								</div>
+							</div>
+
+							<!-- SIP fields -->
 							<div class="row mb-6">
 								<label class="col-lg-4 col-form-label fw-bold fs-6">
-									<span class="required">SIP ID</span>
-									<i class="fas fa-exclamation-circle ms-1 fs-7" data-bs-toggle="tooltip" title="" data-bs-original-title="Phone number must be active" aria-label="Phone number must be active"></i>
+									<span>SIP ID / Extension</span>
+									<i class="fas fa-exclamation-circle ms-1 fs-7" data-bs-toggle="tooltip" title="Next2Call agent extension / SIP ID" aria-label="Next2Call agent extension / SIP ID"></i>
 								</label>
 								<div class="col-lg-8 fv-row fv-plugins-icon-container">
-									<input type="tel" name="sip" class="form-control form-control-lg form-control-solid" placeholder="sip id" value="{{ $user->sip }}">
-								<div class="fv-plugins-message-container invalid-feedback"></div></div>
+									<input type="text" name="sip" class="form-control form-control-lg form-control-solid" placeholder="e.g. 10101" value="{{ $user->sip }}">
+									<div class="text-muted fs-8 mt-1">Agent SIP extension ID for Next2Call softphone calls.</div>
+								</div>
+							</div>
+
+							<div class="row mb-6">
+								<label class="col-lg-4 col-form-label fw-bold fs-6">
+									<span>SIP Password</span>
+									<i class="fas fa-exclamation-circle ms-1 fs-7" data-bs-toggle="tooltip" title="Next2Call agent SIP password (optional)" aria-label="Next2Call agent SIP password (optional)"></i>
+								</label>
+								<div class="col-lg-8 fv-row fv-plugins-icon-container">
+									<input type="password" name="sip_password" class="form-control form-control-lg form-control-solid" placeholder="Leave blank to use default admin SIP password" value="{{ $user->sip_password }}">
+									<div class="text-muted fs-8 mt-1">Optional. If empty, system automatically uses the Next2Call admin default password.</div>
+								</div>
 							</div>
 						
 

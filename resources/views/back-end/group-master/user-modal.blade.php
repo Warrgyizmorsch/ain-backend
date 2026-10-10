@@ -30,8 +30,14 @@
     </div>
 </div>
 
+@php
+    // mk 5 10 26 - Use $groupMasters from controller or cache to eliminate duplicate DB query
+    $modalGroupMasters = $groupMasters ?? \Illuminate\Support\Facades\Cache::remember('leads_active_group_masters', 120, function () {
+        return \App\Models\GroupMaster::where('status', 1)->orderBy('name')->get(['id', 'name']);
+    });
+@endphp
 <script>
-window.userGroupOptions = @json(\App\Models\GroupMaster::where('status', 1)->orderBy('name')->get(['id','name']));
+window.userGroupOptions = @json($modalGroupMasters);
 
 function renderUserGroupSelect(selectedIds) {
     const select = $('#userGroupSelect');

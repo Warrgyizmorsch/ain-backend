@@ -195,10 +195,13 @@ class MasterController extends Controller
         $fromDate = $request->input('dateFrom');
         $toDate = $request->input('dateTo');
         $Uid = $request->input('uid');
+        if (auth()->check() && (int) auth()->user()->role_id !== 1) {
+            $Uid = null;
+        }
         $company_accounts = $request->input('company_accounts');
         $p_name = $request->input('p_name');
 
-        $query = Payment::with('order.user')
+        $query = Payment::with(['order.user', 'order.lead'])
         //     ->orderByRaw("
         //     CASE
         //         WHEN account_status = 1 AND (payee_name IS NULL OR payee_name = '') THEN 0
@@ -1076,11 +1079,17 @@ class MasterController extends Controller
         // Auto-shift existing labels with sequence >= targetSeq up by +1
         \App\Models\WhatsappChatLabel::where('sequence', '>=', $targetSeq)->increment('sequence', 1);
 
+        $isClientEmail = $request->has('is_client_email') ? 1 : ($request->has('is_email') ? 1 : 0);
+        $isWriterEmail = $request->has('is_writer_email') ? 1 : ($request->has('is_email') ? 1 : 0);
+        $isEmail = ($isClientEmail || $isWriterEmail || $request->has('is_email')) ? 1 : 0;
+
         \App\Models\WhatsappChatLabel::create([
             'name' => trim($request->input('name')),
             'color' => $request->input('color'),
             'is_whatsapp' => $request->has('is_whatsapp') ? 1 : 0,
-            'is_email' => $request->has('is_email') ? 1 : 0,
+            'is_client_email' => $isClientEmail,
+            'is_writer_email' => $isWriterEmail,
+            'is_email' => $isEmail,
             'is_crm' => $request->has('is_crm') ? 1 : 0,
             'sequence' => $targetSeq,
             'created_by' => auth()->id(),
@@ -1117,11 +1126,17 @@ class MasterController extends Controller
                 ->increment('sequence', 1);
         }
 
+        $isClientEmail = $request->has('is_client_email') ? 1 : ($request->has('is_email') ? 1 : 0);
+        $isWriterEmail = $request->has('is_writer_email') ? 1 : ($request->has('is_email') ? 1 : 0);
+        $isEmail = ($isClientEmail || $isWriterEmail || $request->has('is_email')) ? 1 : 0;
+
         $label->update([
             'name' => trim($request->input('name')),
             'color' => $request->input('color'),
             'is_whatsapp' => $request->has('is_whatsapp') ? 1 : 0,
-            'is_email' => $request->has('is_email') ? 1 : 0,
+            'is_client_email' => $isClientEmail,
+            'is_writer_email' => $isWriterEmail,
+            'is_email' => $isEmail,
             'is_crm' => $request->has('is_crm') ? 1 : 0,
             'sequence' => $targetSeq,
         ]);
