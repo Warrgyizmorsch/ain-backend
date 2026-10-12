@@ -105,9 +105,29 @@ class LeadsController extends Controller
                 ->groupBy('emp_id')
                 ->pluck('total', 'emp_id');
 
+            $convertedOrderCounts = Order::whereIn('uid', $userIds)
+                ->whereNotIn('orders.order_id', function ($q) {
+                    $q->select('order_id')
+                        ->from('leads')
+                        ->where('is_converted', 0)
+                        ->whereNotNull('order_id');
+                })
+                ->where(function ($q) {
+                    $q->whereNull('orders.lead_id')
+                      ->orWhereNotIn('orders.lead_id', function ($lq) {
+                          $lq->select('id')
+                              ->from('leads')
+                              ->where('is_converted', 0);
+                      });
+                })
+                ->selectRaw('uid, COUNT(*) as total')
+                ->groupBy('uid')
+                ->pluck('total', 'uid');
+
             foreach ($leads as $lead) {
                 if ($lead->user) {
                     $lead->user->setAttribute('active_leads_count', $activeLeadCounts[$lead->emp_id] ?? 0);
+                    $lead->user->setAttribute('converted_orders_count', $convertedOrderCounts[$lead->emp_id] ?? 0);
                 }
             }
 

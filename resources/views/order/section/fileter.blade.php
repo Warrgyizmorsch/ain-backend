@@ -11,92 +11,121 @@
                 <input type="search" name="search" id="search" class="form-control form-control-solid" placeholder="Search By OrderCode or Title">
             </div>
 
-            <script>
-                document.addEventListener('DOMContentLoaded', function() {
-                    const searchInput = document.getElementById('searchInput');
-
-                    searchInput.addEventListener('input', function(event) {
-                        const inputValue = event.target.value;
-                        const sanitizedValue = inputValue.replace(/\s/g, ''); // Remove spaces
-
-                        // Update input value without spaces
-                        if (inputValue !== sanitizedValue) {
-                            searchInput.value = sanitizedValue;
-                        }
-                    });
-                });
-            </script>
-
-                <div class="col-md-3 fv-row">
-                    <input type="text" list="searchDatalist" id="searchInput" name="user" class="form-control form-control-solid" placeholder="Search..." autocomplete="off">
-                    <!-- Datalist for displaying search results -->
-                    <datalist id="searchDatalist"></datalist>
-                    <!-- Container to display search results -->
-                    <div id="searchResultss"></div>
+                <div class="col-md-3 fv-row position-relative">
+                    <input type="text" id="searchInput" name="user" class="form-control form-control-solid" placeholder="Search Customer (Name, Phone, Email)" autocomplete="off" value="{{ request('user') }}">
+                    <!-- Container to display custom search results dropdown -->
+                    <div id="searchResultss" class="dropdown-menu w-100 shadow-lg p-0 mt-1" style="display:none; max-height: 260px; overflow-y: auto; z-index: 1050; position: absolute; left: 0; top: 100%; background: #ffffff !important; border: 1px solid #d8dbe0;"></div>
                     <!-- Hidden field to store the selected value -->
-                    <input type="hidden" id="selectedValue" name="uid">
+                    <input type="hidden" id="selectedValue" name="uid" value="{{ request('uid') }}">
                 </div>
 
-                <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+                <style>
+                    #searchResultss .user-select-item {
+                        cursor: pointer;
+                        transition: background 0.15s ease-in-out;
+                    }
+                    #searchResultss .user-select-item:hover {
+                        background-color: #f1f5f9;
+                    }
+                </style>
+
                 <script>
-                    $(document).ready(function () {
-                        $('#search, #searchInput').on('keypress', function(e) {
-                            if (e.which === 13 || e.keyCode === 13) {
-                                e.preventDefault();
-                                applyFilters();
+                    (function() {
+                        function initOrderUserSearch() {
+                            if (typeof jQuery === 'undefined' || !window.jQuery) {
+                                setTimeout(initOrderUserSearch, 50);
+                                return;
                             }
-                        });
+                            var $ = window.jQuery;
+                            var searchTimeout = null;
 
-                        $('#searchInput').on('input', function () {
-                            var searchValue = $(this).val();
-
-                            if (searchValue.length >= 3) {
-                                $.ajax({
-                                    url: "{{ route('search-order') }}",
-                                    type: "GET",
-                                    data: { user: searchValue },
-                                    success: function (response) {
-                                        var results = '';
-                                        if (response.length > 0) {
-                                            // Populate the datalist with search results
-                                            $('#searchDatalist').empty();
-                                            $.each(response, function (key, value) {
-                                                // Append each option with email, name, and mobile number
-                                                $('#searchDatalist').append('<option data-id="' + value.id + '" value="' + value.email + '">' + value.name + (value.id ? ' (ID: ' + value.id + ')' : '') + ' (' + value.mobile_no + ')</option>');
-                                            });
-                                            if(response.length === 1) {
-                                                // If there is only one result, automatically fill in the search input
-                                                $('#searchInput').val(response[0].email);
-                                                // Store the selected value in the hidden field
-                                                $('#selectedValue').val(response[0].id);
-                                            }
-                                        } else {
-                                            results = '<div>No results found</div>';
-                                        }
-                                        $('#searchResultss').html(results);
-                                    }
-                                });
-                            } else {
-                                $('#searchResultss').empty();
-                            }
-                        });
-
-                        // Handle click on search result
-                        $('#searchInput').on('input change', function() {
-                            var selectedEmail = $(this).val();
-                            var selectedOption = $('#searchDatalist option').filter(function () {
-                                return $(this).val() === selectedEmail;
+                            $('#search, #searchInput').off('keypress.usersearch').on('keypress.usersearch', function(e) {
+                                if (e.which === 13 || e.keyCode === 13) {
+                                    e.preventDefault();
+                                    applyFilters();
+                                }
                             });
-                            if (selectedOption.length > 0) {
-                                // If the selected value exists in the datalist, get its associated ID
-                                var selectedId = selectedOption.attr('data-id') || selectedOption.data('id');
+
+                            $('#searchInput').off('input.usersearch focus.usersearch').on('input.usersearch focus.usersearch', function () {
+                                var searchValue = $(this).val().trim();
+                                clearTimeout(searchTimeout);
+
+                                if (searchValue.length >= 2) {
+                                    $('#searchResultss').html(
+                                        '<div class="p-3 text-center text-muted fs-7 d-flex align-items-center justify-content-center gap-2">' +
+                                            '<div class="spinner-border spinner-border-sm text-primary" role="status"></div>' +
+                                            '<span>Searching users...</span>' +
+                                        '</div>'
+                                    ).show();
+
+                                    searchTimeout = setTimeout(function () {
+                                        $.ajax({
+                                            url: "{{ route('search-order') }}",
+                                            type: "GET",
+                                            data: { user: searchValue },
+                                            success: function (response) {
+                                                var resultsHtml = '';
+                                                if (response && response.length > 0) {
+                                                    $.each(response, function (key, value) {
+                                                        var mobileStr = value.mobile_no ? ' | 📞 ' + value.mobile_no : '';
+                                                        var emailStr = value.email ? value.email : '';
+                                                        var idBadge = value.id ? '<span class="badge badge-light-primary fw-bolder fs-8 ms-2 px-2 py-0.5" style="border: 1px solid #bfdbfe;">ID: ' + value.id + '</span>' : '';
+                                                        resultsHtml += '<a href="javascript:void(0)" class="dropdown-item user-select-item p-3 border-bottom text-wrap" ' +
+                                                            'data-id="' + value.id + '" data-email="' + emailStr + '" data-name="' + value.name + '" data-mobile="' + (value.mobile_no || '') + '">' +
+                                                            '<div class="d-flex align-items-center justify-content-between">' +
+                                                                '<span class="fw-bolder text-dark fs-6">' + value.name + '</span>' +
+                                                                idBadge +
+                                                            '</div>' +
+                                                            '<div class="text-muted fs-7 mt-1">' + emailStr + mobileStr + '</div>' +
+                                                            '</a>';
+                                                    });
+                                                } else {
+                                                    resultsHtml = '<div class="p-3 text-muted fs-7 text-center">No results found</div>';
+                                                }
+                                                $('#searchResultss').html(resultsHtml).show();
+                                            },
+                                            error: function () {
+                                                $('#searchResultss').html('<div class="p-3 text-danger fs-7 text-center">Error loading results</div>').show();
+                                            }
+                                        });
+                                    }, 250);
+                                } else {
+                                    $('#searchResultss').hide().empty();
+                                    if (searchValue.length === 0) {
+                                        $('#selectedValue').val('');
+                                    }
+                                }
+                            });
+
+                            // Handle user selection from dropdown
+                            $(document).off('click.useritem', '#searchResultss .user-select-item').on('click.useritem', '#searchResultss .user-select-item', function (e) {
+                                e.preventDefault();
+                                var selectedId = $(this).attr('data-id');
+                                var selectedEmail = $(this).attr('data-email');
+                                var selectedName = $(this).attr('data-name');
+                                var selectedMobile = $(this).attr('data-mobile');
+                                var label = selectedName + (selectedMobile ? ' (' + selectedMobile + ')' : (selectedEmail ? ' (' + selectedEmail + ')' : ''));
+
+                                $('#searchInput').val(label);
                                 $('#selectedValue').val(selectedId);
-                            } else {
-                                // If the selected value doesn't exist in the datalist, clear the hidden field
-                                $('#selectedValue').val('');
-                            }
-                        });
-                    });
+                                $('#searchResultss').hide().empty();
+                                applyFilters();
+                            });
+
+                            // Close dropdown when clicking outside
+                            $(document).off('click.outsidesearch').on('click.outsidesearch', function (e) {
+                                if (!$(e.target).closest('#searchInput, #searchResultss').length) {
+                                    $('#searchResultss').hide();
+                                }
+                            });
+                        }
+
+                        if (document.readyState === 'loading') {
+                            document.addEventListener('DOMContentLoaded', initOrderUserSearch);
+                        } else {
+                            initOrderUserSearch();
+                        }
+                    })();
                 </script>
 
 
@@ -224,8 +253,6 @@
 
 		
     </div>
-
-    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
     <style>
         .loading-container {
             position: relative;

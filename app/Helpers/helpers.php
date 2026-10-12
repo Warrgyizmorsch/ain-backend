@@ -731,9 +731,268 @@ if (!function_exists('get_blog_cta_image_url')) {
     }
 }
 
+// HTML Component code disabled as requested (purana image wala hi rahega).
+// To re-enable in future, change false to true.
+if (false && !function_exists('render_blog_cta_1_html')) {
+    /**
+     * Renders CTA 1 ('Expert Assignment Help Today') as a pixel-perfect, responsive HTML component.
+     */
+    function render_blog_cta_1_html(string $targetUrl): string
+    {
+        $studentImgUrl = asset('assets/media/blog-cta/cta-1-student.png');
+        $studentRelPath = '/assets/media/blog-cta/cta-1-student.png';
+
+        return <<<HTML
+<div class="ain-cta-card-wrapper my-4" style="margin: 28px 0; width: 100%; clear: both;">
+<style>
+.ain-cta-1-box {
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  background: linear-gradient(135deg, #ffffff 0%, #fffdfa 60%, #fffbf2 100%);
+  border: 1.5px solid #F1E8D9;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.06);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  position: relative;
+  width: 100%;
+  box-sizing: border-box;
+}
+.ain-cta-1-left {
+  flex: 1 1 54%;
+  padding: 22px 24px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  box-sizing: border-box;
+}
+.ain-cta-1-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  background: #FEF3C7;
+  color: #B45309;
+  border-radius: 20px;
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  margin-bottom: 10px;
+  align-self: flex-start;
+}
+.ain-cta-1-title {
+  font-size: 23px;
+  font-weight: 800;
+  color: #0F172A;
+  margin: 0 0 8px 0;
+  line-height: 1.25;
+}
+.ain-cta-1-title .highlight {
+  color: #EAB308;
+}
+.ain-cta-1-desc {
+  font-size: 13.5px;
+  color: #475569;
+  margin: 0 0 16px 0;
+  line-height: 1.45;
+  font-weight: 400;
+}
+.ain-cta-1-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+}
+.ain-cta-1-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #0F172A;
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  padding: 4px 10px;
+  border-radius: 20px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+}
+.ain-cta-1-center {
+  flex: 0 0 280px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  overflow: hidden;
+  position: relative;
+  box-sizing: border-box;
+}
+.ain-cta-1-center img {
+  height: 100%;
+  max-height: 220px;
+  width: auto;
+  object-fit: contain;
+  display: block;
+}
+.ain-cta-1-right {
+  flex: 0 0 240px;
+  padding: 22px 20px;
+  background: #FFFDF5;
+  border-left: 1.5px solid #F6E6CB;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  box-sizing: border-box;
+}
+.ain-cta-1-right-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: #FFFBEB;
+  border: 2px solid #FDE68A;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 10px;
+  color: #D97706;
+}
+.ain-cta-1-right-title {
+  font-size: 14.5px;
+  font-weight: 800;
+  color: #0F172A;
+  margin-bottom: 14px;
+  line-height: 1.35;
+}
+.ain-cta-1-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 11px 20px;
+  background: #0F172A;
+  color: #FFFFFF !important;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  text-decoration: none !important;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.2);
+  cursor: pointer;
+}
+.ain-cta-1-btn:hover {
+  background: #1E293B;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.3);
+  color: #FFFFFF !important;
+}
+.ain-cta-1-sub {
+  font-size: 11px;
+  color: #64748B;
+  margin-top: 8px;
+  font-weight: 600;
+}
+@media (max-width: 991px) {
+  .ain-cta-1-box {
+    flex-direction: column;
+  }
+  .ain-cta-1-left {
+    padding: 20px 20px 14px 20px;
+  }
+  .ain-cta-1-center {
+    flex: none;
+    width: 100%;
+    max-width: 260px;
+    margin: 0 auto;
+  }
+  .ain-cta-1-center img {
+    max-height: 190px;
+  }
+  .ain-cta-1-right {
+    flex: none;
+    width: 100%;
+    border-left: none;
+    border-top: 1.5px dashed #FDE68A;
+    padding: 18px 20px 22px 20px;
+  }
+  .ain-cta-1-btn {
+    padding: 13px 24px;
+    font-size: 14px;
+    border-radius: 10px;
+  }
+}
+@media (max-width: 540px) {
+  .ain-cta-1-title {
+    font-size: 19px;
+  }
+  .ain-cta-1-pills {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+  .ain-cta-1-pill {
+    font-size: 11px;
+    padding: 6px 8px;
+    justify-content: flex-start;
+  }
+}
+</style>
+<div class="ain-cta-1-box" data-cta-id="1" data-cta-key="CTA_ASSIGNMENT_HELP">
+  <div class="ain-cta-1-left">
+    <div class="ain-cta-1-badge">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#D97706" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><line x1="4.93" y1="4.93" x2="9.17" y2="9.17"/><line x1="14.83" y1="14.83" x2="19.07" y2="19.07"/><line x1="14.83" y1="9.17" x2="19.07" y2="4.93"/><line x1="4.93" y1="19.07" x2="9.17" y2="14.83"/></svg>
+      <span>NEED HELP?</span>
+    </div>
+    <h3 class="ain-cta-1-title">
+      Struggling with your assignment? <span class="highlight">We're here to help.</span>
+    </h3>
+    <p class="ain-cta-1-desc">
+      Get expert assignment help from subject specialists who understand UK academic standards.
+    </p>
+    <div class="ain-cta-1-pills">
+      <div class="ain-cta-1-pill">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#0F172A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
+        <span>UK Academic Standards</span>
+      </div>
+      <div class="ain-cta-1-pill">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#0F172A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        <span>Subject Experts</span>
+      </div>
+      <div class="ain-cta-1-pill">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#0F172A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        <span>On-Time Delivery</span>
+      </div>
+      <div class="ain-cta-1-pill">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#0F172A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        <span>100% Confidential</span>
+      </div>
+    </div>
+  </div>
+  <div class="ain-cta-1-center">
+    <img src="{$studentImgUrl}" data-relative-src="{$studentRelPath}" alt="Trusted by UK Students" loading="lazy" />
+  </div>
+  <div class="ain-cta-1-right">
+    <div class="ain-cta-1-right-icon">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#D97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
+    </div>
+    <div class="ain-cta-1-right-title">Get Expert Assignment Help Today!</div>
+    <a href="{$targetUrl}" target="_blank" rel="noopener noreferrer" class="ain-cta-1-btn">
+      <span>GET HELP NOW</span>
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+    </a>
+    <div class="ain-cta-1-sub">Free Quote &bull; No Obligation</div>
+  </div>
+</div>
+</div>
+HTML;
+    }
+}
+
 if (!function_exists('render_blog_ctas')) {
     /**
-     * Transforms blog content containing CTA tokens or placeholder blocks into responsive images for frontend display.
+     * Transforms blog content containing CTA tokens or placeholder blocks into responsive images/components for frontend display.
      */
     function render_blog_ctas(?string $content, ?bool $relativeUrls = null): string
     {
