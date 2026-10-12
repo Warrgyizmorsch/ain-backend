@@ -109,122 +109,147 @@
 
                 <div class="col-md-3 fv-row position-relative">
                     <input type="text" id="searchInput" name="user" value="{{ $reqUser }}"
-                        class="form-control form-control-solid" placeholder="User-Name,Number,Email" autocomplete="off">
+                        class="form-control form-control-solid" placeholder="Search Customer (Name, Phone, Email)" autocomplete="off">
                     <!-- Container to display custom search results dropdown -->
-                    <div id="searchResultss" class="dropdown-menu shadow-lg p-0 mt-1" style="display:none; max-height: 280px; overflow-y: auto; z-index: 9999; position: absolute; left: 0; top: 100%; width: 100%; background: #ffffff !important; border: 1px solid #cbd5e1; border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.15);"></div>
+                    <div id="searchResultss" class="dropdown-menu w-100 shadow-lg p-0 mt-1" style="display:none; max-height: 280px; overflow-y: auto; z-index: 1050; position: absolute; left: 0; top: 100%; background: #ffffff !important; border: 1px solid #cbd5e1; border-radius: 8px;"></div>
                     <!-- Hidden field to store the selected value -->
                     <input type="hidden" id="selectedValue" name="uid" value="{{ $reqUid }}">
                 </div>
                 {{-- mk 5 10 26 - Cache group masters list for 180s --}}
                 <div class="col-md-3 fv-row"><select id="group_id" name="group_id" class="form-select form-select-solid" data-control="select2" data-placeholder="User Group"><option value="">All Groups</option>@foreach(\Illuminate\Support\Facades\Cache::remember('leads_active_group_masters', 180, fn() => \App\Models\GroupMaster::where('status',1)->orderBy('name')->get(['id','name'])) as $group)<option value="{{ $group->id }}">{{ $group->name }}</option>@endforeach</select></div>
 
-                <script>
-                    $(document).ready(function() {
-                        let searchTimeout = null;
+                <style>
+                    #searchResultss .user-select-item {
+                        cursor: pointer;
+                        transition: background 0.15s ease-in-out;
+                    }
+                    #searchResultss .user-select-item:hover {
+                        background-color: #f1f5f9;
+                    }
+                </style>
 
-                        $('#search, #searchInput').on('keydown keypress', function(e) {
-                            if (e.which === 13 || e.keyCode === 13) {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                $('#searchResultss').removeClass('show').css('display', 'none');
+                <script>
+                    (function() {
+                        function initSearchAutocomplete() {
+                            if (typeof jQuery === 'undefined' || !window.jQuery) {
+                                setTimeout(initSearchAutocomplete, 50);
+                                return;
+                            }
+                            var $ = window.jQuery;
+                            var searchTimeout = null;
+
+                            $('#search, #searchInput').off('keydown.autocomplete keypress.autocomplete').on('keydown.autocomplete keypress.autocomplete', function(e) {
+                                if (e.which === 13 || e.keyCode === 13) {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    $('#searchResultss').hide();
+                                    if (typeof window.applyFilters === 'function') {
+                                        window.applyFilters();
+                                    }
+                                    return false;
+                                }
+                            });
+
+                            $('#search').off('search.autocomplete').on('search.autocomplete', function() {
                                 if (typeof window.applyFilters === 'function') {
                                     window.applyFilters();
                                 }
-                                return false;
-                            }
-                        });
+                            });
 
-                        $('#search').on('search', function() {
-                            if (typeof window.applyFilters === 'function') {
-                                window.applyFilters();
-                            }
-                        });
+                            $('#searchInput').off('input.autocomplete focus.autocomplete').on('input.autocomplete focus.autocomplete', function() {
+                                var searchValue = $(this).val().trim();
+                                clearTimeout(searchTimeout);
 
-                        $('#searchInput').on('input focus', function() {
-                            var searchValue = $(this).val().trim();
+                                if (searchValue.length >= 2) {
+                                    $('#searchResultss').html(
+                                        '<div class="p-3 text-center text-muted fs-7 d-flex align-items-center justify-content-center gap-2">' +
+                                            '<div class="spinner-border spinner-border-sm text-primary" role="status"></div>' +
+                                            '<span>Searching users...</span>' +
+                                        '</div>'
+                                    ).show();
 
-                            clearTimeout(searchTimeout);
+                                    searchTimeout = setTimeout(function() {
+                                        $.ajax({
+                                            url: "{{ route('search-order') }}",
+                                            type: "GET",
+                                            data: {
+                                                user: searchValue
+                                            },
+                                            success: function(response) {
+                                                var resultsHtml = '';
+                                                if (response && response.length > 0) {
+                                                    $.each(response, function(key, value) {
+                                                        var mobileStr = value.mobile_no ? ' | 📞 ' + value.mobile_no : '';
+                                                        var emailStr = value.email ? value.email : '';
+                                                        var idBadge = value.id ? '<span class="badge badge-light-primary fw-bolder fs-8 ms-2 px-2 py-0.5" style="border: 1px solid #bfdbfe;">ID: ' + value.id + '</span>' : '';
+                                                        var displayName = value.display_name || value.name || ('User #' + value.id);
+                                                        var orderAttr = value.order_id ? ' data-order-id="' + value.order_id + '"' : '';
 
-                            if (searchValue.length >= 2) {
-                                $('#searchResultss').html(
-                                    '<div class="p-3 text-center text-muted fs-7 d-flex align-items-center justify-content-center gap-2">' +
-                                        '<div class="spinner-border spinner-border-sm text-primary" role="status"></div>' +
-                                        '<span>Searching users & orders...</span>' +
-                                    '</div>'
-                                ).addClass('show').css('display', 'block');
-
-                                searchTimeout = setTimeout(function() {
-                                    $.ajax({
-                                        url: "{{ route('search-order') }}",
-                                        type: "GET",
-                                        data: {
-                                            user: searchValue
-                                        },
-                                        success: function(response) {
-                                            var resultsHtml = '';
-                                            if (response && response.length > 0) {
-                                                $.each(response, function(key, value) {
-                                                    var mobileStr = value.mobile_no ? ' | 📞 ' + value.mobile_no : '';
-                                                    var orderAttr = value.order_id ? ' data-order-id="' + value.order_id + '"' : '';
-                                                    var idBadge = value.id ? '<span class="badge badge-light-primary fw-bolder fs-8 ms-2 px-2 py-0.5" style="border: 1px solid #bfdbfe;">ID: ' + value.id + '</span>' : '';
-                                                    var displayName = value.display_name || value.name || ('User #' + value.id);
-                                                    resultsHtml += '<a href="javascript:void(0)" class="dropdown-item user-select-item p-3 border-bottom text-wrap" style="transition: background-color 0.15s ease;" ' +
-                                                        'data-id="' + value.id + '" data-email="' + (value.email || '') + '" data-name="' + displayName + '"' + orderAttr + '>' +
-                                                        '<div class="d-flex align-items-center justify-content-between">' +
-                                                            '<span class="fw-bolder text-dark fs-6">' + displayName + '</span>' +
-                                                            idBadge +
-                                                        '</div>' +
-                                                        '<div class="text-muted fs-7 mt-1">' + (value.email || '') + mobileStr + '</div>' +
-                                                        '</a>';
-                                                });
-                                            } else {
-                                                resultsHtml = '<div class="p-3 text-muted fs-7 text-center">No results found</div>';
+                                                        resultsHtml += '<a href="javascript:void(0)" class="dropdown-item user-select-item p-3 border-bottom text-wrap" ' +
+                                                            'data-id="' + value.id + '" data-email="' + emailStr + '" data-name="' + displayName + '" data-mobile="' + (value.mobile_no || '') + '"' + orderAttr + '>' +
+                                                            '<div class="d-flex align-items-center justify-content-between">' +
+                                                                '<span class="fw-bolder text-dark fs-6">' + displayName + '</span>' +
+                                                                idBadge +
+                                                            '</div>' +
+                                                            '<div class="text-muted fs-7 mt-1">' + emailStr + mobileStr + '</div>' +
+                                                            '</a>';
+                                                    });
+                                                } else {
+                                                    resultsHtml = '<div class="p-3 text-muted fs-7 text-center">No results found</div>';
+                                                }
+                                                $('#searchResultss').html(resultsHtml).show();
+                                            },
+                                            error: function() {
+                                                $('#searchResultss').html('<div class="p-3 text-danger fs-7 text-center">Error loading results</div>').show();
                                             }
-                                            $('#searchResultss').html(resultsHtml).addClass('show').css('display', 'block');
-                                        },
-                                        error: function() {
-                                            $('#searchResultss').html('<div class="p-3 text-danger fs-7 text-center">Error loading results</div>').addClass('show').css('display', 'block');
-                                        }
-                                    });
-                                }, 250);
-                            } else {
-                                $('#searchResultss').removeClass('show').css('display', 'none').empty();
-                                if (searchValue.length === 0) {
-                                    $('#selectedValue').val('');
+                                        });
+                                    }, 250);
+                                } else {
+                                    $('#searchResultss').hide().empty();
+                                    if (searchValue.length === 0) {
+                                        $('#selectedValue').val('');
+                                    }
                                 }
-                            }
-                        });
+                            });
 
-                        // Handle click on custom dropdown item
-                        $(document).on('click', '.user-select-item', function(e) {
-                            e.preventDefault();
-                            var selectedId = $(this).attr('data-id');
-                            var selectedName = $(this).attr('data-name');
-                            var selectedOrderId = $(this).attr('data-order-id');
+                            // Handle click on custom dropdown item
+                            $(document).off('click.userselect', '#searchResultss .user-select-item').on('click.userselect', '#searchResultss .user-select-item', function(e) {
+                                e.preventDefault();
+                                var selectedId = $(this).attr('data-id');
+                                var selectedEmail = $(this).attr('data-email');
+                                var selectedName = $(this).attr('data-name');
+                                var selectedMobile = $(this).attr('data-mobile');
+                                var selectedOrderId = $(this).attr('data-order-id');
 
-                            if (selectedOrderId) {
-                                $('#search').val(selectedOrderId);
-                                $('#searchInput').val(selectedOrderId);
-                                $('#selectedValue').val(selectedId);
-                            } else {
-                                var displayName = selectedName;
-                                if (selectedId && displayName.indexOf('ID:') === -1) {
-                                    displayName += ' (ID: ' + selectedId + ')';
+                                if (selectedOrderId) {
+                                    $('#search').val(selectedOrderId);
+                                    $('#searchInput').val(selectedOrderId);
+                                    $('#selectedValue').val(selectedId);
+                                } else {
+                                    var label = selectedName + (selectedMobile ? ' (' + selectedMobile + ')' : (selectedEmail ? ' (' + selectedEmail + ')' : ''));
+                                    $('#searchInput').val(label);
+                                    $('#selectedValue').val(selectedId);
                                 }
-                                $('#searchInput').val(displayName);
-                                $('#selectedValue').val(selectedId);
-                            }
-                            $('#searchResultss').removeClass('show').css('display', 'none').empty();
-                            applyFilters();
-                        });
+                                $('#searchResultss').hide().empty();
+                                if (typeof window.applyFilters === 'function') {
+                                    window.applyFilters();
+                                }
+                            });
 
-                        // Close dropdown on clicking outside
-                        $(document).on('click', function(e) {
-                            if (!$(e.target).closest('#searchInput, #searchResultss').length) {
-                                $('#searchResultss').removeClass('show').css('display', 'none');
-                            }
-                        });
-                    });
+                            // Close dropdown on clicking outside
+                            $(document).off('click.outsideSearch').on('click.outsideSearch', function(e) {
+                                if (!$(e.target).closest('#searchInput, #searchResultss').length) {
+                                    $('#searchResultss').hide();
+                                }
+                            });
+                        }
+
+                        if (document.readyState === 'loading') {
+                            document.addEventListener('DOMContentLoaded', initSearchAutocomplete);
+                        } else {
+                            initSearchAutocomplete();
+                        }
+                    })();
                 </script>
 
                 <div class="col-lg-3 fv-row fv-plugins-icon-container">
