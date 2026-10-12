@@ -143,22 +143,15 @@
                                             </a>
                                             <!-- Add checkbox input -->
                                         @endif
-                                            <a href="#" id="" style="color:white" class="btn btn-icon btn-bg-primary btn-active-color-light btn-sm me-1">
-                                                <!-- <span class="svg-icon svg-icon-3">
-                                                    <input class="form-check-input payment-checkbox" type="checkbox" id="checkbox{{$payment->id}}" data-payment-id="{{$payment->id}}">
-                                                </span> -->
-                                                <span class="svg-icon svg-icon-3">
+                                            <label class="btn btn-icon btn-bg-primary btn-active-color-light btn-sm me-1 mb-0 d-inline-flex align-items-center justify-content-center" style="cursor: pointer;" for="checkbox{{ $payment->id }}" title="Toggle Account Status">
                                                 <input 
-                                                    class="form-check-input payment-checkbox" 
+                                                    class="form-check-input payment-checkbox m-0" 
                                                     type="checkbox" 
                                                     id="checkbox{{ $payment->id }}" 
                                                     data-payment-id="{{ $payment->id }}" 
                                                     {{ $isCheckedPayment ? 'checked' : '' }} 
                                                 >
-                                            </span>
-
-    
-                                            </a>
+                                            </label>
                                         </td>
                                     </tr>
                                 @endforeach
@@ -179,33 +172,55 @@
 
 
 <script>
-    document.addEventListener("DOMContentLoaded", function () {
-        const checkboxes = document.querySelectorAll(".payment-checkbox");
+    $(document).ready(function () {
+        $(document).on('change', '.payment-checkbox', function (e) {
+            var $checkbox = $(this);
+            var paymentId = $checkbox.data('payment-id') || $checkbox.attr('data-payment-id');
+            var isChecked = $checkbox.is(':checked') ? 1 : 0;
+            var csrfToken = $('meta[name="csrf-token"]').attr('content') || '{{ csrf_token() }}';
 
-        checkboxes.forEach(checkbox => {
-            checkbox.addEventListener("change", function () {
-                const paymentId = this.getAttribute("data-payment-id");
-                const isChecked = this.checked ? 1 : 0;
+            $checkbox.prop('disabled', true);
 
-                fetch(`/update-account-status/${paymentId}`, {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        "X-CSRF-TOKEN": document.querySelector('meta[name="csrf-token"]').getAttribute("content"),
-                    },
-                    body: JSON.stringify({ account_status: isChecked }),
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (!data.success) {
-                        alert(data.message || "Error updating status");
-                        this.checked = !isChecked; // Revert checkbox state if the update fails
+            $.ajax({
+                url: '/update-account-status/' + paymentId,
+                type: 'POST',
+                data: {
+                    account_status: isChecked,
+                    _token: csrfToken
+                },
+                headers: {
+                    'X-CSRF-TOKEN': csrfToken
+                },
+                dataType: 'json',
+                success: function (response) {
+                    $checkbox.prop('disabled', false);
+                    if (response && response.success) {
+                        var $tr = $checkbox.closest('tr');
+                        if (isChecked === 1) {
+                            $tr.css('font-weight', 'bold');
+                        } else {
+                            $tr.css('font-weight', 'normal');
+                        }
+                    } else {
+                        alert((response && response.message) ? response.message : "Error updating status");
+                        $checkbox.prop('checked', !isChecked);
                     }
-                })
-                .catch(error => {
-                    alert("Error updating status");
-                    this.checked = !isChecked; // Revert checkbox state on error
-                });
+                },
+                error: function (xhr, status, error) {
+                    $checkbox.prop('disabled', false);
+                    $checkbox.prop('checked', !isChecked);
+                    var errMsg = "Error updating status";
+                    if (xhr.responseJSON && xhr.responseJSON.message) {
+                        errMsg = xhr.responseJSON.message;
+                    } else if (xhr.status === 419) {
+                        errMsg = "Session expired. Please refresh the page and try again.";
+                    } else if (xhr.status === 403) {
+                        errMsg = "Unauthorized action.";
+                    } else if (xhr.statusText && xhr.statusText !== 'error') {
+                        errMsg = "Error: " + xhr.statusText;
+                    }
+                    alert(errMsg);
+                }
             });
         });
     });

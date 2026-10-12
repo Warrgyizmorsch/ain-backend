@@ -378,6 +378,280 @@
         .ain-stat:hover .ain-stat__arrow {
             color: #4f46e5;
         }
+
+        /* mk 12 10 26 */
+        /* ===== Team + Orders by status ===== */
+        .ain-chip {
+            display: inline-block;
+            margin-left: 10px;
+            padding: 4px 12px;
+            border-radius: 999px;
+            background: #eef0fe;
+            color: #3730a3;
+            font-size: 12px;
+            font-weight: 700;
+            vertical-align: middle
+        }
+
+        .ain-search {
+            width: 100%;
+            min-height: 40px;
+            padding: 0 14px;
+            margin-bottom: 12px;
+            border: 1px solid #dbe2ec;
+            border-radius: 10px;
+            font-size: 14px;
+            color: #151a33;
+            background: #fff;
+            font-family: inherit
+        }
+
+        .ain-search:focus {
+            border-color: #4f46e5;
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, .15);
+            outline: none
+        }
+
+        .ain-trow {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            width: 100%;
+            padding: 10px 12px;
+            margin: 0 0 2px;
+            border: 1px solid transparent;
+            border-radius: 14px;
+            background: transparent;
+            text-align: left;
+            cursor: pointer;
+            font-family: inherit;
+            transition: background .15s ease, border-color .15s ease
+        }
+
+        .ain-trow:hover {
+            background: #f6f7fd
+        }
+
+        .ain-trow.sel {
+            background: #eef0fe;
+            border-color: #4f46e5
+        }
+
+        .ain-trow:focus-visible {
+            outline: 2px solid #4f46e5;
+            outline-offset: 2px
+        }
+
+        .ain-tav {
+            width: 44px;
+            height: 44px;
+            flex-shrink: 0;
+            border-radius: 50%;
+            overflow: hidden;
+            background: #eef0f6
+        }
+
+        .ain-tav img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block
+        }
+
+        .ain-tname {
+            flex: 1;
+            font-size: 14px;
+            font-weight: 600;
+            color: #151a33
+        }
+
+        .ain-trow .ain-chk {
+            opacity: 0;
+            transition: opacity .15s ease
+        }
+
+        .ain-trow.sel .ain-chk {
+            opacity: 1
+        }
+
+        .ain-nomatch {
+            padding: 24px 8px;
+            text-align: center;
+            font-size: 14px;
+            color: #667085
+        }
+
+        .ain-seg {
+            display: flex;
+            background: #f4f5fa;
+            border-radius: 10px;
+            padding: 4px;
+            gap: 2px
+        }
+
+        .ain-seg button {
+            min-height: 34px;
+            padding: 0 16px;
+            border: 0;
+            border-radius: 8px;
+            background: transparent;
+            color: #5b6280;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            font-family: inherit
+        }
+
+        .ain-seg button.on {
+            background: #fff;
+            color: #4338ca;
+            box-shadow: 0 1px 3px rgba(21, 26, 51, .12)
+        }
+
+        .ain-os {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+            gap: 20px;
+            align-items: center
+        }
+
+        .ain-os__chart {
+            min-width: 0
+        }
+
+        .ain-os__chart svg {
+            display: block;
+            width: 100%;
+            max-width: 460px;
+            margin: 0 auto;
+            font-family: inherit
+        }
+
+        .ain-os__side {
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 10px
+        }
+
+        .ain-sl {
+            transition: transform .28s ease, opacity .2s ease;
+            cursor: pointer
+        }
+
+        .ain-detail {
+            padding: 18px 20px;
+            border-radius: 16px;
+            background: #0e1330;
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            margin-bottom: 4px
+        }
+
+        .ain-detail__name {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #c9cee6
+        }
+
+        .ain-detail__pct {
+            font-size: 40px;
+            font-weight: 800;
+            letter-spacing: -1.2px;
+            line-height: 1.1;
+            font-variant-numeric: tabular-nums
+        }
+
+        .ain-detail__txt {
+            font-size: 13px;
+            color: #aeb5d3
+        }
+
+        .ain-detail__rank {
+            font-size: 12px;
+            color: #8f97bc;
+            margin-top: 2px
+        }
+
+        .ain-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+            flex-shrink: 0
+        }
+
+        .ain-lrow {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            width: 100%;
+            padding: 12px 14px;
+            border: 1px solid #e6e8f2;
+            border-radius: 14px;
+            background: #fff;
+            text-align: left;
+            cursor: pointer;
+            font-family: inherit;
+            transition: background .15s ease, border-color .15s ease, transform .15s ease
+        }
+
+        .ain-lrow:hover,
+        .ain-lrow.on,
+        .ain-lrow:focus-visible {
+            background: #f8f9fe;
+            border-color: #4f46e5;
+            transform: translateX(3px);
+            outline: none
+        }
+
+        .ain-lrow__top {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 14px;
+            width: 100%
+        }
+
+        .ain-lrow__name {
+            flex: 1;
+            font-weight: 600;
+            color: #151a33
+        }
+
+        .ain-lrow__cnt {
+            color: #667085;
+            font-size: 12px;
+            font-variant-numeric: tabular-nums
+        }
+
+        .ain-lrow__pct {
+            min-width: 52px;
+            text-align: right;
+            font-weight: 800;
+            color: #151a33;
+            font-variant-numeric: tabular-nums
+        }
+
+        .ain-lrow__bar {
+            display: block;
+            width: 100%;
+            height: 6px;
+            border-radius: 999px;
+            background: #f0f1f8;
+            overflow: hidden
+        }
+
+        @media (max-width:575.98px) {
+            .ain-detail__pct {
+                font-size: 32px
+            }
+        }
     </style>
     @if (auth()->check() && auth()->user()->role_id == 1)
         <div class="content d-flex flex-column flex-column-fluid ain-admin-dashboard" id="kt_content">
@@ -392,8 +666,8 @@
                         </h1>
                     </div>
                     <!-- <div class="d-flex align-items-center py-1">
-                                <a href="#" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#kt_modal_create_app" id="kt_toolbar_primary_button">Create</a>
-                               </div> -->
+                                        <a href="#" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#kt_modal_create_app" id="kt_toolbar_primary_button">Create</a>
+                                       </div> -->
                 </div>
             </div>
 
@@ -514,7 +788,8 @@
                         <div class="col-xl-4">
                             <div class="card card-xl-stretch mb-xl-8">
                                 <div class="card-header border-0">
-                                    <h3 class="card-title fw-bolder text-dark">Team</h3>
+                                    <h3 class="card-title fw-bolder text-dark">Team <span id="teamRoleChip"
+                                            class="ain-chip">Marketing Team</span></h3>
                                     <div class="card-toolbar">
                                         <button type="button"
                                             class="btn btn-sm btn-icon btn-color-primary btn-active-light-primary"
@@ -567,43 +842,55 @@
                                     </div>
                                 </div>
                                 <div class="card-body pt-2">
+                                    <input id="teamSearch" type="search" class="ain-search"
+                                        placeholder="Search team member" aria-label="Search team member">
 
                                     <!-- show the team member here -->
                                     <div id="teamMembersContainer"></div>
-
+                                    <div id="teamNoMatch" class="ain-nomatch d-none">No member matches your search.</div>
                                 </div>
                             </div>
                         </div>
                         <div class="col-xl-8">
-                            <!--begin::Charts Widget 5-->
                             <div class="card card-xl-stretch mb-5 mb-xl-8">
-                                <!--begin::Header-->
                                 <div class="card-header border-0 pt-5">
                                     <h3 class="card-title align-items-start flex-column">
-                                        <span class="card-label fw-bolder fs-3 mb-1">Recent Orders</span>
+                                        <span class="card-label fw-bolder fs-3 mb-1">Orders by status</span>
                                         <span class="text-muted fw-bold fs-7">More than {{ $currentMonthOrdersCount }}+ new
                                             orders
-                                            this month.</span>
+                                            this month. Hover a slice to explore.</span>
                                     </h3>
-                                    <!--begin::Toolbar-->
-                                    <div class="card-toolbar" data-kt-buttons="true">
-                                        <a class="btn btn-sm btn-color-muted btn-active btn-active-primary active px-4 me-1"
-                                            id="kt_charts_widget_6_sales_btn">Sales</a>
-                                        <a class="btn btn-sm btn-color-muted btn-active btn-active-primary px-4 me-1"
-                                            id="kt_charts_widget_6_expenses_btn">Expenses</a>
+                                    <div class="card-toolbar">
+                                        <div class="ain-seg">
+                                            <button type="button" id="ainBtn3d" class="on">3D</button>
+                                            <button type="button" id="ainBtnFlat">Flat</button>
+                                        </div>
+                                        <div class="d-none" data-kt-buttons="true">
+                                            <a class="btn btn-sm" id="kt_charts_widget_6_sales_btn"></a>
+                                            <a class="btn btn-sm" id="kt_charts_widget_6_expenses_btn"></a>
+                                        </div>
                                     </div>
-                                    <!--end::Toolbar-->
                                 </div>
-                                <!--end::Header-->
-                                <!--begin::Body-->
                                 <div class="card-body">
-                                    <!--begin::Chart-->
-                                    <div id="piechart_3d" style="width: 550px; height: 500px;"></div>
-                                    <!--end::Chart-->
+                                    <div class="ain-os">
+                                        <div class="ain-os__chart">
+                                            <svg id="ainPie" viewBox="0 0 440 330" role="img"
+                                                aria-label="Orders by status pie chart"></svg>
+                                        </div>
+                                        <div class="ain-os__side">
+                                            <div class="ain-detail">
+                                                <div class="ain-detail__name"><span id="ainDDot"
+                                                        class="ain-dot"></span><span id="ainDName"></span></div>
+                                                <div class="ain-detail__pct" id="ainDPct"></div>
+                                                <div class="ain-detail__txt" id="ainDCount"></div>
+                                                <div class="ain-detail__txt" id="ainDDesc"></div>
+                                                <div class="ain-detail__rank" id="ainDRank"></div>
+                                            </div>
+                                            <div id="ainRows" style="display:flex;flex-direction:column;gap:10px"></div>
+                                        </div>
+                                    </div>
                                 </div>
-                                <!--end::Body-->
                             </div>
-                            <!--end::Charts Widget 5-->
                         </div>
                     </div>
                     <div class="row gy-5 g-xl-8">
@@ -1805,45 +2092,282 @@
                 $('#teamMembersContainer').html('');
                 teamMembers.forEach(function(member) {
                     var photoUrl = member.photo ? member.photo : 'assets/media/avatars/blank.png';
-                    var memberHtml = '<div class="d-flex align-items-center mb-7">' +
-                        '<div class="symbol symbol-50px me-5">' +
-                        '<img src="' + photoUrl + '" class="" alt="" />' +
-                        '</div>' +
-                        '<div class="flex-grow-1">' +
-                        '<a href="#" class="text-dark fw-bolder text-hover-primary fs-6">' + member.name + '</a>' +
-                        '</div>' +
-                        '</div>';
+                    var safeName = $('<div>').text(member.name || '').html();
+                    var memberHtml =
+                        '<button type="button" class="ain-trow" data-name="' + safeName.toLowerCase().replace(/"/g,
+                            '&quot;') + '">' +
+                        '<span class="ain-tav"><img src="' + photoUrl +
+                        '" alt="" onerror="this.onerror=null;this.src=\'assets/media/avatars/blank.png\';" /></span>' +
+                        '<span class="ain-tname">' + safeName + '</span>' +
+                        '<svg class="ain-chk" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#4F46E5" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"></path></svg>' +
+                        '</button>';
                     $('#teamMembersContainer').append(memberHtml);
                 });
+                if (window.ainFilterTeam) window.ainFilterTeam();
             }
         </script>
 
         <!-- ... (remaining content) ... -->
         <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
-        <script type="text/javascript">
-            google.charts.load("current", {
-                packages: ["corechart"]
+        <script>
+            (function() {
+                var raw = [{
+                        name: 'Cancelled',
+                        v: {{ (int) ($cancelledOrder ?? 0) }},
+                        color: '#F1416C',
+                        side: '#B92A50',
+                        desc: 'Orders that were cancelled'
+                    },
+                    {
+                        name: 'In Progress',
+                        v: {{ (int) ($inprogressOrder ?? 0) }},
+                        color: '#4F46E5',
+                        side: '#3730A3',
+                        desc: 'Orders being worked on right now'
+                    },
+                    {
+                        name: 'Hold Work',
+                        v: {{ (int) ($holdWorkOrder ?? 0) }},
+                        color: '#009EF7',
+                        side: '#0072B8',
+                        desc: 'Work that is paused for now'
+                    },
+                    {
+                        name: 'Pending',
+                        v: {{ (int) ($pendingOrder ?? 0) }},
+                        color: '#F5B301',
+                        side: '#B88300',
+                        desc: 'Orders waiting to be picked up'
+                    },
+                    {
+                        name: 'Other',
+                        v: {{ (int) ($otherOrder ?? 0) }},
+                        color: '#94A3B8',
+                        side: '#64748B',
+                        desc: 'Everything else'
+                    }
+                ];
+                raw.sort(function(a, b) {
+                    return b.v - a.v;
+                });
+
+                var total = raw.reduce(function(s, r) {
+                    return s + r.v;
+                }, 0);
+                var flat = false,
+                    hover = null,
+                    groups = [],
+                    moves = [],
+                    rowEls = [];
+                var svg = document.getElementById('ainPie');
+                var rowsBox = document.getElementById('ainRows');
+                if (!svg || !rowsBox) return;
+
+                function pctOf(v) {
+                    return total > 0 ? v / total * 100 : 0;
+                }
+
+                function fmt(p) {
+                    if (p > 0 && p < 0.1) return '<0.1%';
+                    return p.toFixed(1) + '%';
+                }
+
+                function f(n) {
+                    return n.toFixed(2);
+                }
+
+                function build() {
+                    var rx = flat ? 128 : 150,
+                        ry = flat ? 128 : 88,
+                        h = flat ? 0 : 26,
+                        cx = 220,
+                        cy = flat ? 160 : 130;
+                    var acc = -Math.PI / 2,
+                        items = [];
+
+                    function P(a, k) {
+                        k = k || 1;
+                        return [cx + rx * k * Math.cos(a), cy + ry * k * Math.sin(a)];
+                    }
+
+                    raw.forEach(function(r, i) {
+                        var frac = Math.min(total > 0 ? r.v / total : 0, 0.9999);
+                        var a0 = acc,
+                            a1 = acc + frac * 2 * Math.PI;
+                        acc = a1;
+                        var mid = (a0 + a1) / 2;
+                        var top = 'M 0 0',
+                            side = 'M 0 0';
+                        if (frac > 0) {
+                            var p0 = P(a0),
+                                p1 = P(a1);
+                            var laf = (a1 - a0) > Math.PI ? 1 : 0;
+                            top = 'M ' + f(cx) + ' ' + f(cy) + ' L ' + f(p0[0]) + ' ' + f(p0[1]) +
+                                ' A ' + rx + ' ' + ry + ' 0 ' + laf + ' 1 ' + f(p1[0]) + ' ' + f(p1[1]) + ' Z';
+                            var lo = Math.max(a0, 0),
+                                hi = Math.min(a1, Math.PI);
+                            if (!flat && lo < hi - 0.000001) {
+                                var q0 = P(lo),
+                                    q1 = P(hi);
+                                side = 'M ' + f(q0[0]) + ' ' + f(q0[1]) + ' L ' + f(q0[0]) + ' ' + f(q0[1] + h) +
+                                    ' A ' + rx + ' ' + ry + ' 0 0 1 ' + f(q1[0]) + ' ' + f(q1[1] + h) +
+                                    ' L ' + f(q1[0]) + ' ' + f(q1[1]) +
+                                    ' A ' + rx + ' ' + ry + ' 0 0 0 ' + f(q0[0]) + ' ' + f(q0[1]) + ' Z';
+                            }
+                        }
+                        var lp = P(mid, 0.62);
+                        var p = pctOf(r.v);
+                        items.push({
+                            i: i,
+                            sin: Math.sin(mid),
+                            top: top,
+                            side: side,
+                            lx: lp[0],
+                            ly: lp[1] + (flat ? 0 : 2),
+                            label: p >= 5 ? p.toFixed(1) + '%' : '',
+                            dx: Math.cos(mid) * (flat ? 12 : 16),
+                            dy: Math.sin(mid) * (flat ? 12 : 9) - (flat ? 0 : 4)
+                        });
+                    });
+
+                    moves = [];
+                    items.forEach(function(it) {
+                        moves[it.i] = it;
+                    });
+                    items.sort(function(a, b) {
+                        return a.sin - b.sin;
+                    });
+
+                    var html = flat ?
+                        '<ellipse cx="220" cy="300" rx="100" ry="8" fill="#151A33" opacity="0.1"></ellipse>' :
+                        '<ellipse cx="220" cy="' + (cy + h + 14) + '" rx="' + (rx - 6) + '" ry="' + (ry - 40) +
+                        '" fill="#151A33" opacity="0.1"></ellipse>';
+                    items.forEach(function(it) {
+                        var r = raw[it.i];
+                        html += '<g class="ain-sl" data-i="' + it.i + '">' +
+                            '<path d="' + it.side + '" fill="' + r.side + '"></path>' +
+                            '<path d="' + it.top + '" fill="' + r.color +
+                            '" stroke="#FFFFFF" stroke-width="2" stroke-linejoin="round"></path>' +
+                            '<text x="' + f(it.lx) + '" y="' + f(it.ly) +
+                            '" text-anchor="middle" dominant-baseline="middle" fill="#FFFFFF" font-size="15" font-weight="800" style="pointer-events:none">' +
+                            it.label + '</text></g>';
+                    });
+                    svg.innerHTML = html;
+
+                    groups = [];
+                    Array.prototype.forEach.call(svg.querySelectorAll('.ain-sl'), function(g) {
+                        var i = +g.getAttribute('data-i');
+                        groups[i] = g;
+                        g.addEventListener('mouseenter', function() {
+                            setHover(i);
+                        });
+                        g.addEventListener('click', function() {
+                            setHover(i);
+                        });
+                    });
+                }
+
+                function setHover(idx) {
+                    hover = idx;
+                    groups.forEach(function(g, i) {
+                        if (!g) return;
+                        var on = hover === i;
+                        g.style.transform = on ?
+                            'translate(' + moves[i].dx.toFixed(1) + 'px,' + moves[i].dy.toFixed(1) + 'px)' :
+                            'translate(0px,0px)';
+                        g.style.opacity = (hover === null || on) ? 1 : 0.45;
+                    });
+                    rowEls.forEach(function(el, i) {
+                        el.classList.toggle('on', hover === i);
+                    });
+                    var ai = hover === null ? 0 : hover;
+                    var r = raw[ai];
+                    document.getElementById('ainDDot').style.background = r.color;
+                    document.getElementById('ainDName').textContent = r.name;
+                    document.getElementById('ainDPct').textContent = fmt(pctOf(r.v));
+                    document.getElementById('ainDCount').textContent = r.v + ' orders';
+                    document.getElementById('ainDDesc').textContent = r.desc;
+                    document.getElementById('ainDRank').textContent = hover === null ?
+                        'Largest share. Hover a slice to compare.' :
+                        'Rank ' + (ai + 1) + ' of ' + raw.length + ' statuses';
+                }
+
+                rowsBox.innerHTML = raw.map(function(r, i) {
+                    var p = pctOf(r.v);
+                    return '<button type="button" class="ain-lrow" data-i="' + i + '">' +
+                        '<span class="ain-lrow__top"><span class="ain-dot" style="background:' + r.color +
+                        '"></span>' +
+                        '<span class="ain-lrow__name">' + r.name + '</span>' +
+                        '<span class="ain-lrow__cnt">' + r.v + '</span>' +
+                        '<span class="ain-lrow__pct">' + fmt(p) + '</span></span>' +
+                        '<span class="ain-lrow__bar"><span style="display:block;height:100%;border-radius:999px;background:' +
+                        r.color + ';width:' + p.toFixed(1) + '%"></span></span></button>';
+                }).join('');
+                rowEls = Array.prototype.slice.call(rowsBox.querySelectorAll('.ain-lrow'));
+                rowEls.forEach(function(el, i) {
+                    el.addEventListener('mouseenter', function() {
+                        setHover(i);
+                    });
+                    el.addEventListener('mouseleave', function() {
+                        setHover(null);
+                    });
+                    el.addEventListener('focus', function() {
+                        setHover(i);
+                    });
+                    el.addEventListener('blur', function() {
+                        setHover(null);
+                    });
+                });
+
+                svg.addEventListener('mouseleave', function() {
+                    setHover(null);
+                });
+
+                var b3d = document.getElementById('ainBtn3d'),
+                    bFlat = document.getElementById('ainBtnFlat');
+
+                function mode(isFlat) {
+                    flat = isFlat;
+                    b3d.classList.toggle('on', !flat);
+                    bFlat.classList.toggle('on', flat);
+                    build();
+                    setHover(null);
+                }
+                b3d.addEventListener('click', function() {
+                    mode(false);
+                });
+                bFlat.addEventListener('click', function() {
+                    mode(true);
+                });
+
+                build();
+                setHover(null);
+            })();
+
+            // Team: search, select, role chip
+            window.ainFilterTeam = function() {
+                var q = ($('#teamSearch').val() || '').toLowerCase();
+                var rows = $('#teamMembersContainer .ain-trow');
+                var shown = 0;
+                rows.each(function() {
+                    var ok = ($(this).attr('data-name') || '').indexOf(q) !== -1;
+                    $(this).toggle(ok);
+                    if (ok) shown++;
+                });
+                $('#teamNoMatch').toggleClass('d-none', shown > 0 || rows.length === 0);
+            };
+
+            $(document).ready(function() {
+                $('#teamSearch').on('input', window.ainFilterTeam);
+                $(document).on('click', '#teamMembersContainer .ain-trow', function() {
+                    $(this).siblings().removeClass('sel');
+                    $(this).toggleClass('sel');
+                });
+                $('#roleSelector').on('change', function() {
+                    $('#teamRoleChip').text(this.value ? $(this).find('option:selected').text() :
+                        'Marketing Team');
+                });
             });
-            google.charts.setOnLoadCallback(drawChart);
-
-            function drawChart() {
-                var data = google.visualization.arrayToDataTable([
-                    ['Task', 'Hours per Day'],
-                    ['Other', <?php echo $otherOrder; ?>],
-                    ['Cancelled', <?php echo $cancelledOrder; ?>],
-                    ['Pending', <?php echo $pendingOrder; ?>],
-                    ['Hold Work', <?php echo $holdWorkOrder; ?>],
-                    ['In Progress', <?php echo $inprogressOrder; ?>]
-                ]);
-
-                var options = {
-                    title: 'Orders by Status',
-                    is3D: true,
-                };
-
-                var chart = new google.visualization.PieChart(document.getElementById('piechart_3d'));
-                chart.draw(data, options);
-            }
         </script>
         <?php
         // Calculate total orders
@@ -1926,8 +2450,8 @@
                         </h1>
                     </div>
                     <!-- <div class="d-flex align-items-center py-1">
-                                <a href="#" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#kt_modal_create_app" id="kt_toolbar_primary_button">Create</a>
-                               </div> -->
+                                        <a href="#" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#kt_modal_create_app" id="kt_toolbar_primary_button">Create</a>
+                                       </div> -->
                 </div>
             </div>
 

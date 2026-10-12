@@ -43,8 +43,27 @@ class CheckPermission
         'master' => [
             'master', 'typeOfSecvices', 'typeofpaper', 'coupons', 'formatting',
             'Categories', 'categories', 'sources', 'college', 'Banks', 'banks',
-            'status', 'Payments', 'payments', 'writer', 'writerTL', 'subwriter',
-            'labels', 'failedJobs'
+            'status', 'Payments', 'payments', 'update-account-status', 'update.account.status',
+            'update-payment-status/bulk', 'payments.bulkUpdateStatus', 'writer', 'writerTL',
+            'subwriter', 'labels', 'failedJobs'
+        ],
+        'payments' => [
+            'Payments', 'payments', 'payment', 'update-account-status', 'update.account.status',
+            'update-payment-status', 'update-payment-status/bulk', 'payments.bulkUpdateStatus',
+            'update_payments', 'delete_payments', 'payments.revoke', 'sync-all-order-payments',
+            'payments.syncAll'
+        ],
+        'Payments' => [
+            'Payments', 'payments', 'payment', 'update-account-status', 'update.account.status',
+            'update-payment-status', 'update-payment-status/bulk', 'payments.bulkUpdateStatus',
+            'update_payments', 'delete_payments', 'payments.revoke', 'sync-all-order-payments',
+            'payments.syncAll'
+        ],
+        'payment' => [
+            'Payments', 'payments', 'payment', 'update-account-status', 'update.account.status',
+            'update-payment-status', 'update-payment-status/bulk', 'payments.bulkUpdateStatus',
+            'update_payments', 'delete_payments', 'payments.revoke', 'sync-all-order-payments',
+            'payments.syncAll'
         ],
         'college' => [
             'college', 'colleges'
@@ -102,8 +121,9 @@ class CheckPermission
         'c-leads' => ['cleads', 'cancel-leads'],
         'menus' => ['menu', 'submenu', 'userright'],
         'menu' => ['menus', 'submenu', 'userright'],
-        'payments' => ['Payments', 'payment'],
-        'Payments' => ['payments', 'payment'],
+        'payments' => ['Payments', 'payment', 'update-account-status', 'update.account.status', 'update-payment-status/bulk', 'payments.bulkUpdateStatus'],
+        'Payments' => ['payments', 'payment', 'update-account-status', 'update.account.status', 'update-payment-status/bulk', 'payments.bulkUpdateStatus'],
+        'payment' => ['payments', 'Payments', 'update-account-status', 'update.account.status', 'update-payment-status/bulk', 'payments.bulkUpdateStatus'],
         'college' => ['colleges'],
         'blog_list' => ['write_blog', 'blog_edit', 'submit_blog', 'blogs', 'blog'],
         'user' => ['usercreate', 'user-logs'],

@@ -760,15 +760,19 @@ class MasterController extends Controller
     public function updateAccountStatus(Request $request, $id)
     {
         try {
-            $payment = Payment::findOrFail($id);
+            $payment = Payment::find($id);
+            if (!$payment) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Payment not found'
+                ], 404);
+            }
 
-            $payment->account_status = $request->input('account_status');
+            $status = (int) $request->input('account_status');
+            $payment->account_status = $status;
 
             // Agar revoked payment ko checkbox se approve kiya gaya
-            if (
-                $request->input('account_status') == 1 &&
-                $payment->is_revoked == 1
-            ) {
+            if ($status == 1 && $payment->is_revoked == 1) {
                 $payment->is_revoked = 0;
                 $payment->revoke_resolved = 1;
             }
@@ -776,10 +780,15 @@ class MasterController extends Controller
             $payment->save();
 
             // Recalculate order's received amount when account status changes
-            $order = Order::find($payment->order_id);
+            $order = Order::find($payment->order_id) ?? Order::where('order_id', $payment->order_id)->first();
             if ($order) {
-                $totalPaidAmount = Payment::where('order_id', $payment->order_id)
-                    ->where('is_revoked', 0)
+                $totalPaidAmount = Payment::where(function ($q) use ($order) {
+                        $q->where('order_id', (string) $order->id)
+                          ->orWhere('order_id', (string) $order->order_id);
+                    })
+                    ->where(function ($q) {
+                        $q->where('is_revoked', 0)->orWhereNull('is_revoked');
+                    })
                     ->where('account_status', 1)
                     ->sum('paid_amount');
                 $order->received_amount = $totalPaidAmount;
@@ -791,44 +800,70 @@ class MasterController extends Controller
                 'message' => 'Account status updated successfully'
             ]);
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
+            \Log::error('Error in updateAccountStatus: ' . $e->getMessage(), [
+                'id' => $id,
+                'error' => $e->getMessage(),
+            ]);
 
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage()
-            ]);
+            ], 500);
         }
     }
 
     public function bulkUpdateStatus(Request $request)
     {
-        $payments = $request->input('payments');
-        $orderIds = [];
+        try {
+            $payments = $request->input('payments', []);
+            $orderIds = [];
 
-        foreach ($payments as $paymentData) {
-            $paymentId = $paymentData['payment_id'];
-            $status = $paymentData['status'];
+            foreach ($payments as $paymentData) {
+                $paymentId = $paymentData['payment_id'] ?? null;
+                $status = $paymentData['status'] ?? 0;
 
-            $payment = Payment::find($paymentId);
-
-            if ($payment) {
-                $payment->account_status = $status;
-                $payment->save();
-                $orderIds[] = $payment->order_id;
+                if ($paymentId) {
+                    $payment = Payment::find($paymentId);
+                    if ($payment) {
+                        $payment->account_status = $status;
+                        if ($status == 1 && $payment->is_revoked == 1) {
+                            $payment->is_revoked = 0;
+                            $payment->revoke_resolved = 1;
+                        }
+                        $payment->save();
+                        $orderIds[] = $payment->order_id;
+                    }
+                }
             }
-        }
 
-        $orderIds = array_unique($orderIds);
-        foreach ($orderIds as $orderId) {
-            $order = Order::find($orderId);
-            if ($order) {
-                $order->received_amount = Payment::where('order_id', $orderId)
-                    ->where(function ($q) {
-                        $q->where('is_revoked', 0)->orWhereNull('is_revoked');
-                    })
-                    ->sum('paid_amount');
-                $order->save();
+            $orderIds = array_unique(array_filter($orderIds));
+            foreach ($orderIds as $orderId) {
+                $order = Order::find($orderId) ?? Order::where('order_id', $orderId)->first();
+                if ($order) {
+                    $order->received_amount = Payment::where(function ($q) use ($order) {
+                            $q->where('order_id', (string) $order->id)
+                              ->orWhere('order_id', (string) $order->order_id);
+                        })
+                        ->where(function ($q) {
+                            $q->where('is_revoked', 0)->orWhereNull('is_revoked');
+                        })
+                        ->where('account_status', 1)
+                        ->sum('paid_amount');
+                    $order->save();
+                }
             }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Payment statuses updated successfully'
+            ]);
+        } catch (\Throwable $e) {
+            \Log::error('Error in bulkUpdateStatus: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage()
+            ], 500);
         }
     }
 
