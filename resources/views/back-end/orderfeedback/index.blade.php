@@ -433,7 +433,7 @@
 
                                                 @if(!empty($orderUserId))
                                                     @php
-                                                        $orderCount = $user ? $user->orders()->count() : 0;
+                                                        $orderCount = $user ? (isset($user->converted_orders_count) ? (int)$user->converted_orders_count : $user->convertedOrders()->count()) : 0;
                                                     @endphp
                                                     <a href="{{ url('/orders') }}?uid={{ $orderUserId }}&user={{ urlencode($rawName) }}" target="_blank" 
                                                         class="btn btn-icon btn-sm shadow-xs position-relative" 

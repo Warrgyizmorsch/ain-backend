@@ -315,7 +315,7 @@
 
                                                         @if(!empty($followUpUserId))
                                                             @php
-                                                                $orderCount = $order->user ? $order->user->orders()->count() : 0;
+                                                                $orderCount = $order->user ? (isset($order->user->converted_orders_count) ? (int)$order->user->converted_orders_count : $order->user->convertedOrders()->count()) : 0;
                                                             @endphp
                                                             <a href="{{ url('/orders') }}?uid={{ $followUpUserId }}&user={{ urlencode($rawName) }}" target="_blank" 
                                                                 class="btn btn-icon btn-sm shadow-xs position-relative" 

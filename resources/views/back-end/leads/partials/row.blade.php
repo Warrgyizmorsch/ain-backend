@@ -57,7 +57,9 @@
                         style="background-color: #009ef7; color: white; width: 28px; height: 28px; border-radius: 6px;" title="View User Orders">
                         <span class="fw-bolder" style="font-size: 13px;">O</span>
                         @php
-                            $orderCount = $lead->user->orders()->count();
+                            $orderCount = isset($lead->user->converted_orders_count)
+                                ? (int) $lead->user->converted_orders_count
+                                : ($lead->user ? $lead->user->convertedOrders()->count() : 0);
                         @endphp
                         @if($orderCount > 0)
                             <span style="position:absolute; top:-5px; right:-5px; background:#e53e3e; color:#ffffff; font-size:9px; font-weight:700; line-height:1; padding:2px 4px; border-radius:10px; box-shadow:0 1px 2px rgba(0,0,0,0.3);">
@@ -338,7 +340,9 @@
         @if(!empty($lead->user))
 
         @php
-            $count = $lead->user->orders_count ?? 0;
+            $count = isset($lead->user->converted_orders_count)
+                ? (int) $lead->user->converted_orders_count
+                : ($lead->user->orders_count ?? 0);
 
             if($count > 10) { 
                 $class = "badge-light-success"; 

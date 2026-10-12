@@ -123,6 +123,25 @@ class User extends Authenticatable
         return $this->hasMany(Order::class, 'uid', 'id');
     }
 
+    public function convertedOrders()
+    {
+        return $this->hasMany(Order::class, 'uid', 'id')
+            ->whereNotIn('orders.order_id', function ($query) {
+                $query->select('order_id')
+                    ->from('leads')
+                    ->where('is_converted', 0)
+                    ->whereNotNull('order_id');
+            })
+            ->where(function ($q) {
+                $q->whereNull('orders.lead_id')
+                  ->orWhereNotIn('orders.lead_id', function ($lq) {
+                      $lq->select('id')
+                          ->from('leads')
+                          ->where('is_converted', 0);
+                  });
+            });
+    }
+
     public function leads()
     {
         return $this->hasMany(Leads::class, 'emp_id', 'id');
@@ -369,7 +388,9 @@ class User extends Authenticatable
     // mk 5 10 26 - Optimize customer_type: reuse loaded orders_count & eliminate query on 1 order
     public function getCustomerTypeAttribute()
     {
-        $ordersCount = isset($this->orders_count) ? (int) $this->orders_count : $this->orders()->count();
+        $ordersCount = isset($this->converted_orders_count)
+            ? (int) $this->converted_orders_count
+            : (isset($this->orders_count) ? (int) $this->orders_count : $this->convertedOrders()->count());
         if ($ordersCount === 0) {
             return 'New Customer';
         }
@@ -384,7 +405,7 @@ class User extends Authenticatable
             return 'Beginner Customer';
         }
 
-        $firstOrder = $this->orders()->oldest('created_at')->first();
+        $firstOrder = $this->convertedOrders()->oldest('created_at')->first() ?? $this->orders()->oldest('created_at')->first();
         if (!$firstOrder) {
             return 'New Customer';
         }
