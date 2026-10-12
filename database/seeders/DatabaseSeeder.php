@@ -18,6 +18,7 @@ class DatabaseSeeder extends Seeder
             WalletMenuSeeder::class,
             EmailConfigurationSeeder::class,
             PluginMenuSeeder::class,
+            PaymentRolePermissionSeeder::class,
         ]);
 
         // \App\Models\User::factory()->create([
