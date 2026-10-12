@@ -136,6 +136,22 @@
                                 </a>
                             @endif
 
+                            @php
+                                $fbCustId = $fb->customer_id ?? ($fb->customer_uid ?? null);
+                            @endphp
+                            @if(!empty($fbCustId))
+                                <a href="{{ url('/orders') }}?uid={{ $fbCustId }}&user={{ urlencode($fb->customer_name ?? '') }}" target="_blank" 
+                                    class="btn btn-sm btn-icon p-0 d-inline-flex align-items-center justify-content-center shadow-xs position-relative me-1"
+                                    style="background-color: #009ef7; color: white; width: 28px; height: 28px; min-width: 28px; border-radius: 6px;" title="View User Orders">
+                                    <span class="fw-bolder" style="font-size: 13px;">O</span>
+                                    @if(($fb->customer_orders_count ?? 0) > 0)
+                                        <span style="position:absolute; top:-5px; right:-5px; background:#e53e3e; color:#ffffff; font-size:9px; font-weight:700; line-height:1; padding:2px 4px; border-radius:10px; box-shadow:0 1px 2px rgba(0,0,0,0.3); pointer-events:none;">
+                                            {{ $fb->customer_orders_count }}
+                                        </span>
+                                    @endif
+                                </a>
+                            @endif
+
                             <button class="btn btn-icon btn-bg-light btn-active-color-primary btn-sm me-1" 
                                     data-bs-toggle="modal" data-bs-target="#editModal{{ $fb->id }}">
                                 <i class="fa fa-edit"></i>

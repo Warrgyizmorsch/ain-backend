@@ -312,6 +312,23 @@
                                                                 <path d="M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2zm2-1a1 1 0 0 0-1 1v.217l7 4.2 7-4.2V4a1 1 0 0 0-1-1zm13 2.383-4.708 2.825L15 11.105zm-.034 6.876-5.64-3.471L8 9.583l-1.326-.795-5.64 3.47A1 1 0 0 0 2 13h12a1 1 0 0 0 .966-.741M1 11.105l4.708-2.897L1 5.383z"/>
                                                             </svg>
                                                         </a>
+
+                                                        @if(!empty($followUpUserId))
+                                                            @php
+                                                                $orderCount = $order->user ? $order->user->orders()->count() : 0;
+                                                            @endphp
+                                                            <a href="{{ url('/orders') }}?uid={{ $followUpUserId }}&user={{ urlencode($rawName) }}" target="_blank" 
+                                                                class="btn btn-icon btn-sm shadow-xs position-relative" 
+                                                                style="width: 24px !important; height: 24px !important; min-width: 24px !important; border-radius: 6px; background-color: #009ef7; color: #ffffff; display: inline-flex; align-items: center; justify-content: center; padding: 0;" 
+                                                                title="View User Orders">
+                                                                <span class="fw-bolder" style="font-size: 11px;">O</span>
+                                                                @if($orderCount > 0)
+                                                                    <span style="position:absolute; top:-5px; right:-5px; background:#e53e3e; color:#ffffff; font-size:7.5px; font-weight:900; line-height:1; padding:1px 2.5px; border-radius:10px; box-shadow:0 1px 2px rgba(0,0,0,0.3); pointer-events:none;">
+                                                                        {{ $orderCount }}
+                                                                    </span>
+                                                                @endif
+                                                            </a>
+                                                        @endif
                                                     </div>
                                                 </div>
                                             @else

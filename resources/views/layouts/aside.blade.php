@@ -232,16 +232,6 @@
                                     </span>
 
                                     <div class="menu-sub menu-sub-accordion menu-active-bg">
-                                        {{-- @foreach ($menu->submenus as $submenu)
-                                            <div class="menu-item">
-                                                <a class="menu-link" href="{{ url($submenu->routes) }}">
-                                                    <span class="menu-bullet">
-                                                        <span class="bullet bullet-dot"></span>
-                                                    </span>
-                                                    <span class="menu-title">{{ $submenu->sub_menu_name }}</span>
-                                                </a>
-                                            </div>
-                                        @endforeach --}}
                                         @foreach ($visibleSubmenus as $submenu)
                                             @php
                                                 $isSubmenuActive = $isActiveRoute($submenu->routes);
@@ -338,29 +328,134 @@
 </div>
 
 <style>
+    /* --- SIDEBAR CONTAINER & TYPOGRAPHY --- */
+    #kt_aside {
+        background-color: #0f172a !important;
+        /* Deep Slate Navy */
+        border-right: 1px solid #1e293b;
+    }
+
+    #kt_aside .menu-section {
+        color: #64748b !important;
+        font-weight: 700;
+        letter-spacing: 1px;
+        padding-left: 10px;
+    }
+
+    /* --- MENU LINKS BASE STYLING --- */
+    #kt_aside .menu-link {
+        border-radius: 8px;
+        margin: 2px 10px;
+        padding: 10px 12px;
+        transition: all 0.2s ease;
+    }
+
+    #kt_aside .menu-title {
+        font-weight: 500;
+        font-size: 1rem;
+        color: #94a3b8;
+        /* Muted text for inactive */
+    }
+
+    #kt_aside .menu-icon i {
+        color: #64748b;
+        /* Muted icon for inactive */
+        font-size: 1.1rem;
+        transition: color 0.2s ease;
+    }
+
+    /* Hover State */
+    #kt_aside .menu-link:hover {
+        background-color: #1e293b !important;
+    }
+
+    #kt_aside .menu-link:hover .menu-title,
+    #kt_aside .menu-link:hover .menu-icon i {
+        color: #ffffff !important;
+    }
+
+    /* --- ACTIVE & HERE STATES (Modern Look) --- */
     #kt_aside .menu-item.here>.menu-link,
     #kt_aside .menu-link.active {
-        background-color: #1b84ff !important;
-        color: #ffffff !important;
-        border-radius: 8px;
+        background-color: rgba(59, 130, 246, 0.15) !important;
+        /* Subtle blue tint */
+        border-left: 3px solid #3b82f6;
+        /* Bright blue indicator */
+        border-radius: 0 8px 8px 0;
+        /* Keep right corners rounded */
+        margin-left: 0;
+        /* Flush to left edge */
+        padding-left: 22px;
+        /* Adjust padding for the border */
     }
 
     #kt_aside .menu-item.here>.menu-link .menu-title,
-    #kt_aside .menu-item.here>.menu-link .menu-icon,
+    #kt_aside .menu-item.here>.menu-link .menu-icon i,
     #kt_aside .menu-item.here>.menu-link .menu-arrow,
     #kt_aside .menu-link.active .menu-title,
-    #kt_aside .menu-link.active .menu-icon,
+    #kt_aside .menu-link.active .menu-icon i,
     #kt_aside .menu-link.active .menu-bullet,
     #kt_aside .menu-link.active .menu-arrow {
         color: #ffffff !important;
     }
 
-    #kt_aside .menu-link.active .bullet {
-        background-color: #ffffff !important;
+    /* Submenu Active State */
+    #kt_aside .menu-sub .menu-link.active {
+        background-color: rgba(59, 130, 246, 0.1) !important;
+        border-left: 2px solid #60a5fa;
+        border-radius: 0 8px 8px 0;
+        margin-left: 0;
+        padding-left: 22px;
     }
 
-    #kt_aside .menu-sub .menu-link.active {
-        background-color: rgba(27, 132, 255, 0.18) !important;
-        color: #ffffff !important;
+    #kt_aside .menu-link.active .bullet {
+        background-color: #3b82f6 !important;
+    }
+
+    /* --- BADGES & NOTIFICATIONS --- */
+    #kt_aside .menu-badge .badge {
+        background-color: #ef4444 !important;
+        /* Modern Red */
+        color: white;
+        padding: 3px 6px;
+        font-size: 0.65rem;
+        box-shadow: 0 0 0 2px #0f172a;
+        /* Creates a cutout effect */
+    }
+
+    /* --- FOOTER BUTTON (AIN Team) --- */
+    #kt_aside_footer .btn-primary {
+        background-color: #1e293b !important;
+        border: 1px solid #334155 !important;
+        color: #f8fafc !important;
+        font-weight: 600;
+        border-radius: 10px;
+        padding: 12px;
+        transition: all 0.3s ease;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 8px;
+    }
+
+    #kt_aside_footer .btn-primary:hover {
+        background-color: #3b82f6 !important;
+        border-color: #3b82f6 !important;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+    }
+
+    /* --- SCROLLBAR POLISH --- */
+    #kt_aside_menu_wrapper::-webkit-scrollbar {
+        width: 4px;
+    }
+
+    #kt_aside_menu_wrapper::-webkit-scrollbar-thumb {
+        background-color: #334155;
+        border-radius: 4px;
+    }
+
+    #kt_aside_menu_wrapper::-webkit-scrollbar-track {
+        background-color: transparent;
     }
 </style>

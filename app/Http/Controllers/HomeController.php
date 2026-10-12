@@ -1600,14 +1600,12 @@ class HomeController extends Controller
                 $fileName = $slug . '_' . time() . '.' . strtolower($fileExtension);
                 $this->saveUploadedFileToAllPaths($uploadedFile, 'assets/media/blogthumbnail', $fileName);
 
-                // Save the relative path in the database
+                              // Save the relative path in the database
                 $relativePath = 'assets/media/blogthumbnail/' . $fileName;
                 $blog->images = $relativePath;
-                $blog->Images = $relativePath;
             } else {
                 // Set default image if no photo is uploaded
                 $blog->images = 'assets/media/avatars/demo.png';
-                $blog->Images = 'assets/media/avatars/demo.png';
             }
 
             // Save the blog entry
@@ -1677,10 +1675,9 @@ class HomeController extends Controller
             // Save the new uploaded photo across all paths
             $this->saveUploadedFileToAllPaths($uploadedFile, 'assets/media/blogthumbnail', $fileName);
 
-            // Save image path in the database (both lower and upper case attributes)
+            // Save image path in the database
             $relativePath = 'assets/media/blogthumbnail/' . $fileName;
             $blog->images = $relativePath;
-            $blog->Images = $relativePath;
         }
 
         // Save the updated blog entry
@@ -1797,11 +1794,11 @@ class HomeController extends Controller
                 // Save to all paths
                 $this->saveUploadedFileToAllPaths($uploadedFile, 'assets/media/blogthumbnail', $fileName);
 
-                // Update the user's photo field with the file path
-                $blog->Images = 'assets/media/blogthumbnail/' . $fileName;
+                                // Update the user's photo field with the file path
+                $blog->images = 'assets/media/blogthumbnail/' . $fileName;
             } else {
                 // If no photo is uploaded, set a default value
-                $blog->Images = 'assets/media/avatars/demo.png';
+                $blog->images = 'assets/media/avatars/demo.png';
             }
 
             // echo '<pre>'; print_r($blog); exit;

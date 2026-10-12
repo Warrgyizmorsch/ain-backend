@@ -5125,7 +5125,8 @@ class OrderController extends Controller
                 'users.name as customer_name',
                 'users.email as customer_email',
                 'users.mobile_no as customer_mobile',
-                'users.countrycode as customer_countrycode'
+                'users.countrycode as customer_countrycode',
+                DB::raw('(SELECT COUNT(*) FROM orders o WHERE o.uid = users.id) as customer_orders_count')
             );
 
         // Search Filter

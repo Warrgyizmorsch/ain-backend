@@ -268,6 +268,24 @@
                     title="Open Follow-up History & Schedule Next Note">
                 <i class="fa fa-history text-primary" style="font-size: 13px;"></i>
             </button>
+
+            <!-- Orders Button -->
+            @if(!empty($followUpUserId))
+                @php
+                    $orderCount = $leadUser ? $leadUser->orders()->count() : 0;
+                @endphp
+                <a href="{{ url('/orders') }}?uid={{ $followUpUserId }}&user={{ urlencode($rawName) }}" target="_blank" 
+                    class="btn btn-sm btn-icon p-0 shadow-xs position-relative" 
+                    style="background-color: #009ef7; color: white; width: 32px; height: 32px; min-width: 32px; min-height: 32px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center;" 
+                    title="View User Orders">
+                    <span class="fw-bolder" style="font-size: 14px;">O</span>
+                    @if($orderCount > 0)
+                        <span style="position:absolute; top:-5px; right:-5px; background:#e53e3e; color:#ffffff; font-size:9px; font-weight:700; line-height:1; padding:2px 4px; border-radius:10px; box-shadow:0 1px 2px rgba(0,0,0,0.3);">
+                            {{ $orderCount }}
+                        </span>
+                    @endif
+                </a>
+            @endif
         </div>
     </td>
 </tr>
