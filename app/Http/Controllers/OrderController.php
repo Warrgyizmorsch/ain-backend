@@ -4493,8 +4493,10 @@ class OrderController extends Controller
         // Get all filters from the request
         $filters = $request->all();
 
-        // Check if all filters are empty, return a message if so
-        if (empty($filters['search']) && empty($filters['uid']) && empty($filters['user']) && empty($filters['selectedValue']) && empty($filters['group_id']) && empty($filters['status']) && empty($filters['writer']) && empty($filters['dateStatus']) && empty($filters['fromDate']) && empty($filters['toDate']) && empty($filters['from_date']) && empty($filters['to_date']) && empty($filters['WriterTL']) && empty($filters['SubWriter']) && empty($filters['college']) && empty($filters['extra']) && empty($filters['module_code']) &&  empty($filters['paper_type']) && empty($filters['semester']) && empty($filters['month']) && empty($filters['payment']) && empty($filters['deadline_status']) && empty($filters['offer']) && empty($filters['duec']) && empty($filters['marks_filter']) && empty($filters['team_id']) && empty($filters['today_deadline_filter']) && empty($filters['yesterday_deadline_filter']) && empty($filters['today_writer_deadline_filter']) && empty($filters['duration_gap'])) {
+        // Check if all filters are empty on initial offset 0 request
+        $hasAnyFilter = !empty($filters['search']) || !empty($filters['uid']) || !empty($filters['user']) || !empty($filters['selectedValue']) || !empty($filters['group_id']) || !empty($filters['status']) || !empty($filters['writer']) || !empty($filters['dateStatus']) || !empty($filters['fromDate']) || !empty($filters['toDate']) || !empty($filters['from_date']) || !empty($filters['to_date']) || !empty($filters['WriterTL']) || !empty($filters['SubWriter']) || !empty($filters['college']) || !empty($filters['extra']) || !empty($filters['module_code']) || !empty($filters['paper_type']) || !empty($filters['semester']) || !empty($filters['month']) || !empty($filters['payment']) || !empty($filters['deadline_status']) || !empty($filters['offer']) || !empty($filters['duec']) || !empty($filters['marks_filter']) || !empty($filters['team_id']) || !empty($filters['today_deadline_filter']) || !empty($filters['yesterday_deadline_filter']) || !empty($filters['today_writer_deadline_filter']) || !empty($filters['duration_gap']);
+
+        if (!$hasAnyFilter && (int)$request->get('offset', 0) === 0 && !$request->has('autoload')) {
             return response()->json(['message' => 'No filters applied'], 200);
         }
 

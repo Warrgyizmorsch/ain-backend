@@ -178,6 +178,29 @@
 							.crm-header-nav-btn.crm-nav-writer:hover .crm-nav-text {
 								color: #ffffff !important;
 							}
+
+							/* Excel Sheets Button */
+							.crm-header-nav-btn.crm-nav-excel {
+								background-color: #e8f8f0;
+								color: #0d8a4e !important;
+								border: 1px solid #b7ebd0;
+							}
+							.crm-header-nav-btn.crm-nav-excel .crm-nav-icon i {
+								color: #107c41;
+								transition: color 0.18s ease-in-out;
+							}
+							.crm-header-nav-btn.crm-nav-excel:hover {
+								background-color: #107c41 !important;
+								color: #ffffff !important;
+								border-color: #0b6a36 !important;
+								box-shadow: 0 3px 8px rgba(16, 124, 65, 0.35);
+							}
+							.crm-header-nav-btn.crm-nav-excel:hover .crm-nav-icon i {
+								color: #ffffff !important;
+							}
+							.crm-header-nav-btn.crm-nav-excel:hover .crm-nav-text {
+								color: #ffffff !important;
+							}
 						</style>
 
 						<!--begin::WhatsApp Header Button-->
@@ -208,6 +231,15 @@
 							<span class="crm-nav-text">Writer Email</span>
 						</a>
 						<!--end::Writer Email Header Button-->
+
+						<!--begin::Excel Sheets Header Button-->
+						<a href="{{ route('spreadsheets.index') }}" class="crm-header-nav-btn crm-nav-excel me-3" title="Excel Spreadsheets">
+							<span class="crm-nav-icon">
+								<i class="fa fa-file-excel fs-7"></i>
+							</span>
+							<span class="crm-nav-text">Excel Sheets</span>
+						</a>
+						<!--end::Excel Sheets Header Button-->
 
 						@if(auth()->check() && auth()->user()->role_id == 1)
 							<div class="dropdown me-3">

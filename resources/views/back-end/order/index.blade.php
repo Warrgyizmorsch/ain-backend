@@ -132,7 +132,11 @@
 
                     </table>
 
-
+                    <div class="text-center py-4 my-2" id="loadMoreContainer" style="{{ count($orders) >= 20 ? '' : 'display: none;' }}">
+                        <button type="button" class="btn btn-sm btn-primary fw-bolder px-6 py-2.5 shadow-sm" id="btnLoadMoreOrders" onclick="if (typeof window.fetchData === 'function') { window.fetchData(true); }">
+                            <i class="fas fa-arrow-down me-2"></i> Load More Orders
+                        </button>
+                    </div>
 
                 </div>
 
