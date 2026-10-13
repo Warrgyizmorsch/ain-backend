@@ -225,6 +225,37 @@ class RoleOneMenuSeeder extends Seeder
         DB::table('submenus')->where('menus_id', $callHistoryMenuId)->delete();
 
         // =============================================================
+        // 3.1.1 EXCEL SHEETS MAIN MENU - Single Direct Main Menu (NO SUBMENUS)
+        // =============================================================
+        $spreadsheetMenu = DB::table('menu')->where('routes', 'spreadsheets')->whereNull('parent_id')->first();
+        if (!$spreadsheetMenu) {
+            $spreadsheetMenuId = DB::table('menu')->insertGetId([
+                'menu_name' => 'Excel Sheets',
+                'icon_class' => 'fa fa-file-excel',
+                'show_menu' => 'Y',
+                'routes' => 'spreadsheets',
+                'sort_order' => 5,
+                'parent_id' => null,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        } else {
+            $spreadsheetMenuId = $spreadsheetMenu->id;
+            DB::table('menu')->where('id', $spreadsheetMenuId)->update([
+                'menu_name' => 'Excel Sheets',
+                'icon_class' => 'fa fa-file-excel',
+                'show_menu' => 'Y',
+                'parent_id' => null,
+                'routes' => 'spreadsheets',
+                'sort_order' => 5,
+                'updated_at' => now(),
+            ]);
+        }
+
+        DB::table('menu')->where('parent_id', $spreadsheetMenuId)->delete();
+        DB::table('submenus')->where('menus_id', $spreadsheetMenuId)->delete();
+
+        // =============================================================
         // 3.2 NEXT FOLLOWUP MAIN MENU
         // =============================================================
         $nextFollowupMenu = DB::table('menu')->where('routes', 'next-followups')->whereNull('parent_id')->first();
@@ -510,14 +541,14 @@ class RoleOneMenuSeeder extends Seeder
             );
         }
 
-        // Reserve the first four top-level positions exclusively for
-        // Dashboard, WhatsApp, Emails, and Call History. Keep every other menu after them.
+        // Reserve the top-level positions exclusively for
+        // Dashboard, WhatsApp, Emails, Call History, and Excel Sheets. Keep every other menu after them.
         DB::table('menu')
             ->whereNull('parent_id')
-            ->whereNotIn('id', [1, 24, $emailMenuId, $callHistoryMenuId, $nextFollowupMenuId, $teamsMenuId])
-            ->where('sort_order', '<', 5)
+            ->whereNotIn('id', [1, 24, $emailMenuId, $callHistoryMenuId, $spreadsheetMenuId, $nextFollowupMenuId, $teamsMenuId])
+            ->where('sort_order', '<', 6)
             ->update([
-                'sort_order' => 5,
+                'sort_order' => 6,
                 'updated_at' => now(),
             ]);
 

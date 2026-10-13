@@ -458,4 +458,13 @@
     #kt_aside_menu_wrapper::-webkit-scrollbar-track {
         background-color: transparent;
     }
+
+    /* Excel / Spreadsheets icon accent */
+    #kt_aside .menu-link .menu-icon i.fa-file-excel {
+        color: #107c41 !important;
+    }
+    #kt_aside .menu-link:hover .menu-icon i.fa-file-excel,
+    #kt_aside .menu-link.active .menu-icon i.fa-file-excel {
+        color: #22c55e !important;
+    }
 </style>

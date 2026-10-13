@@ -1,27 +1,49 @@
 @php
-    $reqUser = request('user') ?? request('mobile') ?? request('phone') ?? request('number') ?? request('email') ?? request('user_name') ?? '';
-    $reqUid = request('uid') ?? request('user_id') ?? '';
-    $reqSearch = request('search') ?? request('order') ?? request('order_id') ?? request('order_code') ?? '';
-    $reqTeam = request('team_id') ?? request('team') ?? '';
-    $hasInitialFilters = !empty($reqUser) || !empty($reqUid) || !empty($reqSearch) || !empty($reqTeam) || request()->filled('status') || request()->filled('date_status') || request()->filled('from_date') || request()->filled('to_date') || request()->filled('month') || request()->filled('deadline_status');
+    $reqUser =
+        request('user') ??
+        (request('mobile') ??
+            (request('phone') ?? (request('number') ?? (request('email') ?? (request('user_name') ?? '')))));
+    $reqUid = request('uid') ?? (request('user_id') ?? '');
+    $reqSearch = request('search') ?? (request('order') ?? (request('order_id') ?? (request('order_code') ?? '')));
+    $reqTeam = request('team_id') ?? (request('team') ?? '');
+    $hasInitialFilters =
+        !empty($reqUser) ||
+        !empty($reqUid) ||
+        !empty($reqSearch) ||
+        !empty($reqTeam) ||
+        request()->filled('status') ||
+        request()->filled('date_status') ||
+        request()->filled('from_date') ||
+        request()->filled('to_date') ||
+        request()->filled('month') ||
+        request()->filled('deadline_status');
 @endphp
 <div class="card card-xxl-stretch mb-5 mb-xl-8">
-    <div class="card-header border-0 pt-4 pb-2 px-6 d-flex align-items-center justify-content-between flex-nowrap" style="min-height: 54px; overflow-x: auto;">
+    <div class="card-header border-0 pt-4 pb-2 px-6 d-flex align-items-center justify-content-between flex-nowrap"
+        style="min-height: 54px; overflow-x: auto;">
         <div class="d-flex align-items-center flex-nowrap gap-2 flex-shrink-0">
             <h3 class="card-title align-items-center mb-0 me-2 flex-shrink-0" style="min-width: 155px;">
-                <span id="filter-total" class="card-label fw-bolder text-gray-800" style="font-size: 14px; letter-spacing: -0.2px; white-space: nowrap; transition: opacity 0.2s ease;">
+                <span id="filter-total" class="card-label fw-bolder text-gray-800"
+                    style="font-size: 14px; letter-spacing: -0.2px; white-space: nowrap; transition: opacity 0.2s ease;">
                     {{ $hasInitialFilters ? 'Filtered: ' . (!empty($reqUser) ? $reqUser : (!empty($reqSearch) ? $reqSearch : 'Active')) : 'Filter' }}
                 </span>
             </h3>
 
-            <button type="button" id="toggleFilterBtn" onclick="window.toggleOrderFilters()" class="btn btn-sm {{ $hasInitialFilters ? 'btn-danger' : 'btn-primary' }} py-1.5 px-3 fs-8 fw-bold flex-shrink-0" style="border-radius: 6px;">
+            <button type="button" id="toggleFilterBtn" onclick="window.toggleOrderFilters()"
+                class="btn btn-sm {{ $hasInitialFilters ? 'btn-danger' : 'btn-primary' }} py-1.5 px-3 fs-8 fw-bold flex-shrink-0"
+                style="border-radius: 6px;">
                 {{ $hasInitialFilters ? 'Hide Filters' : 'Show Filters' }}
             </button>
-            <button type="button" id="topResetFiltersBtn" onclick="window.resetFilters()" class="btn btn-sm btn-danger py-1.5 px-3 fs-8 fw-bold flex-shrink-0" style="border-radius: 6px; {{ $hasInitialFilters ? '' : 'display: none;' }}">
+            <button type="button" id="topResetFiltersBtn" onclick="window.resetFilters()"
+                class="btn btn-sm btn-danger py-1.5 px-3 fs-8 fw-bold flex-shrink-0"
+                style="border-radius: 6px; {{ $hasInitialFilters ? '' : 'display: none;' }}">
                 Reset
             </button>
-            <button type="button" id="toggleDeadlineGapBtn" onclick="window.toggleDeadlineGap()" class="btn btn-sm flex-shrink-0">
-                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="me-1" style="vertical-align: -1px;">
+            <button type="button" id="toggleDeadlineGapBtn" onclick="window.toggleDeadlineGap()"
+                class="btn btn-sm flex-shrink-0">
+                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"
+                    class="me-1" style="vertical-align: -1px;">
                     <circle cx="12" cy="12" r="10"></circle>
                     <polyline points="12 6 12 12 16 14"></polyline>
                 </svg>
@@ -30,99 +52,150 @@
 
             <!-- Inline sliding buttons between Deadline Type and Team-Alpha -->
             <div id="deadlineGapContainer" class="flex-shrink-0" style="display: none;">
-                <div class="d-inline-flex align-items-center gap-1 p-1 rounded-3 bg-white border border-gray-300 shadow-sm">
-                    <button type="button" class="btn btn-sm deadline-gap-btn deadline-gap-danger py-1 px-2.5 fs-8" data-gap="<2" onclick="window.toggleDeadlineGapItem(this)">
+                <div
+                    class="d-inline-flex align-items-center gap-1 p-1 rounded-3 bg-white border border-gray-300 shadow-sm">
+                    <button type="button" class="btn btn-sm deadline-gap-btn deadline-gap-danger py-1 px-2.5 fs-8"
+                        data-gap="<2" onclick="window.toggleDeadlineGapItem(this)">
                         &lt; 2 Days
                     </button>
-                    <button type="button" class="btn btn-sm deadline-gap-btn deadline-gap-warning py-1 px-2.5 fs-8" data-gap="3-5" onclick="window.toggleDeadlineGapItem(this)">
+                    <button type="button" class="btn btn-sm deadline-gap-btn deadline-gap-warning py-1 px-2.5 fs-8"
+                        data-gap="3-5" onclick="window.toggleDeadlineGapItem(this)">
                         3-5 Days
                     </button>
-                    <button type="button" class="btn btn-sm deadline-gap-btn deadline-gap-primary py-1 px-2.5 fs-8" data-gap="6-15" onclick="window.toggleDeadlineGapItem(this)">
+                    <button type="button" class="btn btn-sm deadline-gap-btn deadline-gap-primary py-1 px-2.5 fs-8"
+                        data-gap="6-15" onclick="window.toggleDeadlineGapItem(this)">
                         6-15 Days
                     </button>
-                    <button type="button" class="btn btn-sm deadline-gap-btn deadline-gap-success py-1 px-2.5 fs-8" data-gap="15+" onclick="window.toggleDeadlineGapItem(this)">
+                    <button type="button" class="btn btn-sm deadline-gap-btn deadline-gap-success py-1 px-2.5 fs-8"
+                        data-gap="15+" onclick="window.toggleDeadlineGapItem(this)">
                         15 Days & Above
                     </button>
-                    <button type="button" class="btn deadline-gap-clear-btn" onclick="window.clearDeadlineGap()" title="Clear Deadline Filter"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="2.5" y1="2.5" x2="9.5" y2="9.5"></line><line x1="9.5" y1="2.5" x2="2.5" y2="9.5"></line></svg></button>
+                    <button type="button" class="btn deadline-gap-clear-btn" onclick="window.clearDeadlineGap()"
+                        title="Clear Deadline Filter"><svg xmlns="http://www.w3.org/2000/svg" width="12"
+                            height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="2.5" y1="2.5" x2="9.5" y2="9.5"></line>
+                            <line x1="9.5" y1="2.5" x2="2.5" y2="9.5"></line>
+                        </svg></button>
                 </div>
             </div>
         </div>
         @php
             $currentAuth = auth()->user();
-            $userRoleId = !empty($currentAuth) ? (int)$currentAuth->role_id : null;
+            $userRoleId = !empty($currentAuth) ? (int) $currentAuth->role_id : null;
             $userTeamId = !empty($currentAuth) ? $currentAuth->team_id : null;
         @endphp
-        @if(empty($hideOrderQuickFilters) && $userRoleId !== 4)
-        @php
-            $allActiveTeams = isset($teams) ? $teams : \App\Models\Team::where('is_delete', 0)->orderBy('priority', 'asc')->get();
+        @if (empty($hideOrderQuickFilters) && $userRoleId !== 4)
+            @php
+                $allActiveTeams = isset($teams)
+                    ? $teams
+                    : \App\Models\Team::where('is_delete', 0)->orderBy('priority', 'asc')->get();
 
-            if ($userRoleId === 9) {
-                // Subadmin: if team assigned, show only that team; if not assigned, show all teams
-                if (!empty($userTeamId)) {
-                    $allActiveTeams = $allActiveTeams->where('id', $userTeamId);
+                if ($userRoleId === 9) {
+                    // Subadmin: if team assigned, show only that team; if not assigned, show all teams
+                    if (!empty($userTeamId)) {
+                        $allActiveTeams = $allActiveTeams->where('id', $userTeamId);
+                    }
                 }
-            }
-            $palette = [
-                ['bg' => '#eff6ff', 'border' => '#bfdbfe', 'color' => '#1d4ed8', 'badge' => '#3b82f6'],
-                ['bg' => '#f8fafc', 'border' => '#cbd5e1', 'color' => '#1e293b', 'badge' => '#1e293b'],
-                ['bg' => '#f0fdf4', 'border' => '#bbf7d0', 'color' => '#15803d', 'badge' => '#16a34a'],
-                ['bg' => '#faf5ff', 'border' => '#e9d5ff', 'color' => '#7e22ce', 'badge' => '#9333ea'],
-                ['bg' => '#fff7ed', 'border' => '#fed7aa', 'color' => '#c2410c', 'badge' => '#ea580c'],
-                ['bg' => '#fdf2f8', 'border' => '#fbcfe8', 'color' => '#be185d', 'badge' => '#db2777'],
-            ];
-        @endphp
-        <div class="d-flex align-items-center gap-2 flex-shrink-0 ms-3" id="dynamicTeamBtnsContainer">
-            @foreach($allActiveTeams as $idx => $t)
-                @php
-                    $colors = $palette[$idx % count($palette)];
-                    $tCount = isset($teamCounts[$t->id]) ? $teamCounts[$t->id] : (isset(${"alphaCount"}) && $t->id == 1 ? $alphaCount : (isset(${"gigaCount"}) && $t->id == 2 ? $gigaCount : (isset(${"gammaCount"}) && $t->id == 3 ? $gammaCount : 0)));
-                    $isGamma = $t->id == 3 || str_contains(strtolower($t->team_name), 'gamma');
-                    $btnId = $t->id == 1 ? 'teamAlphaBtn' : ($t->id == 2 ? 'teamGigaBtn' : ($isGamma ? 'teamGammaBtn' : 'teamBtn_' . $t->id));
-                    $btnClass = $t->id == 1 ? 'team-alpha-btn' : ($t->id == 2 ? 'team-giga-btn' : ($isGamma ? 'team-gamma-btn' : ''));
-                @endphp
-                <a href="javascript:void(0)" 
-                   id="{{ $btnId }}" 
-                   data-team-id="{{ $t->id }}" 
-                   onclick="window.toggleTeamFilter(this)"
-                   class="team-quick-btn dynamic-team-btn {{ $btnClass }}"
-                   style="background-color: {{ $colors['bg'] }}; border: 1px solid {{ $colors['border'] }}; color: {{ $colors['color'] }};">
-                    <span>{{ $t->team_name }}</span>
-                    <span class="team-badge" style="background: {{ $colors['badge'] }};">{{ $tCount }}</span>
-                </a>
-            @endforeach
-        </div>
+                $palette = [
+                    ['bg' => '#eff6ff', 'border' => '#bfdbfe', 'color' => '#1d4ed8', 'badge' => '#3b82f6'],
+                    ['bg' => '#f8fafc', 'border' => '#cbd5e1', 'color' => '#1e293b', 'badge' => '#1e293b'],
+                    ['bg' => '#f0fdf4', 'border' => '#bbf7d0', 'color' => '#15803d', 'badge' => '#16a34a'],
+                    ['bg' => '#faf5ff', 'border' => '#e9d5ff', 'color' => '#7e22ce', 'badge' => '#9333ea'],
+                    ['bg' => '#fff7ed', 'border' => '#fed7aa', 'color' => '#c2410c', 'badge' => '#ea580c'],
+                    ['bg' => '#fdf2f8', 'border' => '#fbcfe8', 'color' => '#be185d', 'badge' => '#db2777'],
+                ];
+            @endphp
+            <div class="d-flex align-items-center gap-2 flex-shrink-0 ms-3" id="dynamicTeamBtnsContainer">
+                @foreach ($allActiveTeams as $idx => $t)
+                    @php
+                        $colors = $palette[$idx % count($palette)];
+                        $tCount = isset($teamCounts[$t->id])
+                            ? $teamCounts[$t->id]
+                            : (isset(${'alphaCount'}) && $t->id == 1
+                                ? $alphaCount
+                                : (isset(${'gigaCount'}) && $t->id == 2
+                                    ? $gigaCount
+                                    : (isset(${'gammaCount'}) && $t->id == 3
+                                        ? $gammaCount
+                                        : 0)));
+                        $isGamma = $t->id == 3 || str_contains(strtolower($t->team_name), 'gamma');
+                        $btnId =
+                            $t->id == 1
+                                ? 'teamAlphaBtn'
+                                : ($t->id == 2
+                                    ? 'teamGigaBtn'
+                                    : ($isGamma
+                                        ? 'teamGammaBtn'
+                                        : 'teamBtn_' . $t->id));
+                        $btnClass =
+                            $t->id == 1
+                                ? 'team-alpha-btn'
+                                : ($t->id == 2
+                                    ? 'team-giga-btn'
+                                    : ($isGamma
+                                        ? 'team-gamma-btn'
+                                        : ''));
+                    @endphp
+                    <a href="javascript:void(0)" id="{{ $btnId }}" data-team-id="{{ $t->id }}"
+                        onclick="window.toggleTeamFilter(this)"
+                        class="team-quick-btn dynamic-team-btn {{ $btnClass }}"
+                        style="background-color: {{ $colors['bg'] }}; border: 1px solid {{ $colors['border'] }}; color: {{ $colors['color'] }};">
+                        <span>{{ $t->team_name }}</span>
+                        <span class="team-badge"
+                            style="background: {{ $colors['badge'] }};">{{ $tCount }}</span>
+                    </a>
+                @endforeach
+            </div>
         @endif
     </div>
     <div class="card-body py-3" id="filterBody" style="{{ $hasInitialFilters ? '' : 'display:none;' }}">
-        <form id="orderFilterForm" action="javascript:void(0);" onsubmit="event.preventDefault(); if (typeof window.applyFilters === 'function') { window.applyFilters(); } return false;">
+        <form id="orderFilterForm" action="javascript:void(0);"
+            onsubmit="event.preventDefault(); if (typeof window.applyFilters === 'function') { window.applyFilters(); } return false;">
             <input type="hidden" id="filter_team_id" value="{{ $reqTeam }}">
             <input type="hidden" id="duration_gap_filter" value="{{ request('duration_gap') ?? '' }}">
             <input type="hidden" id="today_deadline_filter" value="{{ request('today_deadline_filter') ?? '' }}">
-            <input type="hidden" id="yesterday_deadline_filter" value="{{ request('yesterday_deadline_filter') ?? '' }}">
-            <input type="hidden" id="today_writer_deadline_filter" value="{{ request('today_writer_deadline_filter') ?? '' }}">
+            <input type="hidden" id="yesterday_deadline_filter"
+                value="{{ request('yesterday_deadline_filter') ?? '' }}">
+            <input type="hidden" id="today_writer_deadline_filter"
+                value="{{ request('today_writer_deadline_filter') ?? '' }}">
             <input type="hidden" id="holdBtn" value="{{ request('holdBtn') ?? '' }}">
             <div class="row mb-3">
                 <div class="col-md-3 fv-row">
-                    <input type="search" name="search" id="search" value="{{ $reqSearch }}" class="form-control form-control-solid"
-                        placeholder="OrderCode or Title" autocomplete="off">
+                    <input type="search" name="search" id="search" value="{{ $reqSearch }}"
+                        class="form-control form-control-solid" placeholder="OrderCode or Title" autocomplete="off">
                 </div>
 
                 <div class="col-md-3 fv-row position-relative">
                     <input type="text" id="searchInput" name="user" value="{{ $reqUser }}"
-                        class="form-control form-control-solid" placeholder="Search Customer (Name, Phone, Email)" autocomplete="off">
+                        class="form-control form-control-solid" placeholder="Search Customer (Name, Phone, Email)"
+                        autocomplete="off">
                     <!-- Container to display custom search results dropdown -->
-                    <div id="searchResultss" class="dropdown-menu w-100 shadow-lg p-0 mt-1" style="display:none; max-height: 280px; overflow-y: auto; z-index: 1050; position: absolute; left: 0; top: 100%; background: #ffffff !important; border: 1px solid #cbd5e1; border-radius: 8px;"></div>
+                    <div id="searchResultss" class="dropdown-menu w-100 shadow-lg p-0 mt-1"
+                        style="display:none; max-height: 280px; overflow-y: auto; z-index: 1050; position: absolute; left: 0; top: 100%; background: #ffffff !important; border: 1px solid #cbd5e1; border-radius: 8px;">
+                    </div>
                     <!-- Hidden field to store the selected value -->
                     <input type="hidden" id="selectedValue" name="uid" value="{{ $reqUid }}">
                 </div>
                 {{-- mk 5 10 26 - Cache group masters list for 180s --}}
-                <div class="col-md-3 fv-row"><select id="group_id" name="group_id" class="form-select form-select-solid" data-control="select2" data-placeholder="User Group"><option value="">All Groups</option>@foreach(\Illuminate\Support\Facades\Cache::remember('leads_active_group_masters', 180, fn() => \App\Models\GroupMaster::where('status',1)->orderBy('name')->get(['id','name'])) as $group)<option value="{{ $group->id }}">{{ $group->name }}</option>@endforeach</select></div>
+                <div class="col-md-3 fv-row"><select id="group_id" name="group_id"
+                        class="form-select form-select-solid" data-control="select2" data-placeholder="User Group">
+                        <option value="">All Groups</option>
+                        @foreach (\Illuminate\Support\Facades\Cache::remember(
+        'leads_active_group_masters',
+        180,
+        fn() => \App\Models\GroupMaster::where('status', 1)->orderBy('name')->get(['id', 'name']),
+    ) as $group)
+                            <option value="{{ $group->id }}">{{ $group->name }}</option>
+                        @endforeach
+                    </select></div>
 
                 <style>
                     #searchResultss .user-select-item {
                         cursor: pointer;
                         transition: background 0.15s ease-in-out;
                     }
+
                     #searchResultss .user-select-item:hover {
                         background-color: #f1f5f9;
                     }
@@ -138,17 +211,19 @@
                             var $ = window.jQuery;
                             var searchTimeout = null;
 
-                            $('#search, #searchInput').off('keydown.autocomplete keypress.autocomplete').on('keydown.autocomplete keypress.autocomplete', function(e) {
-                                if (e.which === 13 || e.keyCode === 13) {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    $('#searchResultss').hide();
-                                    if (typeof window.applyFilters === 'function') {
-                                        window.applyFilters();
+                            $('#search, #searchInput').off('keydown.autocomplete keypress.autocomplete').on(
+                                'keydown.autocomplete keypress.autocomplete',
+                                function(e) {
+                                    if (e.which === 13 || e.keyCode === 13) {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        $('#searchResultss').hide();
+                                        if (typeof window.applyFilters === 'function') {
+                                            window.applyFilters();
+                                        }
+                                        return false;
                                     }
-                                    return false;
-                                }
-                            });
+                                });
 
                             $('#search').off('search.autocomplete').on('search.autocomplete', function() {
                                 if (typeof window.applyFilters === 'function') {
@@ -156,85 +231,108 @@
                                 }
                             });
 
-                            $('#searchInput').off('input.autocomplete focus.autocomplete').on('input.autocomplete focus.autocomplete', function() {
-                                var searchValue = $(this).val().trim();
-                                clearTimeout(searchTimeout);
+                            $('#searchInput').off('input.autocomplete focus.autocomplete').on(
+                                'input.autocomplete focus.autocomplete',
+                                function() {
+                                    var searchValue = $(this).val().trim();
+                                    clearTimeout(searchTimeout);
 
-                                if (searchValue.length >= 2) {
-                                    $('#searchResultss').html(
-                                        '<div class="p-3 text-center text-muted fs-7 d-flex align-items-center justify-content-center gap-2">' +
+                                    if (searchValue.length >= 2) {
+                                        $('#searchResultss').html(
+                                            '<div class="p-3 text-center text-muted fs-7 d-flex align-items-center justify-content-center gap-2">' +
                                             '<div class="spinner-border spinner-border-sm text-primary" role="status"></div>' +
                                             '<span>Searching users...</span>' +
-                                        '</div>'
-                                    ).show();
+                                            '</div>'
+                                        ).show();
 
-                                    searchTimeout = setTimeout(function() {
-                                        $.ajax({
-                                            url: "{{ route('search-order') }}",
-                                            type: "GET",
-                                            data: {
-                                                user: searchValue
-                                            },
-                                            success: function(response) {
-                                                var resultsHtml = '';
-                                                if (response && response.length > 0) {
-                                                    $.each(response, function(key, value) {
-                                                        var mobileStr = value.mobile_no ? ' | 📞 ' + value.mobile_no : '';
-                                                        var emailStr = value.email ? value.email : '';
-                                                        var idBadge = value.id ? '<span class="badge badge-light-primary fw-bolder fs-8 ms-2 px-2 py-0.5" style="border: 1px solid #bfdbfe;">ID: ' + value.id + '</span>' : '';
-                                                        var displayName = value.display_name || value.name || ('User #' + value.id);
-                                                        var orderAttr = value.order_id ? ' data-order-id="' + value.order_id + '"' : '';
+                                        searchTimeout = setTimeout(function() {
+                                            $.ajax({
+                                                url: "{{ route('search-order') }}",
+                                                type: "GET",
+                                                data: {
+                                                    user: searchValue
+                                                },
+                                                success: function(response) {
+                                                    var resultsHtml = '';
+                                                    if (response && response.length > 0) {
+                                                        $.each(response, function(key, value) {
+                                                            var mobileStr = value.mobile_no ?
+                                                                ' | 📞 ' + value.mobile_no : '';
+                                                            var emailStr = value.email ? value
+                                                                .email : '';
+                                                            var idBadge = value.id ?
+                                                                '<span class="badge badge-light-primary fw-bolder fs-8 ms-2 px-2 py-0.5" style="border: 1px solid #bfdbfe;">ID: ' +
+                                                                value.id + '</span>' : '';
+                                                            var displayName = value.display_name ||
+                                                                value.name || ('User #' + value.id);
+                                                            var orderAttr = value.order_id ?
+                                                                ' data-order-id="' + value
+                                                                .order_id + '"' : '';
 
-                                                        resultsHtml += '<a href="javascript:void(0)" class="dropdown-item user-select-item p-3 border-bottom text-wrap" ' +
-                                                            'data-id="' + value.id + '" data-email="' + emailStr + '" data-name="' + displayName + '" data-mobile="' + (value.mobile_no || '') + '"' + orderAttr + '>' +
-                                                            '<div class="d-flex align-items-center justify-content-between">' +
-                                                                '<span class="fw-bolder text-dark fs-6">' + displayName + '</span>' +
+                                                            resultsHtml +=
+                                                                '<a href="javascript:void(0)" class="dropdown-item user-select-item p-3 border-bottom text-wrap" ' +
+                                                                'data-id="' + value.id +
+                                                                '" data-email="' + emailStr +
+                                                                '" data-name="' + displayName +
+                                                                '" data-mobile="' + (value
+                                                                    .mobile_no || '') + '"' +
+                                                                orderAttr + '>' +
+                                                                '<div class="d-flex align-items-center justify-content-between">' +
+                                                                '<span class="fw-bolder text-dark fs-6">' +
+                                                                displayName + '</span>' +
                                                                 idBadge +
-                                                            '</div>' +
-                                                            '<div class="text-muted fs-7 mt-1">' + emailStr + mobileStr + '</div>' +
-                                                            '</a>';
-                                                    });
-                                                } else {
-                                                    resultsHtml = '<div class="p-3 text-muted fs-7 text-center">No results found</div>';
+                                                                '</div>' +
+                                                                '<div class="text-muted fs-7 mt-1">' +
+                                                                emailStr + mobileStr + '</div>' +
+                                                                '</a>';
+                                                        });
+                                                    } else {
+                                                        resultsHtml =
+                                                            '<div class="p-3 text-muted fs-7 text-center">No results found</div>';
+                                                    }
+                                                    $('#searchResultss').html(resultsHtml).show();
+                                                },
+                                                error: function() {
+                                                    $('#searchResultss').html(
+                                                        '<div class="p-3 text-danger fs-7 text-center">Error loading results</div>'
+                                                        ).show();
                                                 }
-                                                $('#searchResultss').html(resultsHtml).show();
-                                            },
-                                            error: function() {
-                                                $('#searchResultss').html('<div class="p-3 text-danger fs-7 text-center">Error loading results</div>').show();
-                                            }
-                                        });
-                                    }, 250);
-                                } else {
-                                    $('#searchResultss').hide().empty();
-                                    if (searchValue.length === 0) {
-                                        $('#selectedValue').val('');
+                                            });
+                                        }, 250);
+                                    } else {
+                                        $('#searchResultss').hide().empty();
+                                        if (searchValue.length === 0) {
+                                            $('#selectedValue').val('');
+                                        }
                                     }
-                                }
-                            });
+                                });
 
                             // Handle click on custom dropdown item
-                            $(document).off('click.userselect', '#searchResultss .user-select-item').on('click.userselect', '#searchResultss .user-select-item', function(e) {
-                                e.preventDefault();
-                                var selectedId = $(this).attr('data-id');
-                                var selectedEmail = $(this).attr('data-email');
-                                var selectedName = $(this).attr('data-name');
-                                var selectedMobile = $(this).attr('data-mobile');
-                                var selectedOrderId = $(this).attr('data-order-id');
+                            $(document).off('click.userselect', '#searchResultss .user-select-item').on('click.userselect',
+                                '#searchResultss .user-select-item',
+                                function(e) {
+                                    e.preventDefault();
+                                    var selectedId = $(this).attr('data-id');
+                                    var selectedEmail = $(this).attr('data-email');
+                                    var selectedName = $(this).attr('data-name');
+                                    var selectedMobile = $(this).attr('data-mobile');
+                                    var selectedOrderId = $(this).attr('data-order-id');
 
-                                if (selectedOrderId) {
-                                    $('#search').val(selectedOrderId);
-                                    $('#searchInput').val(selectedOrderId);
-                                    $('#selectedValue').val(selectedId);
-                                } else {
-                                    var label = selectedName + (selectedMobile ? ' (' + selectedMobile + ')' : (selectedEmail ? ' (' + selectedEmail + ')' : ''));
-                                    $('#searchInput').val(label);
-                                    $('#selectedValue').val(selectedId);
-                                }
-                                $('#searchResultss').hide().empty();
-                                if (typeof window.applyFilters === 'function') {
-                                    window.applyFilters();
-                                }
-                            });
+                                    if (selectedOrderId) {
+                                        $('#search').val(selectedOrderId);
+                                        $('#searchInput').val(selectedOrderId);
+                                        $('#selectedValue').val(selectedId);
+                                    } else {
+                                        var label = selectedName + (selectedMobile ? ' (' + selectedMobile + ')' : (
+                                            selectedEmail ? ' (' + selectedEmail + ')' : ''));
+                                        $('#searchInput').val(label);
+                                        $('#selectedValue').val(selectedId);
+                                    }
+                                    $('#searchResultss').hide().empty();
+                                    if (typeof window.applyFilters === 'function') {
+                                        window.applyFilters();
+                                    }
+                                });
 
                             // Close dropdown on clicking outside
                             $(document).off('click.outsideSearch').on('click.outsideSearch', function(e) {
@@ -257,8 +355,8 @@
                         data-placeholder="Status" class="form-select form-select-solid form-select-lg "
                         data-select2-id="select2-data-13-mh4q" tabindex="-1">
                         <option value="">Status</option>
-                        @foreach($data['Status'] as $Status)
-                        <option value="{{$Status->status}}">{{$Status->status}}</option>
+                        @foreach ($data['Status'] as $Status)
+                            <option value="{{ $Status->status }}">{{ $Status->status }}</option>
                         @endforeach
                     </select>
                     <div class="fv-plugins-message-container invalid-feedback"></div>
@@ -270,33 +368,34 @@
                         <option value="">select</option>
                         <option value="Not Assign">Not Assign</option>
 
-                        @foreach($data['Team'] as $writer)
-                        <option value="{{$writer->writer_name}}">{{$writer->writer_name}}</option>
+                        @foreach ($data['Team'] as $writer)
+                            <option value="{{ $writer->writer_name }}">{{ $writer->writer_name }}</option>
                         @endforeach
                     </select>
                 </div>
 
-                @if(auth()->user()->role_id == 1)
-                <div class="col-lg-3 fv-row fv-plugins-icon-container">
-                    <select name="writerTL" id="writerTL" aria-label="Select a Timezone" data-control="select2"
-                        data-placeholder="Writer TL" class="form-select form-select-solid form-select-lg" tabindex="-1">
-                        <option value=""></option>
-                        @foreach($data['writerTL'] as $tl)
-                        <option value="{{ $tl->id }}">{{ $tl->name }}</option>
-                        @endforeach
-                    </select>
-                </div>
+                @if (auth()->user()->role_id == 1)
+                    <div class="col-lg-3 fv-row fv-plugins-icon-container">
+                        <select name="writerTL" id="writerTL" aria-label="Select a Timezone" data-control="select2"
+                            data-placeholder="Writer TL" class="form-select form-select-solid form-select-lg"
+                            tabindex="-1">
+                            <option value=""></option>
+                            @foreach ($data['writerTL'] as $tl)
+                                <option value="{{ $tl->id }}">{{ $tl->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
 
-                <div class="col-lg-3 fv-row fv-plugins-icon-container">
-                    <select name="SubWriter" id="SubWriter" aria-label="Select a Timezone" data-control="select2"
-                        data-placeholder="Sub Writer" class="form-select form-select-solid form-select-lg"
-                        tabindex="-1">
-                        <option value=""></option>
-                        @foreach($data['SubWriter'] as $Sub)
-                        <option value="{{ $Sub->id }}">{{ $Sub->name }}</option>
-                        @endforeach
-                    </select>
-                </div>
+                    <div class="col-lg-3 fv-row fv-plugins-icon-container">
+                        <select name="SubWriter" id="SubWriter" aria-label="Select a Timezone"
+                            data-control="select2" data-placeholder="Sub Writer"
+                            class="form-select form-select-solid form-select-lg" tabindex="-1">
+                            <option value=""></option>
+                            @foreach ($data['SubWriter'] as $Sub)
+                                <option value="{{ $Sub->id }}">{{ $Sub->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
                 @endif
 
                 <div class="col-lg-3 fv-row fv-plugins-icon-container">
@@ -304,8 +403,8 @@
                         data-placeholder="College Name" class="form-select form-select-solid form-select-lg"
                         tabindex="-1">
                         <option value=""></option>
-                        @foreach($data['college'] as $college)
-                        <option value="{{$college->college_name}}">{{$college->college_name}}</option>
+                        @foreach ($data['college'] as $college)
+                            <option value="{{ $college->college_name }}">{{ $college->college_name }}</option>
                         @endforeach
                     </select>
                 </div>
@@ -327,11 +426,14 @@
                 </div>
 
                 <div class="col-lg-3 fv-row fv-plugins-icon-container mt-3">
-                    <select name="deadline_status" id="deadline_status" aria-label="Select Deadline Status" data-control="select2"
-                        data-placeholder="Deadline Status" class="form-select form-select-solid form-select-lg" tabindex="-1">
+                    <select name="deadline_status" id="deadline_status" aria-label="Select Deadline Status"
+                        data-control="select2" data-placeholder="Deadline Status"
+                        class="form-select form-select-solid form-select-lg" tabindex="-1">
                         <option value=""></option>
-                        <option value="overdue" {{ request('deadline_status') == 'overdue' ? 'selected' : '' }}>Overdue Deadline</option>
-                        <option value="missed" {{ request('deadline_status') == 'missed' ? 'selected' : '' }}>Missed Order</option>
+                        <option value="overdue" {{ request('deadline_status') == 'overdue' ? 'selected' : '' }}>
+                            Overdue Deadline</option>
+                        <option value="missed" {{ request('deadline_status') == 'missed' ? 'selected' : '' }}>Missed
+                            Order</option>
                     </select>
                 </div>
 
@@ -339,16 +441,18 @@
                     <select name="offer" id="offer" aria-label="Select offer" data-control="select2"
                         data-placeholder="offer" class="form-select form-select-solid form-select-lg" tabindex="-1">
                         <option value=""></option>
-                        <option value="Original" {{ request('offer') == 'Original' ? 'selected' : '' }}>Original</option>
-                        <option value="Discounted" {{ request('offer') == 'Discounted' ? 'selected' : '' }}>Discounted</option>
-                        <option value="Special Price" {{ request('offer') == 'Special Price' ? 'selected' : '' }}>Special Price</option>
+                        <option value="Original" {{ request('offer') == 'Original' ? 'selected' : '' }}>Original
+                        </option>
+                        <option value="Discounted" {{ request('offer') == 'Discounted' ? 'selected' : '' }}>Discounted
+                        </option>
+                        <option value="Special Price" {{ request('offer') == 'Special Price' ? 'selected' : '' }}>
+                            Special Price</option>
                     </select>
                 </div>
 
                 <div class="col-lg-3 fv-row fv-plugins-icon-container mt-3">
-                    <select name="duec" id="duec" data-control="select2" aria-label="Due" data-placeholder="Due"
-                        class="form-select form-select-solid form-select-lg"
-                        tabindex="-1">
+                    <select name="duec" id="duec" data-control="select2" aria-label="Due"
+                        data-placeholder="Due" class="form-select form-select-solid form-select-lg" tabindex="-1">
                         <option value=""></option>
                         <option value="due" {{ old('duec') == 'due' ? 'selected' : '' }}>Due Amount</option>
                         <option value="no due" {{ old('duec') == 'no due' ? 'selected' : '' }}>No Due Amount</option>
@@ -357,9 +461,9 @@
                 </div>
 
                 <div class="col-lg-3 fv-row fv-plugins-icon-container mt-3">
-                    <select name="marks_filter" id="marks_filter" data-control="select2"
-                        aria-label="Assign Marks" data-placeholder="Assign Marks"
-                        class="form-select form-select-solid form-select-lg" tabindex="-1">
+                    <select name="marks_filter" id="marks_filter" data-control="select2" aria-label="Assign Marks"
+                        data-placeholder="Assign Marks" class="form-select form-select-solid form-select-lg"
+                        tabindex="-1">
                         <option value=""></option>
                         <option value="below-50">Below 50</option>
                         <option value="50-60">50-60</option>
@@ -384,8 +488,8 @@
                 </div>
 
                 <div class="col-lg-3 fv-row fv-plugins-icon-container">
-                    <select name="date_status" id="date_status" aria-label="Select a Timezone" data-control="select2"
-                        data-placeholder="Date Type"
+                    <select name="date_status" id="date_status" aria-label="Select a Timezone"
+                        data-control="select2" data-placeholder="Date Type"
                         class="form-select form-select-solid form-select-lg select2-hidden-accessible"
                         data-select2-id="select2-data-16-796922" tabindex="-1" aria-hidden="true">
                         <option value="">Date Type</option>
@@ -398,16 +502,16 @@
                     </select>
                 </div>
                 <div class="col-md-3 fv-row">
-                    <input type="search" name="module_code" id="module_code" class="form-control form-control-solid"
-                        placeholder="Module Code">
+                    <input type="search" name="module_code" id="module_code"
+                        class="form-control form-control-solid" placeholder="Module Code">
                 </div>
                 <div class="col-lg-3 fv-row fv-plugins-icon-container">
                     <select name="paper_type" id="paper_type" aria-label="Select a Language" data-control="select2"
                         data-placeholder="Paper Type" class="form-select form-select-solid form-select-lg "
                         data-select2-id="select2-data-13-mh4q" tabindex="-1">
                         <option value=""></option>
-                        @foreach($data['paper'] as $paperType)
-                        <option value="{{$paperType->paper_type}}">{{$paperType->paper_type}}</option>
+                        @foreach ($data['paper'] as $paperType)
+                            <option value="{{ $paperType->paper_type }}">{{ $paperType->paper_type }}</option>
                         @endforeach
                     </select>
                     <div class="fv-plugins-message-container invalid-feedback"></div>
@@ -434,71 +538,78 @@
                         <option value="empty">Empty Payee Name</option>
                     </select>
                 </div>
-                @if(auth()->user()->role_id == 1 || auth()->user()->role_id == 4 || auth()->user()->role_id == 9)
-                <div class="col-md-3 fv-row mb-3">
-                    <input type="month" name="month" id="month" class="form-control form-control-solid"
-                        placeholder="Search By Month">
-                </div>
+                @if (auth()->user()->role_id == 1 || auth()->user()->role_id == 4 || auth()->user()->role_id == 9)
+                    <div class="col-md-3 fv-row mb-3">
+                        <input type="month" name="month" id="month" class="form-control form-control-solid"
+                            placeholder="Search By Month">
+                    </div>
                 @endif
             </div>
 
 
-            <div class="col-lg-12 fv-row fv-plugins-icon-container" style="display: flex; justify-content: space-between; align-items: center;">
+            <div class="col-lg-12 fv-row fv-plugins-icon-container"
+                style="display: flex; justify-content: space-between; align-items: center;">
                 <!-- <button type='submit' class="btn btn-sm btn-primary" >Search</button> -->
                 <div>
-                    <button type="button" onclick="window.applyFilters()" class="btn btn-sm btn-primary" id="applyFilterBtn">Search</button>
-                    <button type="button" onclick="window.resetFilters()" id="resetFiltersBtn" class="btn btn-sm btn-danger" style="{{ $hasInitialFilters ? '' : 'display: none;' }}">Reset</button>
-                    <button type="button" onclick="window.toggleMoreFilters(event)" id="showMoreFilters" class="btn btn-sm btn-success">Show More Filters</button>
-                    @if(empty($hideOrderQuickFilters))
-                    <a href="javascript:void(0)" id="overdueBtn" class="btn btn-sm btn-danger">
-                        Overdue {{ $overdueCount }}
-                    </a>
-                    <a href="javascript:void(0)" id="todayDeadlineBtn"
-                    class="btn btn-sm btn-warning">
-                        Today's Deadline
-                    </a>
-                    <a href="javascript:void(0)" id="yesterdayDeadlineBtn"
-                    class="btn btn-sm btn-light-warning">
-                        Yesterday's Deadline
-                    </a>
+                    <button type="button" onclick="window.applyFilters()" class="btn btn-sm btn-primary"
+                        id="applyFilterBtn">Search</button>
+                    <button type="button" onclick="window.resetFilters()" id="resetFiltersBtn"
+                        class="btn btn-sm btn-danger"
+                        style="{{ $hasInitialFilters ? '' : 'display: none;' }}">Reset</button>
+                    <button type="button" onclick="window.toggleMoreFilters(event)" id="showMoreFilters"
+                        class="btn btn-sm btn-success">Show More Filters</button>
+                    @if (empty($hideOrderQuickFilters))
+                        <a href="javascript:void(0)" id="overdueBtn" class="btn btn-sm btn-danger">
+                            Overdue {{ $overdueCount }}
+                        </a>
+                        <a href="javascript:void(0)" id="todayDeadlineBtn" class="btn btn-sm btn-warning">
+                            Today's Deadline
+                        </a>
+                        <a href="javascript:void(0)" id="yesterdayDeadlineBtn" class="btn btn-sm btn-light-warning">
+                            Yesterday's Deadline
+                        </a>
 
-                    <a href="javascript:void(0)" id="todayWriterDeadlineBtn"
-                    class="btn btn-sm btn-primary">
-                        Writer's Deadline
-                    </a>
+                        <a href="javascript:void(0)" id="todayWriterDeadlineBtn" class="btn btn-sm btn-primary">
+                            Writer's Deadline
+                        </a>
 
-                    <a href="javascript:void(0)" id="writerQueryBtn" class="btn btn-sm btn-secondary">
-                        Writer Query
-                    </a>
-                    <a href="javascript:void(0)" id="holdWorkBtn" class="btn btn-sm btn-warning">
-                        Hold Work
-                    </a>
+                        <a href="javascript:void(0)" id="writerQueryBtn" class="btn btn-sm btn-secondary">
+                            Writer Query
+                        </a>
+                        <a href="javascript:void(0)" id="holdWorkBtn" class="btn btn-sm btn-warning">
+                            Hold Work
+                        </a>
                     @endif
                 </div>
-                @if( auth()->user()->role_id == 1)
-                <div class="d-flex align-items-center gap-2">
-                    <button type="button" class="btn btn-sm btn-danger" style="display: none;" id="export-order-btn">
-                        Export
-                    </button>
-                    <div id="order-export-progress" class="order-export-progress" style="display:none;">
-                        <div class="d-flex align-items-center gap-2">
-                            <div class="flex-grow-1">
-                                <div class="d-flex justify-content-between mb-1">
-                                    <span id="order-export-progress-message" class="fs-8 fw-bold text-gray-700">Preparing export...</span>
-                                    <span id="order-export-progress-percent" class="fs-8 fw-bolder text-primary">0%</span>
+                @if (auth()->user()->role_id == 1)
+                    <div class="d-flex align-items-center gap-2">
+                        <button type="button" class="btn btn-sm btn-danger" style="display: none;"
+                            id="export-order-btn">
+                            Export
+                        </button>
+                        <div id="order-export-progress" class="order-export-progress" style="display:none;">
+                            <div class="d-flex align-items-center gap-2">
+                                <div class="flex-grow-1">
+                                    <div class="d-flex justify-content-between mb-1">
+                                        <span id="order-export-progress-message"
+                                            class="fs-8 fw-bold text-gray-700">Preparing export...</span>
+                                        <span id="order-export-progress-percent"
+                                            class="fs-8 fw-bolder text-primary">0%</span>
+                                    </div>
+                                    <div class="progress h-6px">
+                                        <div id="order-export-progress-bar"
+                                            class="progress-bar progress-bar-striped progress-bar-animated bg-primary"
+                                            role="progressbar" style="width:0%" aria-valuemin="0"
+                                            aria-valuemax="100" aria-valuenow="0"></div>
+                                    </div>
                                 </div>
-                                <div class="progress h-6px">
-                                    <div id="order-export-progress-bar"
-                                        class="progress-bar progress-bar-striped progress-bar-animated bg-primary"
-                                        role="progressbar" style="width:0%" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"></div>
-                                </div>
+                                <button type="button" id="close-order-export-progress"
+                                    class="btn btn-icon btn-sm btn-light-danger" title="Close progress">
+                                    <span class="fs-4 fw-bold">&times;</span>
+                                </button>
                             </div>
-                            <button type="button" id="close-order-export-progress" class="btn btn-icon btn-sm btn-light-danger" title="Close progress">
-                                <span class="fs-4 fw-bold">&times;</span>
-                            </button>
                         </div>
                     </div>
-                </div>
                 @endif
             </div>
         </form>
@@ -522,17 +633,20 @@
         white-space: nowrap;
         line-height: 1;
     }
+
     .deadline-gap-danger {
         background-color: #fff5f8 !important;
         border-color: #fca5a5 !important;
         color: #e11d48 !important;
     }
+
     .deadline-gap-danger:hover {
         background-color: #ffe4e6 !important;
         border-color: #f43f5e !important;
         color: #be123c !important;
         transform: translateY(-1px);
     }
+
     .deadline-gap-danger.active {
         background: linear-gradient(135deg, #f43f5e, #e11d48) !important;
         border-color: #e11d48 !important;
@@ -546,12 +660,14 @@
         border-color: #fde68a !important;
         color: #d97706 !important;
     }
+
     .deadline-gap-warning:hover {
         background-color: #fef3c7 !important;
         border-color: #f59e0b !important;
         color: #b45309 !important;
         transform: translateY(-1px);
     }
+
     .deadline-gap-warning.active {
         background: linear-gradient(135deg, #f59e0b, #d97706) !important;
         border-color: #d97706 !important;
@@ -565,12 +681,14 @@
         border-color: #bfdbfe !important;
         color: #2563eb !important;
     }
+
     .deadline-gap-primary:hover {
         background-color: #dbeafe !important;
         border-color: #3b82f6 !important;
         color: #1d4ed8 !important;
         transform: translateY(-1px);
     }
+
     .deadline-gap-primary.active {
         background: linear-gradient(135deg, #3b82f6, #2563eb) !important;
         border-color: #2563eb !important;
@@ -584,12 +702,14 @@
         border-color: #a7f3d0 !important;
         color: #059669 !important;
     }
+
     .deadline-gap-success:hover {
         background-color: #d1fae5 !important;
         border-color: #10b981 !important;
         color: #047857 !important;
         transform: translateY(-1px);
     }
+
     .deadline-gap-success.active {
         background: linear-gradient(135deg, #10b981, #059669) !important;
         border-color: #059669 !important;
@@ -624,6 +744,7 @@
         outline: none !important;
         transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease, margin 0.25s ease, border-width 0.25s ease;
     }
+
     .deadline-gap-clear-btn.is-visible {
         width: 26px !important;
         min-width: 26px !important;
@@ -633,6 +754,7 @@
         border-width: 1px !important;
         pointer-events: auto !important;
     }
+
     .deadline-gap-clear-btn svg {
         width: 12px !important;
         height: 12px !important;
@@ -644,12 +766,14 @@
         transition: stroke 0.2s ease;
         flex-shrink: 0 !important;
     }
+
     .deadline-gap-clear-btn:hover {
         background-color: #dc2626 !important;
         border-color: #dc2626 !important;
         color: #ffffff !important;
         transform: scale(1.05);
     }
+
     .deadline-gap-clear-btn:hover svg {
         stroke: #ffffff !important;
     }
@@ -665,18 +789,22 @@
         transition: all 0.2s ease;
         text-decoration: none !important;
     }
+
     .team-alpha-btn {
         background-color: #eff6ff !important;
         border: 1px solid #bfdbfe !important;
         color: #1d4ed8 !important;
     }
-    .team-alpha-btn:hover, .team-alpha-btn.quick-filter-active {
+
+    .team-alpha-btn:hover,
+    .team-alpha-btn.quick-filter-active {
         background-color: #dbeafe !important;
         border-color: #3b82f6 !important;
         color: #1e40af !important;
         transform: translateY(-1px);
         box-shadow: 0 3px 8px rgba(59, 130, 246, 0.25);
     }
+
     .team-alpha-btn .team-badge {
         background: #3b82f6;
         color: #ffffff;
@@ -691,13 +819,16 @@
         border: 1px solid #cbd5e1 !important;
         color: #1e293b !important;
     }
-    .team-giga-btn:hover, .team-giga-btn.quick-filter-active {
+
+    .team-giga-btn:hover,
+    .team-giga-btn.quick-filter-active {
         background-color: #e2e8f0 !important;
         border-color: #64748b !important;
         color: #0f172a !important;
         transform: translateY(-1px);
         box-shadow: 0 3px 8px rgba(30, 41, 59, 0.2);
     }
+
     .team-giga-btn .team-badge {
         background: #1e293b;
         color: #ffffff;
@@ -712,13 +843,16 @@
         border: 1px solid #bbf7d0 !important;
         color: #15803d !important;
     }
-    .team-gamma-btn:hover, .team-gamma-btn.quick-filter-active {
+
+    .team-gamma-btn:hover,
+    .team-gamma-btn.quick-filter-active {
         background-color: #dcfce7 !important;
         border-color: #22c55e !important;
         color: #166534 !important;
         transform: translateY(-1px);
         box-shadow: 0 3px 8px rgba(34, 197, 94, 0.25);
     }
+
     .team-gamma-btn .team-badge {
         background: #16a34a;
         color: #ffffff;
@@ -728,12 +862,14 @@
         font-weight: 700;
     }
 
-    .dynamic-team-btn:hover, .dynamic-team-btn.quick-filter-active {
+    .dynamic-team-btn:hover,
+    .dynamic-team-btn.quick-filter-active {
         filter: brightness(0.92);
         transform: translateY(-1px);
         box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15) !important;
         outline: 2px solid currentColor;
     }
+
     .dynamic-team-btn .team-badge {
         color: #ffffff;
         border-radius: 4px;
@@ -753,12 +889,14 @@
         transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
         display: inline-flex;
         align-items: center;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
     }
+
     #toggleDeadlineGapBtn svg {
         stroke: #ff9800;
         transition: stroke 0.2s ease;
     }
+
     #toggleDeadlineGapBtn:hover {
         background: #ffecb3 !important;
         border-color: #ffc107 !important;
@@ -766,12 +904,14 @@
         box-shadow: 0 3px 8px rgba(255, 193, 7, 0.28);
         transform: translateY(-1px);
     }
+
     #toggleDeadlineGapBtn.active {
         background: linear-gradient(135deg, #ffb300, #f57c00) !important;
         border-color: #f57c00 !important;
         color: #ffffff !important;
         box-shadow: 0 4px 12px rgba(245, 124, 0, 0.35) !important;
     }
+
     #toggleDeadlineGapBtn.active svg {
         stroke: #ffffff !important;
     }
@@ -781,11 +921,13 @@
         vertical-align: middle;
         animation: fadeInSlideRight 0.25s ease-out;
     }
+
     @keyframes fadeInSlideRight {
         from {
             opacity: 0;
             transform: translateX(-12px);
         }
+
         to {
             opacity: 1;
             transform: translateX(0);
@@ -1085,13 +1227,13 @@ resetFilters();
         if (isCurrentlyVisible) {
             filterBody.hide();
             btn.text('Show Filters')
-               .removeClass('btn-danger')
-               .addClass('btn-primary');
+                .removeClass('btn-danger')
+                .addClass('btn-primary');
         } else {
             filterBody.show();
             btn.text('Hide Filters')
-               .removeClass('btn-primary')
-               .addClass('btn-danger');
+                .removeClass('btn-primary')
+                .addClass('btn-danger');
         }
     };
 
@@ -1137,7 +1279,8 @@ resetFilters();
 
     window.toggleTeamFilter = function(elem) {
         const $btn = $(elem);
-        const selectedTeamId = String($btn.data('team-id') || ($btn.attr('id') === 'teamAlphaBtn' ? '1' : ($btn.attr('id') === 'teamGigaBtn' ? '2' : ($btn.attr('id') === 'teamGammaBtn' ? '3' : ''))));
+        const selectedTeamId = String($btn.data('team-id') || ($btn.attr('id') === 'teamAlphaBtn' ? '1' : ($btn
+            .attr('id') === 'teamGigaBtn' ? '2' : ($btn.attr('id') === 'teamGammaBtn' ? '3' : ''))));
         if (!selectedTeamId) return;
 
         if ($('#filter_team_id').val() === selectedTeamId) {
@@ -1158,7 +1301,8 @@ resetFilters();
     };
 
     function highlightActiveQuickFilters() {
-        $('#overdueBtn, #todayDeadlineBtn, #yesterdayDeadlineBtn, #todayWriterDeadlineBtn, #writerQueryBtn, #holdWorkBtn, .dynamic-team-btn, #teamAlphaBtn, #teamGigaBtn, #teamGammaBtn').removeClass('quick-filter-active');
+        $('#overdueBtn, #todayDeadlineBtn, #yesterdayDeadlineBtn, #todayWriterDeadlineBtn, #writerQueryBtn, #holdWorkBtn, .dynamic-team-btn, #teamAlphaBtn, #teamGigaBtn, #teamGammaBtn')
+            .removeClass('quick-filter-active');
 
         if ($('#deadline_status').val() === 'overdue') {
             $('#overdueBtn').addClass('quick-filter-active');
@@ -1178,7 +1322,7 @@ resetFilters();
         if ($('#status').val() === 'Hold Work') {
             $('#holdWorkBtn').addClass('quick-filter-active');
         }
-        
+
         var currentTeam = String($('#filter_team_id').val() || '');
         if (currentTeam) {
             $('.dynamic-team-btn[data-team-id="' + currentTeam + '"]').addClass('quick-filter-active');
@@ -1303,15 +1447,22 @@ resetFilters();
         loading = true;
 
         if (append) {
+            const existingRowCount = ($('#lead-rows').is(':visible') ? $('#lead-rows > tr') : $('#initial-order-rows > tr')).length;
+            if (existingRowCount > 0 && offset < existingRowCount) {
+                offset = existingRowCount;
+            }
             $('#spinner-row').show();
+            $('#btnLoadMoreOrders').prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-2"></span> Loading...');
         } else {
             $('#spinner-row').show();
+            $('#loadMoreContainer').hide();
         }
 
         let reqData = {
             ...filters,
             limit: limit,
-            offset: offset
+            offset: offset,
+            autoload: 1
         };
         if (append && currentTotalCount > 0) {
             reqData.total = currentTotalCount;
@@ -1327,6 +1478,7 @@ resetFilters();
                 if (isBatchEmpty) {
                     hasMore = false;
                     disableScrollHandler();
+                    $('#loadMoreContainer').hide();
                     if (!append) {
                         $('#lead-rows').html(`
                             <tr>
@@ -1338,23 +1490,45 @@ resetFilters();
                     }
                 } else {
                     if (append) {
-                        $('#lead-rows').append(response.html);
+                        if ($('#lead-rows').is(':visible')) {
+                            $('#lead-rows').append(response.html);
+                        } else {
+                            $('#initial-order-rows').append(response.html);
+                        }
                     } else {
-                        $('#lead-rows').html(response.html);
+                        $('#initial-order-rows').hide();
+                        $('#lead-rows').show().html(response.html);
                     }
                     offset += response.count;
-                    hasMore = response.has_more;
-                    enableScrollHandler();
+                    hasMore = response.has_more && response.count > 0;
+                    if (hasMore) {
+                        $('#loadMoreContainer').show();
+                        enableScrollHandler();
+                    } else {
+                        $('#loadMoreContainer').hide();
+                        disableScrollHandler();
+                    }
                 }
+
+                $('#btnLoadMoreOrders').prop('disabled', false).html('<i class="fas fa-arrow-down me-2"></i> Load More Orders');
 
                 if (response.totals) {
                     runningTotals.total_amount += Number(response.totals.total_amount ?? 0);
                     runningTotals.total_paid += Number(response.totals.total_paid ?? 0);
                     runningTotals.total_due += Number(response.totals.total_due ?? 0);
 
-                    $('#total-amount').text('£' + runningTotals.total_amount);
-                    $('#total-paid').text('£' + runningTotals.total_paid);
-                    $('#total-due').text('£' + runningTotals.total_due);
+                    $('#total-amount').text('£' + runningTotals.total_amount.toLocaleString('en-GB', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2
+                    }));
+                    $('#total-paid').text('£' + runningTotals.total_paid.toLocaleString('en-GB', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2
+                    }));
+                    $('#total-due').text('£' + runningTotals.total_due.toLocaleString('en-GB', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2
+                    }));
                 }
 
                 if (response.total !== undefined) {
@@ -1380,9 +1554,12 @@ resetFilters();
                 if (activeTeamId) {
                     const activeTeamBtn = $('.dynamic-team-btn[data-team-id="' + activeTeamId + '"]');
                     const teamTitle = activeTeamBtn.find('span:first').text().trim() || 'Team';
-                    $('#filter-total').text(`Team: ${teamTitle} (${response.total ?? currentTotalCount} orders)`);
+                    $('#filter-total').text(
+                        `Team: ${teamTitle} (${response.total ?? currentTotalCount} orders)`);
                 } else {
-                    $('#filter-total').text(`{{ $filterTitle ?? 'Filtered Orders' }} (${response.total ?? currentTotalCount} total)`);
+                    $('#filter-total').text(
+                        `{{ $filterTitle ?? 'Filtered Orders' }} (${response.total ?? currentTotalCount} total)`
+                        );
                 }
 
                 $('#spinner-row').hide();
@@ -1390,12 +1567,50 @@ resetFilters();
                 $('#export-order-btn').show();
                 loading = false;
             },
-            error: function() {
+            error: function(xhr, status, errorThrown) {
+                console.error('Order fetch failed:', status, errorThrown, xhr.responseText);
+                $('#btnLoadMoreOrders').prop('disabled', false).html('<i class="fas fa-arrow-down me-2"></i> Load More Orders');
                 $('#spinner-row').hide();
                 $('#preloader2').hide();
+                $('#loadMoreContainer').hide();
                 loading = false;
+                hasMore = false;
+                disableScrollHandler();
             }
         });
+    }
+
+    function collectFilters() {
+        return {
+            search: ($('#search').val() || '').trim(),
+            uid: ($('#selectedValue').val() || '').trim(),
+            user: ($('#searchInput').val() || '').trim(),
+            group_id: $('#group_id').val() || '',
+            status: $('#status').val() || '',
+            writer: $('#writer').val() || '',
+            dateStatus: $('#date_status').val() || '',
+            fromDate: $('#from_date').val() || '',
+            toDate: $('#to_date').val() || '',
+            WriterTL: $('#writerTL').val() || '',
+            SubWriter: $('#SubWriter').val() || '',
+            college: $('#college').val() || '',
+            extra: $('#extra').val() || '',
+            module_code: $('#module_code').val() || '',
+            paper_type: $('#paper_type').val() || '',
+            semester: $('#semester').val() || '',
+            payment: $('#payment').val() || '',
+            month: $('#month').val() || '',
+            deadline_status: $('#deadline_status').val() || '',
+            team_id: $('#filter_team_id').val() || '',
+            offer: $('#offer').val() || '',
+            duec: $('#duec').val() || '',
+            marks_filter: $('#marks_filter').val() || '',
+            holdBtn: $('#holdBtn').val() || '',
+            today_deadline_filter: $('#today_deadline_filter').val() || '',
+            yesterday_deadline_filter: $('#yesterday_deadline_filter').val() || '',
+            today_writer_deadline_filter: $('#today_writer_deadline_filter').val() || '',
+            duration_gap: $('#duration_gap_filter').val() || ''
+        };
     }
 
     function applyFilters() {
@@ -1410,36 +1625,7 @@ resetFilters();
 
         disableScrollHandler();
 
-        filters = {
-            search: $('#search').val(),
-            uid: $('#selectedValue').val(),
-            user: $('#searchInput').val(),
-            group_id: $('#group_id').val(),
-            status: $('#status').val(),
-            writer: $('#writer').val(),
-            dateStatus: $('#date_status').val(),
-            fromDate: $('#from_date').val(),
-            toDate: $('#to_date').val(),
-            WriterTL: $('#writerTL').val(),
-            SubWriter: $('#SubWriter').val(),
-            college: $('#college').val(),
-            extra: $('#extra').val(),
-            module_code: $('#module_code').val(),
-            paper_type: $('#paper_type').val(),
-            semester: $('#semester').val(),
-            payment: $('#payment').val(),
-            month: $('#month').val(),
-            deadline_status: $('#deadline_status').val(),
-            team_id: $('#filter_team_id').val(),
-            offer: $('#offer').val(),
-            duec: $('#duec').val(),
-            marks_filter: $('#marks_filter').val(),
-            holdBtn: $('#holdBtn').val(),
-            today_deadline_filter: $('#today_deadline_filter').val(),
-            yesterday_deadline_filter: $('#yesterday_deadline_filter').val(),
-            today_writer_deadline_filter: $('#today_writer_deadline_filter').val(),
-            duration_gap: $('#duration_gap_filter').val()
-        };
+        filters = collectFilters();
 
         localStorage.setItem(filterStorageKey, JSON.stringify(filters));
 
@@ -1497,7 +1683,8 @@ resetFilters();
         $('.deadline-gap-btn').removeClass('active');
         $('.deadline-gap-clear-btn').removeClass('is-visible');
         $('.dynamic-team-btn, #teamAlphaBtn, #teamGigaBtn, #teamGammaBtn').removeClass('quick-filter-active');
-        $('#overdueBtn, #todayDeadlineBtn, #yesterdayDeadlineBtn, #todayWriterDeadlineBtn, #writerQueryBtn, #holdWorkBtn').removeClass('quick-filter-active');
+        $('#overdueBtn, #todayDeadlineBtn, #yesterdayDeadlineBtn, #todayWriterDeadlineBtn, #writerQueryBtn, #holdWorkBtn')
+            .removeClass('quick-filter-active');
 
         if (hideDeadlineBar) {
             $('#deadlineGapContainer').hide();
@@ -1505,10 +1692,10 @@ resetFilters();
         }
 
         // Reset pagination and state
-        offset = 0;
-        hasMore = false;
+        const initialRowCount = $('#initial-order-rows tr').length;
+        offset = initialRowCount;
+        hasMore = initialRowCount >= limit;
         filters = {};
-        disableScrollHandler();
 
         runningTotals = {
             total_amount: 0,
@@ -1526,6 +1713,12 @@ resetFilters();
         if (el) el.style.setProperty('display', 'none', 'important');
         $('.additional-filters').hide();
         $('#showMoreFilters').text('Show More Filters');
+
+        if (hasMore) {
+            enableScrollHandler();
+        } else {
+            disableScrollHandler();
+        }
     }
 
     window.applyFilters = applyFilters;
@@ -1533,27 +1726,52 @@ resetFilters();
     window.fetchData = fetchData;
     window.highlightActiveQuickFilters = highlightActiveQuickFilters;
 
-    function enableScrollHandler() {
-        $('#scroll-order-table').off('scroll').on('scroll', function() {
-            const container = $(this);
-            const scrollTop = container.scrollTop();
-            const containerHeight = container.innerHeight();
-            const scrollHeight = this.scrollHeight;
+    function checkScrollTrigger() {
+        if (loading || !hasMore) return;
 
-            if (scrollTop + containerHeight >= scrollHeight - 80) {
-                fetchData(true); // Load more and append
+        // 1. Check inner container (#scroll-order-table)
+        const container = document.getElementById('scroll-order-table');
+        if (container) {
+            const hasOverflow = container.scrollHeight > container.clientHeight;
+            if (hasOverflow) {
+                if (container.scrollTop + container.clientHeight >= container.scrollHeight - 350) {
+                    fetchData(true);
+                    return;
+                }
+            } else {
+                // Container has no overflow yet — check if page itself is scrollable
+                const docHeight = $(document).height();
+                const scrollPos = $(window).height() + $(window).scrollTop();
+                if (docHeight > 0 && (docHeight - scrollPos < 450 || (docHeight - scrollPos) / docHeight < 0.20)) {
+                    fetchData(true);
+                }
             }
+        }
+
+        // 2. Check window / document scroll (always, as fallback)
+        const docHeight = $(document).height();
+        const scrollPos = $(window).height() + $(window).scrollTop();
+        if (docHeight > 0 && (docHeight - scrollPos < 450 || (docHeight - scrollPos) / docHeight < 0.20)) {
+            fetchData(true);
+        }
+    }
+
+    function enableScrollHandler() {
+        $('#scroll-order-table').off('scroll.orderInfinite').on('scroll.orderInfinite', function() {
+            checkScrollTrigger();
         });
 
         $(window).off('scroll.orderInfinite').on('scroll.orderInfinite', function() {
-            if ($(window).scrollTop() + $(window).height() >= $(document).height() - 150) {
-                fetchData(true);
-            }
+            checkScrollTrigger();
+        });
+
+        $(document).off('scroll.orderInfinite').on('scroll.orderInfinite', function() {
+            checkScrollTrigger();
         });
     }
 
     function disableScrollHandler() {
-        $('#scroll-order-table').off('scroll');
+        $('#scroll-order-table').off('scroll.orderInfinite');
         $(window).off('scroll.orderInfinite');
     }
 
@@ -1575,7 +1793,8 @@ resetFilters();
                     },
                     success: function(data) {
                         $.each(data, function(key, value) {
-                            subwriterSelect.append(`<option value="${value.id}">${value.name}</option>`);
+                            subwriterSelect.append(
+                                `<option value="${value.id}">${value.name}</option>`);
                         });
                         subwriterSelect.val(selectedSubWriter);
                     },
@@ -1589,10 +1808,23 @@ resetFilters();
         // TL change triggers subwriter update
         $(document).on('change', '#writerTL', populateSubwriters);
 
+        const parseMoney = (txt) => {
+            const num = parseFloat(String(txt || '').replace(/[^0-9.-]+/g, ''));
+            return isNaN(num) ? 0 : num;
+        };
+        runningTotals = {
+            total_amount: parseMoney($('#total-amount').text()),
+            total_paid: parseMoney($('#total-paid').text()),
+            total_due: parseMoney($('#total-due').text())
+        };
+
         // Check URL parameters (e.g. from WhatsApp, Leads, CRM: ?order_id=... ?user=... ?phone=... ?mobile=... ?uid=... ?user_id=...)
         const urlParams = new URLSearchParams(window.location.search);
-        const searchParam = urlParams.get('search') || urlParams.get('order') || urlParams.get('order_id') || urlParams.get('order_code') || urlParams.get('search_order');
-        const userParam = urlParams.get('user') || urlParams.get('mobile') || urlParams.get('phone') || urlParams.get('number') || urlParams.get('mobile_no') || urlParams.get('email') || urlParams.get('username') || urlParams.get('user_name') || urlParams.get('client');
+        const searchParam = urlParams.get('search') || urlParams.get('order') || urlParams.get('order_id') ||
+            urlParams.get('order_code') || urlParams.get('search_order');
+        const userParam = urlParams.get('user') || urlParams.get('mobile') || urlParams.get('phone') ||
+            urlParams.get('number') || urlParams.get('mobile_no') || urlParams.get('email') || urlParams.get(
+                'username') || urlParams.get('user_name') || urlParams.get('client');
         const uidParam = urlParams.get('uid') || urlParams.get('user_id');
         const statusParam = urlParams.get('status');
         const teamParam = urlParams.get('team_id') || urlParams.get('team');
@@ -1612,7 +1844,22 @@ resetFilters();
             $('#toggleFilterBtn').text('Hide Filters').removeClass('btn-primary').addClass('btn-danger');
             $('#topResetFiltersBtn, #resetFiltersBtn').show();
 
-            applyFilters();
+            filters = collectFilters();
+
+            // Check if server Blade already pre-rendered rows matching these URL params
+            const initialRowCount = $('#initial-order-rows > tr').length;
+            if (initialRowCount > 0) {
+                offset = initialRowCount;
+                hasMore = initialRowCount >= limit;
+                if (hasMore) {
+                    $('#loadMoreContainer').show();
+                    enableScrollHandler();
+                } else {
+                    $('#loadMoreContainer').hide();
+                }
+            } else {
+                applyFilters();
+            }
             return;
         }
 
@@ -1620,6 +1867,19 @@ resetFilters();
         try {
             localStorage.removeItem(filterStorageKey);
         } catch (e) {}
+
+        filters = collectFilters();
+        const initialRowCount = $('#initial-order-rows > tr').length;
+        if (initialRowCount > 0) {
+            offset = initialRowCount;
+            hasMore = initialRowCount >= limit;
+            if (hasMore) {
+                $('#loadMoreContainer').show();
+                enableScrollHandler();
+            } else {
+                $('#loadMoreContainer').hide();
+            }
+        }
     });
 
     // Export handler
@@ -1662,7 +1922,8 @@ resetFilters();
                     marks_filter: $('#marks_filter').val() || "",
                     today_deadline_filter: $('#today_deadline_filter').val() || "",
                     yesterday_deadline_filter: $('#yesterday_deadline_filter').val() || "",
-                    today_writer_deadline_filter: $('#today_writer_deadline_filter').val() || "",
+                    today_writer_deadline_filter: $('#today_writer_deadline_filter')
+                    .val() || "",
                     duration_gap: $('#duration_gap_filter').val() || ""
                 };
 
@@ -1693,12 +1954,14 @@ resetFilters();
                         confirmButtonText: 'Export Selected',
                         showCancelButton: true,
                         preConfirm: () => {
-                            const selected = $(".export-column:checked").map(function() {
-                                return $(this).val();
-                            }).get();
+                            const selected = $(".export-column:checked").map(
+                                function() {
+                                    return $(this).val();
+                                }).get();
 
                             if (selected.length === 0) {
-                                Swal.showValidationMessage("Please select at least one column");
+                                Swal.showValidationMessage(
+                                    "Please select at least one column");
                             }
                             return selected;
                         }
@@ -1719,30 +1982,32 @@ resetFilters();
 
             function sendExport(payload) {
                 fetch("/order/export", {
-                    method: "POST",
-                    headers: {
-                        "X-CSRF-TOKEN": document.querySelector('meta[name="csrf-token"]').content,
-                        "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify(payload),
-                })
-                .then(async res => {
-                    const data = await res.json().catch(() => ({}));
-                    if (!res.ok) throw new Error(data.message || 'Export could not be started.');
-                    return data;
-                })
-                .then((data) => {
-                    sessionStorage.removeItem('orderExportProgressDismissed');
-                    localStorage.setItem("orderExportStatus", "pending");
-                    if (window.showExportProgress) {
-                        window.showExportProgress('order', data);
-                    }
-                })
-                .catch(error => {
-                    console.error("Export Error: ", error);
-                    $('#export-order-btn').show();
-                    Swal.fire('Export Failed', error.message || 'Please try again.', 'error');
-                });
+                        method: "POST",
+                        headers: {
+                            "X-CSRF-TOKEN": document.querySelector('meta[name="csrf-token"]')
+                                .content,
+                            "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify(payload),
+                    })
+                    .then(async res => {
+                        const data = await res.json().catch(() => ({}));
+                        if (!res.ok) throw new Error(data.message ||
+                            'Export could not be started.');
+                        return data;
+                    })
+                    .then((data) => {
+                        sessionStorage.removeItem('orderExportProgressDismissed');
+                        localStorage.setItem("orderExportStatus", "pending");
+                        if (window.showExportProgress) {
+                            window.showExportProgress('order', data);
+                        }
+                    })
+                    .catch(error => {
+                        console.error("Export Error: ", error);
+                        $('#export-order-btn').show();
+                        Swal.fire('Export Failed', error.message || 'Please try again.', 'error');
+                    });
             }
         });
     });
