@@ -87,6 +87,9 @@ class CheckPermission
         'emails' => [
             'emails', 'email'
         ],
+        'spreadsheets' => [
+            'spreadsheets', 'spreadsheet', 'excel'
+        ],
         'menus' => [
             'menus', 'menu', 'submenu', 'userright', 'rolePermission'
         ],
@@ -132,6 +135,7 @@ class CheckPermission
         'experts' => ['expert'],
         'whatsapp' => ['whatsapp'],
         'emails' => ['emails', 'email'],
+        'spreadsheets' => ['spreadsheets', 'spreadsheet'],
     ];
 
     public function handle($request, Closure $next)

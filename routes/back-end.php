@@ -33,6 +33,7 @@ use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\EnquiryController;
 use App\Http\Controllers\ChatbotController;
 use App\Http\Controllers\PluginController;
+use App\Http\Controllers\SpreadsheetController;
 
 Route::middleware(['auth'])->group(function () {
 
@@ -98,6 +99,18 @@ Route::middleware(['auth', 'check.permission'])->group(function () {
         Route::get('/chat/templates', [WhatsappController::class, 'getTemplates'])->name('chat.templates');
         Route::post('/chat/send-template', [WhatsappController::class, 'sendTemplate'])->name('chat.send-template');
         Route::post('/chat/close-session', [WhatsappController::class, 'closeChatSession'])->name('chat.close-session');
+    });
+
+    Route::prefix('spreadsheets')->name('spreadsheets.')->group(function () {
+        Route::get('/', [SpreadsheetController::class, 'index'])->name('index');
+        Route::get('/list', [SpreadsheetController::class, 'list'])->name('list');
+        Route::post('/create', [SpreadsheetController::class, 'store'])->name('create');
+        Route::get('/{id}/data', [SpreadsheetController::class, 'show'])->name('show');
+        Route::post('/{id}/save', [SpreadsheetController::class, 'save'])->name('save');
+        Route::post('/{id}/rename', [SpreadsheetController::class, 'rename'])->name('rename');
+        Route::post('/{id}/duplicate', [SpreadsheetController::class, 'duplicate'])->name('duplicate');
+        Route::post('/{id}/favorite', [SpreadsheetController::class, 'toggleFavorite'])->name('favorite');
+        Route::delete('/{id}', [SpreadsheetController::class, 'destroy'])->name('destroy');
     });
 
     Route::prefix('career')->group(function () {
