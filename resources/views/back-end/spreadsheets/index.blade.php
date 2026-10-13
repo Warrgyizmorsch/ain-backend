@@ -32,8 +32,8 @@
 
     <style>
         /* ──────────────────────────────────────────────────────────
-                   EXCEL SHEETS WORKSPACE — WhatsApp-Style 2-Panel UI
-                   ────────────────────────────────────────────────────────── */
+                       EXCEL SHEETS WORKSPACE — WhatsApp-Style 2-Panel UI
+                       ────────────────────────────────────────────────────────── */
         .content,
         main.content,
         .flex-column-fluid.content {
