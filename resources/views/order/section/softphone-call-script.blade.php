@@ -125,17 +125,29 @@
         width: 76px;
         height: 76px;
         border-radius: 50%;
-        background: rgba(16, 185, 129, 0.12);
-        border: 2px solid #10b981;
+        background: rgba(245, 158, 11, 0.12);
+        border: 2px solid #f59e0b;
         display: flex;
         align-items: center;
         justify-content: center;
-        color: #10b981;
+        color: #f59e0b;
         font-size: 28px;
         margin-bottom: 16px;
         animation: n2cPulseRing 1.5s infinite;
+        transition: all 0.3s ease;
+    }
+    .n2c-avatar-ring.is-connected {
+        background: rgba(16, 185, 129, 0.12);
+        border-color: #10b981;
+        color: #10b981;
+        animation: n2cPulseRingGreen 1.5s infinite;
     }
     @keyframes n2cPulseRing {
+        0% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.5); }
+        70% { box-shadow: 0 0 0 16px rgba(245, 158, 11, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+    }
+    @keyframes n2cPulseRingGreen {
         0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.5); }
         70% { box-shadow: 0 0 0 16px rgba(16, 185, 129, 0); }
         100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
@@ -339,10 +351,17 @@
             </div>
             <div class="n2c-caller-name" id="n2cCustomerName">Customer</div>
             <div class="n2c-caller-number" id="n2cMaskedNumber">+91 ******2299</div>
-            <div class="n2c-call-status" id="n2cStatusBadge">
-                <i class="fa fa-spinner fa-spin me-1"></i> Calling...
+            <div class="n2c-call-status" id="n2cStatusBadge" style="cursor: pointer;" title="Click when answered to connect">
+                <i class="fa fa-spinner fa-spin me-1 text-warning"></i> Ringing...
             </div>
-            <div class="n2c-call-timer" id="n2cCallTimerText">00:00</div>
+            <div class="n2c-call-timer" id="n2cCallTimerText">Ringing...</div>
+
+            <!-- Connect Trigger (Manual/Visual confirmation fallback) -->
+            <div id="n2cConnectTriggerWrap" style="margin-top: -10px; margin-bottom: 20px;">
+                <button type="button" class="btn btn-sm btn-success rounded-pill px-3 py-1 shadow-sm" id="n2cMarkConnectedBtn" style="font-size: 11px; font-weight: 600;">
+                    <i class="fa fa-phone-volume me-1"></i> Click when Answered
+                </button>
+            </div>
 
             <!-- In-Call Actions (Mute, Hangup, Keypad) -->
             <div class="n2c-action-bar">
@@ -386,11 +405,40 @@
         const muteBtn = document.getElementById('n2cMuteBtn');
         const keypadToggleBtn = document.getElementById('n2cKeypadToggleBtn');
         const returnToCallBtn = document.getElementById('n2cReturnToCallBtn');
+        const markConnectedBtn = document.getElementById('n2cMarkConnectedBtn');
+        const connectTriggerWrap = document.getElementById('n2cConnectTriggerWrap');
 
         let callTimerInterval = null;
         let callSeconds = 0;
-        let connectSafetyTimer = null;
+        let isCallConnected = false;
         let isMuted = false;
+
+        function connectCallUI() {
+            if (isCallConnected || !isCallActive) return;
+            isCallConnected = true;
+            if (statusBadge) {
+                statusBadge.innerHTML = '<i class="fa fa-circle text-success me-1" style="font-size: 8px;"></i> Connected';
+            }
+            if (avatarRing) {
+                avatarRing.classList.add('is-connected');
+            }
+            if (connectTriggerWrap) {
+                connectTriggerWrap.style.display = 'none';
+            }
+            startCallTimer();
+        }
+
+        markConnectedBtn?.addEventListener('click', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            connectCallUI();
+        });
+
+        statusBadge?.addEventListener('click', function (e) {
+            if (!isCallConnected && isCallActive) {
+                connectCallUI();
+            }
+        });
 
         function startCallTimer() {
             stopCallTimer();
@@ -406,10 +454,6 @@
             if (callTimerInterval) {
                 clearInterval(callTimerInterval);
                 callTimerInterval = null;
-            }
-            if (connectSafetyTimer) {
-                clearTimeout(connectSafetyTimer);
-                connectSafetyTimer = null;
             }
             callSeconds = 0;
         }
@@ -571,6 +615,7 @@
         function closeSoftphoneWidget() {
             stopCallTimer();
             isCallActive = false;
+            isCallConnected = false;
             callInitiatedAt = 0;
 
             if (widget) {
@@ -584,6 +629,8 @@
 
             if (statusBadge) statusBadge.innerHTML = '<i class="fa fa-circle text-muted me-1" style="font-size: 8px;"></i> Ready';
             if (timerTextEl) timerTextEl.textContent = '00:00';
+            if (avatarRing) avatarRing.classList.remove('is-connected');
+            if (connectTriggerWrap) connectTriggerWrap.style.display = 'block';
         }
 
         // Hangup call: terminate SIP audio & reset frame
@@ -591,6 +638,8 @@
             if (statusBadge) statusBadge.innerHTML = '<span class="text-danger fw-bold">Call Ended</span>';
             stopCallTimer();
             isCallActive = false;
+            isCallConnected = false;
+            if (avatarRing) avatarRing.classList.remove('is-connected');
 
             // Reset frame to idle dialer to instantly drop the WebRTC call
             const currentFrame = document.getElementById('ringfySoftphoneFrame');
@@ -650,7 +699,7 @@
             }
         });
 
-        // Listen for hangup events from Next2Call dialer
+        // Listen for events from Next2Call dialer
         window.addEventListener('message', function (event) {
             if (event.origin !== 'https://ringfy.next2call.com') return;
 
@@ -659,11 +708,29 @@
                 try { data = JSON.parse(data); } catch(e){}
             }
 
-            if (data === 'CALL_HANGUP' || data?.type === 'CALL_HANGUP' || data?.type === 'CLOSE_PHONE_POPUP') {
+            const msgType = data?.type || data;
+
+            // Connected / Answered events
+            if (
+                msgType === 'CALL_CONNECTED' ||
+                msgType === 'CALL_ACCEPTED' ||
+                msgType === 'CONNECTED' ||
+                msgType === 'ANSWERED' ||
+                msgType === 'accepted'
+            ) {
+                console.log('[Next2Call] Call connected event received:', msgType);
+                connectCallUI();
+                return;
+            }
+
+            // Hangup events
+            if (msgType === 'CALL_HANGUP' || msgType === 'CLOSE_PHONE_POPUP' || msgType === 'CALL_DISCONNECTED') {
                 console.log('[Next2Call] Call disconnected / hangup received');
                 isCallActive = false;
+                isCallConnected = false;
                 stopCallTimer();
-                if (statusBadge) statusBadge.innerHTML = '<span class="text-muted">Call Ended</span>';
+                if (statusBadge) statusBadge.innerHTML = '<span class="text-danger">Call Ended</span>';
+                if (avatarRing) avatarRing.classList.remove('is-connected');
                 setTimeout(() => {
                     closeSoftphoneWidget();
                 }, 800);
@@ -704,6 +771,13 @@
             currentFullNumber = num;
             callInitiatedAt = Date.now();
             isCallActive = true;
+            isCallConnected = false;
+
+            // Reset UI state to Ringing
+            stopCallTimer();
+            if (avatarRing) avatarRing.classList.remove('is-connected');
+            if (connectTriggerWrap) connectTriggerWrap.style.display = 'block';
+            if (timerTextEl) timerTextEl.textContent = 'Ringing...';
 
             // Masked display formatting for UI (e.g. +91 ******2299)
             let maskedDisplayNum = num;
@@ -729,22 +803,14 @@
             const cName = (contactName && contactName !== 'Customer') ? contactName : 'Customer';
             if (customerNameEl) customerNameEl.textContent = cName;
             if (maskedNumberEl) maskedNumberEl.textContent = maskedDisplayNum;
-            if (statusBadge) statusBadge.innerHTML = '<i class="fa fa-spinner fa-spin me-1"></i> Calling...';
+            if (statusBadge) statusBadge.innerHTML = '<i class="fa fa-spinner fa-spin me-1 text-warning"></i> Ringing...';
 
             const headerTitleEl = document.getElementById('n2cHeaderTitle');
             if (headerTitleEl) {
                 headerTitleEl.textContent = `Call: ${cName} (${maskedDisplayNum})`;
             }
 
-            // Start call timer
-            startCallTimer();
-
-            // After 3.5 seconds, advance status to Connected
-            connectSafetyTimer = setTimeout(() => {
-                if (isCallActive && statusBadge) {
-                    statusBadge.innerHTML = '<i class="fa fa-circle text-success me-1" style="font-size: 8px;"></i> Connected';
-                }
-            }, 3500);
+            // NOTE: Timer will only start when the call is actually connected/answered via connectCallUI()
 
             // Calculate target direct dial URL immediately from base CTC
             let baseCtc = ((widget?.dataset?.ctcBase) || CTC_BASE_URL || '').replace(/&amp;/g, '&');
