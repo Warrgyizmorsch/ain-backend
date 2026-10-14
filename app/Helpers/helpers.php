@@ -1027,3 +1027,39 @@ if (!function_exists('render_blog_ctas')) {
         return $content;
     }
 }
+
+if (!function_exists('normalize_blog_content_images')) {
+    /**
+     * [MK - 2026-10-14] Converts relative inline img src (e.g. blogs/blog-content-images/...)
+     * inside blog HTML content into absolute backend URLs so that external frontends
+     * (assignmentinneed.co.uk) can load images hosted on the backend server.
+     */
+    function normalize_blog_content_images(?string $content): string
+    {
+        if (empty($content) || strpos($content, '<img') === false) {
+            return (string) $content;
+        }
+
+        $configUrl = rtrim((string) config('app.url', ''), '/');
+        $baseUrl = (!empty($configUrl) && !str_contains($configUrl, '127.0.0.1') && !str_contains($configUrl, 'localhost'))
+            ? $configUrl
+            : rtrim(function_exists('request') && request()->getSchemeAndHttpHost() ? request()->getSchemeAndHttpHost() : url('/'), '/');
+
+        return preg_replace_callback('/<img([^>]+)src=["\']([^"\']+)["\']/i', function ($matches) use ($baseUrl) {
+            $attrs = $matches[1];
+            $src = $matches[2];
+            // Leave absolute URLs (http/https), protocol-relative (//), and Base64 images as-is
+            if (
+                str_starts_with($src, 'http://') ||
+                str_starts_with($src, 'https://') ||
+                str_starts_with($src, '//') ||
+                str_starts_with($src, 'data:')
+            ) {
+                return $matches[0];
+            }
+            $fullUrl = $baseUrl . '/' . ltrim($src, '/');
+            return '<img' . $attrs . 'src="' . $fullUrl . '"';
+        }, $content);
+    }
+}
+
