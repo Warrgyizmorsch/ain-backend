@@ -1181,8 +1181,55 @@ class OrderController extends Controller
 
         // Update user details only if the corresponding input fields have a value
 
+        // mk 14 10 26 - Auto-redirect to next assignment of the same client when marked as Delivered
+        $clientId = (!empty($order->uid) && is_numeric($order->uid)) ? (int) $order->uid : optional($order->user)->id;
+        $clientPhone = optional($order->user)->mobile_no ?: optional($order->lead)->mobile;
 
-        return redirect('/orders')->with(['Success' => "Order Updated", 'search' => $search]);
+        $remainingOrdersQuery = Order::where('id', '!=', $order->id)
+            ->whereNotIn('projectstatus', ['Delivered', 'Cancelled']);
+
+        if (!empty($clientId)) {
+            $remainingOrdersQuery->where('uid', $clientId);
+        } elseif (!empty($clientPhone)) {
+            $remainingOrdersQuery->whereHas('user', fn($uq) => $uq->where('mobile_no', $clientPhone));
+        } else {
+            $remainingOrdersQuery->whereRaw('1 = 0');
+        }
+
+        $remainingOrdersCount = (clone $remainingOrdersQuery)->count();
+        $nextOrder = (clone $remainingOrdersQuery)
+            ->orderByRaw("CASE WHEN projectstatus = 'Completed' THEN 1 ELSE 2 END")
+            ->orderBy('delivery_date', 'asc')
+            ->orderBy('id', 'asc')
+            ->first();
+
+        if ($req->input('status') === 'Delivered') {
+            if ($nextOrder) {
+                return redirect()->route('orders.edit', ['orderId' => $nextOrder->id])->with([
+                    'success' => "Order {$order->order_id} marked as Delivered! Redirected to next assignment: {$nextOrder->order_id} ({$remainingOrdersCount} remaining for this client).",
+                    'Success' => "Order {$order->order_id} marked as Delivered! Redirected to next assignment: {$nextOrder->order_id} ({$remainingOrdersCount} remaining for this client).",
+                ]);
+            }
+
+            $redirectUrl = !empty($clientId)
+                ? route('orders.index', ['uid' => $clientId])
+                : (!empty($clientPhone) ? route('orders.index', ['user' => $clientPhone]) : '/orders');
+
+            return redirect($redirectUrl)->with([
+                'success' => "Order {$order->order_id} marked as Delivered! All assignments for this client are now delivered.",
+                'Success' => "Order {$order->order_id} marked as Delivered! All assignments for this client are now delivered.",
+            ]);
+        }
+
+        $fallbackUrl = !empty($clientId)
+            ? route('orders.index', ['uid' => $clientId])
+            : (!empty($clientPhone) ? route('orders.index', ['user' => $clientPhone]) : '/orders');
+
+        return redirect($fallbackUrl)->with([
+            'success' => "Order Updated",
+            'Success' => "Order Updated",
+            'search' => $search,
+        ]);
     }
 
     public function search(Request $request)
