@@ -73,6 +73,8 @@ class BlogApiController extends Controller
         }
 
         if (!empty($blog->content)) {
+            // [MK - 2026-10-14] Auto-convert relative inline img src to absolute backend URLs for external frontend rendering
+            $blog->content = normalize_blog_content_images($blog->content);
             $blog->content = render_blog_ctas($blog->content);
         }
 

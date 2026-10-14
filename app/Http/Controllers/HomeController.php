@@ -1401,6 +1401,11 @@ class HomeController extends Controller
             abort(404); // Or handle the case where the blog with the given slug is not found
         }
 
+        // [MK - 2026-10-14] Auto-convert relative inline img src to absolute URL
+        if (!empty($data['blog']->content)) {
+            $data['blog']->content = normalize_blog_content_images($data['blog']->content);
+        }
+
 
         $data['title'] = $data['blog']->meta_title;
         $data['description'] = $data['blog']->meta_discribtion;
@@ -1563,6 +1568,7 @@ class HomeController extends Controller
             if (strpos($blogContent, '<img') !== false) {
                 preg_match_all('/<img[^>]+src="([^">]+)"/', $blogContent, $matches);
 
+                $imgIndex = 1;
                 foreach ($matches[1] as $imageSrc) {
                     // Check if the image source is Base64
                     if (preg_match('/^data:image\/(\w+);base64,/', $imageSrc, $base64Matches)) {
@@ -1571,7 +1577,9 @@ class HomeController extends Controller
                         $decodedImage = base64_decode($base64Data);
 
                         if ($decodedImage !== false) {
-                            $fileName = Str::slug($request->input('blogTitle'), '-') . '.' . $imageType;
+                            // [MK - 2026-10-14] Added index and timestamp suffix to filename so multiple inline images in same blog don't overwrite each other
+                            $baseSlug = Str::slug($request->input('blogTitle'), '-');
+                            $fileName = $baseSlug . '-' . time() . '-' . ($imgIndex++) . '.' . $imageType;
                             $this->saveDecodedFileToAllPaths($decodedImage, 'blogs/blog-content-images', $fileName);
 
                             // Replace the Base64 image source with the file path in the blog content
@@ -1630,6 +1638,7 @@ class HomeController extends Controller
         if (strpos($blogContent, '<img') !== false) {
             preg_match_all('/<img[^>]+src="([^">]+)"/', $blogContent, $matches);
 
+            $imgIndex = 1;
             foreach ($matches[1] as $imageSrc) {
                 // Check if the image source is Base64
                 if (preg_match('/^data:image\/(\w+);base64,/', $imageSrc, $base64Matches)) {
@@ -1638,7 +1647,9 @@ class HomeController extends Controller
                     $decodedImage = base64_decode($base64Data);
 
                     if ($decodedImage !== false) {
-                        $fileName = Str::slug($request->input('blogTitle'), '-') . '.' . $imageType;
+                        // [MK - 2026-10-14] Added index and timestamp suffix to filename so multiple inline images in same blog don't overwrite each other
+                        $baseSlug = Str::slug($request->input('blogTitle'), '-');
+                        $fileName = $baseSlug . '-' . time() . '-' . ($imgIndex++) . '.' . $imageType;
                         $this->saveDecodedFileToAllPaths($decodedImage, 'blogs/blog-content-images', $fileName);
 
                         // Replace the Base64 image source with the file path in the blog content
