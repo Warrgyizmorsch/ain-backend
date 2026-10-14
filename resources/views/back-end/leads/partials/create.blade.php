@@ -81,7 +81,7 @@
                                     </div>
                                     <div id="mobile_user_result"
                                         class="bg-white border rounded shadow-sm position-absolute w-100"
-                                        style="display:none; z-index:9999; max-height:220px; overflow-y:auto;">
+                                        style="display:none; z-index:9999; max-height:220px; overflow-y:auto; top:100%; left:0;">
                                     </div>
                                 </div>
                             </div>
