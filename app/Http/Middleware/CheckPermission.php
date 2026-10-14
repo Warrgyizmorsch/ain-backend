@@ -35,7 +35,8 @@ class CheckPermission
             'lead', 'leads', 'checklead', 'convertleads', 'convert-lead',
             'cancel-lead', 'restore-lead', 'delete-lead', 'duplicate-lead',
             'duplicate-leads', 'leads-tracking-data', 'search-refer-users',
-            'next-lead', 'followups', 'next-followups', 'prime-leads', 'smart-leads'
+            'next-lead', 'followups', 'next-followups', 'prime-leads', 'smart-leads',
+            'userData' // mk 14 10 26 - Allow customer lookup for new lead creation
         ],
         'c-leads' => [
             'c-leads', 'cancel-leads'
@@ -181,6 +182,7 @@ class CheckPermission
             'user.update-time',
             'dashboard.conversion.ratio.data',
             'logout',
+            'userData', // mk 14 10 26 - Customer mobile/email lookup for lead creation
         ];
 
         if ($currentRoute && in_array($currentRoute, $bypassRoutes, true)) {
@@ -198,6 +200,7 @@ class CheckPermission
             'update-working-time',
             'admin/login-otp-notifications',
             'dashboard/conversion-ratio-data',
+            'userData', // mk 14 10 26 - Customer mobile/email lookup for lead creation
         ];
 
         foreach ($bypassPaths as $bp) {
