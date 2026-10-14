@@ -745,6 +745,17 @@ class LeadsController extends Controller
         $user = null;
         if ($request->filled('id')) {
             $user = User::where('id', $request->input('id'))->first();
+            // mk 14 10 26 - If existing user is selected from suggestion, preserve their full real mobile number & country code
+            if ($user && !empty($user->mobile_no)) {
+                $userClean = preg_replace('/\D+/', '', (string) $user->mobile_no);
+                if (strlen($userClean) >= strlen($cleanMobile) || strlen($cleanMobile) < 10) {
+                    $cleanMobile = $userClean;
+                }
+                if (!empty($user->countrycode)) {
+                    $countryCode = preg_replace('/\D+/', '', (string) $user->countrycode) ?: $countryCode;
+                }
+                $fullPhone = $countryCode . $cleanMobile;
+            }
         }
 
         if (! $user && ! empty($cleanMobile)) {
@@ -754,6 +765,24 @@ class LeadsController extends Controller
                 ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile_no, '')) = ?", [$cleanMobile])
                 ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile_no, '')) = ?", [$fullPhone])
                 ->first();
+
+            // mk 14 10 26 - Fallback: If cleanMobile is fewer than 7 digits (e.g. truncated tail like 049092), find matching existing user
+            if (!$user && strlen($cleanMobile) < 7 && strlen($cleanMobile) >= 4) {
+                $user = User::where('mobile_no', 'like', '%' . $cleanMobile)
+                    ->orWhere('mobile_no2', 'like', '%' . $cleanMobile)
+                    ->first();
+            }
+
+            if ($user && !empty($user->mobile_no)) {
+                $userClean = preg_replace('/\D+/', '', (string) $user->mobile_no);
+                if (strlen($userClean) >= strlen($cleanMobile)) {
+                    $cleanMobile = $userClean;
+                }
+                if (!empty($user->countrycode)) {
+                    $countryCode = preg_replace('/\D+/', '', (string) $user->countrycode) ?: $countryCode;
+                }
+                $fullPhone = $countryCode . $cleanMobile;
+            }
         }
 
         $rawEmail = (string) ($request->input('email_real') ?: $request->input('email'));
@@ -910,7 +939,10 @@ class LeadsController extends Controller
             $leads->user_name = $request->input('user_name') ?: ($user->name ?? null);
             $rawLeadEmail = (string) $request->input('email');
             $leads->email = ($request->filled('email') && strpos($rawLeadEmail, '*') === false) ? $rawLeadEmail : ($user->email ?? null);
-            $leads->mobile = (! empty($cleanMobile) && strpos($rawMobile, '*') === false) ? $cleanMobile : ($user->mobile_no ?? null);
+            // mk 14 10 26 - Prioritize full mobile from existing user if input is truncated or masked
+            $leads->mobile = (!empty($user) && !empty($user->mobile_no) && (strlen(preg_replace('/\D+/', '', (string) $user->mobile_no)) > strlen($cleanMobile) || strlen($cleanMobile) < 10))
+                ? $user->mobile_no
+                : ((! empty($cleanMobile) && strpos($rawMobile, '*') === false) ? $cleanMobile : ($user->mobile_no ?? null));
             $leads->countrycode = (! empty($countryCode) ? $countryCode : ($user->countrycode ?? '44'));
 
             $leads->project_title = $curTitle ?: 'WhatsApp Lead';

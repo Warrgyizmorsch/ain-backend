@@ -80,7 +80,21 @@ class CheckPermission
         ],
         'sample' => [
             'sample', 'samples', 'create_sample', 'submit_sample', 'free-sample',
-            'free-sample-write', 'free-samples-type', 'sample-category', 'sample-type'
+            'free-sample-write', 'free-samples-type', 'sample-category', 'sample-type',
+            'update', 'free-samples.update', 'services', 'services.update', 'services.store',
+            'deletesample', 'sample.destroy', 'sample.edit', 'sample_list' // mk 14 10 26 - sample edit, update, delete permissions
+        ],
+        'samples' => [
+            'sample', 'samples', 'create_sample', 'submit_sample', 'free-sample',
+            'free-sample-write', 'free-samples-type', 'sample-category', 'sample-type',
+            'update', 'free-samples.update', 'services', 'services.update', 'services.store',
+            'deletesample', 'sample.destroy', 'sample.edit', 'sample_list' // mk 14 10 26 - sample edit, update, delete permissions
+        ],
+        'sample_list' => [
+            'sample', 'samples', 'create_sample', 'submit_sample', 'free-sample',
+            'free-sample-write', 'free-samples-type', 'sample-category', 'sample-type',
+            'update', 'free-samples.update', 'services', 'services.update', 'services.store',
+            'deletesample', 'sample.destroy', 'sample.edit', 'sample_list' // mk 14 10 26 - sample edit, update, delete permissions
         ],
         'whatsapp' => [
             'whatsapp', 'webhooks/whatsapp'
@@ -137,6 +151,9 @@ class CheckPermission
         'whatsapp' => ['whatsapp'],
         'emails' => ['emails', 'email'],
         'spreadsheets' => ['spreadsheets', 'spreadsheet'],
+        'sample' => ['samples', 'sample_list'], // mk 14 10 26 - sample aliases
+        'samples' => ['sample', 'sample_list'],
+        'sample_list' => ['sample', 'samples'],
     ];
 
     public function handle($request, Closure $next)
@@ -272,7 +289,10 @@ class CheckPermission
             $candClean = trim($cand, '/');
             if ($candClean === '') continue;
 
-            $pathPattern = '#^' . preg_quote($candClean, '#') . '(/|\?|$)#i';
+            // Handle standard segment boundaries or update{id} where id is concatenated directly without slash
+            $pathPattern = ($candClean === 'update')
+                ? '#^update(\d+|/|\?|$)#i'
+                : '#^' . preg_quote($candClean, '#') . '(/|\?|$)#i';
             $routeClean = str_replace('/', '.', $candClean);
             $routePattern = '#^' . preg_quote($routeClean, '#') . '(\.|$|/)#i';
 
