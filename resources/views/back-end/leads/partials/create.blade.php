@@ -709,10 +709,16 @@ $(document).ready(function () {
                 $('#mobile').val(user.mobile_no);
             }
         } else {
-            let cleanUserMobile = user.raw_mobile || String(user.mobile_no || '').replace(/\D/g, '');
-            rawDigitsBuffer = cleanUserMobile;
-            $('#mobile_real').val(cleanUserMobile);
-            let maskedMob = user.masked_mobile || maskDigits(cleanUserMobile);
+            // mk 14 10 26 - Do not truncate raw mobile if buffer already contains full number or user has masked mobile
+            let cleanUserMobile = user.raw_mobile || '';
+            if (!cleanUserMobile && rawDigitsBuffer && rawDigitsBuffer.length >= 10) {
+                cleanUserMobile = rawDigitsBuffer;
+            }
+            if (cleanUserMobile) {
+                rawDigitsBuffer = cleanUserMobile;
+                $('#mobile_real').val(cleanUserMobile);
+            }
+            let maskedMob = user.masked_mobile || maskDigits(cleanUserMobile || user.mobile_no);
             $('#mobile').val(maskedMob);
 
             $('#email_real').val(user.email || '');
@@ -997,7 +1003,8 @@ $(document).ready(function () {
                 }
             }
 
-            if (!realMobile || realMobile.length < 5) {
+            const isExistingSelected = ($('input[name="id"]').val() !== '' && $('input[name="id"]').val() !== '0');
+            if (!isExistingSelected && (!realMobile || realMobile.length < 5)) {
                 e.preventDefault();
                 alert('Please enter a valid mobile number.');
                 return false;
