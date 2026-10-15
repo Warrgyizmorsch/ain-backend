@@ -934,17 +934,15 @@ class OrderController extends Controller
                 $order->status_date = Carbon::now('Asia/Kolkata');
                 $order->status_by   = auth()->user()->name;
 
-                $resolvedEmail = (strpos($req->input('email', ''), '*') === false && $req->filled('email'))
-                    ? $req->input('email')
-                    : optional($order->user)->email;
+                $resolvedEmail = $this->resolveCustomerOrderEmail($order, $req->input('email'));
 
                 $orderData = [
-                    'name' => $req->input('user_name'),
+                    'name' => $req->input('user_name') ?: optional($order->user)->name,
                     'email' => $resolvedEmail,
-                    'title' => $req->input('title'),
+                    'title' => $req->input('title') ?: $order->title,
                     'order_code' => $order->order_id,
                     'date'     => $order->delivery_date,
-                    'due'     => $req->input('amount') - $req->input('r_amount'),
+                    'due'     => $this->dueAmount($order),
                 ];
                 $this->sendOrderCompleteEmail($orderData);
             } elseif ($req->input('status') == 'Delivered') {
@@ -1058,17 +1056,15 @@ class OrderController extends Controller
                 $order->status_date = Carbon::now('Asia/Kolkata');
                 $order->status_by   = auth()->user()->name;
 
-                $resolvedEmail = (strpos($req->input('email', ''), '*') === false && $req->filled('email'))
-                    ? $req->input('email')
-                    : optional($order->user)->email;
+                $resolvedEmail = $this->resolveCustomerOrderEmail($order, $req->input('email'));
 
                 $orderData = [
-                    'name' => $req->input('user_name'),
+                    'name' => $req->input('user_name') ?: optional($order->user)->name,
                     'email' => $resolvedEmail,
-                    'title' => $req->input('title'),
+                    'title' => $req->input('title') ?: $order->title,
                     'order_code' => $order->order_id,
                     'date'     => $order->delivery_date,
-                    'due'     => $req->input('amount') - $req->input('r_amount'),
+                    'due'     => $this->dueAmount($order),
                 ];
                 $this->sendOrderCompleteEmail($orderData);
             } elseif ($req->input('status') == 'Delivered') {
@@ -3535,12 +3531,10 @@ class OrderController extends Controller
             $mailError = null;
 
             if ($statusName->status == 'Completed') {
-                $resolvedEmail = (strpos($userDetails->email ?? '', '*') === false && !empty($userDetails->email))
-                    ? $userDetails->email
-                    : optional($order->user)->email;
+                $resolvedEmail = $this->resolveCustomerOrderEmail($order, $userDetails->email ?? null);
 
                 $orderData = [
-                    'name' => $userDetails->name,
+                    'name' => $userDetails->name ?? 'Customer',
                     'email' => $resolvedEmail,
                     'title' => $order->title,
                     'order_code' => $order->order_id,
@@ -6723,6 +6717,64 @@ public function myRevokePayments(Request $request)
     }
 
     /**
+     * Resolve genuine customer email for order communications.
+     * Prioritizes non-dummy/unmasked email from form input, linked user, or linked lead.
+     */
+    protected function resolveCustomerOrderEmail(Order $order, ?string $inputEmail = null): ?string
+    {
+        $candidates = [];
+
+        if (!empty($inputEmail)) {
+            $candidates[] = trim($inputEmail);
+        }
+
+        if ($order->relationLoaded('user') && $order->user) {
+            $candidates[] = trim($order->user->email ?? '');
+        } elseif (!empty($order->uid)) {
+            $user = User::find($order->uid);
+            if ($user && !empty($user->email)) {
+                $candidates[] = trim($user->email);
+            }
+        }
+
+        // Check linked lead if user email is dummy, masked, or missing
+        if (!empty($order->lead_id)) {
+            $lead = Leads::find($order->lead_id);
+            if ($lead && !empty($lead->email)) {
+                $candidates[] = trim($lead->email);
+            }
+        }
+        $leadByOrder = Leads::where('order_id', $order->order_id)->first();
+        if ($leadByOrder && !empty($leadByOrder->email)) {
+            $candidates[] = trim($leadByOrder->email);
+        }
+
+        // Tier 1: Look for genuine, valid, non-dummy customer email
+        foreach ($candidates as $email) {
+            if (empty($email)) continue;
+            if (str_contains($email, '*')) continue;
+            if (function_exists('is_company_email') && is_company_email($email)) continue;
+            if (function_exists('is_dummy_customer_email') && is_dummy_customer_email($email)) continue;
+            if (preg_match('/^user\d{5,15}@gmail\.com$/i', $email)) continue;
+            if (filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                return $email;
+            }
+        }
+
+        // Tier 2: Fallback if only generated dummy email is present (non-company, non-masked)
+        foreach ($candidates as $email) {
+            if (empty($email)) continue;
+            if (str_contains($email, '*')) continue;
+            if (function_exists('is_company_email') && is_company_email($email)) continue;
+            if (filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                return $email;
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Send order completion email via Client Email account (order@assignnmentinneed.com)
      * so it is dispatched properly and preserved in the CRM Sent mail folder.
      */
@@ -6739,30 +6791,31 @@ public function myRevokePayments(Request $request)
 
         $orderCode = $orderData['order_code'] ?? '';
         $subject = 'Your Assignment is Ready - ' . $orderCode;
+        $companyOrderEmail = 'order@assignnmentinneed.com';
 
         try {
             $bodyHtml = view('mailordercomplete', ['OrderData' => $orderData])->render();
-            $clientAccountId = function_exists('crm_email_account_id') ? crm_email_account_id('client') : 2;
+            $clientAccountId = function_exists('crm_email_account_id') ? crm_email_account_id('client') : 3;
 
             app(EmailService::class)->sendEmail([
                 'account_id' => $clientAccountId,
                 'to'         => $recipient,
                 'to_name'    => $orderData['name'] ?? null,
-                'cc'         => 'order@assignnmentinneed.com',
+                'cc'         => $companyOrderEmail,
                 'subject'    => $subject,
                 'body_html'  => $bodyHtml,
             ]);
 
-            Log::info("OrderComplete mail sent via EmailService for {$orderCode} to {$recipient}");
+            Log::info("OrderComplete mail sent via EmailService for {$orderCode} to {$recipient} (CC: {$companyOrderEmail})");
             return true;
         } catch (\Throwable $e) {
             Log::error("OrderComplete mail via EmailService failed for {$orderCode}: " . $e->getMessage());
 
             try {
                 Mail::to($recipient)
-                    ->cc('order@assignnmentinneed.com')
+                    ->cc($companyOrderEmail)
                     ->send(new OrderComplete($orderData));
-                Log::info("OrderComplete mail sent via fallback Mail for {$orderCode}");
+                Log::info("OrderComplete mail sent via fallback Mail for {$orderCode} (CC: {$companyOrderEmail})");
                 return true;
             } catch (\Throwable $fallbackEx) {
                 Log::error("OrderComplete fallback mail also failed for {$orderCode}: " . $fallbackEx->getMessage());

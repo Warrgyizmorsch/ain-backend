@@ -180,7 +180,7 @@ class NextLeadController extends Controller
         // If customer does NOT exist in users table, create a NEW USER (like normal lead flow)
         if (empty($userId)) {
             $newUser = new User();
-            $newUser->email = !empty($nextLead->email) ? $nextLead->email : ('user' . preg_replace('/\D/', '', $nextLead->mobile) . '@gmail.com');
+            $newUser->email = !empty($nextLead->email) ? $nextLead->email : generate_customer_dummy_email($nextLead->mobile);
             $newUser->mobile_no = $nextLead->mobile;
             $newUser->name = !empty($nextLead->user_name) ? $nextLead->user_name : ('user' . preg_replace('/\D/', '', $nextLead->mobile));
             $newUser->countrycode = $nextLead->countrycode ?: '+44';
