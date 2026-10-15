@@ -786,11 +786,12 @@ class LeadsController extends Controller
         }
 
         $rawEmail = (string) ($request->input('email_real') ?: $request->input('email'));
-        $hasRealEmail = ! empty($rawEmail) && strpos($rawEmail, '*') === false && filter_var($rawEmail, FILTER_VALIDATE_EMAIL);
+        $hasRealEmail = ! empty($rawEmail) && strpos($rawEmail, '*') === false && filter_var($rawEmail, FILTER_VALIDATE_EMAIL) && !is_company_email($rawEmail);
 
-        // Auto-heal real email from recent whatsapp messages if masked or missing
+        // Auto-heal real email from recent inbound whatsapp messages if masked or missing
         if (! $hasRealEmail && ! empty($cleanMobile)) {
             $recentMessages = DB::table('whatsapp_messages')
+                ->where('direction', 'inbound')
                 ->where(function ($q) use ($cleanMobile, $fullPhone) {
                     $q->where('phone', 'like', "%{$cleanMobile}%");
                     if (! empty($fullPhone)) {
@@ -804,7 +805,7 @@ class LeadsController extends Controller
             foreach ($recentMessages as $msg) {
                 if (! empty($msg) && preg_match('/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/', $msg, $m)) {
                     $candidateEmail = strtolower($m[0]);
-                    if (filter_var($candidateEmail, FILTER_VALIDATE_EMAIL)) {
+                    if (filter_var($candidateEmail, FILTER_VALIDATE_EMAIL) && !is_company_email($candidateEmail)) {
                         $rawEmail = $candidateEmail;
                         $hasRealEmail = true;
                         break;
@@ -833,7 +834,7 @@ class LeadsController extends Controller
 
             if (! $user) {
                 $user = new User;
-                $user->email = $hasRealEmail ? $rawEmail : ('user'.$cleanMobile.'@gmail.com');
+                $user->email = $hasRealEmail ? $rawEmail : generate_customer_dummy_email($cleanMobile);
                 $user->mobile_no = $cleanMobile;
                 $user->name = $request->input('user_name') ?: ('user'.$cleanMobile);
                 $user->countrycode = $countryCode ?: '44';
@@ -847,6 +848,8 @@ class LeadsController extends Controller
         if ($user) {
             if ($hasRealEmail) {
                 $user->email = $rawEmail;
+            } elseif (empty($user->email) || is_company_email($user->email)) {
+                $user->email = generate_customer_dummy_email($cleanMobile ?: $user->mobile_no, $user->id);
             }
             if ($request->filled('user_name')) {
                 $user->name = $request->input('user_name');
@@ -938,7 +941,12 @@ class LeadsController extends Controller
             $leads->emp_id = $userId;
             $leads->user_name = $request->input('user_name') ?: ($user->name ?? null);
             $rawLeadEmail = (string) $request->input('email');
-            $leads->email = ($request->filled('email') && strpos($rawLeadEmail, '*') === false) ? $rawLeadEmail : ($user->email ?? null);
+            $leadEmailCandidate = ($request->filled('email') && strpos($rawLeadEmail, '*') === false && !is_company_email($rawLeadEmail))
+                ? $rawLeadEmail
+                : ($user->email ?? null);
+            $leads->email = (!empty($leadEmailCandidate) && !is_company_email($leadEmailCandidate))
+                ? $leadEmailCandidate
+                : generate_customer_dummy_email($cleanMobile ?: ($user->mobile_no ?? null), $userId);
             // mk 14 10 26 - Prioritize full mobile from existing user if input is truncated or masked
             $leads->mobile = (!empty($user) && !empty($user->mobile_no) && (strlen(preg_replace('/\D+/', '', (string) $user->mobile_no)) > strlen($cleanMobile) || strlen($cleanMobile) < 10))
                 ? $user->mobile_no
