@@ -62,7 +62,8 @@ class FixCustomerOrderEmails extends Command
             $conflict = User::where('email', $newEmail)->where('id', '!=', $user->id)->exists();
             if ($conflict) {
                 $cleanMobile = preg_replace('/\D+/', '', (string) $user->mobile_no);
-                $newEmail = 'user' . ($cleanMobile ?: 'id') . '_' . $user->id . '@gmail.com';
+                $last5 = strlen($cleanMobile) >= 5 ? substr($cleanMobile, -5) : $cleanMobile;
+                $newEmail = 'user' . ($last5 ?: 'id') . '_' . $user->id . '@gmail.com';
             }
 
             $affectedUsersCount++;
