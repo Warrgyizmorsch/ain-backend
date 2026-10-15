@@ -61,6 +61,13 @@
                         <small class="text-muted fs-7 fw-bold my-1 ms-1">Let's Learn Together</small>
                     </div>
                     <div class="d-flex align-items-center py-1">
+                        <span class="badge badge-light-primary fw-bolder fs-7 px-4 py-3 border border-primary border-dashed me-3 d-inline-flex align-items-center shadow-sm">
+                            <i class="fa fa-file-text-o text-primary fs-6 me-2"></i>
+                            Total Samples:&nbsp;<span class="text-dark fw-boldest fs-6">{{ count($data['samples']) }}</span>
+                            @if(request()->filled('title') || request()->filled('category'))
+                                <span class="text-muted fs-8 ms-1">(&nbsp;of {{ $data['total_samples'] ?? count($data['samples']) }}&nbsp;)</span>
+                            @endif
+                        </span>
                         <a href="#" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#kt_modal_create_app" id="kt_toolbar_primary_button">Create</a>
                     </div>
                 </div>
@@ -70,8 +77,8 @@
 					<div class="card card-xl-stretch mb-5 mb-xl-8">
 						<div class="card-header border-0 pt-5">
 							<h3 class="card-title align-items-start flex-column">
-								<span class="card-label fw-bolder fs-3 mb-1">All User</span>
-								<span class="text-muted mt-1 fw-bold fs-7"></span>
+								<span class="card-label fw-bolder fs-3 mb-1">All Samples</span>
+								<span class="text-muted mt-1 fw-bold fs-7">Total {{ count($data['samples']) }} samples found</span>
 							</h3>
 						</div>
 						<div class="card-body py-3">

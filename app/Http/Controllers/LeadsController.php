@@ -1671,7 +1671,7 @@ class LeadsController extends Controller
 
             if (! $user) {
                 $user = new User;
-                $user->email = $request->input('email') ?: 'user'.$request->input('mobile').'@gmail.com';
+                $user->email = $request->input('email') ?: generate_customer_dummy_email($request->input('mobile'));
                 $user->mobile_no = $request->input('mobile');
                 $user->name = $request->input('user_name') ?: 'user'.$request->input('mobile');
                 $user->countrycode = $request->input('countrycode');
@@ -1877,7 +1877,7 @@ class LeadsController extends Controller
 
             if (! $user) {
                 $user = new User;
-                $user->email = $request->input('email') ?: 'user'.$request->input('mobile').'@gmail.com';
+                $user->email = $request->input('email') ?: generate_customer_dummy_email($request->input('mobile'));
                 $user->mobile_no = $request->input('mobile');
                 $user->name = 'user'.$request->input('mobile');
                 $user->countrycode = $request->input('countrycode');

@@ -397,9 +397,7 @@ class SampleController extends Controller
             });
         }
         $data['samples'] = $query->get();
-
-
-        // echo '<pre>'; print_r($data); exit;
+        $data['total_samples'] = Sample::count();
 
         return view('sample.sample-list', compact('data'));
     }

@@ -469,7 +469,7 @@ if (!function_exists('crm_email_account_id')) {
     {
         $channel = strtolower(trim($channel));
         $isClient = $channel === 'client';
-        $fallbackId = $isClient ? 2 : 1;
+        $fallbackId = $isClient ? 3 : 2;
         $emailAddress = $isClient
             ? 'order@assignnmentinneed.com'
             : 'assignmentinneedhelp@gmail.com';
@@ -1105,19 +1105,39 @@ if (!function_exists('is_company_email')) {
 
 if (!function_exists('generate_customer_dummy_email')) {
     /**
-     * Generate fallback customer email in user{mobile}@gmail.com format.
+     * Generate fallback customer email in user{last 5 digits of mobile}@gmail.com format.
      */
     function generate_customer_dummy_email(?string $mobile, ?int $userId = null): string
     {
         $cleanMobile = preg_replace('/\D+/', '', (string) $mobile);
-        if (!empty($cleanMobile) && strlen($cleanMobile) >= 7) {
-            return 'user' . $cleanMobile . '@gmail.com';
+        if (!empty($cleanMobile) && strlen($cleanMobile) >= 5) {
+            $last5 = substr($cleanMobile, -5);
+            return 'user' . $last5 . '@gmail.com';
         }
         if (!empty($userId)) {
-            return 'user' . $userId . '@gmail.com';
+            $idStr = (string) $userId;
+            $last5 = strlen($idStr) >= 5 ? substr($idStr, -5) : str_pad($idStr, 5, '0', STR_PAD_LEFT);
+            return 'user' . $last5 . '@gmail.com';
         }
-        return 'user' . (!empty($cleanMobile) ? $cleanMobile : time()) . '@gmail.com';
+        $fallback = !empty($cleanMobile) ? $cleanMobile : substr((string) time(), -5);
+        $last5 = strlen($fallback) >= 5 ? substr($fallback, -5) : str_pad($fallback, 5, '0', STR_PAD_LEFT);
+        return 'user' . $last5 . '@gmail.com';
     }
 }
+
+if (!function_exists('is_dummy_customer_email')) {
+    /**
+     * Check if the email is a generated system fallback/dummy email.
+     */
+    function is_dummy_customer_email(?string $email): bool
+    {
+        if (empty($email)) {
+            return true;
+        }
+        $email = strtolower(trim($email));
+        return (bool) preg_match('/^user\d{5,15}@gmail\.com$/i', $email);
+    }
+}
+
 
 
