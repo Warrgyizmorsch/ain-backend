@@ -549,22 +549,29 @@ class WhatsappController extends Controller
         }
 
         $rawEmail = (string) ($request->input('email_real') ?: $request->input('email'));
+        if (is_company_email($rawEmail)) {
+            $rawEmail = '';
+        }
 
-        // Auto-heal email if masked string with '*' was received
+        // Auto-heal email if masked string with '*' was received or missing
         if (str_contains($rawEmail, '*') || empty($rawEmail)) {
             $returnPhone = (string) $request->input('return_phone');
             if (! empty($returnPhone)) {
                 $recentMsg = WhatsappMessage::whereIn('phone', $this->getPhoneVariants($returnPhone))
+                    ->where('direction', 'inbound')
                     ->whereRaw("message REGEXP '[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}'")
                     ->latest('id')
                     ->value('message');
                 if ($recentMsg && preg_match('/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/', $recentMsg, $m)) {
-                    $rawEmail = $m[0];
+                    $candidateEmail = strtolower($m[0]);
+                    if (!is_company_email($candidateEmail)) {
+                        $rawEmail = $candidateEmail;
+                    }
                 }
             }
         }
 
-        $hasRealEmail = ! empty($rawEmail) && strpos($rawEmail, '*') === false && filter_var($rawEmail, FILTER_VALIDATE_EMAIL);
+        $hasRealEmail = ! empty($rawEmail) && strpos($rawEmail, '*') === false && filter_var($rawEmail, FILTER_VALIDATE_EMAIL) && !is_company_email($rawEmail);
 
         if (! $user) {
             if ($hasRealEmail) {
@@ -580,7 +587,7 @@ class WhatsappController extends Controller
 
             if (! $user) {
                 $user = new User;
-                $user->email = $hasRealEmail ? $rawEmail : ('user'.$mobile.'@gmail.com');
+                $user->email = $hasRealEmail ? $rawEmail : generate_customer_dummy_email($mobile);
                 $user->mobile_no = $mobile;
                 $user->name = $request->input('user_name') ?: ('WhatsApp User '.$mobile);
                 $user->countrycode = $countrycode ?: '44';
@@ -592,6 +599,8 @@ class WhatsappController extends Controller
         } else {
             if ($hasRealEmail) {
                 $user->email = $rawEmail;
+            } elseif (empty($user->email) || is_company_email($user->email)) {
+                $user->email = generate_customer_dummy_email($mobile ?: $user->mobile_no, $user->id);
             }
             if ($request->filled('user_name')) {
                 $user->name = $request->input('user_name');
@@ -619,7 +628,9 @@ class WhatsappController extends Controller
         $lead->user_name = $user->name;
         $lead->mobile = $mobile;
         $lead->countrycode = $countrycode;
-        $lead->email = $user->email;
+        $lead->email = (!empty($user->email) && !is_company_email($user->email))
+            ? $user->email
+            : generate_customer_dummy_email($mobile, $userId);
         $lead->project_title = $request->input('project_title') ?: 'WhatsApp Chat Inquiry';
         $lead->module_code = $request->input('module_code');
         $lead->pages = is_numeric($request->input('pages')) ? $request->input('pages') : 0;
