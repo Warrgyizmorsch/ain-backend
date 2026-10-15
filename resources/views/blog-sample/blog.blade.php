@@ -117,7 +117,17 @@
                         <!-- Buttons -->
                         <button type="button" class="btn btn-success mt-2 add-faq">+ Add FAQ</button>
                         <input type="hidden" name="faq_data" id="faq_data">
-                        <button type="submit" class="btn btn-primary">Submit</button>
+
+                        <div class="card mt-6">
+                            <div class="card-body d-flex justify-content-between align-items-center">
+                                <label class="form-check form-switch form-check-custom form-check-solid">
+                                    <input type="hidden" name="is_published" value="0">
+                                    <input class="form-check-input" type="checkbox" name="is_published" value="1" @checked(old('is_published', 1))>
+                                    <span class="form-check-label fw-bold">Publish on frontend</span>
+                                </label>
+                                <button type="submit" class="btn btn-primary px-10">Save Blog</button>
+                            </div>
+                        </div>
                     </form>
                 </div>
             </div>
