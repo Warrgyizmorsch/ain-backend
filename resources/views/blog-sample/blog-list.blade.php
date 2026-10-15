@@ -81,7 +81,8 @@
 											
 											<th class="min-w-150px">Thumbnail</th>
 											<th class="min-w-140px">Title</th>
-											<th class="min-w-140px">type</th>
+											<th class="min-w-100px">Type</th>
+											<th class="min-w-100px">Status</th>
 											<th class="min-w-140px">Create at</th>
 											<th class="min-w-100px text-end">Actions</th>
 										</tr>
@@ -102,6 +103,13 @@
 											</td>
 												<td>
 												<a href="#" class="text-dark fw-bolder text-hover-primary d-block fs-6">{{$blog->type}}</a>
+											</td>
+											<td>
+												@if(($blog->is_published ?? 1) == 1)
+													<span class="badge badge-light-success fw-bolder">Published</span>
+												@else
+													<span class="badge badge-light-warning fw-bolder">Draft</span>
+												@endif
 											</td>
 											<td class="text-end">
 												<div class="d-flex flex-column w-100 me-2">
