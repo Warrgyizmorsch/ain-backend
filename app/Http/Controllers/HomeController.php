@@ -1394,10 +1394,10 @@ class HomeController extends Controller
         // $data['blog'] = Blog::find($id);
 
         $data['blog'] = Blog::where('slug', $slug)->first();
-        $data['recent_post'] = Blog::where('type', 'blog')->latest()->take(5)->get();
+        $data['recent_post'] = Blog::where('type', 'blog')->where('is_published', true)->latest()->take(5)->get();
 
-        // Check if the blog exists
-        if (!$data['blog']) {
+        // Check if the blog exists and is published
+        if (!$data['blog'] || !$data['blog']->is_published) {
             abort(404); // Or handle the case where the blog with the given slug is not found
         }
 
@@ -1599,6 +1599,7 @@ class HomeController extends Controller
             $blog->meta_title = $request['MetaTag'];
             $blog->meta_discribtion = $request['Metadescription'];
             $blog->author_id = $request['author_id'];
+            $blog->is_published = $request->boolean('is_published', true) ? 1 : 0;
 
             // Handle main photo upload
             if ($request->hasFile('photo')) {
@@ -1668,6 +1669,7 @@ class HomeController extends Controller
         $blog->meta_title = $request->input('MetaTag');
         $blog->meta_discribtion = $request->input('Metadescription');
         $blog->author_id = $request->input('author_id');
+        $blog->is_published = $request->boolean('is_published') ? 1 : 0;
 
         // Handle main photo upload if provided
         if ($request->hasFile('photo')) {
