@@ -1063,3 +1063,61 @@ if (!function_exists('normalize_blog_content_images')) {
     }
 }
 
+if (!function_exists('is_company_email')) {
+    /**
+     * Check if an email belongs to the internal company/system domains or official mailboxes
+     * so it is never assigned to a customer/lead account.
+     */
+    function is_company_email(?string $email): bool
+    {
+        if (empty($email)) {
+            return false;
+        }
+        $email = strtolower(trim($email));
+        $exactBlacklist = [
+            'order@assignnmentinneed.com',
+            'order@assignmentinneed.com',
+            'assignmentinneedhelp@gmail.com',
+            'admin@gmail.com',
+            'marketing@gmail.com',
+        ];
+        if (in_array($email, $exactBlacklist, true)) {
+            return true;
+        }
+
+        $domain = substr(strrchr($email, '@'), 1);
+        if ($domain) {
+            $companyDomains = [
+                'assignnmentinneed.com',
+                'assignmentinneed.com',
+                'assignnmentinneed.co.uk',
+                'assignmentinneed.co.uk',
+            ];
+            foreach ($companyDomains as $cd) {
+                if ($domain === $cd || str_ends_with($domain, '.' . $cd)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+}
+
+if (!function_exists('generate_customer_dummy_email')) {
+    /**
+     * Generate fallback customer email in user{mobile}@gmail.com format.
+     */
+    function generate_customer_dummy_email(?string $mobile, ?int $userId = null): string
+    {
+        $cleanMobile = preg_replace('/\D+/', '', (string) $mobile);
+        if (!empty($cleanMobile) && strlen($cleanMobile) >= 7) {
+            return 'user' . $cleanMobile . '@gmail.com';
+        }
+        if (!empty($userId)) {
+            return 'user' . $userId . '@gmail.com';
+        }
+        return 'user' . (!empty($cleanMobile) ? $cleanMobile : time()) . '@gmail.com';
+    }
+}
+
+
