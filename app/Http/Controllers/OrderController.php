@@ -24,6 +24,7 @@ use App\Models\Leads;
 use App\Models\Ordercall;
 use App\Models\ProjectStatusCount;
 use App\Models\FollowUpComment;
+use App\Models\PeerContactLog;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Collection;
@@ -6987,12 +6988,40 @@ public function myRevokePayments(Request $request)
 
                 $orderDate = $pOrder->order_date ? Carbon::parse($pOrder->order_date) : ($pOrder->created_at ? Carbon::parse($pOrder->created_at) : null);
                 $monthsAgo = $orderDate ? $orderDate->diffInMonths($now) : 0;
-                $inTargetWindow = ($monthsAgo >= 3 && $monthsAgo <= 12);
+                $inTargetWindow = ($monthsAgo >= 2 && $monthsAgo <= 12);
 
                 if (!isset($peersGrouped[$key])) {
                     $latestOrder = $peerUid ? Order::where('uid', $peerUid)->orderByDesc('id')->first() : $pOrder;
 
+                    $peerIdentifier = $peerUid ? 'u_'.$peerUid : ($peerDigits ? 'p_'.$peerDigits : 'e_'.md5($peerEmail));
+                    $isContacted = false;
+                    $contactedDateFormatted = null;
+
+                    if (Schema::hasTable('peer_contact_logs')) {
+                        $contactLog = PeerContactLog::where(function ($q) use ($peerIdentifier, $peerUid, $peerDigits) {
+                                $q->where('peer_identifier', $peerIdentifier);
+                                if ($peerUid) {
+                                    $q->orWhere('peer_user_id', $peerUid);
+                                }
+                                if ($peerDigits) {
+                                    $q->orWhere('peer_phone', 'like', "%{$peerDigits}%");
+                                }
+                            })
+                            ->where('is_contacted', true)
+                            ->where('contacted_at', '>=', Carbon::now()->subMonths(2))
+                            ->latest('contacted_at')
+                            ->first();
+
+                        if ($contactLog) {
+                            $isContacted = true;
+                            $contactedDateFormatted = Carbon::parse($contactLog->contacted_at)->format('d M Y');
+                        }
+                    }
+
                     $peersGrouped[$key] = [
+                        'peer_identifier' => $peerIdentifier,
+                        'is_contacted' => $isContacted,
+                        'contacted_date_formatted' => $contactedDateFormatted,
                         'peer_user_id' => $peerUid,
                         'peer_name' => $peerUser?->name ?: ($pOrder->lead?->user_name ?: 'Customer'),
                         'peer_email' => $peerEmail,
@@ -7014,15 +7043,15 @@ public function myRevokePayments(Request $request)
                 }
             }
 
-            // Sort peers: prioritize those in 3-12 months window
+            // Sort peers: prioritize those in 2-12 months window
             $peersList = collect($peersGrouped)->sortByDesc(function ($p) {
-                return ($p['in_target_window'] ? 100 : 0) - abs($p['months_ago'] - 3);
+                return ($p['in_target_window'] ? 100 : 0) - abs($p['months_ago'] - 2);
             })->values()->all();
 
             return response()->json([
                 'success' => true,
                 'has_peers' => count($peersList) > 0,
-                'message' => count($peersList) > 0 ? count($peersList) . ' peer(s) found.' : 'No batchmates or peers found who ordered these modules in the last 3-12 months.',
+                'message' => count($peersList) > 0 ? count($peersList) . ' peer(s) found.' : 'No batchmates or peers found who ordered these modules in the last 2-12 months.',
                 'current_customer' => [
                     'name' => $currentCustomerName,
                     'user_id' => $currentUserId,
@@ -7039,6 +7068,78 @@ public function myRevokePayments(Request $request)
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to check peer suggestions: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Toggle Contacted Checkbox status for a Peer Customer.
+     * Stored with contacted_at timestamp; auto-expires / unchecks after 2 months.
+     */
+    public function togglePeerContacted(Request $request)
+    {
+        try {
+            $validated = $request->validate([
+                'peer_identifier' => 'required|string|max:100',
+                'peer_user_id' => 'nullable|integer',
+                'peer_phone' => 'nullable|string|max:50',
+                'order_id' => 'nullable|integer',
+                'is_contacted' => 'required',
+            ]);
+
+            $peerIdentifier = $validated['peer_identifier'];
+            $isContacted = filter_var($validated['is_contacted'], FILTER_VALIDATE_BOOLEAN);
+
+            if (!Schema::hasTable('peer_contact_logs')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'peer_contact_logs table does not exist. Please run migration.',
+                ], 500);
+            }
+
+            if ($isContacted) {
+                PeerContactLog::updateOrCreate(
+                    ['peer_identifier' => $peerIdentifier],
+                    [
+                        'peer_user_id' => $validated['peer_user_id'] ?: null,
+                        'peer_phone' => $validated['peer_phone'] ?: null,
+                        'order_id' => $validated['order_id'] ?: null,
+                        'contacted_by' => Auth::id(),
+                        'contacted_at' => Carbon::now(),
+                        'is_contacted' => true,
+                    ]
+                );
+
+                return response()->json([
+                    'success' => true,
+                    'is_contacted' => true,
+                    'contacted_date_formatted' => Carbon::now()->format('d M Y'),
+                    'message' => 'Marked as contacted. Status will remain active for 2 months.',
+                ]);
+            } else {
+                PeerContactLog::where('peer_identifier', $peerIdentifier)
+                    ->orWhere(function ($q) use ($validated) {
+                        if (!empty($validated['peer_user_id'])) {
+                            $q->where('peer_user_id', $validated['peer_user_id']);
+                        }
+                    })
+                    ->update([
+                        'is_contacted' => false,
+                        'contacted_at' => null,
+                    ]);
+
+                return response()->json([
+                    'success' => true,
+                    'is_contacted' => false,
+                    'contacted_date_formatted' => null,
+                    'message' => 'Contacted status cleared.',
+                ]);
+            }
+        } catch (\Throwable $e) {
+            Log::error('togglePeerContacted error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Could not update contacted status: ' . $e->getMessage(),
             ], 500);
         }
     }

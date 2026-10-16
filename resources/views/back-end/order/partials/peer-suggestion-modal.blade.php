@@ -12,7 +12,7 @@
                             Batchmate / Module Peer Finder
                         </h4>
                         <div class="text-muted fs-8 mt-0" style="color: #a1a5b7 !important;">
-                            Find students who ordered the same module code in the 3–12 months window
+                            Find students who ordered the same module code in the 2–12 months window
                         </div>
                     </div>
                 </div>
@@ -54,7 +54,7 @@
                                 </span>
                             </div>
                             <div class="fs-8 text-muted">
-                                Timeline: <span class="fw-bold text-gray-700">Past 3 to 12 Months</span>
+                                Timeline: <span class="fw-bold text-gray-700">Past 2 to 12 Months</span>
                             </div>
                         </div>
                     </div>
@@ -78,7 +78,7 @@
                     </div>
                     <h5 class="fw-bolder text-gray-800 mb-1" id="psEmptyTitle">No Batchmate Found</h5>
                     <div class="text-muted fs-7 mx-auto" style="max-width: 480px;" id="psEmptyMessage">
-                        No other customer placed an order with the same module code in the 3–12 months window.
+                        No other customer placed an order with the same module code in the 2–12 months window.
                     </div>
                 </div>
 
@@ -185,7 +185,7 @@ window.openPeerSuggestionModal = function(orderId) {
             // Check if peers exist
             if (!res.has_peers || !res.peers || res.peers.length === 0) {
                 $('#psEmptyTitle').text('No Batchmates Found');
-                $('#psEmptyMessage').text(res.message || 'No matching peers found who ordered this module code within the 3–12 months window.');
+                $('#psEmptyMessage').text(res.message || 'No matching peers found who ordered this module code within the 2–12 months window.');
                 $('#psEmptyState').removeClass('d-none');
                 return;
             }
@@ -196,7 +196,7 @@ window.openPeerSuggestionModal = function(orderId) {
             let peersHtml = '';
             res.peers.forEach(function(peer, index) {
                 const targetWindowBadge = peer.in_target_window
-                    ? '<span class="badge badge-light-success fs-8 fw-bold"><i class="fa fa-bullseye text-success me-1"></i>3–12 Months Match</span>'
+                    ? '<span class="badge badge-light-success fs-8 fw-bold"><i class="fa fa-bullseye text-success me-1"></i>2–12 Months Match</span>'
                     : '<span class="badge badge-light-primary fs-8 fw-bold"><i class="fa fa-history text-primary me-1"></i>Past Student</span>';
 
                 const displayPhone = peer.peer_phone
@@ -225,36 +225,58 @@ window.openPeerSuggestionModal = function(orderId) {
                             </div>
                         </div>
 
-                        <div class="p-3 my-2" style="background:#f4f6fa; border-radius:8px;">
-                            <div class="row g-2 fs-7">
-                                <div class="col-md-6">
-                                    <span class="text-muted fs-8 d-block">Shared Module:</span>
-                                    <span class="badge badge-light-danger fs-7 fw-bold">${peer.matched_module_code || 'N/A'}</span>
-                                    <span class="text-muted fs-8 ms-1">(${peer.time_ago || peer.matched_order_date})</span>
+                        {{-- Shared Module & Matched Order Details Box with Right-Side Highlighted Contact Checkbox --}}
+                        <div class="p-3 my-2" style="background:#f4f6fa; border-radius:8px; border: 1px solid #e2e8f0;">
+                            <div class="row align-items-center g-2">
+                                <div class="col-8 col-sm-9">
+                                    <div class="row g-2 fs-7">
+                                        <div class="col-sm-6">
+                                            <span class="text-muted fs-8 d-block">Shared Module:</span>
+                                            <span class="badge badge-light-danger fs-7 fw-bold">${peer.matched_module_code || 'N/A'}</span>
+                                            <span class="text-muted fs-8 ms-1">(${peer.time_ago || peer.matched_order_date})</span>
+                                        </div>
+                                        <div class="col-sm-6">
+                                            <span class="text-muted fs-8 d-block">Matched Order:</span>
+                                            <span class="fw-bold text-gray-800">#${peer.matched_order_code}</span>
+                                            <span class="text-muted fs-8">(${peer.matched_order_date})</span>
+                                        </div>
+                                        <div class="col-sm-6">
+                                            <span class="text-muted fs-8 d-block">Latest Order:</span>
+                                            <span class="fw-bold text-gray-800">#${peer.latest_order_code}</span>
+                                            <span class="badge badge-light-info fs-8 ms-1">${peer.latest_order_status || 'Delivered'}</span>
+                                        </div>
+                                        <div class="col-sm-6">
+                                            <span class="text-muted fs-8 d-block">Contact:</span>
+                                            <span class="fw-bold text-gray-800">${displayPhone}</span>
+                                            ${peer.peer_phone ? `
+                                                <button type="button" class="btn btn-icon btn-sm btn-active-light-primary p-0 flex-shrink-0 ms-1" style="width:16px;height:16px;" title="Copy Mobile" onclick="event.stopPropagation(); crmCopyToClipboard('${displayPhone}', 'Mobile copied!');">
+                                                    <i class="fa fa-clone fs-8 text-muted"></i>
+                                                </button>
+                                            ` : ''}
+                                        </div>
+                                    </div>
                                 </div>
-                                <div class="col-md-6">
-                                    <span class="text-muted fs-8 d-block">Matched Order:</span>
-                                    <span class="fw-bold text-gray-800">#${peer.matched_order_code}</span>
-                                    {{-- Order link commented out as requested:
-                                    <a href="/orders/edit/${peer.matched_order_id}" target="_blank" class="fw-bold text-primary" title="Click to open order and verify module code directly">
-                                        #${peer.matched_order_code} <i class="fa fa-external-link-alt fs-9 text-primary ms-1"></i>
-                                    </a>
-                                    --}}
-                                    <span class="text-muted fs-8">(${peer.matched_order_date})</span>
-                                </div>
-                                <div class="col-md-6">
-                                    <span class="text-muted fs-8 d-block">Latest Order:</span>
-                                    <span class="fw-bold text-gray-800">#${peer.latest_order_code}</span>
-                                    <span class="badge badge-light-info fs-8 ms-1">${peer.latest_order_status || 'Delivered'}</span>
-                                </div>
-                                <div class="col-md-6">
-                                    <span class="text-muted fs-8 d-block">Contact:</span>
-                                    <span class="fw-bold text-gray-800">${displayPhone}</span>
-                                    ${peer.peer_phone ? `
-                                        <button type="button" class="btn btn-icon btn-sm btn-active-light-primary p-0 flex-shrink-0 ms-1" style="width:16px;height:16px;" title="Copy Mobile" onclick="event.stopPropagation(); crmCopyToClipboard('${displayPhone}', 'Mobile copied!');">
-                                            <i class="fa fa-clone fs-8 text-muted"></i>
-                                        </button>
-                                    ` : ''}
+
+                                {{-- Big & Highlighted Contacted Checkbox on Right Side --}}
+                                <div class="col-4 col-sm-3 text-center border-start border-gray-300 ps-2 ps-sm-3">
+                                    <div class="p-2 rounded-2 ${peer.is_contacted ? 'bg-light-success border border-success' : 'bg-white border border-gray-300'}" 
+                                         id="peerContactBox_${peer.peer_identifier}" 
+                                         style="transition: all 0.2s ease;">
+                                        <label class="d-flex flex-column align-items-center justify-content-center mb-0 cursor-pointer" style="cursor: pointer;">
+                                            <input type="checkbox" 
+                                                   class="form-check-input mb-1 cursor-pointer" 
+                                                   id="peerContactCb_${peer.peer_identifier}"
+                                                   style="width: 26px; height: 26px; border: 2.5px solid ${peer.is_contacted ? '#50cd89' : '#009ef7'}; cursor: pointer; accent-color: #50cd89;"
+                                                   ${peer.is_contacted ? 'checked' : ''}
+                                                   onchange="togglePeerContactedStatus('${peer.peer_identifier}', '${peer.peer_user_id || ''}', '${peer.peer_phone || ''}', ${orderId}, this)">
+                                            <span class="fs-8 fw-bolder text-gray-800 text-nowrap" id="peerContactLabel_${peer.peer_identifier}">
+                                                ${peer.is_contacted ? '<span class="text-success"><i class="fa fa-check text-success me-1"></i>Contacted</span>' : 'Contacted?'}
+                                            </span>
+                                            <span class="fs-9 text-muted d-block mt-0.5" id="peerContactDate_${peer.peer_identifier}" style="font-size: 10px !important;">
+                                                ${peer.is_contacted && peer.contacted_date_formatted ? peer.contacted_date_formatted : '2 Mo. Cycle'}
+                                            </span>
+                                        </label>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -342,5 +364,58 @@ window.openPeerInCrmWhatsapp = function(orderRefId) {
         input.value = orderRefId;
         form.submit();
     }
+};
+
+window.togglePeerContactedStatus = function(peerIdentifier, peerUserId, peerPhone, orderId, checkboxEl) {
+    const isChecked = checkboxEl.checked;
+    const box = document.getElementById('peerContactBox_' + peerIdentifier);
+    const label = document.getElementById('peerContactLabel_' + peerIdentifier);
+    const dateSpan = document.getElementById('peerContactDate_' + peerIdentifier);
+
+    // Optimistic UI updates
+    if (isChecked) {
+        if (box) {
+            box.classList.remove('bg-white', 'border-gray-300');
+            box.classList.add('bg-light-success', 'border-success');
+        }
+        if (label) label.innerHTML = '<span class="text-success"><i class="fa fa-check text-success me-1"></i>Contacted</span>';
+        if (dateSpan) dateSpan.textContent = 'Today';
+        checkboxEl.style.borderColor = '#50cd89';
+    } else {
+        if (box) {
+            box.classList.remove('bg-light-success', 'border-success');
+            box.classList.add('bg-white', 'border-gray-300');
+        }
+        if (label) label.textContent = 'Contacted?';
+        if (dateSpan) dateSpan.textContent = '2 Mo. Cycle';
+        checkboxEl.style.borderColor = '#009ef7';
+    }
+
+    $.ajax({
+        url: "{{ route('orders.peer.toggle-contact') }}",
+        type: 'POST',
+        data: {
+            _token: "{{ csrf_token() }}",
+            peer_identifier: peerIdentifier,
+            peer_user_id: peerUserId || null,
+            peer_phone: peerPhone || null,
+            order_id: orderId || null,
+            is_contacted: isChecked ? 1 : 0
+        },
+        success: function(res) {
+            if (res && res.success) {
+                if (res.is_contacted && res.contacted_date_formatted && dateSpan) {
+                    dateSpan.textContent = res.contacted_date_formatted;
+                }
+            } else {
+                checkboxEl.checked = !isChecked;
+                alert(res && res.message ? res.message : 'Could not update contacted status.');
+            }
+        },
+        error: function(xhr) {
+            checkboxEl.checked = !isChecked;
+            alert('Failed to save contact status. Please check connection.');
+        }
+    });
 };
 </script>

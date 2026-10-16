@@ -510,6 +510,7 @@ Route::middleware(['auth', 'check.permission'])->group(function () {
         Route::get('/urgent-orders', [OrderController::class, 'urgentOrders']);
         Route::get('/statuses/list', [OrderController::class, 'getStatuses']);
         Route::get('/peer-suggestions/{orderId}', [OrderController::class, 'getPeerSuggestions'])->name('orders.peer.suggestions');
+        Route::post('/peer-suggestions/toggle-contact', [OrderController::class, 'togglePeerContacted'])->name('orders.peer.toggle-contact');
         Route::post('/order-save-marks', [OrderController::class, 'saveMarks'])->name('orders.save.marks');
         Route::post('/save-referral', [OrderController::class, 'saveReferral'])->name('orders.save.referral');
     });
