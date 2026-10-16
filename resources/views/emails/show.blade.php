@@ -827,7 +827,14 @@
                 {{-- Subject Title Header --}}
                 <div class="duralux-subject-header">
                     <div class="d-flex align-items-center flex-wrap gap-2">
-                        <h2 class="duralux-subject-title">{{ $email->subject ?: '(No Subject)' }}</h2>
+                        <h2 class="duralux-subject-title mb-0">{{ $email->subject ?: '(No Subject)' }}</h2>
+                        <button type="button" 
+                                class="btn btn-sm btn-icon btn-light shadow-xs ms-1 copy-subject-btn" 
+                                onclick="crmCopyToClipboard('{{ addslashes($email->subject ?: '') }}', 'Subject copied!');" 
+                                title="Copy Subject" 
+                                style="width: 26px; height: 26px; border-radius: 6px; border: 1px solid #dadce0; background: #fff; display: inline-flex; align-items: center; justify-content: center; cursor: pointer;">
+                            <i class="fa fa-clone text-muted fs-8"></i>
+                        </button>
                         <span class="badge bg-light text-muted border px-2 py-1 fs-8 text-capitalize">{{ $email->folder }}</span>
                         @php
                             $whatsAppOrderRef = $emailOrder?->id;

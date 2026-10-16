@@ -324,6 +324,24 @@
 													<li class="fa fa-eye "></li>
 												</span>
 											</a>
+
+											@if($order->user)
+												<a href="{{ url('/orders') }}?uid={{ $order->user->id }}&user={{ urlencode($order->user->name) }}" target="_blank" 
+													class="btn btn-sm btn-icon p-0 d-inline-flex align-items-center justify-content-center shadow-xs position-relative me-1"
+													style="background-color: #009ef7; color: white; width: 28px; height: 28px; min-width: 28px; border-radius: 6px;" title="View User Orders">
+													<span class="fw-bolder" style="font-size: 13px;">O</span>
+													@php
+														$orderCount = isset($order->user->converted_orders_count)
+															? (int) $order->user->converted_orders_count
+															: ($order->user ? (int) $order->user->convertedOrders()->count() : 0);
+													@endphp
+													@if($orderCount > 0)
+														<span style="position:absolute; top:-5px; right:-5px; background:#e53e3e; color:#ffffff; font-size:9px; font-weight:700; line-height:1; padding:2px 4px; border-radius:10px; box-shadow:0 1px 2px rgba(0,0,0,0.3);">
+															{{ $orderCount }}
+														</span>
+													@endif
+												</a>
+											@endif
 											@include('order.edit.marketing')
 
     										@php
@@ -374,6 +392,16 @@
 												:countrycode="optional($order->user)->countrycode ?? ''"
 												:name="optional($order->user)->name ?? 'Customer'"
 												:id="'mktorder' . $order->id" />
+
+											<button type="button"
+													class="btn btn-icon btn-bg-light btn-active-color-primary btn-sm me-1 peer-match-btn"
+													id="peerMatchBtn{{ $order->id }}"
+													onclick="event.stopPropagation(); openPeerSuggestionModal({{ $order->id }});"
+													title="Find Batchmate / Module Peer">
+												<span class="svg-icon svg-icon-3">
+													<i class="fa fa-users text-primary"></i>
+												</span>
+											</button>
 
 											<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
 											<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
@@ -615,5 +643,6 @@
 </script>
 
   @include('back-end.order.partials.user-label-modal')
+  @include('back-end.order.partials.peer-suggestion-modal')
   @endsection
   

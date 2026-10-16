@@ -62,31 +62,58 @@
                           required></textarea>
             </div>
 
-            <!-- Next Followup Date & Save Button Row -->
-            <div class="d-flex flex-column gap-1">
-                <label class="form-label fs-7 fw-bolder text-gray-800 mb-1">
-                    <i class="fa fa-calendar-check-o text-primary me-1.5"></i> Next Follow-up Date <span class="text-danger">*</span>
-                </label>
-                
-                <div class="d-flex align-items-center gap-2">
-                    <div class="position-relative flex-grow-1">
+            <!-- Next Followup Date & Time & Save Button Row -->
+            <div class="d-flex flex-column gap-2">
+                <div class="row g-2">
+                    <!-- Date Input -->
+                    <div class="col-7">
+                        <label class="form-label fs-8 fw-bolder text-gray-800 mb-1">
+                            <i class="fa fa-calendar-check-o text-primary me-1"></i> Next Date <span class="text-danger">*</span>
+                        </label>
                         <input type="date" 
                                id="followup_date_input" 
-                               class="form-control form-control-solid fs-7 border border-gray-200 h-42px w-100" 
+                               class="form-control form-control-solid fs-7 border border-gray-200 h-40px w-100" 
                                style="border-radius: 8px;"
                                min="{{ date('Y-m-d') }}" 
                                value="{{ date('Y-m-d') }}" 
                                required>
                     </div>
-                    <button type="submit" id="btn_save_followup" class="btn btn-primary fw-bolder fs-7 h-42px px-4 d-inline-flex align-items-center justify-content-center flex-shrink-0 shadow-sm" style="min-width: 135px; border-radius: 8px;">
-                        <span class="indicator-label d-inline-flex align-items-center">
-                            <i class="fa fa-paper-plane me-2"></i> Save Note
-                        </span>
-                        <span class="indicator-progress d-none">
-                            <span class="spinner-border spinner-border-sm align-middle me-1"></span> Saving...
-                        </span>
-                    </button>
+
+                    <!-- Time Input -->
+                    <div class="col-5">
+                        <label class="form-label fs-8 fw-bolder text-gray-800 mb-1 d-flex justify-content-between align-items-center">
+                            <span><i class="fa fa-clock-o text-primary me-1"></i> Time</span>
+                            <span class="text-muted fs-9 fw-normal">(Opt)</span>
+                        </label>
+                        <input type="time" 
+                               id="followup_time_input" 
+                               class="form-control form-control-solid fs-7 border border-gray-200 h-40px w-100" 
+                               style="border-radius: 8px;"
+                               value="{{ date('H:i', strtotime('+1 hour')) }}">
+                    </div>
                 </div>
+
+                <!-- Quick Time Preset Pills -->
+                <div class="d-flex align-items-center justify-content-between gap-1 flex-wrap py-1">
+                    <span class="fs-9 text-muted fw-bold">Quick Time:</span>
+                    <div class="d-flex gap-1">
+                        <button type="button" class="btn btn-xs btn-light py-0.5 px-2 fs-9 fw-bold text-gray-700" onclick="setQuickFollowupTime(15)">+15m</button>
+                        <button type="button" class="btn btn-xs btn-light py-0.5 px-2 fs-9 fw-bold text-gray-700" onclick="setQuickFollowupTime(30)">+30m</button>
+                        <button type="button" class="btn btn-xs btn-light py-0.5 px-2 fs-9 fw-bold text-gray-700" onclick="setQuickFollowupTime(60)">+1h</button>
+                        <button type="button" class="btn btn-xs btn-light py-0.5 px-2 fs-9 fw-bold text-gray-700" onclick="setQuickFollowupTime(120)">+2h</button>
+                        <button type="button" class="btn btn-xs btn-light-primary py-0.5 px-2 fs-9 fw-bold" onclick="setQuickFollowupTime(0)">Now</button>
+                    </div>
+                </div>
+
+                <!-- Save Button Row -->
+                <button type="submit" id="btn_save_followup" class="btn btn-primary fw-bolder fs-7 h-42px px-4 w-100 d-inline-flex align-items-center justify-content-center shadow-sm" style="border-radius: 8px;">
+                    <span class="indicator-label d-inline-flex align-items-center">
+                        <i class="fa fa-paper-plane me-2"></i> Save Note & Schedule Followup
+                    </span>
+                    <span class="indicator-progress d-none">
+                        <span class="spinner-border spinner-border-sm align-middle me-1"></span> Saving...
+                    </span>
+                </button>
             </div>
         </form>
     </div>
@@ -291,12 +318,12 @@ function renderFollowupCard(f) {
                         <!-- Message Text (Starts here under the date) -->
                         <div class="text-dark fs-7 lh-base mb-3" style="white-space: pre-wrap; word-break: break-word;">${escapeHtml(f.message)}</div>
 
-                        <!-- Next Follow-up Date Pill -->
+                        <!-- Next Follow-up Date & Time Pill -->
                         <div class="pt-2 border-top border-gray-100 d-flex align-items-center flex-wrap gap-2">
                             <span class="fs-8 text-muted d-flex align-items-center gap-1.5 bg-light py-1 px-2.5 rounded border border-gray-200">
                                 <i class="fa fa-calendar-check-o text-primary fs-8"></i>
                                 <span>Next Follow-up:</span>
-                                <strong class="text-gray-900 ms-1">${f.followup_date_formatted}</strong>
+                                <strong class="text-gray-900 ms-1">${f.followup_date_formatted}${f.followup_time_formatted ? ' at ' + f.followup_time_formatted : ''}</strong>
                             </span>
                         </div>
 
@@ -308,11 +335,26 @@ function renderFollowupCard(f) {
     `;
 }
 
+function setQuickFollowupTime(minutes) {
+    const now = new Date();
+    if (minutes > 0) {
+        now.setMinutes(now.getMinutes() + minutes);
+    }
+    const hours = String(now.getHours()).padStart(2, '0');
+    const mins = String(now.getMinutes()).padStart(2, '0');
+    $('#followup_time_input').val(`${hours}:${mins}`);
+    const yyyy = now.getFullYear();
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const dd = String(now.getDate()).padStart(2, '0');
+    $('#followup_date_input').val(`${yyyy}-${mm}-${dd}`);
+}
+
 function submitLeadFollowup(e) {
     e.preventDefault();
     const leadId = $('#followup_target_lead_id').val();
     const message = $('#followup_message_input').val().trim();
     const followupDate = $('#followup_date_input').val();
+    const followupTime = $('#followup_time_input').val();
 
     if (!leadId) {
         Swal.fire({ icon: 'warning', title: 'Warning', text: 'No lead selected.' });
@@ -338,6 +380,7 @@ function submitLeadFollowup(e) {
         data: {
             message: message,
             followup_date: followupDate,
+            followup_time: followupTime,
             _token: $('meta[name="csrf-token"]').attr('content')
         },
         success: function(res) {
@@ -461,4 +504,15 @@ function escapeHtml(text) {
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#039;");
 }
+
+$(document).ready(function() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const leadId = urlParams.get('lead_id');
+    const openFollowup = urlParams.get('open_followup');
+    if (leadId && openFollowup) {
+        setTimeout(function() {
+            openLeadFollowupDrawer(leadId);
+        }, 400);
+    }
+});
 </script>

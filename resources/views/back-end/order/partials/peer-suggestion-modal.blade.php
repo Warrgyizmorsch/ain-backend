@@ -1,0 +1,346 @@
+<div class="modal fade" id="peerSuggestionModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered mw-700px">
+        <div class="modal-content shadow-lg border-0" style="border-radius: 12px; overflow: hidden;">
+            {{-- Modal Header --}}
+            <div class="modal-header py-4 px-6" style="background: linear-gradient(135deg, #1e1e2d 0%, #2d2d44 100%); color: #ffffff;">
+                <div class="d-flex align-items-center gap-2">
+                    <span class="btn btn-icon btn-sm btn-light-info p-0" style="width: 32px; height: 32px; border-radius: 8px;">
+                        <i class="fa fa-users text-info fs-5"></i>
+                    </span>
+                    <div>
+                        <h4 class="modal-title fw-bolder text-white mb-0 fs-5">
+                            Batchmate / Module Peer Finder
+                        </h4>
+                        <div class="text-muted fs-8 mt-0" style="color: #a1a5b7 !important;">
+                            Find students who ordered the same module code in the 3–12 months window
+                        </div>
+                    </div>
+                </div>
+                <button type="button" class="btn btn-icon btn-sm btn-active-light-primary ms-2" data-bs-dismiss="modal" aria-label="Close" style="color: #ffffff;">
+                    <i class="fa fa-times fs-6"></i>
+                </button>
+            </div>
+
+            {{-- Modal Body --}}
+            <div class="modal-body p-6" style="background-color: #f9f9fb; max-height: 75vh; overflow-y: auto;">
+                {{-- Current Order & Customer Card (Person A) --}}
+                <div class="card border border-gray-300 shadow-none mb-4" style="background: #ffffff; border-radius: 10px;">
+                    <div class="card-body p-4">
+                        <div class="d-flex align-items-start justify-content-between gap-3 flex-wrap">
+                            <div>
+                                <span class="badge badge-light-primary fw-bold fs-8 mb-1">
+                                    Current Order (Person A)
+                                </span>
+                                <h5 class="fw-bolder text-gray-800 mb-1" id="psCurrentCustomerName">
+                                    Loading...
+                                </h5>
+                                <div class="text-muted fs-7" id="psCurrentOrderTitle">
+                                    --
+                                </div>
+                            </div>
+                            <div class="text-end">
+                                <div class="text-muted fs-8">Order Code</div>
+                                <span class="badge badge-light-dark fs-7 fw-bold" id="psCurrentOrderCode">--</span>
+                            </div>
+                        </div>
+
+                        <div class="separator separator-dashed my-3"></div>
+
+                        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                            <div class="fs-8 text-gray-700">
+                                <span class="fw-bold">Searched Module Codes:</span>
+                                <span id="psSearchedModulesBadges" class="d-inline-flex flex-wrap gap-1 ms-1">
+                                    <span class="badge badge-light-secondary fs-8">Scanning...</span>
+                                </span>
+                            </div>
+                            <div class="fs-8 text-muted">
+                                Timeline: <span class="fw-bold text-gray-700">Past 3 to 12 Months</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {{-- Loading Spinner State --}}
+                <div id="psLoadingState" class="py-10 text-center">
+                    <div class="spinner-border text-primary mb-3" style="width: 2.5rem; height: 2.5rem;" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <div class="fw-bold text-gray-800 fs-6">Scanning order history for matching batchmates...</div>
+                    <div class="text-muted fs-7">Checking orders across shared module codes</div>
+                </div>
+
+                {{-- Empty / No Peers State --}}
+                <div id="psEmptyState" class="py-8 text-center d-none">
+                    <div class="mb-3">
+                        <span class="btn btn-icon btn-light-warning p-0" style="width: 50px; height: 50px; border-radius: 50%;">
+                            <i class="fa fa-info-circle text-warning fs-2"></i>
+                        </span>
+                    </div>
+                    <h5 class="fw-bolder text-gray-800 mb-1" id="psEmptyTitle">No Batchmate Found</h5>
+                    <div class="text-muted fs-7 mx-auto" style="max-width: 480px;" id="psEmptyMessage">
+                        No other customer placed an order with the same module code in the 3–12 months window.
+                    </div>
+                </div>
+
+                {{-- Peers Results Container --}}
+                <div id="psResultsContainer" class="d-none">
+                    <div class="d-flex align-items-center justify-content-between mb-3">
+                        <div class="fw-bolder text-gray-800 fs-6">
+                            <span class="badge badge-light-success fs-7 fw-bold px-3 py-1 me-1" id="psPeersCountBadge">0 Peers Found</span>
+                            Suggested Peers (Person B):
+                        </div>
+                        <div class="text-muted fs-8">1-Click to pitch new assignments</div>
+                    </div>
+
+                    <div id="psPeersList" class="d-flex flex-column gap-3">
+                        {{-- Injected dynamically --}}
+                    </div>
+                </div>
+            </div>
+
+            {{-- Modal Footer --}}
+            <div class="modal-footer py-3 px-6 bg-white border-top justify-content-between">
+                <div class="fs-8 text-muted">
+                    <i class="fa fa-shield-alt text-success me-1"></i> Direct WhatsApp chat triggers target peer's registered account.
+                </div>
+                <button type="button" class="btn btn-sm btn-light fw-bold" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{-- Hidden Form for Opening Peer in CRM WhatsApp --}}
+<form id="psHiddenWaForm" method="POST" action="{{ route('whatsapp.chat.open-order') }}" target="_blank" class="d-none">
+    @csrf
+    <input type="hidden" name="order_ref" id="psHiddenWaOrderRef" value="">
+</form>
+
+<script>
+window.openPeerSuggestionModal = function(orderId) {
+    const modalEl = document.getElementById('peerSuggestionModal');
+    if (!modalEl) {
+        alert('Peer Suggestion Modal element not found in DOM.');
+        return;
+    }
+
+    const modal = (typeof bootstrap !== 'undefined' && bootstrap.Modal)
+        ? bootstrap.Modal.getOrCreateInstance(modalEl)
+        : $(modalEl);
+
+    if (typeof modal.show === 'function') {
+        modal.show();
+    } else {
+        $(modalEl).modal('show');
+    }
+
+    // Reset UI to loading state
+    $('#psCurrentCustomerName').text('Loading customer...');
+    $('#psCurrentOrderTitle').text('--');
+    $('#psCurrentOrderCode').text('--');
+    $('#psSearchedModulesBadges').html('<span class="badge badge-light-secondary fs-8">Scanning...</span>');
+
+    $('#psLoadingState').removeClass('d-none');
+    $('#psEmptyState').addClass('d-none');
+    $('#psResultsContainer').addClass('d-none');
+    $('#psPeersList').empty();
+
+    // Fetch peer suggestions asynchronously
+    const url = "{{ route('orders.peer.suggestions', ':id') }}".replace(':id', orderId);
+
+    $.ajax({
+        url: url,
+        type: 'GET',
+        dataType: 'json',
+        success: function(res) {
+            $('#psLoadingState').addClass('d-none');
+
+            if (!res || !res.success) {
+                $('#psEmptyTitle').text('Could not fetch peers');
+                $('#psEmptyMessage').text(res && res.message ? res.message : 'An error occurred while finding peers.');
+                $('#psEmptyState').removeClass('d-none');
+                return;
+            }
+
+            // Populate current customer (Person A) details
+            if (res.current_customer) {
+                $('#psCurrentCustomerName').html(
+                    (res.current_customer.name || 'Customer') +
+                    (res.current_customer.user_id ? ' <span class="badge badge-light-dark fs-8 fw-bold">ID: ' + res.current_customer.user_id + '</span>' : '')
+                );
+                $('#psCurrentOrderTitle').text(res.current_customer.title || 'N/A');
+                $('#psCurrentOrderCode').text(res.current_customer.order_code || '--');
+            }
+
+            // Render searched module badges
+            if (res.searched_modules && res.searched_modules.length > 0) {
+                let moduleHtml = '';
+                res.searched_modules.forEach(function(code) {
+                    moduleHtml += `<span class="badge badge-light-danger fs-8 fw-bold me-1">${code}</span>`;
+                });
+                $('#psSearchedModulesBadges').html(moduleHtml);
+            } else {
+                $('#psSearchedModulesBadges').html('<span class="badge badge-light-warning fs-8">None</span>');
+            }
+
+            // Check if peers exist
+            if (!res.has_peers || !res.peers || res.peers.length === 0) {
+                $('#psEmptyTitle').text('No Batchmates Found');
+                $('#psEmptyMessage').text(res.message || 'No matching peers found who ordered this module code within the 3–12 months window.');
+                $('#psEmptyState').removeClass('d-none');
+                return;
+            }
+
+            // Render matched peers (Person B)
+            $('#psPeersCountBadge').text(res.peers.length + (res.peers.length === 1 ? ' Peer Found' : ' Peers Found'));
+
+            let peersHtml = '';
+            res.peers.forEach(function(peer, index) {
+                const targetWindowBadge = peer.in_target_window
+                    ? '<span class="badge badge-light-success fs-8 fw-bold"><i class="fa fa-bullseye text-success me-1"></i>3–12 Months Match</span>'
+                    : '<span class="badge badge-light-primary fs-8 fw-bold"><i class="fa fa-history text-primary me-1"></i>Past Student</span>';
+
+                const displayPhone = peer.peer_phone
+                    ? (peer.peer_cc ? '+' + peer.peer_cc + ' ' : '') + peer.peer_phone
+                    : 'Not Available';
+
+                const displayEmail = peer.peer_email || 'Not Available';
+
+                peersHtml += `
+                <div class="card border border-gray-300 shadow-sm" style="background:#ffffff; border-radius:10px; transition: transform 0.15s ease;">
+                    <div class="card-body p-4">
+                        <div class="d-flex align-items-start justify-content-between gap-2 flex-wrap mb-2">
+                            <div>
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="btn btn-icon btn-sm btn-light-success p-0 fw-bolder" style="width:24px;height:24px;border-radius:6px;font-size:11px;">
+                                        ${index + 1}
+                                    </span>
+                                    <h5 class="fw-bolder text-gray-900 mb-0 fs-6">
+                                        ${peer.peer_name || 'Customer'}
+                                    </h5>
+                                    ${peer.peer_user_id ? `<span class="badge badge-light-dark fs-8 fw-bold">ID: ${peer.peer_user_id}</span>` : ''}
+                                </div>
+                            </div>
+                            <div>
+                                ${targetWindowBadge}
+                            </div>
+                        </div>
+
+                        <div class="p-3 my-2" style="background:#f4f6fa; border-radius:8px;">
+                            <div class="row g-2 fs-7">
+                                <div class="col-md-6">
+                                    <span class="text-muted fs-8 d-block">Shared Module:</span>
+                                    <span class="badge badge-light-danger fs-7 fw-bold">${peer.matched_module_code || 'N/A'}</span>
+                                    <span class="text-muted fs-8 ms-1">(${peer.time_ago || peer.matched_order_date})</span>
+                                </div>
+                                <div class="col-md-6">
+                                    <span class="text-muted fs-8 d-block">Matched Order:</span>
+                                    <span class="fw-bold text-gray-800">#${peer.matched_order_code}</span>
+                                    {{-- Order link commented out as requested:
+                                    <a href="/orders/edit/${peer.matched_order_id}" target="_blank" class="fw-bold text-primary" title="Click to open order and verify module code directly">
+                                        #${peer.matched_order_code} <i class="fa fa-external-link-alt fs-9 text-primary ms-1"></i>
+                                    </a>
+                                    --}}
+                                    <span class="text-muted fs-8">(${peer.matched_order_date})</span>
+                                </div>
+                                <div class="col-md-6">
+                                    <span class="text-muted fs-8 d-block">Latest Order:</span>
+                                    <span class="fw-bold text-gray-800">#${peer.latest_order_code}</span>
+                                    <span class="badge badge-light-info fs-8 ms-1">${peer.latest_order_status || 'Delivered'}</span>
+                                </div>
+                                <div class="col-md-6">
+                                    <span class="text-muted fs-8 d-block">Contact:</span>
+                                    <span class="fw-bold text-gray-800">${displayPhone}</span>
+                                    ${peer.peer_phone ? `
+                                        <button type="button" class="btn btn-icon btn-sm btn-active-light-primary p-0 flex-shrink-0 ms-1" style="width:16px;height:16px;" title="Copy Mobile" onclick="event.stopPropagation(); crmCopyToClipboard('${displayPhone}', 'Mobile copied!');">
+                                            <i class="fa fa-clone fs-8 text-muted"></i>
+                                        </button>
+                                    ` : ''}
+                                </div>
+                            </div>
+                        </div>
+
+                        {{-- Action Buttons --}}
+                        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mt-3 pt-2 border-top border-gray-200">
+                            <div class="d-flex align-items-center gap-2 flex-wrap">
+                                {{-- 1. Open CRM WhatsApp Chat with Person B --}}
+                                <button type="button" 
+                                        class="btn btn-sm btn-success fw-bold d-inline-flex align-items-center gap-1 shadow-sm px-3 py-1.5"
+                                        title="Open chat with ${peer.peer_name} in CRM WhatsApp"
+                                        onclick="openPeerInCrmWhatsapp(${peer.whatsapp_order_ref});">
+                                    <i class="fab fa-whatsapp fs-6"></i>
+                                    <span>CRM WhatsApp</span>
+                                </button>
+
+                                {{-- 2. Direct Web WhatsApp link (COMMENTED OUT AS REQUESTED)
+                                ${peer.peer_full_phone ? `
+                                    <a href="https://web.whatsapp.com/send?phone=${peer.peer_full_phone}"
+                                       target="_blank"
+                                       class="btn btn-sm btn-light-success fw-bold d-inline-flex align-items-center gap-1 px-3 py-1.5"
+                                       title="Open direct WhatsApp Web in new tab">
+                                        <i class="fab fa-whatsapp text-success fs-7"></i>
+                                        <span>Web WA</span>
+                                    </a>
+                                ` : ''}
+                                --}}
+
+                                {{-- 3. Call Twilio --}}
+                                ${peer.peer_full_phone ? `
+                                    <button type="button"
+                                            class="btn btn-sm btn-light-primary fw-bold d-inline-flex align-items-center gap-1 px-2.5 py-1.5"
+                                            title="Call ${peer.peer_name} via Twilio"
+                                            onclick="event.preventDefault(); initiateTwilioCall('${peer.peer_full_phone}', '${(peer.peer_name || 'Customer').replace(/'/g, "\\'")}');">
+                                        <i class="fa fa-phone text-primary fs-8"></i>
+                                        <span>Twilio</span>
+                                    </button>
+                                ` : ''}
+
+                                {{-- 4. Call Next2Call --}}
+                                ${peer.peer_full_phone ? `
+                                    <button type="button"
+                                            class="btn btn-sm btn-light-danger fw-bold d-inline-flex align-items-center gap-1 px-2.5 py-1.5 position-relative"
+                                            title="Call ${peer.peer_name} via Next2Call"
+                                            onclick="event.preventDefault(); initiateNext2Call('${peer.peer_full_phone}', '${(peer.peer_name || 'Customer').replace(/'/g, "\\'")}');">
+                                        <i class="fa fa-phone text-danger fs-8"></i>
+                                        <span>N2C</span>
+                                    </button>
+                                ` : ''}
+                            </div>
+
+                            {{-- Copy summary button --}}
+                            <button type="button" 
+                                    class="btn btn-sm btn-light-secondary text-muted fw-bold px-2 py-1.5 fs-8"
+                                    title="Copy customer details"
+                                    onclick="crmCopyToClipboard('${(peer.peer_name || '')} | ${displayPhone} | ${displayEmail} | Module: ${peer.matched_module_code}', 'Peer details copied!');">
+                                <i class="fa fa-copy fs-8 me-1"></i>Copy Info
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                `;
+            });
+
+            $('#psPeersList').html(peersHtml);
+            $('#psResultsContainer').removeClass('d-none');
+        },
+        error: function(xhr) {
+            $('#psLoadingState').addClass('d-none');
+            $('#psEmptyTitle').text('Connection Error');
+            $('#psEmptyMessage').text('Could not communicate with server. Please try again.');
+            $('#psEmptyState').removeClass('d-none');
+        }
+    });
+};
+
+window.openPeerInCrmWhatsapp = function(orderRefId) {
+    if (!orderRefId) {
+        alert('Invalid order reference for WhatsApp chat.');
+        return;
+    }
+    const form = document.getElementById('psHiddenWaForm');
+    const input = document.getElementById('psHiddenWaOrderRef');
+    if (form && input) {
+        input.value = orderRefId;
+        form.submit();
+    }
+};
+</script>

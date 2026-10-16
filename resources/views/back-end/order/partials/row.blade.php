@@ -48,6 +48,25 @@
                     <i style="color: white;" class="fa fa-edit"></i>
                 </a>
 
+                <!-- Orders Button (O) -->
+                @if($effectiveUser)
+                    <a href="{{ url('/orders') }}?uid={{ $effectiveUser->id }}&user={{ urlencode($effectiveUser->name) }}" target="_blank" 
+                        class="btn btn-sm btn-icon p-0 d-inline-flex align-items-center justify-content-center shadow-xs position-relative"
+                        style="background-color: #009ef7; color: white; width: 28px; height: 28px; min-width: 28px; border-radius: 6px;" title="View User Orders">
+                        <span class="fw-bolder" style="font-size: 13px;">O</span>
+                        @php
+                            $userOrderCount = isset($effectiveUser->converted_orders_count)
+                                ? (int) $effectiveUser->converted_orders_count
+                                : ($effectiveUser ? (int) $effectiveUser->convertedOrders()->count() : 0);
+                        @endphp
+                        @if($userOrderCount > 0)
+                            <span style="position:absolute; top:-5px; right:-5px; background:#e53e3e; color:#ffffff; font-size:9px; font-weight:700; line-height:1; padding:2px 4px; border-radius:10px; box-shadow:0 1px 2px rgba(0,0,0,0.3);">
+                                {{ $userOrderCount }}
+                            </span>
+                        @endif
+                    </a>
+                @endif
+
                 <!-- Call Customer Buttons: Twilio & Next2Call -->
                 @php
                     $rowPhone = optional($effectiveUser)->mobile_no ?? '';
@@ -118,6 +137,18 @@
                     </span>
                 </a>
                 @endif
+
+                <!-- Batchmate / Module Peer Suggestion Button -->
+                <button type="button"
+                        class="btn btn-icon btn-sm btn-light-info peer-match-btn"
+                        id="peerMatchBtn{{ $order->id }}"
+                        onclick="event.stopPropagation(); openPeerSuggestionModal({{ $order->id }});"
+                        title="Find Batchmate / Module Peer (3-12 months)"
+                        style="width:28px;height:28px;min-width:28px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;background-color:#f1faff;color:#009ef7;border:1px solid #c9e9fe;transition:transform 0.15s ease;"
+                        onmouseover="this.style.backgroundColor='#009ef7';this.style.color='#ffffff';this.style.transform='scale(1.1)';"
+                        onmouseout="this.style.backgroundColor='#f1faff';this.style.color='#009ef7';this.style.transform='scale(1)';">
+                    <i class="fa fa-users" style="font-size:12px;"></i>
+                </button>
 
                 <!-- Chat / Comment Button (MOVED TO LAST POSITION) -->
                 <button onclick="loadCommentDrawer({{ $order->id }})" class="btn btn-icon btn-secondary btn-sm" title="Open Chat / Comments">
@@ -495,6 +526,9 @@
                     <span class="badge badge-light-danger fs-7 fw-bold">{{ $effectiveModuleCode }}</span>
                     <button type="button" class="btn btn-icon btn-sm btn-active-light-primary ms-1 p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Module Code" data-copy-text="{{ $effectiveModuleCode }}" onclick="event.stopPropagation(); crmCopyToClipboard(this.getAttribute('data-copy-text'), 'Module Code copied!');">
                         <i class="fa fa-clone fs-8 text-muted"></i>
+                    </button>
+                    <button type="button" class="btn btn-icon btn-sm btn-active-light-info ms-1 p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Find Batchmates for {{ $effectiveModuleCode }}" onclick="event.stopPropagation(); openPeerSuggestionModal({{ $order->id }});">
+                        <i class="fa fa-users fs-8 text-primary"></i>
                     </button>
                 </div>
             @endif

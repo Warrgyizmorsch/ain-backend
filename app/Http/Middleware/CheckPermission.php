@@ -200,6 +200,9 @@ class CheckPermission
             'dashboard.conversion.ratio.data',
             'logout',
             'userData', // mk 14 10 26 - Customer mobile/email lookup for lead creation
+            'lead.followups.due-reminders',
+            'lead.followups.snooze',
+            'lead.followups.dismiss',
         ];
 
         if ($currentRoute && in_array($currentRoute, $bypassRoutes, true)) {
@@ -218,6 +221,8 @@ class CheckPermission
             'admin/login-otp-notifications',
             'dashboard/conversion-ratio-data',
             'userData', // mk 14 10 26 - Customer mobile/email lookup for lead creation
+            'lead/followups-due-reminders',
+            'lead/followups',
         ];
 
         foreach ($bypassPaths as $bp) {

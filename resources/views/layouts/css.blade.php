@@ -106,5 +106,25 @@
 			.btn-light-danger:hover .text-danger {
 				color: #ffffff !important;
 			}
+
+			/* Chrome Magnifier / Zoom Widget Styles */
+			.crm-zoom-btn-circle {
+				outline: none !important;
+				border: none !important;
+			}
+			.crm-zoom-btn-circle:hover {
+				background-color: #f1f3f4 !important;
+				color: #202124 !important;
+			}
+			.crm-zoom-btn-circle:active {
+				background-color: #e8eaed !important;
+			}
+			#crmZoomResetBtn:hover {
+				background-color: #f8fafd !important;
+				border-color: #1a73e8 !important;
+			}
+			#crmZoomResetBtn:active {
+				background-color: #edf2fc !important;
+			}
 		</style>
 		<!--end::CRM Data Security-->

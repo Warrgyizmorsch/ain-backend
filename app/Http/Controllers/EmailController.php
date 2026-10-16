@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\EmailAttachment;
 use App\Models\EmailConfiguration;
 use App\Models\EmailMessage;
+use App\Models\EmailTemplate;
 use App\Models\EmailThreadLabel;
 use App\Models\Leads;
 use App\Models\Order;
@@ -617,6 +618,8 @@ class EmailController extends Controller
                 ->all();
         });
 
+        $emailTemplates = EmailTemplate::orderBy('name')->get();
+
         return view('emails.inbox', compact(
             'threads',
             'emails',
@@ -638,7 +641,8 @@ class EmailController extends Controller
             'recentOrderCodes',
             'isWriterEmail',
             'deadlineType',
-            'ordersMap'
+            'ordersMap',
+            'emailTemplates'
         ));
     }
 
@@ -2503,6 +2507,76 @@ class EmailController extends Controller
             'success' => true,
             'query' => $query,
             'results' => $results,
+        ]);
+    }
+
+    /**
+     * Get all saved email templates.
+     */
+    public function getTemplates(Request $request)
+    {
+        $templates = EmailTemplate::orderBy('name')->get();
+        return response()->json([
+            'success' => true,
+            'templates' => $templates,
+        ]);
+    }
+
+    /**
+     * Save or update an email template.
+     */
+    public function saveTemplate(Request $request)
+    {
+        $validated = $request->validate([
+            'id' => 'nullable|integer|exists:email_templates,id',
+            'name' => 'required|string|max:255',
+            'subject' => 'nullable|string|max:500',
+            'body_html' => 'required|string',
+            'category' => 'nullable|string|max:50',
+        ]);
+
+        $plainText = trim(strip_tags($validated['body_html']));
+
+        if (!empty($validated['id'])) {
+            $template = EmailTemplate::findOrFail($validated['id']);
+            $template->update([
+                'name' => $validated['name'],
+                'subject' => $validated['subject'] ?? '',
+                'body_html' => $validated['body_html'],
+                'body_plain' => $plainText,
+                'category' => $validated['category'] ?? $template->category ?? 'general',
+            ]);
+        } else {
+            $template = EmailTemplate::create([
+                'name' => $validated['name'],
+                'subject' => $validated['subject'] ?? '',
+                'body_html' => $validated['body_html'],
+                'body_plain' => $plainText,
+                'category' => $validated['category'] ?? 'general',
+                'created_by' => Auth::id(),
+            ]);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Template saved successfully!',
+            'template' => $template,
+            'templates' => EmailTemplate::orderBy('name')->get(),
+        ]);
+    }
+
+    /**
+     * Delete an email template.
+     */
+    public function deleteTemplate(Request $request, $id)
+    {
+        $template = EmailTemplate::findOrFail($id);
+        $template->delete();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Template deleted successfully!',
+            'templates' => EmailTemplate::orderBy('name')->get(),
         ]);
     }
 }

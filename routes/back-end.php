@@ -489,6 +489,9 @@ Route::middleware(['auth', 'check.permission'])->group(function () {
         Route::get('/followups/{id}', [LeadsController::class, 'getFollowups'])->name('lead.followups.get');
         Route::post('/followups/{id}', [LeadsController::class, 'storeFollowup'])->name('lead.followups.store');
         Route::post('/followups/{id}/done', [LeadsController::class, 'markFollowupDone'])->name('lead.followups.done');
+        Route::get('/followups-due-reminders', [LeadsController::class, 'getDueFollowupReminders'])->name('lead.followups.due-reminders');
+        Route::post('/followups/{id}/snooze', [LeadsController::class, 'snoozeFollowupReminder'])->name('lead.followups.snooze');
+        Route::post('/followups/{id}/dismiss', [LeadsController::class, 'dismissFollowupReminder'])->name('lead.followups.dismiss');
         Route::get('/next-followups', [LeadsController::class, 'showNextFollowups'])->name('lead.next-followups');
     });
 
@@ -506,6 +509,7 @@ Route::middleware(['auth', 'check.permission'])->group(function () {
         Route::put('/payment/update/{orderId}/{paymentId}', [OrderController::class, 'updatePayment'])->name('orders.payment.form.update');
         Route::get('/urgent-orders', [OrderController::class, 'urgentOrders']);
         Route::get('/statuses/list', [OrderController::class, 'getStatuses']);
+        Route::get('/peer-suggestions/{orderId}', [OrderController::class, 'getPeerSuggestions'])->name('orders.peer.suggestions');
         Route::post('/order-save-marks', [OrderController::class, 'saveMarks'])->name('orders.save.marks');
         Route::post('/save-referral', [OrderController::class, 'saveReferral'])->name('orders.save.referral');
     });

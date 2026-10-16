@@ -355,6 +355,13 @@
                     <i class="fa fa-clone" style="font-size: 14px;"></i>
                 </button>
 
+                <button type="button" 
+                        class="gmail-hover-btn" 
+                        title="Copy Subject: {{ addslashes($email->subject ?: '(No Subject)') }}" 
+                        onclick="crmCopyToClipboard('{{ addslashes($email->subject ?: '') }}', 'Subject copied!');">
+                    <i class="fa fa-file-text-o" style="font-size: 13px;"></i>
+                </button>
+
                 @if($whatsAppOrderRef)
                 <button type="submit" form="email-wa-order-{{ $email->id }}"
                    class="gmail-hover-btn gmail-hover-wa-btn d-inline-flex align-items-center justify-content-center"

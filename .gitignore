@@ -7,4 +7,5 @@ storage/*.key
 /storage/app/firebase/
 storage/framework/sessions/*
 vendor/*
-
+storage/app/email_attachments/*
+ANTIGRAVITY_MEMORY.md
