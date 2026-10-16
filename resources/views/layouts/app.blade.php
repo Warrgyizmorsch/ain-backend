@@ -14,11 +14,28 @@
     {{-- Styles --}}
     @include('layouts.css')
 
-    {{-- Early CRM Page Zoom restoration (zero flicker) --}}
+    {{-- Early CRM Page Zoom restoration (page-specific zero flicker) --}}
     <script>
         (function() {
             try {
-                var z = localStorage.getItem('crm_page_zoom');
+                // Clear obsolete global zoom if present so it doesn't affect other pages
+                if (localStorage.getItem('crm_page_zoom')) {
+                    localStorage.removeItem('crm_page_zoom');
+                }
+
+                function getCrmPageZoomKey() {
+                    var p = (window.location.pathname || '').toLowerCase().replace(/^\/+/, '');
+                    var s = p.split('/')[0] || 'dashboard';
+                    if (s.indexOf('whatsapp') !== -1 || s === 'wab') return 'crm_zoom_whatsapp';
+                    if (s.indexOf('email') !== -1) return 'crm_zoom_emails';
+                    if (s.indexOf('lead') !== -1) return 'crm_zoom_leads';
+                    if (s.indexOf('order') !== -1) return 'crm_zoom_orders';
+                    if (s === 'dashboard' || !s) return 'crm_zoom_dashboard';
+                    return 'crm_zoom_' + s.replace(/[^a-z0-9_-]/g, '_');
+                }
+
+                var key = getCrmPageZoomKey();
+                var z = localStorage.getItem(key);
                 if (z && z !== '100') {
                     var scale = parseFloat(z) / 100;
                     if (document.body) {

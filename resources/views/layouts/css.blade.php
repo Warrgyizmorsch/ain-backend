@@ -107,6 +107,14 @@
 				color: #ffffff !important;
 			}
 
+			#crmZoomToggleBtn:hover i,
+			#crmZoomToggleBtn:hover .text-primary,
+			#crmZoomToggleBtn:active i,
+			#crmZoomToggleBtn.active i,
+			#crmZoomToggleBtn:hover .crm-zoom-icon {
+				color: #ffffff !important;
+			}
+
 			/* Chrome Magnifier / Zoom Widget Styles */
 			.crm-zoom-btn-circle {
 				outline: none !important;
