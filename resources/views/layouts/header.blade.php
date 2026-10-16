@@ -333,7 +333,7 @@
 									id="crmZoomToggleBtn" 
 									title="Page Zoom / Magnifier"
 									style="width: 36px; height: 36px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;">
-								<i class="fa fa-search-plus fs-5 text-primary"></i>
+								<i class="fa fa-search-plus fs-5 text-primary crm-zoom-icon"></i>
 								<span id="crmZoomBadge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-primary text-white d-none" style="font-size: 9px !important; padding: 2px 4px !important; transform: translate(-30%, -20%) !important;">100%</span>
 							</button>
 
@@ -795,9 +795,25 @@ document.addEventListener('DOMContentLoaded', function () {
     var ZOOM_STEPS = [50, 67, 75, 80, 90, 100, 110, 125, 150, 175, 200];
     var autoDismissTimer = null;
 
+    function getCrmPageZoomKey() {
+        try {
+            var p = (window.location.pathname || '').toLowerCase().replace(/^\/+/, '');
+            var s = p.split('/')[0] || 'dashboard';
+            if (s.indexOf('whatsapp') !== -1 || s === 'wab') return 'crm_zoom_whatsapp';
+            if (s.indexOf('email') !== -1) return 'crm_zoom_emails';
+            if (s.indexOf('lead') !== -1) return 'crm_zoom_leads';
+            if (s.indexOf('order') !== -1) return 'crm_zoom_orders';
+            if (s === 'dashboard' || !s) return 'crm_zoom_dashboard';
+            return 'crm_zoom_' + s.replace(/[^a-z0-9_-]/g, '_');
+        } catch(e) {
+            return 'crm_zoom_default';
+        }
+    }
+
     function getSavedZoom() {
         try {
-            var val = parseInt(localStorage.getItem('crm_page_zoom'), 10);
+            var key = getCrmPageZoomKey();
+            var val = parseInt(localStorage.getItem(key), 10);
             if (!isNaN(val) && val >= 50 && val <= 200) {
                 return val;
             }
@@ -817,7 +833,12 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         try {
-            localStorage.setItem('crm_page_zoom', zoomVal);
+            var key = getCrmPageZoomKey();
+            if (zoomVal === 100) {
+                localStorage.removeItem(key);
+            } else {
+                localStorage.setItem(key, zoomVal);
+            }
         } catch(e) {}
 
         var label = document.getElementById('crmZoomLabel');
@@ -877,6 +898,12 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     document.addEventListener('DOMContentLoaded', function() {
+        try {
+            if (localStorage.getItem('crm_page_zoom')) {
+                localStorage.removeItem('crm_page_zoom');
+            }
+        } catch(e) {}
+
         var currentZoom = getSavedZoom();
         applyZoom(currentZoom);
 
