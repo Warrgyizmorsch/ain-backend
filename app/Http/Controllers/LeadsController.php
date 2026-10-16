@@ -3072,7 +3072,9 @@ class LeadsController extends Controller
                     'id' => $f->id,
                     'message' => $f->message,
                     'followup_date' => $f->followup_date,
+                    'followup_time' => $f->followup_time ? substr($f->followup_time, 0, 5) : null,
                     'followup_date_formatted' => Carbon::parse($f->followup_date)->format('d M, Y'),
+                    'followup_time_formatted' => $f->followup_time ? Carbon::parse($f->followup_time)->format('h:i A') : null,
                     'created_at_formatted' => Carbon::parse($f->created_at)->format('d M, Y h:i A'),
                     'user_name' => $f->user->name ?? 'Staff',
                     'status' => $f->status,
@@ -3104,6 +3106,7 @@ class LeadsController extends Controller
                 'price' => $lead->price ?: '0',
                 'deadline' => $lead->deadline ?: 'N/A',
                 'next_followup_date' => $lead->next_followup_date ? Carbon::parse($lead->next_followup_date)->format('d M, Y') : null,
+                'next_followup_time' => $lead->next_followup_time ? Carbon::parse($lead->next_followup_time)->format('h:i A') : null,
             ],
             'followups' => $followups,
         ]);
@@ -3116,6 +3119,7 @@ class LeadsController extends Controller
         $request->validate([
             'message' => 'required|string',
             'followup_date' => 'required|date|after_or_equal:'.$today,
+            'followup_time' => 'nullable|string',
         ], [
             'followup_date.after_or_equal' => 'Next followup date must be today or a future date.',
             'followup_date.required' => 'Please select the next followup date.',
@@ -3127,17 +3131,28 @@ class LeadsController extends Controller
             return response()->json(['status' => false, 'message' => 'Lead not found.'], 404);
         }
 
+        $followupTime = null;
+        if (! empty($request->followup_time)) {
+            try {
+                $followupTime = Carbon::parse($request->followup_time)->format('H:i:s');
+            } catch (\Exception $e) {
+                $followupTime = null;
+            }
+        }
+
         $followup = LeadFollowup::create([
             'lead_id' => $id,
             'lead_type' => 'lead',
             'user_id' => Auth::id(),
             'message' => trim($request->message),
             'followup_date' => $request->followup_date,
+            'followup_time' => $followupTime,
             'status' => 'pending',
         ]);
 
         $lead->update([
             'next_followup_date' => $request->followup_date,
+            'next_followup_time' => $followupTime,
         ]);
 
         $followup->load(['user:id,name']);
@@ -3149,7 +3164,9 @@ class LeadsController extends Controller
                 'id' => $followup->id,
                 'message' => $followup->message,
                 'followup_date' => $followup->followup_date,
+                'followup_time' => $followup->followup_time ? substr($followup->followup_time, 0, 5) : null,
                 'followup_date_formatted' => Carbon::parse($followup->followup_date)->format('d M, Y'),
+                'followup_time_formatted' => $followup->followup_time ? Carbon::parse($followup->followup_time)->format('h:i A') : null,
                 'created_at_formatted' => Carbon::parse($followup->created_at)->format('d M, Y h:i A'),
                 'user_name' => $followup->user->name ?? Auth::user()->name ?? 'Staff',
                 'status' => 'pending',
@@ -3178,16 +3195,125 @@ class LeadsController extends Controller
             ->where('lead_type', 'lead')
             ->where('status', 'pending')
             ->orderBy('followup_date', 'asc')
+            ->orderBy('followup_time', 'asc')
             ->first();
 
         Leads::where('id', $followup->lead_id)->update([
             'next_followup_date' => $nextPending ? $nextPending->followup_date : null,
+            'next_followup_time' => $nextPending ? $nextPending->followup_time : null,
         ]);
 
         return response()->json([
             'status' => true,
             'message' => 'Followup marked as completed!',
             'next_pending_date' => $nextPending ? Carbon::parse($nextPending->followup_date)->format('d M, Y') : null,
+            'next_pending_time' => $nextPending && $nextPending->followup_time ? Carbon::parse($nextPending->followup_time)->format('h:i A') : null,
+        ]);
+    }
+
+    public function getDueFollowupReminders(Request $request)
+    {
+        $userId = Auth::id();
+        if (! $userId) {
+            return response()->json(['status' => false, 'reminders' => []]);
+        }
+
+        $now = Carbon::now();
+        $todayDate = $now->toDateString();
+        $currentTime = $now->format('H:i:s');
+
+        // Reminders only for the logged-in user who scheduled it
+        $reminders = LeadFollowup::with(['lead:id,order_id,user_name,email,mobile,project_title,l_status'])
+            ->where('user_id', $userId)
+            ->where('lead_type', 'lead')
+            ->where('status', 'pending')
+            ->where(function ($q) use ($todayDate, $currentTime) {
+                // Past dates
+                $q->where('followup_date', '<', $todayDate)
+                  // Or today and (time is null or time <= current_time)
+                  ->orWhere(function ($q2) use ($todayDate, $currentTime) {
+                      $q2->where('followup_date', '=', $todayDate)
+                         ->where(function ($q3) use ($currentTime) {
+                             $q3->whereNull('followup_time')
+                                ->orWhere('followup_time', '<=', $currentTime);
+                         });
+                  });
+            })
+            ->where(function ($q) use ($now) {
+                // Not snoozed
+                $q->whereNull('snoozed_until')
+                  ->orWhere('snoozed_until', '<=', $now);
+            })
+            ->where(function ($q) use ($now) {
+                // Not reminded in the last 15 minutes
+                $q->whereNull('reminded_at')
+                  ->orWhere('reminded_at', '<=', $now->copy()->subMinutes(15));
+            })
+            ->orderBy('followup_date', 'asc')
+            ->orderBy('followup_time', 'asc')
+            ->limit(5)
+            ->get();
+
+        $formatted = $reminders->map(function ($r) {
+            $lead = $r->lead;
+            $leadName = $lead ? ($lead->user_name ?: 'Client') : 'Client';
+            $orderId = $lead ? ($lead->order_id ?: ('LEAD-'.$lead->id)) : ('#'.$r->lead_id);
+
+            return [
+                'id' => $r->id,
+                'lead_id' => $r->lead_id,
+                'order_id' => $orderId,
+                'client_name' => $leadName,
+                'project_title' => $lead->project_title ?? '',
+                'message' => $r->message,
+                'followup_date' => Carbon::parse($r->followup_date)->format('d M, Y'),
+                'followup_time' => $r->followup_time ? Carbon::parse($r->followup_time)->format('h:i A') : 'All Day',
+                'is_overdue' => Carbon::parse($r->followup_date)->toDateString() < Carbon::today()->toDateString(),
+            ];
+        });
+
+        return response()->json([
+            'status' => true,
+            'count' => $formatted->count(),
+            'reminders' => $formatted,
+        ]);
+    }
+
+    public function snoozeFollowupReminder(Request $request, $id)
+    {
+        $followup = LeadFollowup::where('id', $id)->where('user_id', Auth::id())->first();
+        if (! $followup) {
+            return response()->json(['status' => false, 'message' => 'Followup not found or unauthorized.'], 404);
+        }
+
+        $minutes = (int) $request->input('minutes', 10);
+        if ($minutes < 1) $minutes = 10;
+
+        $followup->update([
+            'snoozed_until' => Carbon::now()->addMinutes($minutes),
+            'reminded_at' => Carbon::now(),
+        ]);
+
+        return response()->json([
+            'status' => true,
+            'message' => "Reminder snoozed for {$minutes} minutes.",
+        ]);
+    }
+
+    public function dismissFollowupReminder(Request $request, $id)
+    {
+        $followup = LeadFollowup::where('id', $id)->where('user_id', Auth::id())->first();
+        if (! $followup) {
+            return response()->json(['status' => false, 'message' => 'Followup not found or unauthorized.'], 404);
+        }
+
+        $followup->update([
+            'reminded_at' => Carbon::now()->addHours(6),
+        ]);
+
+        return response()->json([
+            'status' => true,
+            'message' => 'Reminder dismissed.',
         ]);
     }
 

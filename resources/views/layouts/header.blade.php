@@ -321,10 +321,64 @@
 								<li><button type="button" class="dropdown-item break-start" data-type="Tea Break">Tea Break</button></li>
 							</ul>
 						</div>
-						<div class="bg-light-primary rounded-pill px-4 py-2 border border-primary">
+						<div class="bg-light-primary rounded-pill px-4 py-2 border border-primary me-3">
 							<span class="fs-7 fw-bold text-gray-700">Working Time: </span>
 							<span id="working-timer" class="fs-6 fw-bolder text-primary">00:00:00</span>
 						</div>
+
+						<!--begin::Chrome Magnifier / Zoom Widget (Option B)-->
+						<div class="dropdown me-3 position-relative" id="crmZoomWrapper">
+							<button type="button" 
+									class="btn btn-sm btn-icon btn-light-primary position-relative" 
+									id="crmZoomToggleBtn" 
+									title="Page Zoom / Magnifier"
+									style="width: 36px; height: 36px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;">
+								<i class="fa fa-search-plus fs-5 text-primary"></i>
+								<span id="crmZoomBadge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-primary text-white d-none" style="font-size: 9px !important; padding: 2px 4px !important; transform: translate(-30%, -20%) !important;">100%</span>
+							</button>
+
+							<!--begin::Chrome Magnifier Floating Pill Widget (Option B)-->
+							<div id="crmZoomPillWidget" 
+								 class="crm-zoom-pill shadow" 
+								 style="display: none; position: absolute; top: calc(100% + 10px); right: 0; z-index: 1060; background: #ffffff; border-radius: 30px; padding: 6px 16px; box-shadow: 0 6px 25px rgba(0,0,0,0.18) !important; border: 1px solid #dadce0; align-items: center; gap: 14px; white-space: nowrap; user-select: none;">
+								
+								<!-- Zoom Percentage Display -->
+								<span id="crmZoomLabel" style="font-size: 15px; font-weight: 600; color: #202124; min-width: 48px; text-align: left; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+									100%
+								</span>
+
+								<!-- Minus Button -->
+								<button type="button" 
+										id="crmZoomOutBtn" 
+										class="crm-zoom-btn-circle" 
+										title="Zoom out" 
+										style="width: 28px; height: 28px; border-radius: 50%; border: 1px solid transparent; background: transparent; color: #3c4043; font-size: 20px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s ease;">
+									<span style="font-weight: 500; font-size: 22px; line-height: 0; margin-top: -2px;">&minus;</span>
+								</button>
+
+								<!-- Plus Button -->
+								<button type="button" 
+										id="crmZoomInBtn" 
+										class="crm-zoom-btn-circle" 
+										title="Zoom in" 
+										style="width: 28px; height: 28px; border-radius: 50%; border: 1px solid transparent; background: transparent; color: #3c4043; font-size: 18px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s ease;">
+									<span style="font-weight: 500; font-size: 20px; line-height: 0; margin-top: -1px;">+</span>
+								</button>
+
+								<!-- Divider -->
+								<div style="width: 1px; height: 22px; background: #e0e0e0; margin: 0 2px;"></div>
+
+								<!-- Reset Button -->
+								<button type="button" 
+										id="crmZoomResetBtn" 
+										title="Reset to 100%" 
+										style="border: 1px solid #dadce0; border-radius: 20px; background: #ffffff; color: #1a73e8; font-size: 13px; font-weight: 600; padding: 4px 14px; cursor: pointer; transition: all 0.15s ease; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+									Reset
+								</button>
+							</div>
+							<!--end::Chrome Magnifier Floating Pill Widget-->
+						</div>
+						<!--end::Chrome Magnifier / Zoom Widget-->
 					</div>
 
 					<div class="cursor-pointer symbol symbol-30px symbol-md-40px" data-kt-menu-trigger="click"
@@ -734,3 +788,171 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 @endif
 </script>
+
+{{-- begin::Chrome Magnifier / Zoom Widget Script (Option B) --}}
+<script>
+(function() {
+    var ZOOM_STEPS = [50, 67, 75, 80, 90, 100, 110, 125, 150, 175, 200];
+    var autoDismissTimer = null;
+
+    function getSavedZoom() {
+        try {
+            var val = parseInt(localStorage.getItem('crm_page_zoom'), 10);
+            if (!isNaN(val) && val >= 50 && val <= 200) {
+                return val;
+            }
+        } catch(e) {}
+        return 100;
+    }
+
+    function applyZoom(zoomVal) {
+        zoomVal = parseInt(zoomVal, 10) || 100;
+        if (zoomVal < 50) zoomVal = 50;
+        if (zoomVal > 200) zoomVal = 200;
+
+        if (zoomVal === 100) {
+            document.body.style.zoom = '';
+        } else {
+            document.body.style.zoom = (zoomVal / 100);
+        }
+
+        try {
+            localStorage.setItem('crm_page_zoom', zoomVal);
+        } catch(e) {}
+
+        var label = document.getElementById('crmZoomLabel');
+        if (label) label.textContent = zoomVal + '%';
+
+        var badge = document.getElementById('crmZoomBadge');
+        if (badge) {
+            if (zoomVal !== 100) {
+                badge.textContent = zoomVal + '%';
+                badge.classList.remove('d-none');
+            } else {
+                badge.classList.add('d-none');
+            }
+        }
+
+        var resetBtn = document.getElementById('crmZoomResetBtn');
+        if (resetBtn) {
+            if (zoomVal === 100) {
+                resetBtn.style.opacity = '0.5';
+                resetBtn.style.cursor = 'default';
+            } else {
+                resetBtn.style.opacity = '1';
+                resetBtn.style.cursor = 'pointer';
+            }
+        }
+    }
+
+    function startAutoDismiss() {
+        clearTimeout(autoDismissTimer);
+        autoDismissTimer = setTimeout(function() {
+            hideWidget();
+        }, 3500);
+    }
+
+    function showWidget() {
+        var widget = document.getElementById('crmZoomPillWidget');
+        if (!widget) return;
+        widget.style.display = 'inline-flex';
+        startAutoDismiss();
+    }
+
+    function hideWidget() {
+        clearTimeout(autoDismissTimer);
+        var widget = document.getElementById('crmZoomPillWidget');
+        if (!widget) return;
+        widget.style.display = 'none';
+    }
+
+    function toggleWidget() {
+        var widget = document.getElementById('crmZoomPillWidget');
+        if (!widget) return;
+        if (widget.style.display === 'none' || !widget.style.display) {
+            showWidget();
+        } else {
+            hideWidget();
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        var currentZoom = getSavedZoom();
+        applyZoom(currentZoom);
+
+        var toggleBtn = document.getElementById('crmZoomToggleBtn');
+        var inBtn = document.getElementById('crmZoomInBtn');
+        var outBtn = document.getElementById('crmZoomOutBtn');
+        var resetBtn = document.getElementById('crmZoomResetBtn');
+        var widget = document.getElementById('crmZoomPillWidget');
+
+        if (toggleBtn) {
+            toggleBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                toggleWidget();
+            });
+        }
+
+        if (inBtn) {
+            inBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                var cur = getSavedZoom();
+                var next = 200;
+                for (var i = 0; i < ZOOM_STEPS.length; i++) {
+                    if (ZOOM_STEPS[i] > cur) {
+                        next = ZOOM_STEPS[i];
+                        break;
+                    }
+                }
+                applyZoom(next);
+                startAutoDismiss();
+            });
+        }
+
+        if (outBtn) {
+            outBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                var cur = getSavedZoom();
+                var prev = 50;
+                for (var i = ZOOM_STEPS.length - 1; i >= 0; i--) {
+                    if (ZOOM_STEPS[i] < cur) {
+                        prev = ZOOM_STEPS[i];
+                        break;
+                    }
+                }
+                applyZoom(prev);
+                startAutoDismiss();
+            });
+        }
+
+        if (resetBtn) {
+            resetBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                applyZoom(100);
+                startAutoDismiss();
+            });
+        }
+
+        if (widget) {
+            widget.addEventListener('mouseenter', function() {
+                clearTimeout(autoDismissTimer);
+            });
+            widget.addEventListener('mouseleave', function() {
+                startAutoDismiss();
+            });
+        }
+
+        document.addEventListener('click', function(e) {
+            var container = document.getElementById('crmZoomWrapper');
+            if (container && !container.contains(e.target)) {
+                hideWidget();
+            }
+        });
+    });
+})();
+</script>
+{{-- end::Chrome Magnifier / Zoom Widget Script --}}

@@ -280,7 +280,15 @@ class WhatsappController extends Controller
                 }
             }
 
-            $activePhone = $activePhone ?: $request->query('phone') ?: session('wab_active_phone');
+            if ($request->filled('order_ref') || $request->filled('lead_ref')) {
+                // If a specific order or lead was requested but no phone exists, do not fall back to previous chat
+                if (! $activePhone) {
+                    session()->forget('wab_active_phone');
+                }
+            } else {
+                $activePhone = $activePhone ?: $request->query('phone') ?: session('wab_active_phone');
+            }
+
             if ($activePhone) {
                 session(['wab_active_phone' => $activePhone]);
             }
@@ -423,18 +431,29 @@ class WhatsappController extends Controller
     public function openOrderChat(Request $request)
     {
         $validated = $request->validate([
-            'order_ref' => ['required', 'integer', 'exists:orders,id'],
+            'order_ref' => ['nullable', 'integer', 'exists:orders,id'],
+            'phone' => ['nullable', 'string'],
         ]);
 
-        $order = Order::with(['user', 'lead', 'frontendLead'])->findOrFail($validated['order_ref']);
-        $phone = $this->resolveOrderChatPhone($order);
+        $phone = '';
+        if (! empty($validated['phone'])) {
+            $phone = preg_replace('/\D+/', '', (string) $validated['phone']);
+        }
+
+        if ($phone === '' && ! empty($validated['order_ref'])) {
+            $order = Order::with(['user', 'lead', 'frontendLead'])->find($validated['order_ref']);
+            if ($order) {
+                $phone = $this->resolveOrderChatPhone($order);
+            }
+        }
 
         if ($phone !== '') {
             session(['wab_active_phone' => $phone]);
+            return redirect()->route('whatsapp.chat');
         }
 
-        // POST body carries the order reference; the final browser URL stays clean.
-        return redirect()->route('whatsapp.chat');
+        session()->forget('wab_active_phone');
+        return redirect()->route('whatsapp.chat')->with('error', 'Customer phone number is not available for this record.');
     }
 
     public function openLeadChat(Request $request)
@@ -452,14 +471,21 @@ class WhatsappController extends Controller
             [$lead->countrycode2, $lead->mobile2],
         ];
 
+        $phone = '';
         foreach ($candidates as [$countryCode, $mobile]) {
             if (! empty($mobile) && strtoupper(trim((string) $mobile)) !== 'NA') {
-                session(['wab_active_phone' => $this->normalizeChatPhone($countryCode, $mobile)]);
+                $phone = $this->normalizeChatPhone($countryCode, $mobile);
                 break;
             }
         }
 
-        return redirect()->route('whatsapp.chat');
+        if ($phone !== '') {
+            session(['wab_active_phone' => $phone]);
+            return redirect()->route('whatsapp.chat');
+        }
+
+        session()->forget('wab_active_phone');
+        return redirect()->route('whatsapp.chat')->with('error', 'Customer phone number is not available for this lead.');
     }
 
     private function resolveOrderChatPhone(Order $order): string

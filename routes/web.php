@@ -107,6 +107,9 @@ Route::prefix('emails')->name('emails.')->middleware(['auth', 'check.permission'
     Route::post('/{id}/reply', [\App\Http\Controllers\EmailController::class, 'replyToMessage'])->name('reply.id');
     Route::post('/labels/save', [\App\Http\Controllers\EmailController::class, 'saveThreadLabels'])->name('labels.save');
     Route::get('/contacts/suggest', [\App\Http\Controllers\EmailController::class, 'suggestRecipients'])->name('contacts.suggest');
+    Route::get('/templates', [\App\Http\Controllers\EmailController::class, 'getTemplates'])->name('templates.list');
+    Route::post('/templates/save', [\App\Http\Controllers\EmailController::class, 'saveTemplate'])->name('templates.save');
+    Route::delete('/templates/{id}', [\App\Http\Controllers\EmailController::class, 'deleteTemplate'])->name('templates.delete');
 });
 Route::post('/webhook/emails/inbound', [\App\Http\Controllers\EmailController::class, 'webhook'])
     ->middleware('throttle:60,1')

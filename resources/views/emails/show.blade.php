@@ -827,21 +827,39 @@
                 {{-- Subject Title Header --}}
                 <div class="duralux-subject-header">
                     <div class="d-flex align-items-center flex-wrap gap-2">
-                        <h2 class="duralux-subject-title">{{ $email->subject ?: '(No Subject)' }}</h2>
+                        <h2 class="duralux-subject-title mb-0">{{ $email->subject ?: '(No Subject)' }}</h2>
+                        <button type="button" 
+                                class="btn btn-sm btn-icon btn-light shadow-xs ms-1 copy-subject-btn" 
+                                onclick="crmCopyToClipboard('{{ addslashes($email->subject ?: '') }}', 'Subject copied!');" 
+                                title="Copy Subject" 
+                                style="width: 26px; height: 26px; border-radius: 6px; border: 1px solid #dadce0; background: #fff; display: inline-flex; align-items: center; justify-content: center; cursor: pointer;">
+                            <i class="fa fa-clone text-muted fs-8"></i>
+                        </button>
                         <span class="badge bg-light text-muted border px-2 py-1 fs-8 text-capitalize">{{ $email->folder }}</span>
                         @php
                             $whatsAppOrderRef = $emailOrder?->id;
                             $isSuperAdmin = Auth::check() && (int) Auth::user()->role_id === 1;
+                            $senderPhone = !empty($whatsAppPhone) ? preg_replace('/\D+/', '', $whatsAppPhone) : null;
+                            if (!$senderPhone && $clientContact && !empty($clientContact->mobile_no) && strtoupper(trim((string) $clientContact->mobile_no)) !== 'NA') {
+                                $senderPhone = preg_replace('/\D+/', '', (string) (($clientContact->countrycode ?? '') . $clientContact->mobile_no));
+                            }
+                            $whatsAppAvailable = !empty($senderPhone) || !empty($whatsAppOrderRef);
+                            $whatsAppTitle = !empty($senderPhone)
+                                ? ('Open ' . ($clientContact->name ?: 'Customer') . ' in WhatsApp')
+                                : ('Open order ' . ($emailOrder->order_id ?? '') . ' customer in WhatsApp');
                         @endphp
-                        @if($whatsAppOrderRef)
+                        @if($whatsAppAvailable)
                         <form id="show-email-wa-order" method="POST" action="{{ route('whatsapp.chat.open-order') }}" target="_blank" class="d-none">
                             @csrf
-                            <input type="hidden" name="order_ref" value="{{ $whatsAppOrderRef }}">
+                            @if(!empty($senderPhone))
+                                <input type="hidden" name="phone" value="{{ $senderPhone }}">
+                            @elseif(!empty($whatsAppOrderRef))
+                                <input type="hidden" name="order_ref" value="{{ $whatsAppOrderRef }}">
+                            @endif
                         </form>
                         <button type="submit" form="show-email-wa-order"
-                           target="_blank"
                            class="btn btn-sm btn-light-success d-inline-flex align-items-center gap-1"
-                           title="Open order {{ $emailOrder->order_id }} customer in WhatsApp">
+                           title="{{ $whatsAppTitle }}">
                             <svg width="16" height="16" viewBox="0 0 16 16" fill="#25D366"><path fill="#25D366" d="M13.601 2.326A7.85 7.85 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.364 2.76 1.057 3.965L0 16l4.204-1.102a7.9 7.9 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.9 7.9 0 0 0 13.6 2.326zM7.994 14.521a6.6 6.6 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.56 6.56 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592m3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.73.73 0 0 0-.529.247c-.182.198-.691.677-.691 1.654s.707 2.002.806 2.134c.098.133 1.392 2.123 3.372 2.978.471.204.838.326 1.124.418.473.15.905.129 1.246.078.38-.058 1.17-.479 1.338-.943.166-.464.166-.862.116-.944-.049-.082-.182-.133-.38-.232"/></svg>
                             <span>WhatsApp</span>
                         </button>
@@ -885,11 +903,11 @@
                             <div class="duralux-avatar" style="{{ $avatarBg }}; width: 28px; height: 28px; font-size: 13px;">{{ $avatarLetter }}</div>
                             <div class="fw-bold fs-7 text-truncate" style="width: 170px; color: #202124;">{{ $displayMsgFromName }}</div>
                             <div class="fs-8 text-muted text-truncate flex-grow-1">{{ $snippet }}</div>
-                            @if($whatsAppOrderRef)
+                            @if($whatsAppAvailable)
                             <button type="submit" form="show-email-wa-order"
                                class="text-success me-2 d-inline-flex align-items-center justify-content-center"
                                style="color: #25D366 !important; display: inline-flex !important;"
-                               title="WhatsApp: {{ $clientContact?->name ?: ($whatsAppPhone ?: 'Open Chat') }}"
+                               title="{{ $whatsAppTitle }}"
                                onclick="event.stopPropagation();">
                                 <svg width="15" height="15" viewBox="0 0 16 16" fill="#25D366"><path fill="#25D366" d="M13.601 2.326A7.85 7.85 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.364 2.76 1.057 3.965L0 16l4.204-1.102a7.9 7.9 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.9 7.9 0 0 0 13.6 2.326zM7.994 14.521a6.6 6.6 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.56 6.56 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592m3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.73.73 0 0 0-.529.247c-.182.198-.691.677-.691 1.654s.707 2.002.806 2.134c.098.133 1.392 2.123 3.372 2.978.471.204.838.326 1.124.418.473.15.905.129 1.246.078.38-.058 1.17-.479 1.338-.943.166-.464.166-.862.116-.944-.049-.082-.182-.133-.38-.232"/></svg>
                             </button>
@@ -913,11 +931,11 @@
                                                     onclick="event.stopPropagation(); crmCopyToClipboard('{{ $displayMsgFromEmail }}', 'Email copied!');">
                                                 <i class="fa fa-clone" style="font-size: 11px;"></i>
                                             </button>
-                                            @if($whatsAppOrderRef)
+                                            @if($whatsAppAvailable)
                                             <button type="submit" form="show-email-wa-order"
                                                class="btn btn-icon btn-sm p-0 flex-shrink-0 ms-1 gmail-wa-btn" 
                                                style="width: 22px; height: 22px; min-width: 22px;" 
-                                               title="WhatsApp: {{ $clientContact?->name ?: ($whatsAppPhone ?: 'Open Chat') }}" 
+                                               title="{{ $whatsAppTitle }}" 
                                                onclick="event.stopPropagation();">
                                                 <svg width="13" height="13" viewBox="0 0 16 16"><path d="M13.601 2.326A7.85 7.85 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.364 2.76 1.057 3.965L0 16l4.204-1.102a7.9 7.9 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.9 7.9 0 0 0 13.6 2.326zM7.994 14.521a6.6 6.6 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.56 6.56 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592m3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.73.73 0 0 0-.529.247c-.182.198-.691.677-.691 1.654s.707 2.002.806 2.134c.098.133 1.392 2.123 3.372 2.978.471.204.838.326 1.124.418.473.15.905.129 1.246.078.38-.058 1.17-.479 1.338-.943.166-.464.166-.862.116-.944-.049-.082-.182-.133-.38-.232"/></svg>
                                             </button>
@@ -1615,11 +1633,26 @@ function submitComposer(e) {
     const sendBtn = document.getElementById('composerSendBtn');
     const originalText = sendBtn ? sendBtn.innerHTML : '';
 
-    const toEmail = (document.getElementById('composerToInput')?.value || '').trim();
+    let toEmail = (document.getElementById('composerToInput')?.value || '').trim();
     const subject = (document.getElementById('composerSubjectInput')?.value || '').trim();
     if (!toEmail) {
         showEmailResultToast('Please specify a recipient email.', false);
         return;
+    }
+
+    const typoMap = {
+        'gnail.com': 'gmail.com', 'gmai.com': 'gmail.com', 'gamil.com': 'gmail.com',
+        'gmial.com': 'gmail.com', 'gmaill.com': 'gmail.com', 'hotmial.com': 'hotmail.com',
+        'hotmaill.com': 'hotmail.com', 'yaho.com': 'yahoo.com', 'yahooo.com': 'yahoo.com', 'outlok.com': 'outlook.com'
+    };
+    const parts = toEmail.split('@');
+    if (parts.length === 2 && typoMap[parts[1].toLowerCase().trim()]) {
+        const suggested = parts[0].trim() + '@' + typoMap[parts[1].toLowerCase().trim()];
+        if (confirm(`The recipient email "${toEmail}" appears to have a misspelled domain.\n\nDid you mean "${suggested}"?\n\nClick OK to auto-correct to "${suggested}", or Cancel to send as-is.`)) {
+            toEmail = suggested;
+            const inputEl = document.getElementById('composerToInput');
+            if (inputEl) inputEl.value = suggested;
+        }
     }
 
     if (sendBtn) {

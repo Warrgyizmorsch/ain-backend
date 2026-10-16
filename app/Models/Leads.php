@@ -48,6 +48,7 @@ class Leads extends Model
         'coupon_original_amount',
         'created_by',
         'next_followup_date',
+        'next_followup_time',
     ];
 
     protected static function booted()

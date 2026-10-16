@@ -306,6 +306,8 @@
 
 </div>
 
+@include('back-end.order.partials.peer-suggestion-modal')
+
 <div class="modal fade" id="clientReviewModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered mw-400px">
         <div class="modal-content">
