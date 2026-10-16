@@ -333,7 +333,7 @@
 									id="crmZoomToggleBtn" 
 									title="Page Zoom / Magnifier"
 									style="width: 36px; height: 36px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;">
-								<i class="fa fa-search-plus fs-5 text-primary"></i>
+								<i class="fa fa-search-plus fs-5 text-primary crm-zoom-icon"></i>
 								<span id="crmZoomBadge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-primary text-white d-none" style="font-size: 9px !important; padding: 2px 4px !important; transform: translate(-30%, -20%) !important;">100%</span>
 							</button>
 
