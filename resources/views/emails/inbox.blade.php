@@ -5665,9 +5665,9 @@ setInterval(checkEmailUpdates, 3000);
 
 let emailDetailRequestController = null;
 
-function openEmailOrderWhatsApp(event, orderRef) {
+function openEmailOrderWhatsApp(event, orderRef, phone) {
     if (event) event.stopPropagation();
-    if (!orderRef) return false;
+    if (!orderRef && !phone) return false;
 
     const form = document.createElement('form');
     form.method = 'POST';
@@ -5675,7 +5675,13 @@ function openEmailOrderWhatsApp(event, orderRef) {
     form.target = '_blank';
     form.style.display = 'none';
     const token = document.querySelector('meta[name="csrf-token"]')?.content || '';
-    form.innerHTML = `<input type="hidden" name="_token" value="${token}"><input type="hidden" name="order_ref" value="${String(orderRef).replace(/[^0-9]/g, '')}">`;
+    let inputs = `<input type="hidden" name="_token" value="${token}">`;
+    if (phone) {
+        inputs += `<input type="hidden" name="phone" value="${String(phone).replace(/[^0-9]/g, '')}">`;
+    } else if (orderRef) {
+        inputs += `<input type="hidden" name="order_ref" value="${String(orderRef).replace(/[^0-9]/g, '')}">`;
+    }
+    form.innerHTML = inputs;
     document.body.appendChild(form);
     form.submit();
     form.remove();
@@ -5774,10 +5780,12 @@ function openEmailThread(id, pushToHistory = true) {
 
             const detailWhatsAppBtn = document.getElementById('detailWhatsAppBtn');
             if (detailWhatsAppBtn) {
-                if (data.email && data.email.whatsapp_order_ref) {
+                const waPhone = (data.email && data.email.whatsapp_phone) ? data.email.whatsapp_phone : null;
+                const waOrder = (data.email && data.email.whatsapp_order_ref) ? data.email.whatsapp_order_ref : null;
+                if (waPhone || waOrder) {
                     detailWhatsAppBtn.href = '#';
-                    detailWhatsAppBtn.onclick = event => openEmailOrderWhatsApp(event, data.email.whatsapp_order_ref);
-                    detailWhatsAppBtn.title = `Open order ${data.email.whatsapp_order_code || ''} customer in WhatsApp`;
+                    detailWhatsAppBtn.onclick = event => openEmailOrderWhatsApp(event, waOrder, waPhone);
+                    detailWhatsAppBtn.title = waPhone ? `Open ${data.email.client_name || 'Customer'} in WhatsApp` : `Open order ${data.email.whatsapp_order_code || ''} customer in WhatsApp`;
                     detailWhatsAppBtn.style.setProperty('display', 'inline-flex', 'important');
                 } else {
                     detailWhatsAppBtn.removeAttribute('href');
@@ -6894,14 +6902,46 @@ function updateOptimisticPendingEmail(tempId, isSuccess, isError = false) {
     }
 }
 
+function checkEmailDomainTypo(emailStr) {
+    const typoMap = {
+        'gnail.com': 'gmail.com',
+        'gmai.com': 'gmail.com',
+        'gamil.com': 'gmail.com',
+        'gmial.com': 'gmail.com',
+        'gmaill.com': 'gmail.com',
+        'hotmial.com': 'hotmail.com',
+        'hotmaill.com': 'hotmail.com',
+        'yaho.com': 'yahoo.com',
+        'yahooo.com': 'yahoo.com',
+        'outlok.com': 'outlook.com'
+    };
+    if (!emailStr) return null;
+    const parts = emailStr.split('@');
+    if (parts.length === 2) {
+        const domain = parts[1].toLowerCase().trim();
+        if (typoMap[domain]) {
+            return parts[0].trim() + '@' + typoMap[domain];
+        }
+    }
+    return null;
+}
+
 function submitInlineComposer(e) {
     e.preventDefault();
 
-    const toEmail = document.getElementById('inlineComposerToInput').value.trim();
+    let toEmail = document.getElementById('inlineComposerToInput').value.trim();
     const subject = document.getElementById('inlineComposerSubjectInput').value.trim();
     if (!toEmail) {
         showSendingToast('Please specify a recipient email.', false, true);
         return;
+    }
+
+    const suggested = checkEmailDomainTypo(toEmail);
+    if (suggested) {
+        if (confirm(`The recipient email "${toEmail}" appears to have a domain typo.\n\nDid you mean "${suggested}"?\n\nClick OK to auto-correct and send to "${suggested}", or Cancel to send as-is.`)) {
+            toEmail = suggested;
+            document.getElementById('inlineComposerToInput').value = suggested;
+        }
     }
 
     const userHtml = inlineQuill ? inlineQuill.root.innerHTML : '';
@@ -6992,6 +7032,21 @@ function handleSendCompose(e) {
         document.getElementById('composeToEmail').focus();
         return;
     }
+
+    // Check recipients for domain typos (e.g. @gnail.com)
+    for (let i = 0; i < composeToRecipients.length; i++) {
+        const typo = checkEmailDomainTypo(composeToRecipients[i].email);
+        if (typo) {
+            if (confirm(`The recipient email "${composeToRecipients[i].email}" appears to have a misspelled domain.\n\nDid you mean "${typo}"?\n\nClick OK to auto-correct to "${typo}", or Cancel to send as-is.`)) {
+                composeToRecipients[i].email = typo;
+                if (composeToRecipients[i].name === composeToRecipients[i].email) {
+                    composeToRecipients[i].name = typo;
+                }
+            }
+        }
+    }
+    syncComposeRecipientsToHidden();
+
     document.getElementById('composeBodyHtml').value = composeQuill.root.innerHTML;
     const formData = new FormData(form);
     const toEmail = document.getElementById('composeToEmailValue').value;

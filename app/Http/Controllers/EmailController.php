@@ -810,8 +810,26 @@ class EmailController extends Controller
                 ->first(['id', 'order_id']);
         }
         $whatsAppPhone = null;
-        if ($clientContact && ! empty($clientContact->mobile_no)) {
+        if ($clientContact && ! empty($clientContact->mobile_no) && strtoupper(trim((string) $clientContact->mobile_no)) !== 'NA') {
             $whatsAppPhone = self::formatWhatsAppPhone($clientContact->countrycode ?? '', $clientContact->mobile_no);
+        } elseif ($emailOrder) {
+            $orderWithUser = Order::with(['user', 'lead', 'frontendLead'])->find($emailOrder->id);
+            if ($orderWithUser) {
+                $u = $orderWithUser->user ?: $orderWithUser->lead?->user ?: $orderWithUser->frontendLead?->user;
+                $ld = $orderWithUser->lead ?: $orderWithUser->frontendLead;
+                $cands = [
+                    [$u?->countrycode, $u?->mobile_no],
+                    [$u?->countrycode2, $u?->mobile_no2],
+                    [$ld?->countrycode, $ld?->mobile],
+                    [$ld?->countrycode2, $ld?->mobile2],
+                ];
+                foreach ($cands as [$cc, $mob]) {
+                    if (! empty($mob) && strtoupper(trim((string) $mob)) !== 'NA') {
+                        $whatsAppPhone = self::formatWhatsAppPhone($cc ?? '', $mob);
+                        break;
+                    }
+                }
+            }
         }
 
         $threadLabelIds = EmailThreadLabel::where('thread_id', $email->thread_id)
@@ -1060,9 +1078,27 @@ class EmailController extends Controller
         $request->merge(['to' => $request->input('to') ?: $request->input('to_email')]);
         $validated = $request->validate([
             'to' => ['required', 'string', 'max:2000', function ($attribute, $value, $fail) {
+                $typoMap = [
+                    'gnail.com' => 'gmail.com',
+                    'gmai.com' => 'gmail.com',
+                    'gamil.com' => 'gmail.com',
+                    'gmial.com' => 'gmail.com',
+                    'gmaill.com' => 'gmail.com',
+                    'hotmial.com' => 'hotmail.com',
+                    'hotmaill.com' => 'hotmail.com',
+                    'yaho.com' => 'yahoo.com',
+                    'yahooo.com' => 'yahoo.com',
+                    'outlok.com' => 'outlook.com',
+                ];
                 foreach (array_filter(array_map('trim', explode(',', $value))) as $email) {
                     if (! filter_var($email, FILTER_VALIDATE_EMAIL)) {
                         $fail("Invalid recipient: {$email}");
+                        continue;
+                    }
+                    $domain = strtolower((string) substr(strrchr($email, '@'), 1));
+                    if (isset($typoMap[$domain])) {
+                        $suggested = str_replace('@'.$domain, '@'.$typoMap[$domain], $email);
+                        $fail("Recipient address '{$email}' appears to have a misspelled domain '@{$domain}'. Did you mean '{$suggested}'?");
                     }
                 }
             }],
@@ -2169,9 +2205,17 @@ class EmailController extends Controller
         } catch (\Throwable $e) {
             \Log::warning('Email connection test failed.', ['configuration_id' => $config->id, 'error' => $e->getMessage()]);
 
+            $errMsg = $e->getMessage();
+            if (str_contains($errMsg, '535')) {
+                $detail = 'Authentication failed (code 535). Google rejected the password. Please verify that 2-Step Verification is ON and generate a fresh 16-character Google App Password.';
+            } else {
+                $detail = $errMsg ?: 'Verify the server, port, encryption and credentials.';
+            }
+
             return response()->json([
                 'success' => false,
-                'message' => 'SMTP or IMAP authentication failed. Verify the server, port, encryption and credentials.',
+                'message' => "Connection test failed: {$detail}",
+                'error_detail' => $errMsg,
             ]);
         }
     }

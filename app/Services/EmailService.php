@@ -574,6 +574,7 @@ class EmailService
      */
     public function syncImap(?\App\Models\EmailConfiguration $targetAccount = null): array
     {
+        @set_time_limit(180);
         $accounts = $targetAccount ? collect([$targetAccount]) : \App\Models\EmailConfiguration::where('is_active', true)->get();
 
         if ($accounts->isEmpty()) {
@@ -732,27 +733,50 @@ class EmailService
         }
 
         // mk 5 10 26 - Batch limit 10 emails per sync burst with 5s socket timeout to avoid 120s script timeout
-        stream_set_timeout($socket, 5);
         $pendingUids = array_slice($uids, 0, 10);
         foreach ($pendingUids as $uid) {
+            @set_time_limit(60);
+            stream_set_timeout($socket, 5);
             $fetchTag = $tagSeq . "F{$uid}";
             fputs($socket, "{$fetchTag} UID FETCH {$uid} (RFC822)\r\n");
             $fetchData = '';
+            $fetchStartTime = microtime(true);
+            $fetchTruncated = false;
+
             while ($line = fgets($socket)) {
                 if (str_starts_with($line, "{$fetchTag} ")) break;
                 $fetchData .= $line;
-            }
-
-            $parsed = $this->parseRawEmail($fetchData);
-            if ($parsed && !empty($parsed['from_email'])) {
-                if (!EmailMessage::where('message_id', $parsed['message_id'])->exists()) {
-                    $this->saveParsedEmail($parsed, $account, $localFolder, $direction);
-                    $synced++;
+                // Guard: cap single email raw fetch at 30MB or 20s to prevent memory exhaust / hanging socket
+                if (strlen($fetchData) > 30 * 1024 * 1024 || (microtime(true) - $fetchStartTime) > 20) {
+                    $fetchTruncated = true;
+                    while ($dLine = fgets($socket)) {
+                        if (str_starts_with($dLine, "{$fetchTag} ")) break;
+                    }
+                    break;
                 }
             }
-            $lastUid = max($lastUid, $uid);
+
+            try {
+                if (!$fetchTruncated && !empty($fetchData)) {
+                    $parsed = $this->parseRawEmail($fetchData);
+                    if ($parsed && !empty($parsed['from_email'])) {
+                        if (!EmailMessage::where('message_id', $parsed['message_id'])->exists()) {
+                            $this->saveParsedEmail($parsed, $account, $localFolder, $direction);
+                            $synced++;
+                        }
+                    }
+                } elseif ($fetchTruncated) {
+                    Log::warning("Email UID {$uid} in {$folderName} exceeded 30MB/20s limit during IMAP fetch, skipped body parsing.");
+                }
+            } catch (\Throwable $e) {
+                Log::error("Failed to parse/save email UID {$uid} in {$folderName}: " . $e->getMessage());
+            } finally {
+                // Advance UID pointer and save immediately so single bad email never halts mailbox sync
+                $lastUid = max($lastUid, $uid);
+                $settings[$uidKey] = $lastUid;
+                $account->update(['settings' => $settings]);
+            }
         }
-        $settings[$uidKey] = $lastUid;
 
         return $synced;
     }
