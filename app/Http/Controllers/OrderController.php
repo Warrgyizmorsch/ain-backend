@@ -24,6 +24,7 @@ use App\Models\Leads;
 use App\Models\Ordercall;
 use App\Models\ProjectStatusCount;
 use App\Models\FollowUpComment;
+use App\Models\PeerContactLog;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Collection;
@@ -97,7 +98,10 @@ class OrderController extends Controller
         $userSelectCallback = function ($q) {
             $q->select('id', 'name', 'email', 'countrycode', 'mobile_no', 'is_fail', 'feedback_issue', 'client_review')
                 ->with('groups')
-                ->withCount('orders as orders_count');
+                ->withCount([
+                    'orders as orders_count',
+                    'convertedOrders as converted_orders_count',
+                ]);
         };
 
         return [
@@ -399,7 +403,14 @@ class OrderController extends Controller
             return ['lead_ids' => $leadIds, 'order_ids' => $orderIds];
         });
 
-        $ordersQuery = Order::with('user', 'payment', 'feedback', 'team')
+        $ordersQuery = Order::with([
+            'user' => function ($q) {
+                $q->withCount('convertedOrders as converted_orders_count');
+            },
+            'payment',
+            'feedback',
+            'team'
+        ])
             ->whereNotNull('uid')->where('uid', '!=', 0)->where('uid', '!=', '0');
 
         if (!empty($unconverted['lead_ids'])) {
@@ -1615,6 +1626,14 @@ class OrderController extends Controller
         </span>
     </a>';
 
+            if ($order->user) {
+                $uOrderCount = isset($order->user->converted_orders_count)
+                    ? (int) $order->user->converted_orders_count
+                    : ($order->user ? (int) $order->user->convertedOrders()->count() : 0);
+                $badgeHtml = $uOrderCount > 0 ? '<span style="position:absolute; top:-5px; right:-5px; background:#e53e3e; color:#ffffff; font-size:9px; font-weight:700; line-height:1; padding:2px 4px; border-radius:10px; box-shadow:0 1px 2px rgba(0,0,0,0.3);">' . $uOrderCount . '</span>' : '';
+                $output .= '<a href="' . url('/orders') . '?uid=' . $order->user->id . '&user=' . urlencode($order->user->name) . '" target="_blank" class="btn btn-sm btn-icon p-0 d-inline-flex align-items-center justify-content-center shadow-xs position-relative me-1" style="background-color: #009ef7; color: white; width: 28px; height: 28px; min-width: 28px; border-radius: 6px;" title="View User Orders"><span class="fw-bolder" style="font-size: 13px;">O</span>' . $badgeHtml . '</a>';
+            }
+
             if (auth()->user()->role_id != '5') {
                 $output .= '
     <a href="orderpayments.' . $order->id . '" target="_blank" class="btn btn-icon btn-bg-light btn-active-color-primary btn-sm me-1 position-relative" style="display: inline-flex; align-items: center; justify-content: center;">
@@ -1655,7 +1674,13 @@ class OrderController extends Controller
                         'countrycode' => $order->user->countrycode ?? '',
                         'name' => $order->user->name ?? 'Customer',
                         'id' => 'order' . $order->id,
-                    ])->render() . '';
+                    ])->render() . '
+
+    <button type="button" class="btn btn-icon btn-bg-light btn-active-color-primary btn-sm me-1 peer-match-btn" id="peerMatchBtn' . $order->id . '" onclick="event.stopPropagation(); openPeerSuggestionModal(' . $order->id . ');" title="Find Batchmate / Module Peer">
+        <span class="svg-icon svg-icon-3">
+            <i class="fa fa-users text-primary"></i>
+        </span>
+    </button>';
             }
 
             if (auth()->user()->role_id == '9') {
@@ -6823,5 +6848,301 @@ public function myRevokePayments(Request $request)
             }
         }
     }
+
+    /**
+     * Module Peer Matching (Cross-Selling / Batchmate Suggestion)
+     * Checks Person A's past/current module codes and matches Person B (peer)
+     * who placed an order for the same module in the 3 to 12 months timeline.
+     */
+    public function getPeerSuggestions($orderId)
+    {
+        try {
+            $order = Order::with(['user', 'lead.user', 'frontendLead.user'])->findOrFail($orderId);
+
+            $currentUser = $order->user ?: ($order->lead?->user ?: $order->frontendLead?->user);
+            $currentUserId = $order->uid ?: ($currentUser?->id ?? null);
+            $currentCustomerName = $currentUser?->name ?: ($order->lead?->user_name ?: 'Customer');
+            $currentCustomerEmail = strtolower(trim((string)($currentUser?->email ?: ($order->lead?->email ?: ''))));
+            $currentCustomerPhoneDigits = preg_replace('/\D+/', '', (string)($currentUser?->mobile_no ?: ($order->lead?->mobile ?: '')));
+
+            $currentOrderCode = (string)($order->order_id ?: $order->id);
+            $currentOrderTitle = (string)($order->title ?: ($order->lead?->project_title ?: 'N/A'));
+            $cleanModuleFunc = function ($code) {
+                $raw = trim((string)$code, " \t\n\r\0\x0B:;,.-");
+                $alphaNum = strtoupper(preg_replace('/[^a-zA-Z0-9]/', '', $raw));
+                if (empty($alphaNum) || strlen($alphaNum) < 3) {
+                    return null;
+                }
+                if (in_array($alphaNum, ['NA', 'NAA', 'NONE', 'NULL', 'NOTAVAILABLE', 'NO', 'NIL', 'NOTAPPLICABLE', 'NOTASSIGNED'])) {
+                    return null;
+                }
+                return $raw;
+            };
+
+            $effectiveCurrentModule = $cleanModuleFunc($order->module_code ?: ($order->lead?->module_code ?: optional($order->frontendLead)->module_code));
+
+            // 1. Gather module codes associated with Person A:
+            $candidateModules = collect();
+            if (!empty($effectiveCurrentModule)) {
+                $candidateModules->push($effectiveCurrentModule);
+            }
+
+            if ($currentUserId) {
+                $pastOrderModules = Order::where('uid', $currentUserId)
+                    ->whereNotNull('module_code')
+                    ->where('module_code', '!=', '')
+                    ->pluck('module_code');
+
+                foreach ($pastOrderModules as $m) {
+                    $cleaned = $cleanModuleFunc($m);
+                    if ($cleaned) {
+                        $candidateModules->push($cleaned);
+                    }
+                }
+
+                $pastLeadModules = Leads::where('u_id', $currentUserId)
+                    ->whereNotNull('module_code')
+                    ->where('module_code', '!=', '')
+                    ->pluck('module_code');
+
+                foreach ($pastLeadModules as $m) {
+                    $cleaned = $cleanModuleFunc($m);
+                    if ($cleaned) {
+                        $candidateModules->push($cleaned);
+                    }
+                }
+            }
+
+            $candidateModules = $candidateModules->unique()->values();
+
+            if ($candidateModules->isEmpty()) {
+                return response()->json([
+                    'success' => true,
+                    'has_peers' => false,
+                    'message' => 'No module code found on this order or in the customer\'s order history.',
+                    'current_customer' => [
+                        'name' => $currentCustomerName,
+                        'user_id' => $currentUserId,
+                        'order_code' => $currentOrderCode,
+                        'title' => $currentOrderTitle,
+                        'module_code' => $effectiveCurrentModule ?: 'N/A',
+                    ],
+                    'searched_modules' => [],
+                    'peers' => [],
+                ]);
+            }
+
+            // 2. Query for peers (Person B) who placed an order with any of these module codes
+            // Timeline: 3 to 12 months window
+            $now = Carbon::now();
+            $twelveMonthsAgo = Carbon::now()->subMonths(12)->startOfDay();
+
+            $peerOrdersQuery = Order::with(['user', 'lead.user', 'frontendLead.user'])
+                ->whereIn('module_code', $candidateModules);
+
+            if ($currentUserId) {
+                $peerOrdersQuery->where(function ($q) use ($currentUserId) {
+                    $q->where('uid', '!=', $currentUserId)
+                      ->orWhereNull('uid');
+                });
+            }
+
+            $peerOrders = $peerOrdersQuery
+                ->where(function ($q) use ($twelveMonthsAgo) {
+                    $q->where('created_at', '>=', $twelveMonthsAgo)
+                      ->orWhere('order_date', '>=', $twelveMonthsAgo->toDateString());
+                })
+                ->orderByDesc('id')
+                ->limit(50)
+                ->get();
+
+            $peersGrouped = [];
+
+            foreach ($peerOrders as $pOrder) {
+                $peerUser = $pOrder->user ?: ($pOrder->lead?->user ?: $pOrder->frontendLead?->user);
+                $peerUid = $pOrder->uid ?: ($peerUser?->id ?? null);
+
+                // Skip self-matches
+                if ($currentUserId && $peerUid && (int)$peerUid === (int)$currentUserId) {
+                    continue;
+                }
+
+                $peerEmail = strtolower(trim((string)($peerUser?->email ?: ($pOrder->lead?->email ?: ''))));
+                $peerMobile = (string)($peerUser?->mobile_no ?: ($pOrder->lead?->mobile ?: ''));
+                $peerDigits = preg_replace('/\D+/', '', $peerMobile);
+
+                if (!empty($currentCustomerEmail) && !empty($peerEmail) && $peerEmail === $currentCustomerEmail) {
+                    continue;
+                }
+                if (!empty($currentCustomerPhoneDigits) && !empty($peerDigits) && $peerDigits === $currentCustomerPhoneDigits) {
+                    continue;
+                }
+
+                $key = $peerUid ? 'u_'.$peerUid : ($peerDigits ? 'p_'.$peerDigits : 'e_'.$peerEmail);
+                if (empty($key)) {
+                    continue;
+                }
+
+                $peerCC = preg_replace('/\D+/', '', (string)($peerUser?->countrycode ?: ($pOrder->lead?->countrycode ?: '44')));
+                $fullPhone = $peerCC . $peerDigits;
+
+                $orderDate = $pOrder->order_date ? Carbon::parse($pOrder->order_date) : ($pOrder->created_at ? Carbon::parse($pOrder->created_at) : null);
+                $monthsAgo = $orderDate ? $orderDate->diffInMonths($now) : 0;
+                $inTargetWindow = ($monthsAgo >= 2 && $monthsAgo <= 12);
+
+                if (!isset($peersGrouped[$key])) {
+                    $latestOrder = $peerUid ? Order::where('uid', $peerUid)->orderByDesc('id')->first() : $pOrder;
+
+                    $peerIdentifier = $peerUid ? 'u_'.$peerUid : ($peerDigits ? 'p_'.$peerDigits : 'e_'.md5($peerEmail));
+                    $isContacted = false;
+                    $contactedDateFormatted = null;
+
+                    if (Schema::hasTable('peer_contact_logs')) {
+                        $contactLog = PeerContactLog::where(function ($q) use ($peerIdentifier, $peerUid, $peerDigits) {
+                                $q->where('peer_identifier', $peerIdentifier);
+                                if ($peerUid) {
+                                    $q->orWhere('peer_user_id', $peerUid);
+                                }
+                                if ($peerDigits) {
+                                    $q->orWhere('peer_phone', 'like', "%{$peerDigits}%");
+                                }
+                            })
+                            ->where('is_contacted', true)
+                            ->where('contacted_at', '>=', Carbon::now()->subMonths(2))
+                            ->latest('contacted_at')
+                            ->first();
+
+                        if ($contactLog) {
+                            $isContacted = true;
+                            $contactedDateFormatted = Carbon::parse($contactLog->contacted_at)->format('d M Y');
+                        }
+                    }
+
+                    $peersGrouped[$key] = [
+                        'peer_identifier' => $peerIdentifier,
+                        'is_contacted' => $isContacted,
+                        'contacted_date_formatted' => $contactedDateFormatted,
+                        'peer_user_id' => $peerUid,
+                        'peer_name' => $peerUser?->name ?: ($pOrder->lead?->user_name ?: 'Customer'),
+                        'peer_email' => $peerEmail,
+                        'peer_phone' => $peerMobile,
+                        'peer_cc' => $peerCC,
+                        'peer_full_phone' => $fullPhone,
+                        'matched_module_code' => $pOrder->module_code,
+                        'matched_order_id' => $pOrder->id,
+                        'matched_order_code' => $pOrder->order_id ?: $pOrder->id,
+                        'matched_order_date' => $orderDate ? $orderDate->format('d M Y') : 'N/A',
+                        'time_ago' => $orderDate ? $orderDate->diffForHumans() : '',
+                        'months_ago' => $monthsAgo,
+                        'in_target_window' => $inTargetWindow,
+                        'latest_order_code' => $latestOrder ? ($latestOrder->order_id ?: $latestOrder->id) : ($pOrder->order_id ?: $pOrder->id),
+                        'latest_order_date' => $latestOrder && $latestOrder->order_date ? Carbon::parse($latestOrder->order_date)->format('d M Y') : ($latestOrder && $latestOrder->created_at ? $latestOrder->created_at->format('d M Y') : 'N/A'),
+                        'latest_order_status' => $latestOrder?->projectstatus ?: $pOrder->projectstatus,
+                        'whatsapp_order_ref' => $latestOrder?->id ?: $pOrder->id,
+                    ];
+                }
+            }
+
+            // Sort peers: prioritize those in 2-12 months window
+            $peersList = collect($peersGrouped)->sortByDesc(function ($p) {
+                return ($p['in_target_window'] ? 100 : 0) - abs($p['months_ago'] - 2);
+            })->values()->all();
+
+            return response()->json([
+                'success' => true,
+                'has_peers' => count($peersList) > 0,
+                'message' => count($peersList) > 0 ? count($peersList) . ' peer(s) found.' : 'No batchmates or peers found who ordered these modules in the last 2-12 months.',
+                'current_customer' => [
+                    'name' => $currentCustomerName,
+                    'user_id' => $currentUserId,
+                    'order_code' => $currentOrderCode,
+                    'title' => $currentOrderTitle,
+                    'module_code' => $effectiveCurrentModule ?: 'N/A',
+                ],
+                'searched_modules' => $candidateModules->all(),
+                'peers' => $peersList,
+            ]);
+
+        } catch (\Throwable $e) {
+            Log::error("getPeerSuggestions failed for order {$orderId}: " . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to check peer suggestions: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Toggle Contacted Checkbox status for a Peer Customer.
+     * Stored with contacted_at timestamp; auto-expires / unchecks after 2 months.
+     */
+    public function togglePeerContacted(Request $request)
+    {
+        try {
+            $validated = $request->validate([
+                'peer_identifier' => 'required|string|max:100',
+                'peer_user_id' => 'nullable|integer',
+                'peer_phone' => 'nullable|string|max:50',
+                'order_id' => 'nullable|integer',
+                'is_contacted' => 'required',
+            ]);
+
+            $peerIdentifier = $validated['peer_identifier'];
+            $isContacted = filter_var($validated['is_contacted'], FILTER_VALIDATE_BOOLEAN);
+
+            if (!Schema::hasTable('peer_contact_logs')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'peer_contact_logs table does not exist. Please run migration.',
+                ], 500);
+            }
+
+            if ($isContacted) {
+                PeerContactLog::updateOrCreate(
+                    ['peer_identifier' => $peerIdentifier],
+                    [
+                        'peer_user_id' => $validated['peer_user_id'] ?: null,
+                        'peer_phone' => $validated['peer_phone'] ?: null,
+                        'order_id' => $validated['order_id'] ?: null,
+                        'contacted_by' => Auth::id(),
+                        'contacted_at' => Carbon::now(),
+                        'is_contacted' => true,
+                    ]
+                );
+
+                return response()->json([
+                    'success' => true,
+                    'is_contacted' => true,
+                    'contacted_date_formatted' => Carbon::now()->format('d M Y'),
+                    'message' => 'Marked as contacted. Status will remain active for 2 months.',
+                ]);
+            } else {
+                PeerContactLog::where('peer_identifier', $peerIdentifier)
+                    ->orWhere(function ($q) use ($validated) {
+                        if (!empty($validated['peer_user_id'])) {
+                            $q->where('peer_user_id', $validated['peer_user_id']);
+                        }
+                    })
+                    ->update([
+                        'is_contacted' => false,
+                        'contacted_at' => null,
+                    ]);
+
+                return response()->json([
+                    'success' => true,
+                    'is_contacted' => false,
+                    'contacted_date_formatted' => null,
+                    'message' => 'Contacted status cleared.',
+                ]);
+            }
+        } catch (\Throwable $e) {
+            Log::error('togglePeerContacted error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Could not update contacted status: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
 }
+
 

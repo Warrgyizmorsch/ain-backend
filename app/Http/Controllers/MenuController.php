@@ -194,9 +194,11 @@ public function permission(Request $req)
         ]
     );
 
-    // Invalidate cached role routes immediately
+    // Invalidate cached role routes and global menu/permission caches immediately
     \Illuminate\Support\Facades\Cache::forget('role-allowed-routes-' . $role);
     \Illuminate\Support\Facades\Cache::forget('role-allowed-routes-' . (int)$role);
+    \Illuminate\Support\Facades\Cache::forget('global_portal_menus_tree');
+    \Illuminate\Support\Facades\Cache::forget('global_portal_permissions');
 
     return redirect()->back()->with('success', 'Permission Granted Successfully');
 }

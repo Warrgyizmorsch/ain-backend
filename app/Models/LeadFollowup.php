@@ -17,13 +17,18 @@ class LeadFollowup extends Model
         'user_id',
         'message',
         'followup_date',
+        'followup_time',
         'status',
+        'reminded_at',
+        'snoozed_until',
         'done_by',
         'done_at',
     ];
 
     protected $casts = [
         'followup_date' => 'date',
+        'reminded_at' => 'datetime',
+        'snoozed_until' => 'datetime',
         'done_at' => 'datetime',
     ];
 

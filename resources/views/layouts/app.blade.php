@@ -14,6 +14,25 @@
     {{-- Styles --}}
     @include('layouts.css')
 
+    {{-- Early CRM Page Zoom restoration (zero flicker) --}}
+    <script>
+        (function() {
+            try {
+                var z = localStorage.getItem('crm_page_zoom');
+                if (z && z !== '100') {
+                    var scale = parseFloat(z) / 100;
+                    if (document.body) {
+                        document.body.style.zoom = scale;
+                    } else {
+                        document.addEventListener('DOMContentLoaded', function() {
+                            if (document.body) document.body.style.zoom = scale;
+                        });
+                    }
+                }
+            } catch(e) {}
+        })();
+    </script>
+
     {{-- Phone masking: full numbers are admin-only (role_id 1) --}}
     <script>
         window.canViewFullPhone = @json(auth()->check() && (int)auth()->user()->role_id === 1);
@@ -1171,6 +1190,8 @@
         @include('layouts.partials.twilio-call-helper')
         {{-- Global Email Auto-Sync & Real-Time Notification across all CRM Pages --}}
         @include('layouts.partials.email-global-sync')
+        {{-- Global Follow-up Reminder Real-Time Alerts with Sound --}}
+        @include('layouts.partials.followup-reminder-alert')
     @endauth
 
 </body>

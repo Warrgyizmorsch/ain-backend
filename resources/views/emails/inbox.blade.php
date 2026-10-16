@@ -3255,6 +3255,14 @@
                         <div class="gmail-thread-subject-row">
                             <div class="d-flex align-items-center gap-2 flex-wrap flex-grow-1">
                                 <h2 class="gmail-detail-subject-title" id="detailSubject">Loading Subject...</h2>
+                                <button type="button" 
+                                        class="btn btn-sm btn-icon btn-light shadow-xs ms-1 copy-subject-btn" 
+                                        id="btnCopyDetailSubject" 
+                                        onclick="copyThreadSubject()" 
+                                        title="Copy Subject" 
+                                        style="width: 26px; height: 26px; border-radius: 6px; border: 1px solid #dadce0; background: #fff; display: inline-flex; align-items: center; justify-content: center; cursor: pointer;">
+                                    <i class="fa fa-clone text-muted fs-8" id="copySubjectIcon"></i>
+                                </button>
                                 <div class="gmail-subject-labels" id="detailLabelsBadges"></div>
                             </div>
                             <div class="d-flex align-items-center gap-1 flex-shrink-0">
@@ -3363,6 +3371,18 @@
                                         <input type="file" name="files[]" id="inlineComposerFileInput" multiple style="display: none;" onchange="handleInlineFileSelected(this)">
                                     </label>
                                     <span class="text-muted fs-8" id="inlineFileCountBadge"></span>
+
+                                    {{-- Inline Templates Dropdown --}}
+                                    <div class="dropdown d-inline-block position-relative">
+                                        <button type="button" class="gmail-icon-btn" id="btnInlineTemplates" data-bs-toggle="dropdown" aria-expanded="false" title="Insert Template">
+                                            <i class="fa fa-file-text-o"></i>
+                                        </button>
+                                        <div class="dropdown-menu dropdown-menu-start shadow-lg py-2" style="min-width: 250px; border-radius: 8px; border: 1px solid #dadce0; font-size: 13px; z-index: 1060;" id="inlineTemplateListMenu">
+                                            <div class="px-3 py-1 text-muted fw-bold text-uppercase fs-9 letter-spacing-1">Templates</div>
+                                            <div class="dropdown-divider my-1"></div>
+                                            <div id="inlineTemplateItemsWrap" style="max-height: 200px; overflow-y: auto;"></div>
+                                        </div>
+                                    </div>
                                 </div>
 
                                 <button type="button" class="gmail-icon-btn" onclick="discardInlineComposer()" title="Discard draft">
@@ -3487,10 +3507,43 @@
                     <button type="button" class="gmail-tool-btn" title="Insert Link" onclick="promptInsertLink()">
                         <i class="fa fa-link"></i>
                     </button>
+                    <button type="button" class="gmail-tool-btn" title="Insert Template" onclick="triggerTemplatesDropdown()" style="font-size: 13px;">
+                        <i class="fa fa-file-text-o"></i>
+                    </button>
                 </div>
             </div>
 
             <div class="d-flex align-items-center gap-1">
+                {{-- Templates & More Options (Gmail Authentic Dropdown) --}}
+                <div class="dropdown d-inline-block position-relative" id="composeTemplatesDropdownWrap">
+                    <button type="button" class="gmail-tool-btn" id="btnComposeTemplates" data-bs-toggle="dropdown" aria-expanded="false" title="Templates / More options">
+                        <i class="fa fa-ellipsis-v"></i>
+                    </button>
+                    <div class="dropdown-menu dropdown-menu-end shadow-lg py-2" style="min-width: 260px; border-radius: 8px; border: 1px solid #dadce0; font-size: 13px; z-index: 1060;" id="composeTemplatesMenu">
+                        <div class="px-3 py-1 text-muted fw-bold text-uppercase fs-9 letter-spacing-1">Templates</div>
+                        <div class="dropdown-divider my-1"></div>
+                        
+                        <div class="px-3 py-1 text-muted fs-8 fw-semibold d-flex align-items-center justify-content-between">
+                            <span>INSERT TEMPLATE</span>
+                        </div>
+                        <div id="composeTemplateList" class="py-1" style="max-height: 220px; overflow-y: auto;">
+                            <!-- Populated dynamically via JS -->
+                        </div>
+
+                        <div class="dropdown-divider my-1"></div>
+
+                        <a class="dropdown-item py-2 px-3 d-flex align-items-center" href="javascript:void(0)" onclick="promptSaveCurrentAsTemplate()">
+                            <i class="fa fa-save me-2 text-primary fs-7"></i>
+                            <span>Save draft as template</span>
+                        </a>
+
+                        <a class="dropdown-item py-2 px-3 d-flex align-items-center text-danger" href="javascript:void(0)" onclick="openManageTemplatesModal()">
+                            <i class="fa fa-trash-o me-2 text-danger fs-7"></i>
+                            <span>Manage / Delete templates</span>
+                        </a>
+                    </div>
+                </div>
+
                 <button type="button" class="gmail-tool-btn text-danger" title="Discard Draft" onclick="discardCompose()">
                     <i class="fa fa-trash-o fs-6"></i>
                 </button>
@@ -3568,6 +3621,61 @@
     <button type="button" class="gmail-snackbar-close" onclick="hideGmailSnackbar()">&times;</button>
 </div>
 
+{{-- Save Draft As Template Modal --}}
+<div class="modal fade" id="saveEmailTemplateModal" tabindex="-1" aria-hidden="true" style="z-index: 1070;">
+    <div class="modal-dialog modal-dialog-centered" style="max-width: 480px;">
+        <div class="modal-content shadow-lg border-0" style="border-radius: 12px; overflow: hidden;">
+            <div class="modal-header border-bottom py-3 px-4 d-flex align-items-center justify-content-between" style="background: #f8f9fa;">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="fa fa-save text-primary fs-5"></i>
+                    <h5 class="modal-title fw-bold mb-0 text-dark fs-6">Save as New Template</h5>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="mb-3">
+                    <label class="form-label fw-semibold fs-7 text-dark">Template Name <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control form-control-sm" id="saveTemplateNameInput" placeholder="e.g. Order Confirmation, Revision Clarification" required autocomplete="off">
+                    <div class="text-muted fs-8 mt-1">A memorable title to recognize this template in your list.</div>
+                </div>
+                <div class="mb-2">
+                    <label class="form-label fw-semibold fs-7 text-dark">Default Subject</label>
+                    <input type="text" class="form-control form-control-sm" id="saveTemplateSubjectInput" placeholder="Email subject (optional)" autocomplete="off">
+                    <div class="text-muted fs-8 mt-1">This subject will automatically prefill when the template is inserted.</div>
+                </div>
+            </div>
+            <div class="modal-footer border-top py-2 px-4 bg-light d-flex justify-content-end gap-2">
+                <button type="button" class="btn btn-sm btn-light" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-sm btn-primary px-4 fw-semibold" id="btnConfirmSaveTemplate" onclick="handleConfirmSaveTemplate()">
+                    <i class="fa fa-check me-1"></i> Save Template
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{-- Manage / Delete Templates Modal --}}
+<div class="modal fade" id="manageEmailTemplatesModal" tabindex="-1" aria-hidden="true" style="z-index: 1070;">
+    <div class="modal-dialog modal-dialog-centered modal-lg" style="max-width: 650px;">
+        <div class="modal-content shadow-lg border-0" style="border-radius: 12px; overflow: hidden;">
+            <div class="modal-header border-bottom py-3 px-4 d-flex align-items-center justify-content-between" style="background: #f8f9fa;">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="fa fa-file-text-o text-primary fs-5"></i>
+                    <h5 class="modal-title fw-bold mb-0 text-dark fs-6">Manage Email Templates</h5>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4" style="max-height: 400px; overflow-y: auto;" id="manageTemplatesModalList">
+                <!-- Dynamically loaded list of templates -->
+            </div>
+            <div class="modal-footer border-top py-2 px-4 bg-light d-flex justify-content-between align-items-center">
+                <span class="text-muted fs-8">Templates are shared with your team for fast communication.</span>
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 @push('scripts')
 <script src="https://cdn.quilljs.com/1.3.6/quill.min.js"></script>
 <script src="{{ asset('assets/plugins/jszip.min.js') }}"></script>
@@ -3588,9 +3696,13 @@ let composeQuill = null;
 let inlineQuill = null;
 let replyQuill = null;
 let isQuillToolbarVisible = true;
+let globalEmailTemplates = @json($emailTemplates ?? []);
 
 document.addEventListener('DOMContentLoaded', function() {
     const urlParams = new URLSearchParams(window.location.search);
+
+    // Initialize templates in compose & reply dropdowns
+    renderTemplatesList();
 
     // Init Quill for compose with rich toolbar options
     if (document.getElementById('composeQuillEditor')) {
@@ -3662,6 +3774,258 @@ document.addEventListener('DOMContentLoaded', function() {
         openEmailThread(initialEmailId);
     }
 });
+
+// ── Copy Subject to Clipboard ───────────────────────────────────────────
+function copyThreadSubject() {
+    const subjElem = document.getElementById('detailSubject');
+    let subjectText = (subjElem ? subjElem.textContent : '').trim();
+    if (!subjectText || subjectText === 'Loading Subject...' || subjectText === '(No Subject)') {
+        return;
+    }
+    crmCopyToClipboard(subjectText, 'Subject copied!');
+    const icon = document.getElementById('copySubjectIcon');
+    if (icon) {
+        icon.className = 'fa fa-check text-success fs-8';
+        setTimeout(() => { icon.className = 'fa fa-clone text-muted fs-8'; }, 2000);
+    }
+}
+
+// ── Email Templates Engine ──────────────────────────────────────────────
+function renderTemplatesList() {
+    const composeListEl = document.getElementById('composeTemplateList');
+    const inlineListEl = document.getElementById('inlineTemplateItemsWrap');
+    
+    let composeHtml = '';
+    let inlineHtml = '';
+
+    if (!globalEmailTemplates || globalEmailTemplates.length === 0) {
+        const emptyMsg = '<div class="px-3 py-2 text-muted fs-8 text-center fst-italic">No saved templates</div>';
+        if (composeListEl) composeListEl.innerHTML = emptyMsg;
+        if (inlineListEl) inlineListEl.innerHTML = emptyMsg;
+        return;
+    }
+
+    globalEmailTemplates.forEach((tpl) => {
+        const safeName = (tpl.name || 'Untitled').replace(/"/g, '&quot;').replace(/'/g, "\\'");
+        
+        composeHtml += `
+            <a class="dropdown-item py-2 px-3 d-flex align-items-center justify-content-between" href="javascript:void(0)" onclick="applyTemplateToComposer(${tpl.id})" title="${safeName}">
+                <span class="text-truncate" style="max-width: 220px;">
+                    <i class="fa fa-file-text-o text-muted me-2 fs-8"></i>${tpl.name}
+                </span>
+            </a>
+        `;
+
+        inlineHtml += `
+            <a class="dropdown-item py-2 px-3 d-flex align-items-center justify-content-between" href="javascript:void(0)" onclick="applyTemplateToInlineComposer(${tpl.id})" title="${safeName}">
+                <span class="text-truncate" style="max-width: 210px;">
+                    <i class="fa fa-file-text-o text-muted me-2 fs-8"></i>${tpl.name}
+                </span>
+            </a>
+        `;
+    });
+
+    if (composeListEl) composeListEl.innerHTML = composeHtml;
+    if (inlineListEl) inlineListEl.innerHTML = inlineHtml;
+}
+
+function triggerTemplatesDropdown() {
+    const btn = document.getElementById('btnComposeTemplates');
+    if (btn) {
+        const dropdown = bootstrap.Dropdown.getOrCreateInstance(btn);
+        dropdown.toggle();
+    }
+}
+
+function applyTemplateToComposer(templateId) {
+    const tpl = (globalEmailTemplates || []).find(t => t.id == templateId);
+    if (!tpl) return;
+
+    const subjInput = document.getElementById('composeSubject');
+    if (subjInput) {
+        subjInput.value = tpl.subject || subjInput.value;
+    }
+
+    if (typeof composeQuill !== 'undefined' && composeQuill) {
+        composeQuill.root.innerHTML = tpl.body_html || '';
+        if (typeof scheduleComposeDraftAutoSave === 'function') {
+            scheduleComposeDraftAutoSave();
+        }
+    }
+
+    if (typeof showEmailResultToast === 'function') {
+        showEmailResultToast('Template applied: ' + tpl.name, true);
+    }
+}
+
+function applyTemplateToInlineComposer(templateId) {
+    const tpl = (globalEmailTemplates || []).find(t => t.id == templateId);
+    if (!tpl) return;
+
+    if (typeof inlineQuill !== 'undefined' && inlineQuill) {
+        inlineQuill.root.innerHTML = tpl.body_html || '';
+    } else if (typeof replyQuill !== 'undefined' && replyQuill) {
+        replyQuill.root.innerHTML = tpl.body_html || '';
+    }
+
+    if (typeof showEmailResultToast === 'function') {
+        showEmailResultToast('Template applied: ' + tpl.name, true);
+    }
+}
+
+function promptSaveCurrentAsTemplate() {
+    const subject = (document.getElementById('composeSubject')?.value || '').trim();
+    const bodyHtml = (typeof composeQuill !== 'undefined' && composeQuill) ? composeQuill.root.innerHTML.trim() : '';
+
+    if (!bodyHtml || bodyHtml === '<p><br></p>') {
+        alert('Please write a message in the editor first to save as a template.');
+        return;
+    }
+
+    const nameInput = document.getElementById('saveTemplateNameInput');
+    const subjInput = document.getElementById('saveTemplateSubjectInput');
+    if (nameInput) nameInput.value = subject || '';
+    if (subjInput) subjInput.value = subject || '';
+
+    const modalEl = document.getElementById('saveEmailTemplateModal');
+    if (modalEl) {
+        const modal = new bootstrap.Modal(modalEl);
+        modal.show();
+    }
+}
+
+function handleConfirmSaveTemplate() {
+    const nameInput = document.getElementById('saveTemplateNameInput');
+    const subjInput = document.getElementById('saveTemplateSubjectInput');
+    const name = nameInput ? nameInput.value.trim() : '';
+    const subject = subjInput ? subjInput.value.trim() : '';
+    const bodyHtml = (typeof composeQuill !== 'undefined' && composeQuill) ? composeQuill.root.innerHTML.trim() : '';
+
+    if (!name) {
+        alert('Please enter a template name.');
+        return;
+    }
+
+    const saveBtn = document.getElementById('btnConfirmSaveTemplate');
+    if (saveBtn) {
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = '<i class="fa fa-spinner fa-spin me-1"></i> Saving...';
+    }
+
+    fetch('{{ route("emails.templates.save") }}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': csrfToken,
+            'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+            name: name,
+            subject: subject,
+            body_html: bodyHtml
+        })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (saveBtn) {
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = '<i class="fa fa-check me-1"></i> Save Template';
+        }
+        if (data.success) {
+            globalEmailTemplates = data.templates || [];
+            renderTemplatesList();
+            
+            const modalEl = document.getElementById('saveEmailTemplateModal');
+            if (modalEl) {
+                const modalInstance = bootstrap.Modal.getInstance(modalEl);
+                if (modalInstance) modalInstance.hide();
+            }
+
+            if (typeof showEmailResultToast === 'function') {
+                showEmailResultToast('Template "' + name + '" saved successfully!', true);
+            }
+        } else {
+            alert(data.message || 'Error saving template.');
+        }
+    })
+    .catch(err => {
+        if (saveBtn) {
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = '<i class="fa fa-check me-1"></i> Save Template';
+        }
+        console.error('Error saving template:', err);
+        alert('Failed to save template.');
+    });
+}
+
+function openManageTemplatesModal() {
+    renderManageTemplatesList();
+    const modalEl = document.getElementById('manageEmailTemplatesModal');
+    if (modalEl) {
+        const modal = new bootstrap.Modal(modalEl);
+        modal.show();
+    }
+}
+
+function renderManageTemplatesList() {
+    const listEl = document.getElementById('manageTemplatesModalList');
+    if (!listEl) return;
+
+    if (!globalEmailTemplates || globalEmailTemplates.length === 0) {
+        listEl.innerHTML = '<div class="text-center text-muted py-4">No saved templates found.</div>';
+        return;
+    }
+
+    let html = '<div class="list-group list-group-flush">';
+    globalEmailTemplates.forEach(tpl => {
+        const safeName = (tpl.name || 'Untitled').replace(/"/g, '&quot;').replace(/'/g, "\\'");
+        const safeSubj = (tpl.subject || '(No Subject)').replace(/"/g, '&quot;');
+        html += `
+            <div class="list-group-item d-flex align-items-center justify-content-between py-3 px-2 border-bottom">
+                <div style="max-width: 80%;">
+                    <div class="fw-bold fs-7 text-dark">${tpl.name}</div>
+                    <div class="text-muted fs-8 text-truncate mt-1"><span class="fw-semibold">Subject:</span> ${safeSubj}</div>
+                </div>
+                <button type="button" class="btn btn-sm btn-icon btn-light-danger" onclick="deleteEmailTemplate(${tpl.id}, '${safeName}')" title="Delete Template">
+                    <i class="fa fa-trash-o text-danger"></i>
+                </button>
+            </div>
+        `;
+    });
+    html += '</div>';
+    listEl.innerHTML = html;
+}
+
+function deleteEmailTemplate(id, name) {
+    if (!confirm('Are you sure you want to delete template "' + name + '"?')) {
+        return;
+    }
+
+    fetch('{{ url("/emails/templates") }}/' + id, {
+        method: 'DELETE',
+        headers: {
+            'X-CSRF-TOKEN': csrfToken,
+            'Accept': 'application/json'
+        }
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            globalEmailTemplates = data.templates || [];
+            renderTemplatesList();
+            renderManageTemplatesList();
+            if (typeof showEmailResultToast === 'function') {
+                showEmailResultToast('Template deleted successfully!', true);
+            }
+        } else {
+            alert(data.message || 'Failed to delete template.');
+        }
+    })
+    .catch(err => {
+        console.error('Error deleting template:', err);
+        alert('Failed to delete template.');
+    });
+}
 
 let composeToRecipients = [];
 
@@ -5301,9 +5665,9 @@ setInterval(checkEmailUpdates, 3000);
 
 let emailDetailRequestController = null;
 
-function openEmailOrderWhatsApp(event, orderRef) {
+function openEmailOrderWhatsApp(event, orderRef, phone) {
     if (event) event.stopPropagation();
-    if (!orderRef) return false;
+    if (!orderRef && !phone) return false;
 
     const form = document.createElement('form');
     form.method = 'POST';
@@ -5311,7 +5675,13 @@ function openEmailOrderWhatsApp(event, orderRef) {
     form.target = '_blank';
     form.style.display = 'none';
     const token = document.querySelector('meta[name="csrf-token"]')?.content || '';
-    form.innerHTML = `<input type="hidden" name="_token" value="${token}"><input type="hidden" name="order_ref" value="${String(orderRef).replace(/[^0-9]/g, '')}">`;
+    let inputs = `<input type="hidden" name="_token" value="${token}">`;
+    if (phone) {
+        inputs += `<input type="hidden" name="phone" value="${String(phone).replace(/[^0-9]/g, '')}">`;
+    } else if (orderRef) {
+        inputs += `<input type="hidden" name="order_ref" value="${String(orderRef).replace(/[^0-9]/g, '')}">`;
+    }
+    form.innerHTML = inputs;
     document.body.appendChild(form);
     form.submit();
     form.remove();
@@ -5410,10 +5780,12 @@ function openEmailThread(id, pushToHistory = true) {
 
             const detailWhatsAppBtn = document.getElementById('detailWhatsAppBtn');
             if (detailWhatsAppBtn) {
-                if (data.email && data.email.whatsapp_order_ref) {
+                const waPhone = (data.email && data.email.whatsapp_phone) ? data.email.whatsapp_phone : null;
+                const waOrder = (data.email && data.email.whatsapp_order_ref) ? data.email.whatsapp_order_ref : null;
+                if (waPhone || waOrder) {
                     detailWhatsAppBtn.href = '#';
-                    detailWhatsAppBtn.onclick = event => openEmailOrderWhatsApp(event, data.email.whatsapp_order_ref);
-                    detailWhatsAppBtn.title = `Open order ${data.email.whatsapp_order_code || ''} customer in WhatsApp`;
+                    detailWhatsAppBtn.onclick = event => openEmailOrderWhatsApp(event, waOrder, waPhone);
+                    detailWhatsAppBtn.title = waPhone ? `Open ${data.email.client_name || 'Customer'} in WhatsApp` : `Open order ${data.email.whatsapp_order_code || ''} customer in WhatsApp`;
                     detailWhatsAppBtn.style.setProperty('display', 'inline-flex', 'important');
                 } else {
                     detailWhatsAppBtn.removeAttribute('href');
@@ -5699,6 +6071,7 @@ function openEmailThread(id, pushToHistory = true) {
                                         <ul class="dropdown-menu dropdown-menu-end shadow-sm fs-8">
                                             <li><a class="dropdown-item" href="javascript:void(0);" onclick="openInlineComposer('reply', '${(rawFromEmail || fromEmail).replace(/'/g, "\\'")}', '${subject.replace(/'/g, "\\'")}', ${m.id})"><i class="fa fa-reply me-2 text-muted"></i> Reply</a></li>
                                             <li><a class="dropdown-item" href="javascript:void(0);" onclick="openInlineComposer('forward', '', '${subject.replace(/'/g, "\\'")}', ${m.id})"><i class="fa fa-share me-2 text-muted"></i> Forward</a></li>
+                                            <li><a class="dropdown-item" href="javascript:void(0);" onclick="crmCopyToClipboard('${subject.replace(/'/g, "\\'")}', 'Subject copied!');"><i class="fa fa-clone me-2 text-muted"></i> Copy Subject</a></li>
                                             <li><a class="dropdown-item" href="javascript:void(0);" onclick="window.print()"><i class="fa fa-print me-2 text-muted"></i> Print</a></li>
                                             <li><hr class="dropdown-divider my-1"></li>
                                             <li><a class="dropdown-item text-danger" href="javascript:void(0);" onclick="deleteEmail(${m.id})"><i class="fa fa-trash-o me-2"></i> Delete this message</a></li>
@@ -6529,14 +6902,46 @@ function updateOptimisticPendingEmail(tempId, isSuccess, isError = false) {
     }
 }
 
+function checkEmailDomainTypo(emailStr) {
+    const typoMap = {
+        'gnail.com': 'gmail.com',
+        'gmai.com': 'gmail.com',
+        'gamil.com': 'gmail.com',
+        'gmial.com': 'gmail.com',
+        'gmaill.com': 'gmail.com',
+        'hotmial.com': 'hotmail.com',
+        'hotmaill.com': 'hotmail.com',
+        'yaho.com': 'yahoo.com',
+        'yahooo.com': 'yahoo.com',
+        'outlok.com': 'outlook.com'
+    };
+    if (!emailStr) return null;
+    const parts = emailStr.split('@');
+    if (parts.length === 2) {
+        const domain = parts[1].toLowerCase().trim();
+        if (typoMap[domain]) {
+            return parts[0].trim() + '@' + typoMap[domain];
+        }
+    }
+    return null;
+}
+
 function submitInlineComposer(e) {
     e.preventDefault();
 
-    const toEmail = document.getElementById('inlineComposerToInput').value.trim();
+    let toEmail = document.getElementById('inlineComposerToInput').value.trim();
     const subject = document.getElementById('inlineComposerSubjectInput').value.trim();
     if (!toEmail) {
         showSendingToast('Please specify a recipient email.', false, true);
         return;
+    }
+
+    const suggested = checkEmailDomainTypo(toEmail);
+    if (suggested) {
+        if (confirm(`The recipient email "${toEmail}" appears to have a domain typo.\n\nDid you mean "${suggested}"?\n\nClick OK to auto-correct and send to "${suggested}", or Cancel to send as-is.`)) {
+            toEmail = suggested;
+            document.getElementById('inlineComposerToInput').value = suggested;
+        }
     }
 
     const userHtml = inlineQuill ? inlineQuill.root.innerHTML : '';
@@ -6627,6 +7032,21 @@ function handleSendCompose(e) {
         document.getElementById('composeToEmail').focus();
         return;
     }
+
+    // Check recipients for domain typos (e.g. @gnail.com)
+    for (let i = 0; i < composeToRecipients.length; i++) {
+        const typo = checkEmailDomainTypo(composeToRecipients[i].email);
+        if (typo) {
+            if (confirm(`The recipient email "${composeToRecipients[i].email}" appears to have a misspelled domain.\n\nDid you mean "${typo}"?\n\nClick OK to auto-correct to "${typo}", or Cancel to send as-is.`)) {
+                composeToRecipients[i].email = typo;
+                if (composeToRecipients[i].name === composeToRecipients[i].email) {
+                    composeToRecipients[i].name = typo;
+                }
+            }
+        }
+    }
+    syncComposeRecipientsToHidden();
+
     document.getElementById('composeBodyHtml').value = composeQuill.root.innerHTML;
     const formData = new FormData(form);
     const toEmail = document.getElementById('composeToEmailValue').value;
