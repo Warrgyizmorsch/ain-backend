@@ -6933,8 +6933,9 @@ public function myRevokePayments(Request $request)
             }
 
             // 2. Query for peers (Person B) who placed an order with any of these module codes
-            // Timeline: 3 to 12 months window
+            // Timeline: strictly 2 to 12 months window (exclude past 2 months completely)
             $now = Carbon::now();
+            $twoMonthsAgo = Carbon::now()->subMonths(2)->endOfDay();
             $twelveMonthsAgo = Carbon::now()->subMonths(12)->startOfDay();
 
             $peerOrdersQuery = Order::with(['user', 'lead.user', 'frontendLead.user'])
@@ -6948,17 +6949,34 @@ public function myRevokePayments(Request $request)
             }
 
             $peerOrders = $peerOrdersQuery
-                ->where(function ($q) use ($twelveMonthsAgo) {
-                    $q->where('created_at', '>=', $twelveMonthsAgo)
-                      ->orWhere('order_date', '>=', $twelveMonthsAgo->toDateString());
+                ->where(function ($q) use ($twelveMonthsAgo, $twoMonthsAgo) {
+                    $q->where(function ($sub) use ($twelveMonthsAgo, $twoMonthsAgo) {
+                        $sub->where('created_at', '>=', $twelveMonthsAgo)
+                            ->where('created_at', '<=', $twoMonthsAgo);
+                    })
+                    ->orWhere(function ($sub) use ($twelveMonthsAgo, $twoMonthsAgo) {
+                        $sub->where('order_date', '>=', $twelveMonthsAgo->toDateString())
+                            ->where('order_date', '<=', $twoMonthsAgo->toDateString());
+                    });
                 })
                 ->orderByDesc('id')
-                ->limit(50)
+                ->limit(100)
                 ->get();
 
             $peersGrouped = [];
 
             foreach ($peerOrders as $pOrder) {
+                $orderDate = $pOrder->order_date ? Carbon::parse($pOrder->order_date) : ($pOrder->created_at ? Carbon::parse($pOrder->created_at) : null);
+                if (!$orderDate) {
+                    continue;
+                }
+
+                // Strictly skip any orders placed in the last 2 months or older than 12 months
+                if ($orderDate->gt($twoMonthsAgo) || $orderDate->lt($twelveMonthsAgo)) {
+                    continue;
+                }
+
+                $monthsAgo = max(2, min(12, (int)$orderDate->diffInMonths($now)));
                 $peerUser = $pOrder->user ?: ($pOrder->lead?->user ?: $pOrder->frontendLead?->user);
                 $peerUid = $pOrder->uid ?: ($peerUser?->id ?? null);
 
@@ -6986,9 +7004,7 @@ public function myRevokePayments(Request $request)
                 $peerCC = preg_replace('/\D+/', '', (string)($peerUser?->countrycode ?: ($pOrder->lead?->countrycode ?: '44')));
                 $fullPhone = $peerCC . $peerDigits;
 
-                $orderDate = $pOrder->order_date ? Carbon::parse($pOrder->order_date) : ($pOrder->created_at ? Carbon::parse($pOrder->created_at) : null);
-                $monthsAgo = $orderDate ? $orderDate->diffInMonths($now) : 0;
-                $inTargetWindow = ($monthsAgo >= 2 && $monthsAgo <= 12);
+                $inTargetWindow = true;
 
                 if (!isset($peersGrouped[$key])) {
                     $latestOrder = $peerUid ? Order::where('uid', $peerUid)->orderByDesc('id')->first() : $pOrder;
