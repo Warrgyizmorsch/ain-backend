@@ -218,13 +218,18 @@ window.openPeerSuggestionModal = function(orderId) {
 
             window.psCurrentAllPeers = res.peers || [];
 
-            // Calculate peer count by module code
+            // Calculate peer count by module code across all modules each peer took
             const peerCountByModule = {};
             window.psCurrentAllPeers.forEach(function(p) {
-                const m = (p.matched_module_code || '').trim().toUpperCase();
-                if (m) {
-                    peerCountByModule[m] = (peerCountByModule[m] || 0) + 1;
-                }
+                const modules = (Array.isArray(p.matched_modules) && p.matched_modules.length > 0)
+                    ? p.matched_modules
+                    : [p.matched_module_code];
+                modules.forEach(function(rawM) {
+                    const m = (rawM || '').trim().toUpperCase();
+                    if (m) {
+                        peerCountByModule[m] = (peerCountByModule[m] || 0) + 1;
+                    }
+                });
             });
 
             // Render searched module filter badges
@@ -352,8 +357,14 @@ window.filterPeersByModule = function(moduleCode, el) {
     // Filter peers list
     let filteredPeers = window.psCurrentAllPeers;
     if (moduleCode !== 'ALL') {
+        const targetUpper = moduleCode.trim().toUpperCase();
         filteredPeers = window.psCurrentAllPeers.filter(function(p) {
-            return (p.matched_module_code || '').trim().toUpperCase() === moduleCode.trim().toUpperCase();
+            if (Array.isArray(p.matched_modules) && p.matched_modules.length > 0) {
+                return p.matched_modules.some(function(m) {
+                    return (m || '').trim().toUpperCase() === targetUpper;
+                });
+            }
+            return (p.matched_module_code || '').trim().toUpperCase() === targetUpper;
         });
     }
 
@@ -408,6 +419,48 @@ window.renderPeersCards = function(peersList, activeFilter) {
 
         const displayEmail = peer.peer_email || 'Not Available';
 
+        const activeModule = (activeFilter !== 'ALL') ? activeFilter : null;
+        const matchedOrdersMap = peer.matched_orders_by_module || {};
+        const currentOrderInfo = (activeModule && matchedOrdersMap[activeModule])
+            ? matchedOrdersMap[activeModule]
+            : {
+                order_id: peer.matched_order_id,
+                order_code: peer.matched_order_code,
+                order_date: peer.matched_order_date,
+                order_status: peer.matched_order_status,
+                time_ago: peer.time_ago,
+            };
+
+        // Render module badge(s)
+        let moduleBadgesHtml = '';
+        if (activeModule) {
+            moduleBadgesHtml = `
+                <span class="badge badge-light-danger fs-7 fw-bold cursor-pointer" 
+                      onclick="filterPeersByModule('${escapePsHtml(activeModule)}')" 
+                      title="Filtered by ${escapePsHtml(activeModule)}">
+                    ${escapePsHtml(activeModule)}
+                </span>
+                <span class="text-muted fs-8 ms-1">(${escapePsHtml(currentOrderInfo.time_ago || currentOrderInfo.order_date || '')})</span>
+            `;
+        } else {
+            const allModules = (Array.isArray(peer.matched_modules) && peer.matched_modules.length > 0)
+                ? peer.matched_modules
+                : [peer.matched_module_code || 'N/A'];
+            moduleBadgesHtml = allModules.map(function(m) {
+                return `
+                    <span class="badge badge-light-danger fs-8 fw-bold me-1 mb-1 cursor-pointer" 
+                          onclick="filterPeersByModule('${escapePsHtml(m)}')" 
+                          title="Click to filter by ${escapePsHtml(m)}">
+                        ${escapePsHtml(m)}
+                    </span>
+                `;
+            }).join('');
+        }
+
+        const copyModules = (Array.isArray(peer.matched_modules) && peer.matched_modules.length > 0) 
+            ? peer.matched_modules.join(', ') 
+            : (peer.matched_module_code || '');
+
         peersHtml += `
         <div class="card border border-gray-300 shadow-sm" style="background:#ffffff; border-radius:10px; transition: transform 0.15s ease;">
             <div class="card-body p-4">
@@ -434,20 +487,16 @@ window.renderPeersCards = function(peersList, activeFilter) {
                         <div class="col-8 col-sm-9">
                             <div class="row g-2 fs-7">
                                 <div class="col-sm-6">
-                                    <span class="text-muted fs-8 d-block">Shared Module:</span>
-                                    <span class="badge badge-light-danger fs-7 fw-bold cursor-pointer" 
-                                          onclick="filterPeersByModule('${escapePsHtml(peer.matched_module_code || '')}')" 
-                                          style="cursor: pointer;" 
-                                          title="Click to filter by ${escapePsHtml(peer.matched_module_code || '')}">
-                                        ${escapePsHtml(peer.matched_module_code || 'N/A')}
-                                    </span>
-                                    <span class="text-muted fs-8 ms-1">(${escapePsHtml(peer.time_ago || peer.matched_order_date || '')})</span>
+                                    <span class="text-muted fs-8 d-block">Shared Module${!activeModule && (peer.matched_modules || []).length > 1 ? 's' : ''}:</span>
+                                    <div class="d-flex flex-wrap align-items-center mt-0.5">
+                                        ${moduleBadgesHtml}
+                                    </div>
                                 </div>
                                 <div class="col-sm-6">
                                     <span class="text-muted fs-8 d-block">Matched Order:</span>
-                                    <span class="fw-bold text-gray-800">#${escapePsHtml(peer.matched_order_code || '')}</span>
-                                    <span class="badge badge-light-info fs-8 ms-1">${escapePsHtml(peer.matched_order_status || 'Delivered')}</span>
-                                    <span class="text-muted fs-8 d-block">${escapePsHtml(peer.matched_order_date || '')}</span>
+                                    <span class="fw-bold text-gray-800">#${escapePsHtml(currentOrderInfo.order_code || peer.matched_order_code || '')}</span>
+                                    <span class="badge badge-light-info fs-8 ms-1">${escapePsHtml(currentOrderInfo.order_status || peer.matched_order_status || 'Delivered')}</span>
+                                    <span class="text-muted fs-8 d-block">${escapePsHtml(currentOrderInfo.order_date || peer.matched_order_date || '')}</span>
                                 </div>
                                 <div class="col-sm-12">
                                     <span class="text-muted fs-8 d-block">Contact:</span>
@@ -466,7 +515,7 @@ window.renderPeersCards = function(peersList, activeFilter) {
                             <div class="p-2 rounded-2 ${peer.is_contacted ? 'bg-light-success border border-success' : 'bg-white border border-gray-300'}" 
                                  id="peerContactBox_${peer.peer_identifier}" 
                                  style="transition: all 0.2s ease;">
-                                <label class="d-flex flex-column align-items-center justify-content-center mb-0 cursor-pointer" style="cursor: pointer;">
+                                 <label class="d-flex flex-column align-items-center justify-content-center mb-0 cursor-pointer" style="cursor: pointer;">
                                     <input type="checkbox" 
                                            class="form-check-input mb-1 cursor-pointer" 
                                            id="peerContactCb_${peer.peer_identifier}"
@@ -492,7 +541,7 @@ window.renderPeersCards = function(peersList, activeFilter) {
                         <button type="button" 
                                 class="btn btn-sm btn-success fw-bold d-inline-flex align-items-center gap-1 shadow-sm px-3 py-1.5"
                                 title="Open chat with ${escapePsHtml(peer.peer_name || 'Customer')} in CRM WhatsApp"
-                                onclick="openPeerInCrmWhatsapp(${peer.whatsapp_order_ref});">
+                                onclick="openPeerInCrmWhatsapp(${currentOrderInfo.order_id || peer.whatsapp_order_ref});">
                             <i class="fab fa-whatsapp fs-6"></i>
                             <span>CRM WhatsApp</span>
                         </button>
@@ -524,7 +573,7 @@ window.renderPeersCards = function(peersList, activeFilter) {
                     <button type="button" 
                             class="btn btn-sm btn-light-secondary text-muted fw-bold px-2 py-1.5 fs-8"
                             title="Copy customer details"
-                            onclick="crmCopyToClipboard('${(peer.peer_name || '').replace(/'/g, "\\'")} | ${displayPhone} | ${displayEmail} | Module: ${peer.matched_module_code}', 'Peer details copied!');">
+                            onclick="crmCopyToClipboard('${(peer.peer_name || '').replace(/'/g, "\\'")} | ${displayPhone} | ${displayEmail} | Modules: ${copyModules}', 'Peer details copied!');">
                         <i class="fa fa-copy fs-8 me-1"></i>Copy Info
                     </button>
                 </div>
