@@ -54,7 +54,7 @@
                                 </span>
                             </div>
                             <div class="fs-8 text-muted">
-                                Timeline: <span class="fw-bold text-gray-700">Past 2 to 12 Months</span>
+                                Timeline: <span id="psTimelineText" class="fw-bold text-gray-700">Past 2 to 12 Months</span>
                             </div>
                         </div>
                     </div>
@@ -176,6 +176,7 @@ window.openPeerSuggestionModal = function(orderId) {
     $('#psCurrentCustomerName').text('Loading customer...');
     $('#psCurrentOrderTitle').text('--');
     $('#psCurrentOrderCode').text('--');
+    $('#psTimelineText').text('Past 2 to 12 Months');
     $('#psSearchedModulesBadges').html('<span class="badge badge-light-secondary fs-8">Scanning...</span>');
 
     $('#psLoadingState').removeClass('d-none');
@@ -208,6 +209,11 @@ window.openPeerSuggestionModal = function(orderId) {
                 );
                 $('#psCurrentOrderTitle').text(res.current_customer.title || 'N/A');
                 $('#psCurrentOrderCode').text(res.current_customer.order_code || '--');
+                if (res.current_customer.window_start && res.current_customer.window_end) {
+                    $('#psTimelineText').text(res.current_customer.window_start + ' to ' + res.current_customer.window_end);
+                } else {
+                    $('#psTimelineText').text('Past 2 to 12 Months');
+                }
             }
 
             window.psCurrentAllPeers = res.peers || [];
@@ -259,7 +265,7 @@ window.openPeerSuggestionModal = function(orderId) {
             // Check if peers exist
             if (!res.has_peers || window.psCurrentAllPeers.length === 0) {
                 $('#psEmptyTitle').text('No Batchmates Found');
-                $('#psEmptyMessage').text(res.message || 'No matching peers found who ordered this module code within the 2–12 months window.');
+                $('#psEmptyMessage').text(res.message || 'No matching peers found who ordered past module codes within the 2–12 months window.');
                 $('#psEmptyState').removeClass('d-none');
                 return;
             }
