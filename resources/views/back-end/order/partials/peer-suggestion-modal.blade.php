@@ -431,14 +431,15 @@ window.renderPeersCards = function(peersList, activeFilter) {
                 time_ago: peer.time_ago,
             };
 
-        // Render module badge(s)
+        // Render module badge(s) with their specific order number
         let moduleBadgesHtml = '';
         if (activeModule) {
+            const ordCode = currentOrderInfo.order_code ? ` (#${escapePsHtml(currentOrderInfo.order_code)})` : '';
             moduleBadgesHtml = `
                 <span class="badge badge-light-danger fs-7 fw-bold cursor-pointer" 
                       onclick="filterPeersByModule('${escapePsHtml(activeModule)}')" 
                       title="Filtered by ${escapePsHtml(activeModule)}">
-                    ${escapePsHtml(activeModule)}
+                    ${escapePsHtml(activeModule)}${ordCode}
                 </span>
                 <span class="text-muted fs-8 ms-1">(${escapePsHtml(currentOrderInfo.time_ago || currentOrderInfo.order_date || '')})</span>
             `;
@@ -447,11 +448,13 @@ window.renderPeersCards = function(peersList, activeFilter) {
                 ? peer.matched_modules
                 : [peer.matched_module_code || 'N/A'];
             moduleBadgesHtml = allModules.map(function(m) {
+                const ord = matchedOrdersMap[m];
+                const ordCode = (ord && ord.order_code) ? ` (#${escapePsHtml(ord.order_code)})` : '';
                 return `
                     <span class="badge badge-light-danger fs-8 fw-bold me-1 mb-1 cursor-pointer" 
                           onclick="filterPeersByModule('${escapePsHtml(m)}')" 
                           title="Click to filter by ${escapePsHtml(m)}">
-                        ${escapePsHtml(m)}
+                        ${escapePsHtml(m)}<span class="text-muted fw-normal" style="font-size: 10px; opacity: 0.85;">${ordCode}</span>
                     </span>
                 `;
             }).join('');
@@ -493,7 +496,9 @@ window.renderPeersCards = function(peersList, activeFilter) {
                                     </div>
                                 </div>
                                 <div class="col-sm-6">
-                                    <span class="text-muted fs-8 d-block">Matched Order:</span>
+                                    <span class="text-muted fs-8 d-block">
+                                        Matched Order ${activeModule ? `(${escapePsHtml(activeModule)})` : `<span class="badge badge-light-secondary fs-9" style="font-size: 10px !important;">Latest</span>`}:
+                                    </span>
                                     <span class="fw-bold text-gray-800">#${escapePsHtml(currentOrderInfo.order_code || peer.matched_order_code || '')}</span>
                                     <span class="badge badge-light-info fs-8 ms-1">${escapePsHtml(currentOrderInfo.order_status || peer.matched_order_status || 'Delivered')}</span>
                                     <span class="text-muted fs-8 d-block">${escapePsHtml(currentOrderInfo.order_date || peer.matched_order_date || '')}</span>
