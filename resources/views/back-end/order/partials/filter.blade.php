@@ -559,24 +559,26 @@
                     <button type="button" onclick="window.toggleMoreFilters(event)" id="showMoreFilters"
                         class="btn btn-sm btn-success">Show More Filters</button>
                     @if (empty($hideOrderQuickFilters))
-                        <a href="javascript:void(0)" id="overdueBtn" class="btn btn-sm btn-danger">
+                        <a href="javascript:void(0)" id="overdueBtn" onclick="window.toggleQuickFilter('overdue')" class="btn btn-sm btn-danger">
                             Overdue {{ $overdueCount }}
                         </a>
-                        <a href="javascript:void(0)" id="todayDeadlineBtn" class="btn btn-sm btn-warning">
+                        <a href="javascript:void(0)" id="todayDeadlineBtn" onclick="window.toggleQuickFilter('today_deadline')" class="btn btn-sm btn-warning">
                             Today's Deadline
                         </a>
-                        <a href="javascript:void(0)" id="yesterdayDeadlineBtn" class="btn btn-sm btn-light-warning">
+                        <a href="javascript:void(0)" id="yesterdayDeadlineBtn" onclick="window.toggleQuickFilter('yesterday_deadline')" class="btn btn-sm btn-light-warning">
                             Yesterday's Deadline
                         </a>
 
-                        <a href="javascript:void(0)" id="todayWriterDeadlineBtn" class="btn btn-sm btn-primary">
+                        <a href="javascript:void(0)" id="todayWriterDeadlineBtn" onclick="window.toggleQuickFilter('writer_deadline')" class="btn btn-sm btn-primary">
                             Writer's Deadline
                         </a>
 
-                        <a href="javascript:void(0)" id="writerQueryBtn" class="btn btn-sm btn-secondary">
+                        {{-- Writer Query button commented out as requested by Master --}}
+                        {{-- <a href="javascript:void(0)" id="writerQueryBtn" onclick="window.toggleQuickFilter('writer_query')" class="btn btn-sm btn-secondary">
                             Writer Query
-                        </a>
-                        <a href="javascript:void(0)" id="holdWorkBtn" class="btn btn-sm btn-warning">
+                        </a> --}}
+
+                        <a href="javascript:void(0)" id="holdWorkBtn" onclick="window.toggleQuickFilter('hold_work')" class="btn btn-sm btn-warning">
                             Hold Work
                         </a>
                     @endif
@@ -1345,104 +1347,99 @@ resetFilters();
         }
     }
 
-    $(document).on('click', '#overdueBtn', function(e) {
-        e.preventDefault();
-        if ($('#deadline_status').val() === 'overdue') {
-            $('#deadline_status').val('').trigger('change');
-        } else {
-            $('#today_deadline_filter').val('');
-            $('#yesterday_deadline_filter').val('');
-            $('#today_writer_deadline_filter').val('');
-            $('#status').val('').trigger('change');
-            $('#from_date').val('');
-            $('#to_date').val('');
-            $('#deadline_status').val('overdue').trigger('change');
-        }
-        applyFilters();
-    });
+    window.toggleQuickFilter = function(type) {
+        if (!type) return;
 
-    $(document).on('click', '#todayDeadlineBtn', function(e) {
-        e.preventDefault();
-        if ($('#today_deadline_filter').val() === '1') {
-            $('#today_deadline_filter').val('');
-        } else {
-            $('#deadline_status').val('').trigger('change');
-            $('#yesterday_deadline_filter').val('');
-            $('#today_writer_deadline_filter').val('');
-            $('#status').val('').trigger('change');
+        function clearConflictingDateInputs() {
             $('#from_date').val('');
             $('#to_date').val('');
-            $('#today_deadline_filter').val('1');
+            $('#date_status').val('').trigger('change.select2');
+            $('#month').val('');
+            $('#duration_gap_filter').val('');
+            $('.deadline-gap-btn').removeClass('active');
+            $('.deadline-gap-clear-btn').removeClass('is-visible');
         }
-        applyFilters();
-    });
 
-    $(document).on('click', '#yesterdayDeadlineBtn', function(e) {
-        e.preventDefault();
-        if ($('#yesterday_deadline_filter').val() === '1') {
-            $('#yesterday_deadline_filter').val('');
-        } else {
-            $('#deadline_status').val('').trigger('change');
-            $('#today_deadline_filter').val('');
-            $('#today_writer_deadline_filter').val('');
-            $('#status').val('').trigger('change');
-            $('#from_date').val('');
-            $('#to_date').val('');
-            $('#yesterday_deadline_filter').val('1');
+        if (type === 'overdue') {
+            if ($('#deadline_status').val() === 'overdue') {
+                $('#deadline_status').val('').trigger('change.select2');
+            } else {
+                clearConflictingDateInputs();
+                $('#today_deadline_filter').val('');
+                $('#yesterday_deadline_filter').val('');
+                $('#today_writer_deadline_filter').val('');
+                if ($('#status').val() === 'Hold Work') {
+                    $('#status').val('').trigger('change.select2');
+                }
+                $('#deadline_status').val('overdue').trigger('change.select2');
+            }
+        } else if (type === 'today_deadline') {
+            if ($('#today_deadline_filter').val() === '1') {
+                $('#today_deadline_filter').val('');
+            } else {
+                clearConflictingDateInputs();
+                $('#deadline_status').val('').trigger('change.select2');
+                $('#yesterday_deadline_filter').val('');
+                $('#today_writer_deadline_filter').val('');
+                if ($('#status').val() === 'Hold Work') {
+                    $('#status').val('').trigger('change.select2');
+                }
+                $('#today_deadline_filter').val('1');
+            }
+        } else if (type === 'yesterday_deadline') {
+            if ($('#yesterday_deadline_filter').val() === '1') {
+                $('#yesterday_deadline_filter').val('');
+            } else {
+                clearConflictingDateInputs();
+                $('#deadline_status').val('').trigger('change.select2');
+                $('#today_deadline_filter').val('');
+                $('#today_writer_deadline_filter').val('');
+                if ($('#status').val() === 'Hold Work') {
+                    $('#status').val('').trigger('change.select2');
+                }
+                $('#yesterday_deadline_filter').val('1');
+            }
+        } else if (type === 'writer_deadline') {
+            if ($('#today_writer_deadline_filter').val() === '1') {
+                $('#today_writer_deadline_filter').val('');
+            } else {
+                clearConflictingDateInputs();
+                $('#deadline_status').val('').trigger('change.select2');
+                $('#today_deadline_filter').val('');
+                $('#yesterday_deadline_filter').val('');
+                if ($('#status').val() === 'Hold Work') {
+                    $('#status').val('').trigger('change.select2');
+                }
+                $('#today_writer_deadline_filter').val('1');
+            }
+        } else if (type === 'hold_work') {
+            if ($('#status').val() === 'Hold Work') {
+                $('#status').val('').trigger('change.select2');
+            } else {
+                clearConflictingDateInputs();
+                $('#deadline_status').val('').trigger('change.select2');
+                $('#today_deadline_filter').val('');
+                $('#yesterday_deadline_filter').val('');
+                $('#today_writer_deadline_filter').val('');
+                $('#status').val('Hold Work').trigger('change.select2');
+            }
         }
-        applyFilters();
-    });
 
-    $(document).on('click', '#todayWriterDeadlineBtn', function(e) {
-        e.preventDefault();
-        if ($('#today_writer_deadline_filter').val() === '1') {
-            $('#today_writer_deadline_filter').val('');
-        } else {
-            $('#deadline_status').val('').trigger('change');
-            $('#today_deadline_filter').val('');
-            $('#yesterday_deadline_filter').val('');
-            $('#status').val('').trigger('change');
-            $('#from_date').val('');
-            $('#to_date').val('');
-            $('#today_writer_deadline_filter').val('1');
-        }
-        applyFilters();
-    });
+        window.applyFilters();
+    };
 
-    $(document).on('click', '#writerQueryBtn', function(e) {
-        e.preventDefault();
-        if ($('#status').val() === 'writer query') {
-            $('#status').val('').trigger('change');
-        } else {
-            $('#deadline_status').val('').trigger('change');
-            $('#today_deadline_filter').val('');
-            $('#yesterday_deadline_filter').val('');
-            $('#today_writer_deadline_filter').val('');
-            $('#from_date').val('');
-            $('#to_date').val('');
-            $('#status').val('writer query').trigger('change');
-        }
-        applyFilters();
-    });
-
-    $(document).on('click', '#holdWorkBtn', function(e) {
-        e.preventDefault();
-        if ($('#status').val() === 'Hold Work') {
-            $('#status').val('').trigger('change');
-        } else {
-            $('#deadline_status').val('').trigger('change');
-            $('#today_deadline_filter').val('');
-            $('#yesterday_deadline_filter').val('');
-            $('#today_writer_deadline_filter').val('');
-            $('#from_date').val('');
-            $('#to_date').val('');
-            $('#status').val('Hold Work').trigger('change');
-        }
-        applyFilters();
-    });
+    let currentFilterXhr = null;
 
     function fetchData(append = false) {
-        if (loading || !hasMore) return;
+        if (append) {
+            if (loading || !hasMore) return;
+        } else {
+            if (currentFilterXhr && typeof currentFilterXhr.abort === 'function') {
+                try {
+                    currentFilterXhr.abort();
+                } catch (e) {}
+            }
+        }
 
         loading = true;
 
@@ -1468,7 +1465,7 @@ resetFilters();
             reqData.total = currentTotalCount;
         }
 
-        $.ajax({
+        currentFilterXhr = $.ajax({
             url: "{{ $filterRoute ?? route('orders.filter') }}",
             type: "GET",
             data: reqData,
@@ -1480,10 +1477,24 @@ resetFilters();
                     disableScrollHandler();
                     $('#loadMoreContainer').hide();
                     if (!append) {
-                        $('#lead-rows').html(`
-                            <tr>
-                                <td colspan="15" class="text-left text-danger" style="padding-left: 10px;">
-                                    ${response.message || 'No orders found for the selected filters.'}
+                        $('#initial-order-rows').hide();
+                        $('#lead-rows').show().html(`
+                            <tr id="emptyOrdersRow">
+                                <td colspan="100%" class="text-center py-10" style="background: #ffffff; border: none !important;">
+                                    <div class="d-flex flex-column align-items-center justify-content-center py-6">
+                                        <div class="mb-3">
+                                            <span class="btn btn-icon btn-light-warning p-0" style="width: 52px; height: 52px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: #fff8dd;">
+                                                <i class="fa fa-folder-open text-warning fs-2" style="font-size: 24px;"></i>
+                                            </span>
+                                        </div>
+                                        <h5 class="fw-bolder text-gray-800 mb-1 fs-5">No Orders Found</h5>
+                                        <div class="text-muted fs-7 mb-4" style="max-width: 420px;">
+                                            No orders match your selected filters. Try adjusting your search criteria or resetting filters.
+                                        </div>
+                                        <button type="button" class="btn btn-sm btn-primary fw-bold px-4 py-2" onclick="window.resetFilters()">
+                                            <i class="fa fa-undo me-1"></i> Reset Filters
+                                        </button>
+                                    </div>
                                 </td>
                             </tr>
                         `);
@@ -1556,6 +1567,21 @@ resetFilters();
                     const teamTitle = activeTeamBtn.find('span:first').text().trim() || 'Team';
                     $('#filter-total').text(
                         `Team: ${teamTitle} (${response.total ?? currentTotalCount} orders)`);
+                } else if ($('#deadline_status').val() === 'overdue') {
+                    $('#filter-total').text(
+                        `Overdue Orders (${response.total ?? currentTotalCount} total)`);
+                } else if ($('#today_deadline_filter').val() === '1') {
+                    $('#filter-total').text(
+                        `Today's Deadline Orders (${response.total ?? currentTotalCount} total)`);
+                } else if ($('#yesterday_deadline_filter').val() === '1') {
+                    $('#filter-total').text(
+                        `Yesterday's Deadline Orders (${response.total ?? currentTotalCount} total)`);
+                } else if ($('#today_writer_deadline_filter').val() === '1') {
+                    $('#filter-total').text(
+                        `Writer's Deadline Orders (${response.total ?? currentTotalCount} total)`);
+                } else if ($('#status').val() === 'Hold Work') {
+                    $('#filter-total').text(
+                        `Hold Work Orders (${response.total ?? currentTotalCount} total)`);
                 } else {
                     $('#filter-total').text(
                         `{{ $filterTitle ?? 'Filtered Orders' }} (${response.total ?? currentTotalCount} total)`
@@ -1565,17 +1591,20 @@ resetFilters();
                 $('#spinner-row').hide();
                 $('#preloader2').hide();
                 $('#export-order-btn').show();
-                loading = false;
             },
             error: function(xhr, status, errorThrown) {
+                if (status === 'abort') return;
                 console.error('Order fetch failed:', status, errorThrown, xhr.responseText);
                 $('#btnLoadMoreOrders').prop('disabled', false).html('<i class="fas fa-arrow-down me-2"></i> Load More Orders');
                 $('#spinner-row').hide();
                 $('#preloader2').hide();
                 $('#loadMoreContainer').hide();
-                loading = false;
                 hasMore = false;
                 disableScrollHandler();
+            },
+            complete: function() {
+                loading = false;
+                currentFilterXhr = null;
             }
         });
     }
@@ -1613,6 +1642,32 @@ resetFilters();
         };
     }
 
+    function syncFiltersToUrl(f) {
+        if (!window.history || !window.history.replaceState) return;
+        try {
+            const currentUrl = new URL(window.location.href);
+            const filterKeys = [
+                'search', 'user', 'uid', 'group_id', 'status', 'writer', 'dateStatus',
+                'fromDate', 'toDate', 'from_date', 'to_date', 'WriterTL', 'SubWriter',
+                'college', 'extra', 'module_code', 'paper_type', 'semester', 'payment',
+                'month', 'deadline_status', 'team_id', 'offer', 'duec', 'marks_filter',
+                'today_deadline_filter', 'yesterday_deadline_filter',
+                'today_writer_deadline_filter', 'duration_gap', 'holdBtn'
+            ];
+            filterKeys.forEach(k => currentUrl.searchParams.delete(k));
+
+            if (f && typeof f === 'object') {
+                Object.keys(f).forEach(k => {
+                    const val = (f[k] !== undefined && f[k] !== null) ? String(f[k]).trim() : '';
+                    if (val !== '') {
+                        currentUrl.searchParams.set(k, val);
+                    }
+                });
+            }
+            window.history.replaceState(null, '', currentUrl.pathname + (currentUrl.search ? currentUrl.search : ''));
+        } catch (e) {}
+    }
+
     function applyFilters() {
         offset = 0;
         hasMore = true;
@@ -1628,6 +1683,7 @@ resetFilters();
         filters = collectFilters();
 
         localStorage.setItem(filterStorageKey, JSON.stringify(filters));
+        syncFiltersToUrl(filters);
 
         const allEmpty = Object.values(filters).every(val => !val || String(val).trim() === "");
 
@@ -1641,6 +1697,10 @@ resetFilters();
         $('#lead-rows').show().empty();
         $('#resetFiltersBtn, #topResetFiltersBtn').show();
 
+        $('#total-amount').text('...');
+        $('#total-paid').text('...');
+        $('#total-due').text('...');
+
         highlightActiveQuickFilters();
 
         fetchData(false);
@@ -1650,6 +1710,7 @@ resetFilters();
         try {
             localStorage.removeItem(filterStorageKey);
         } catch (e) {}
+        syncFiltersToUrl({});
 
         // If URL had query parameters (e.g. ?uid=14453&user=Gaby), reload to clean URL so full orders list loads
         if (window.location.search && window.location.search.length > 1) {
@@ -1828,8 +1889,28 @@ resetFilters();
         const uidParam = urlParams.get('uid') || urlParams.get('user_id');
         const statusParam = urlParams.get('status');
         const teamParam = urlParams.get('team_id') || urlParams.get('team');
+        const deadlineStatusParam = urlParams.get('deadline_status');
+        const todayDeadlineParam = urlParams.get('today_deadline_filter') || urlParams.get('today_deadline');
+        const yesterdayDeadlineParam = urlParams.get('yesterday_deadline_filter') || urlParams.get('yesterday_deadline');
+        const todayWriterDeadlineParam = urlParams.get('today_writer_deadline_filter') || urlParams.get('today_writer_deadline');
+        const durationGapParam = urlParams.get('duration_gap') || urlParams.get('duration_gap_filter');
+        const writerParam = urlParams.get('writer');
+        const collegeParam = urlParams.get('college');
+        const moduleParam = urlParams.get('module_code');
+        const paperTypeParam = urlParams.get('paper_type');
+        const semesterParam = urlParams.get('semester');
+        const monthParam = urlParams.get('month');
+        const fromDateParam = urlParams.get('fromDate') || urlParams.get('from_date');
+        const toDateParam = urlParams.get('toDate') || urlParams.get('to_date');
+        const writerTLParam = urlParams.get('WriterTL') || urlParams.get('writerTL');
+        const subWriterParam = urlParams.get('SubWriter');
 
-        if (searchParam || uidParam || userParam || statusParam || teamParam) {
+        const hasAnyUrlFilter = searchParam || uidParam || userParam || statusParam || teamParam ||
+            deadlineStatusParam || todayDeadlineParam || yesterdayDeadlineParam || todayWriterDeadlineParam ||
+            durationGapParam || writerParam || collegeParam || moduleParam || paperTypeParam || semesterParam ||
+            monthParam || fromDateParam || toDateParam || writerTLParam || subWriterParam;
+
+        if (hasAnyUrlFilter) {
             try {
                 localStorage.removeItem(filterStorageKey);
             } catch (e) {}
@@ -1839,12 +1920,28 @@ resetFilters();
             if (userParam) $('#searchInput').val(userParam);
             if (statusParam) $('#status').val(statusParam).trigger('change.select2');
             if (teamParam) $('#filter_team_id').val(teamParam);
+            if (deadlineStatusParam) $('#deadline_status').val(deadlineStatusParam).trigger('change.select2');
+            if (todayDeadlineParam) $('#today_deadline_filter').val(todayDeadlineParam);
+            if (yesterdayDeadlineParam) $('#yesterday_deadline_filter').val(yesterdayDeadlineParam);
+            if (todayWriterDeadlineParam) $('#today_writer_deadline_filter').val(todayWriterDeadlineParam);
+            if (durationGapParam) $('#duration_gap_filter').val(durationGapParam);
+            if (writerParam) $('#writer').val(writerParam).trigger('change.select2');
+            if (collegeParam) $('#college').val(collegeParam).trigger('change.select2');
+            if (moduleParam) $('#module_code').val(moduleParam);
+            if (paperTypeParam) $('#paper_type').val(paperTypeParam).trigger('change.select2');
+            if (semesterParam) $('#semester').val(semesterParam).trigger('change.select2');
+            if (monthParam) $('#month').val(monthParam);
+            if (fromDateParam) $('#from_date').val(fromDateParam);
+            if (toDateParam) $('#to_date').val(toDateParam);
+            if (writerTLParam) $('#writerTL').val(writerTLParam).trigger('change.select2');
+            if (subWriterParam) $('#SubWriter').val(subWriterParam).trigger('change.select2');
 
             $('#filterBody').show();
             $('#toggleFilterBtn').text('Hide Filters').removeClass('btn-primary').addClass('btn-danger');
             $('#topResetFiltersBtn, #resetFiltersBtn').show();
 
             filters = collectFilters();
+            highlightActiveQuickFilters();
 
             // Check if server Blade already pre-rendered rows matching these URL params
             const initialRowCount = $('#initial-order-rows > tr').length;
@@ -1869,6 +1966,7 @@ resetFilters();
         } catch (e) {}
 
         filters = collectFilters();
+        highlightActiveQuickFilters();
         const initialRowCount = $('#initial-order-rows > tr').length;
         if (initialRowCount > 0) {
             offset = initialRowCount;

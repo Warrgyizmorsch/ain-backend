@@ -718,7 +718,11 @@
                                 timer: 1500,
                                 showConfirmButton: false
                             }).then(() => {
-                                location.reload();
+                                if (typeof window.applyFilters === 'function' && ($('#lead-rows').is(':visible') || (window.location.search && window.location.search.length > 1))) {
+                                    window.applyFilters();
+                                } else {
+                                    location.reload();
+                                }
                             });
                         }
                     },
@@ -780,8 +784,11 @@
                             // Show SweetAlert error message if there is an error in the response
                             Swal.fire('Invalid Delivery Date', response.Error, 'error');
                         } else {
-                            // Reload the page if date updated successfully
-                            location.reload();
+                            if (typeof window.applyFilters === 'function' && ($('#lead-rows').is(':visible') || (window.location.search && window.location.search.length > 1))) {
+                                window.applyFilters();
+                            } else {
+                                location.reload();
+                            }
                         }
                     },
                     error: function(xhr, status, error) {
@@ -1065,8 +1072,11 @@
                             confirmButton: "btn btn-primary"
                         }
                     }).then((result) => {
-                        // Page refresh taaki marks update ho sake
-                        location.reload();
+                        if (typeof window.applyFilters === 'function' && ($('#lead-rows').is(':visible') || (window.location.search && window.location.search.length > 1))) {
+                            window.applyFilters();
+                        } else {
+                            location.reload();
+                        }
                     });
                 }
             },
@@ -1122,8 +1132,11 @@
                             confirmButton: "btn btn-primary"
                         }
                     }).then((result) => {
-                        // Page refresh taaki Top Writer ka badge update ho sake
-                        location.reload();
+                        if (typeof window.applyFilters === 'function' && ($('#lead-rows').is(':visible') || (window.location.search && window.location.search.length > 1))) {
+                            window.applyFilters();
+                        } else {
+                            location.reload();
+                        }
                     });
                 } else {
                     alert("Failed to save feedback.");
