@@ -143,7 +143,7 @@
                         class="btn btn-icon btn-sm btn-light-info peer-match-btn"
                         id="peerMatchBtn{{ $order->id }}"
                         onclick="event.stopPropagation(); openPeerSuggestionModal({{ $order->id }});"
-                        title="Find Batchmate / Module Peer (3-12 months)"
+                        title="Find Batchmate / Module Peer (2-12 months)"
                         style="width:28px;height:28px;min-width:28px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;background-color:#f1faff;color:#009ef7;border:1px solid #c9e9fe;transition:transform 0.15s ease;"
                         onmouseover="this.style.backgroundColor='#009ef7';this.style.color='#ffffff';this.style.transform='scale(1.1)';"
                         onmouseout="this.style.backgroundColor='#f1faff';this.style.color='#009ef7';this.style.transform='scale(1)';">

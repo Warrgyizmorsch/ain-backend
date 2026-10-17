@@ -438,7 +438,7 @@
 													class="btn btn-icon btn-bg-light btn-active-color-primary btn-sm me-1 peer-match-btn"
 													id="peerMatchBtn{{ $order->id }}"
 													onclick="event.stopPropagation(); openPeerSuggestionModal({{ $order->id }});"
-													title="Find Batchmate / Module Peer">
+													title="Find Batchmate / Module Peer (2-12 months)">
 												<span class="svg-icon svg-icon-3">
 													<i class="fa fa-users text-primary"></i>
 												</span>

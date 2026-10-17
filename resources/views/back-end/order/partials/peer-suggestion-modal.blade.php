@@ -237,19 +237,17 @@ window.openPeerSuggestionModal = function(orderId) {
                 res.searched_modules.forEach(function(code) {
                     const codeUpper = (code || '').trim().toUpperCase();
                     const count = peerCountByModule[codeUpper] || 0;
-                    const hasMatches = count > 0;
+                    if (count === 0) return; // Strictly omit any module with 0 matching peers
 
                     moduleHtml += `
                         <span class="badge ps-module-pill fs-8 fw-bold" 
                               data-module="${escapePsHtml(code)}" 
                               data-count="${count}"
                               onclick="filterPeersByModule('${escapePsHtml(code)}', this)" 
-                              style="${hasMatches 
-                                  ? 'background-color: #ffeef3; color: #f1416c; border: 1px solid #f1416c;' 
-                                  : 'background-color: #f5f8fa; color: #7e8299; border: 1px dashed #d1d5db; opacity: 0.8;'}" 
-                              title="${hasMatches ? `Tap to filter peers by ${escapePsHtml(code)} (${count} matches)` : `No peers for ${escapePsHtml(code)} in 2–12 months window`}">
+                              style="background-color: #ffeef3; color: #f1416c; border: 1px solid #f1416c;" 
+                              title="Tap to filter peers by ${escapePsHtml(code)} (${count} matches)">
                             ${escapePsHtml(code)}
-                            ${hasMatches ? `<span class="badge badge-circle text-white ms-1" style="background-color: #f1416c; font-size: 9px; width: 16px; height: 16px; min-width: 16px; padding: 0; display: inline-flex; align-items: center; justify-content: center;">${count}</span>` : ''}
+                            <span class="badge badge-circle text-white ms-1" style="background-color: #f1416c; font-size: 9px; width: 16px; height: 16px; min-width: 16px; padding: 0; display: inline-flex; align-items: center; justify-content: center;">${count}</span>
                         </span>
                     `;
                 });
@@ -442,14 +440,10 @@ window.renderPeersCards = function(peersList, activeFilter) {
                                 <div class="col-sm-6">
                                     <span class="text-muted fs-8 d-block">Matched Order:</span>
                                     <span class="fw-bold text-gray-800">#${escapePsHtml(peer.matched_order_code || '')}</span>
-                                    <span class="text-muted fs-8">(${escapePsHtml(peer.matched_order_date || '')})</span>
+                                    <span class="badge badge-light-info fs-8 ms-1">${escapePsHtml(peer.matched_order_status || 'Delivered')}</span>
+                                    <span class="text-muted fs-8 d-block">${escapePsHtml(peer.matched_order_date || '')}</span>
                                 </div>
-                                <div class="col-sm-6">
-                                    <span class="text-muted fs-8 d-block">Latest Order:</span>
-                                    <span class="fw-bold text-gray-800">#${escapePsHtml(peer.latest_order_code || '')}</span>
-                                    <span class="badge badge-light-info fs-8 ms-1">${escapePsHtml(peer.latest_order_status || 'Delivered')}</span>
-                                </div>
-                                <div class="col-sm-6">
+                                <div class="col-sm-12">
                                     <span class="text-muted fs-8 d-block">Contact:</span>
                                     <span class="fw-bold text-gray-800">${escapePsHtml(displayPhone)}</span>
                                     ${peer.peer_phone ? `
