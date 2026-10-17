@@ -7076,9 +7076,19 @@ public function myRevokePayments(Request $request)
                 $peerCC = preg_replace('/\D+/', '', (string)($peerUser?->countrycode ?: ($pOrder->lead?->countrycode ?: '44')));
                 $fullPhone = $peerCC . $peerDigits;
 
-                if (!isset($peersGrouped[$key])) {
-                    $activeMatchedModules->push($pOrder->module_code);
+                $module = $pOrder->module_code;
+                $activeMatchedModules->push($module);
 
+                $orderInfo = [
+                    'order_id' => $pOrder->id,
+                    'order_code' => $pOrder->order_id ?: $pOrder->id,
+                    'order_date' => $orderDate->format('d M Y'),
+                    'order_status' => $pOrder->projectstatus ?: 'Delivered',
+                    'time_ago' => $orderDate->diffForHumans(),
+                    'months_ago' => $monthsAgo,
+                ];
+
+                if (!isset($peersGrouped[$key])) {
                     $peerIdentifier = $peerUid ? 'u_'.$peerUid : ($peerDigits ? 'p_'.$peerDigits : 'e_'.md5($peerEmail));
                     $isContacted = false;
                     $contactedDateFormatted = null;
@@ -7114,7 +7124,11 @@ public function myRevokePayments(Request $request)
                         'peer_phone' => $peerMobile,
                         'peer_cc' => $peerCC,
                         'peer_full_phone' => $fullPhone,
-                        'matched_module_code' => $pOrder->module_code,
+                        'matched_module_code' => $module,
+                        'matched_modules' => [$module],
+                        'matched_orders_by_module' => [
+                            $module => $orderInfo,
+                        ],
                         'matched_order_id' => $pOrder->id,
                         'matched_order_code' => $pOrder->order_id ?: $pOrder->id,
                         'matched_order_date' => $orderDate->format('d M Y'),
@@ -7127,6 +7141,11 @@ public function myRevokePayments(Request $request)
                         'latest_order_status' => $pOrder->projectstatus ?: 'Delivered',
                         'whatsapp_order_ref' => $pOrder->id,
                     ];
+                } else {
+                    if (!in_array($module, $peersGrouped[$key]['matched_modules'])) {
+                        $peersGrouped[$key]['matched_modules'][] = $module;
+                        $peersGrouped[$key]['matched_orders_by_module'][$module] = $orderInfo;
+                    }
                 }
             }
 
