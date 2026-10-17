@@ -6932,37 +6932,36 @@ public function myRevokePayments(Request $request)
                 return $raw;
             };
 
-            $effectiveCurrentModule = $cleanModuleFunc($order->module_code ?: ($order->lead?->module_code ?: optional($order->frontendLead)->module_code));
+            $anchorDate = $order->order_date ? Carbon::parse($order->order_date) : ($order->created_at ? Carbon::parse($order->created_at) : Carbon::today());
+            $twoMonthsBeforeAnchor = $anchorDate->copy()->subMonths(2)->endOfDay();
+            $twelveMonthsBeforeAnchor = $anchorDate->copy()->subMonths(12)->startOfDay();
 
-            // 1. Gather module codes associated with Person A:
+            // Option 2: Strictly look at Person A's past orders in the 2-12 months window before the order date
             $candidateModules = collect();
-            if (!empty($effectiveCurrentModule)) {
-                $candidateModules->push($effectiveCurrentModule);
-            } else {
-                // If current order has NO module code, fall back to Person A's past order/lead modules
-                if ($currentUserId) {
-                    $pastOrderModules = Order::where('uid', $currentUserId)
-                        ->whereNotNull('module_code')
-                        ->where('module_code', '!=', '')
-                        ->pluck('module_code');
+            if ($currentUserId) {
+                $pastOrders = Order::where('uid', $currentUserId)
+                    ->where('id', '!=', $order->id)
+                    ->where(function ($q) use ($twelveMonthsBeforeAnchor, $twoMonthsBeforeAnchor) {
+                        $q->where(function ($sub) use ($twelveMonthsBeforeAnchor, $twoMonthsBeforeAnchor) {
+                            $sub->whereNotNull('order_date')
+                                ->whereDate('order_date', '<=', $twoMonthsBeforeAnchor)
+                                ->whereDate('order_date', '>=', $twelveMonthsBeforeAnchor);
+                        })
+                        ->orWhere(function ($sub) use ($twelveMonthsBeforeAnchor, $twoMonthsBeforeAnchor) {
+                            $sub->whereNull('order_date')
+                                ->whereDate('created_at', '<=', $twoMonthsBeforeAnchor)
+                                ->whereDate('created_at', '>=', $twelveMonthsBeforeAnchor);
+                        });
+                    })
+                    ->whereNotNull('module_code')
+                    ->where('module_code', '!=', '')
+                    ->whereNotIn('projectstatus', ['Cancelled', 'Trash', 'cancelled', 'trash'])
+                    ->get();
 
-                    foreach ($pastOrderModules as $m) {
-                        $cleaned = $cleanModuleFunc($m);
-                        if ($cleaned) {
-                            $candidateModules->push($cleaned);
-                        }
-                    }
-
-                    $pastLeadModules = Leads::where('u_id', $currentUserId)
-                        ->whereNotNull('module_code')
-                        ->where('module_code', '!=', '')
-                        ->pluck('module_code');
-
-                    foreach ($pastLeadModules as $m) {
-                        $cleaned = $cleanModuleFunc($m);
-                        if ($cleaned) {
-                            $candidateModules->push($cleaned);
-                        }
+                foreach ($pastOrders as $po) {
+                    $cleaned = $cleanModuleFunc($po->module_code);
+                    if ($cleaned) {
+                        $candidateModules->push($cleaned);
                     }
                 }
             }
@@ -6973,13 +6972,16 @@ public function myRevokePayments(Request $request)
                 return response()->json([
                     'success' => true,
                     'has_peers' => false,
-                    'message' => 'No module code found on this order or in the customer\'s order history.',
+                    'message' => 'No past modules found in this customer\'s 2–12 months order history (' . $twelveMonthsBeforeAnchor->format('d M Y') . ' to ' . $twoMonthsBeforeAnchor->format('d M Y') . ').',
                     'current_customer' => [
                         'name' => $currentCustomerName,
                         'user_id' => $currentUserId,
                         'order_code' => $currentOrderCode,
                         'title' => $currentOrderTitle,
-                        'module_code' => $effectiveCurrentModule ?: 'N/A',
+                        'module_code' => $order->module_code ?: 'N/A',
+                        'order_date' => $anchorDate->format('d M Y'),
+                        'window_start' => $twelveMonthsBeforeAnchor->format('d M Y'),
+                        'window_end' => $twoMonthsBeforeAnchor->format('d M Y'),
                     ],
                     'searched_modules' => [],
                     'peers' => [],
@@ -6987,12 +6989,7 @@ public function myRevokePayments(Request $request)
             }
 
             // 2. Query for peers (Person B) who placed an order with any of these module codes
-            // Timeline: strictly 2 to 12 months window (exclude past 2 months completely)
-            // e.g. If today is 17 Oct 2026, only orders placed on or before 17 Aug 2026 and on or after 17 Oct 2025
-            $now = Carbon::today();
-            $twoMonthsAgo = Carbon::today()->subMonths(2);
-            $twelveMonthsAgo = Carbon::today()->subMonths(12);
-
+            // Timeline: strictly 2 to 12 months historical window before Person A's order date
             $unconvertedOrderCodes = Cache::remember('unconverted_order_codes_in_orders', 300, function () {
                 return DB::table('orders')
                     ->join('leads', 'orders.order_id', '=', 'leads.order_id')
@@ -7021,16 +7018,16 @@ public function myRevokePayments(Request $request)
             }
 
             $peerOrders = $peerOrdersQuery
-                ->where(function ($q) use ($twelveMonthsAgo, $twoMonthsAgo) {
-                    $q->where(function ($sub) use ($twelveMonthsAgo, $twoMonthsAgo) {
+                ->where(function ($q) use ($twelveMonthsBeforeAnchor, $twoMonthsBeforeAnchor) {
+                    $q->where(function ($sub) use ($twelveMonthsBeforeAnchor, $twoMonthsBeforeAnchor) {
                         $sub->whereNotNull('order_date')
-                            ->whereDate('order_date', '<=', $twoMonthsAgo)
-                            ->whereDate('order_date', '>=', $twelveMonthsAgo);
+                            ->whereDate('order_date', '<=', $twoMonthsBeforeAnchor)
+                            ->whereDate('order_date', '>=', $twelveMonthsBeforeAnchor);
                     })
-                    ->orWhere(function ($sub) use ($twelveMonthsAgo, $twoMonthsAgo) {
+                    ->orWhere(function ($sub) use ($twelveMonthsBeforeAnchor, $twoMonthsBeforeAnchor) {
                         $sub->whereNull('order_date')
-                            ->whereDate('created_at', '<=', $twoMonthsAgo)
-                            ->whereDate('created_at', '>=', $twelveMonthsAgo);
+                            ->whereDate('created_at', '<=', $twoMonthsBeforeAnchor)
+                            ->whereDate('created_at', '>=', $twelveMonthsBeforeAnchor);
                     });
                 })
                 ->orderByDesc('id')
@@ -7046,12 +7043,12 @@ public function myRevokePayments(Request $request)
                     continue;
                 }
 
-                // Strictly skip any orders placed in the last 2 months or older than 12 months
-                if ($orderDate->gt($twoMonthsAgo->endOfDay()) || $orderDate->lt($twelveMonthsAgo->startOfDay())) {
+                // Strictly skip any orders placed outside [anchor - 12m, anchor - 2m]
+                if ($orderDate->gt($twoMonthsBeforeAnchor) || $orderDate->lt($twelveMonthsBeforeAnchor)) {
                     continue;
                 }
 
-                $monthsAgo = (int) $orderDate->diffInMonths($now);
+                $monthsAgo = (int) $orderDate->diffInMonths($anchorDate);
                 $peerUser = $pOrder->user ?: ($pOrder->lead?->user ?: $pOrder->frontendLead?->user);
                 $peerUid = $pOrder->uid ?: ($peerUser?->id ?? null);
 
@@ -7136,19 +7133,22 @@ public function myRevokePayments(Request $request)
             // Only return modules that ACTUALLY have at least 1 matching peer! Zero 0-peer modules returned!
             $finalSearchedModules = $activeMatchedModules->unique()->values()->all();
 
-            // Sort peers: prioritize most recent in window (closest to 2 months ago)
+            // Sort peers: prioritize most recent in window (closest to 2 months before order)
             $peersList = collect($peersGrouped)->sortBy('months_ago')->values()->all();
 
             return response()->json([
                 'success' => true,
                 'has_peers' => count($peersList) > 0,
-                'message' => count($peersList) > 0 ? count($peersList) . ' peer(s) found.' : 'No batchmates or peers found who ordered this module in the 2–12 months window (' . $twelveMonthsAgo->format('d M Y') . ' to ' . $twoMonthsAgo->format('d M Y') . ').',
+                'message' => count($peersList) > 0 ? count($peersList) . ' peer(s) found.' : 'No other students found who took these past modules in the 2–12 months window (' . $twelveMonthsBeforeAnchor->format('d M Y') . ' to ' . $twoMonthsBeforeAnchor->format('d M Y') . ').',
                 'current_customer' => [
                     'name' => $currentCustomerName,
                     'user_id' => $currentUserId,
                     'order_code' => $currentOrderCode,
                     'title' => $currentOrderTitle,
-                    'module_code' => $effectiveCurrentModule ?: 'N/A',
+                    'module_code' => $order->module_code ?: 'N/A',
+                    'order_date' => $anchorDate->format('d M Y'),
+                    'window_start' => $twelveMonthsBeforeAnchor->format('d M Y'),
+                    'window_end' => $twoMonthsBeforeAnchor->format('d M Y'),
                 ],
                 'searched_modules' => $finalSearchedModules,
                 'peers' => $peersList,
