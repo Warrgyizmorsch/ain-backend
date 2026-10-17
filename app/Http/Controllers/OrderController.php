@@ -97,11 +97,7 @@ class OrderController extends Controller
     {
         $userSelectCallback = function ($q) {
             $q->select('id', 'name', 'email', 'countrycode', 'mobile_no', 'is_fail', 'feedback_issue', 'client_review')
-                ->with('groups')
-                ->withCount([
-                    'orders as orders_count',
-                    'convertedOrders as converted_orders_count',
-                ]);
+                ->with('groups');
         };
 
         return [
@@ -233,6 +229,44 @@ class OrderController extends Controller
             if ($createdUser) {
                 $order->setAttribute('preloaded_creator_name', $createdUser);
             }
+        }
+    }
+
+    private function attachUserOrderCounts($effectiveUsers): void
+    {
+        if (empty($effectiveUsers) || (is_object($effectiveUsers) && method_exists($effectiveUsers, 'isEmpty') && $effectiveUsers->isEmpty())) {
+            return;
+        }
+
+        $userIds = collect($effectiveUsers)->pluck('id')->filter()->unique()->values()->all();
+        if (empty($userIds)) {
+            return;
+        }
+
+        $ordersCounts = DB::table('orders')
+            ->whereIn('uid', $userIds)
+            ->groupBy('uid')
+            ->pluck(DB::raw('COUNT(*)'), 'uid');
+
+        $unconvertedOrderCodes = Cache::remember('unconverted_order_codes_in_orders', 300, function () {
+            return DB::table('orders')
+                ->join('leads', 'orders.order_id', '=', 'leads.order_id')
+                ->where('leads.is_converted', 0)
+                ->pluck('orders.order_id')
+                ->filter()
+                ->values()
+                ->toArray();
+        });
+
+        $convQuery = DB::table('orders')->whereIn('uid', $userIds);
+        if (!empty($unconvertedOrderCodes)) {
+            $convQuery->whereNotIn('order_id', $unconvertedOrderCodes);
+        }
+        $convertedCounts = $convQuery->groupBy('uid')->pluck(DB::raw('COUNT(*)'), 'uid');
+
+        foreach ($effectiveUsers as $user) {
+            $user->orders_count = (int) ($ordersCounts[$user->id] ?? 0);
+            $user->converted_orders_count = (int) ($convertedCounts[$user->id] ?? ($ordersCounts[$user->id] ?? 0));
         }
     }
 
@@ -4220,7 +4254,16 @@ class OrderController extends Controller
 
         $query->when($request->filled('group_id'), fn($q) => $q->whereHas('user.groups', fn($g) => $g->where('group_masters.id', $request->group_id)));
         $query->when($request->filled('semester'), fn($q) => $q->where('semester', $request->semester));
-        $query->when($request->filled('status'), fn($q) => $q->where('projectstatus', $request->status));
+        if ($request->filled('status')) {
+            if ($request->status === 'Hold Work') {
+                $query->where(function ($sq) {
+                    $sq->where('projectstatus', 'Hold Work')
+                       ->orWhere('projectstatus', 'Hold(writer query)');
+                });
+            } else {
+                $query->where('projectstatus', $request->status);
+            }
+        }
         $query->when($request->filled('module_code'), fn($q) => $q->where('module_code', 'like', '%' . $request->module_code . '%'));
         $query->when($request->filled('paper_type'), fn($q) => $q->where('typeofpaper', $request->paper_type));
         $query->when($request->filled('college'), fn($q) => $q->where('college_name', $request->college));
@@ -4263,8 +4306,15 @@ class OrderController extends Controller
 
         $deadlineStatus = $request->input('deadline_status');
         if ($deadlineStatus == 'overdue') {
-            $query->whereDate('delivery_date', '<', now())
-                ->whereNotIn('projectstatus', ['Completed', 'Delivered', 'Cancelled', 'Feedback', 'Feedback Delivered']);
+            $now = now();
+            $query->where(function ($q) use ($now) {
+                $q->where('delivery_date', '<', $now->toDateString())
+                    ->orWhere(function ($q2) use ($now) {
+                        $q2->where('delivery_date', '=', $now->toDateString())
+                            ->whereNotNull('delivery_time')
+                            ->where('delivery_time', '<', $now->toTimeString());
+                    });
+            })->whereNotIn('projectstatus', ['Completed', 'Delivered', 'Cancelled', 'Feedback', 'Feedback Delivered']);
         } elseif ($deadlineStatus == 'missed') {
             $query->whereIn('projectstatus', ['Completed', 'Delivered', 'Cancelled', 'Feedback', 'Feedback Delivered'])
                 ->whereColumn('updated_at', '>', 'delivery_date');
@@ -4416,6 +4466,7 @@ class OrderController extends Controller
             return $o->user ?? $o->lead?->user ?? $o->frontendLead?->user;
         })->filter();
         User::attachLabelsToUsers($effectiveUsers);
+        $this->attachUserOrderCounts($effectiveUsers);
         $data['projectStatusCounts'] = ProjectStatusCount::whereIn('order_Id', $orders->pluck('id'))->get();
 
         $totals = [
@@ -4626,6 +4677,7 @@ class OrderController extends Controller
                         return $o->user ?? $o->lead?->user ?? $o->frontendLead?->user;
                     })->filter();
                     User::attachLabelsToUsers($effectiveUsers);
+                    $this->attachUserOrderCounts($effectiveUsers);
 
                     $projectStatusCountsMap = ProjectStatusCount::whereIn('order_Id', $latestOrders->pluck('id'))
                         ->get()
@@ -4704,6 +4756,7 @@ class OrderController extends Controller
             return $o->user ?? $o->lead?->user ?? $o->frontendLead?->user;
         })->filter();
         User::attachLabelsToUsers($effectiveUsers);
+        $this->attachUserOrderCounts($effectiveUsers);
 
         $totals = [
             'total_amount' => $orders->sum(function ($o) {
@@ -6873,7 +6926,7 @@ public function myRevokePayments(Request $request)
                 if (empty($alphaNum) || strlen($alphaNum) < 3) {
                     return null;
                 }
-                if (in_array($alphaNum, ['NA', 'NAA', 'NONE', 'NULL', 'NOTAVAILABLE', 'NO', 'NIL', 'NOTAPPLICABLE', 'NOTASSIGNED'])) {
+                if (in_array($alphaNum, ['NA', 'NAA', 'NONE', 'NULL', 'NOTAVAILABLE', 'NO', 'NIL', 'NOTAPPLICABLE', 'NOTASSIGNED', '00', '000', 'THESIS', 'DISSERTATION'])) {
                     return null;
                 }
                 return $raw;
@@ -6885,30 +6938,31 @@ public function myRevokePayments(Request $request)
             $candidateModules = collect();
             if (!empty($effectiveCurrentModule)) {
                 $candidateModules->push($effectiveCurrentModule);
-            }
+            } else {
+                // If current order has NO module code, fall back to Person A's past order/lead modules
+                if ($currentUserId) {
+                    $pastOrderModules = Order::where('uid', $currentUserId)
+                        ->whereNotNull('module_code')
+                        ->where('module_code', '!=', '')
+                        ->pluck('module_code');
 
-            if ($currentUserId) {
-                $pastOrderModules = Order::where('uid', $currentUserId)
-                    ->whereNotNull('module_code')
-                    ->where('module_code', '!=', '')
-                    ->pluck('module_code');
-
-                foreach ($pastOrderModules as $m) {
-                    $cleaned = $cleanModuleFunc($m);
-                    if ($cleaned) {
-                        $candidateModules->push($cleaned);
+                    foreach ($pastOrderModules as $m) {
+                        $cleaned = $cleanModuleFunc($m);
+                        if ($cleaned) {
+                            $candidateModules->push($cleaned);
+                        }
                     }
-                }
 
-                $pastLeadModules = Leads::where('u_id', $currentUserId)
-                    ->whereNotNull('module_code')
-                    ->where('module_code', '!=', '')
-                    ->pluck('module_code');
+                    $pastLeadModules = Leads::where('u_id', $currentUserId)
+                        ->whereNotNull('module_code')
+                        ->where('module_code', '!=', '')
+                        ->pluck('module_code');
 
-                foreach ($pastLeadModules as $m) {
-                    $cleaned = $cleanModuleFunc($m);
-                    if ($cleaned) {
-                        $candidateModules->push($cleaned);
+                    foreach ($pastLeadModules as $m) {
+                        $cleaned = $cleanModuleFunc($m);
+                        if ($cleaned) {
+                            $candidateModules->push($cleaned);
+                        }
                     }
                 }
             }
@@ -6934,12 +6988,30 @@ public function myRevokePayments(Request $request)
 
             // 2. Query for peers (Person B) who placed an order with any of these module codes
             // Timeline: strictly 2 to 12 months window (exclude past 2 months completely)
-            $now = Carbon::now();
-            $twoMonthsAgo = Carbon::now()->subMonths(2)->endOfDay();
-            $twelveMonthsAgo = Carbon::now()->subMonths(12)->startOfDay();
+            // e.g. If today is 17 Oct 2026, only orders placed on or before 17 Aug 2026 and on or after 17 Oct 2025
+            $now = Carbon::today();
+            $twoMonthsAgo = Carbon::today()->subMonths(2);
+            $twelveMonthsAgo = Carbon::today()->subMonths(12);
+
+            $unconvertedOrderCodes = Cache::remember('unconverted_order_codes_in_orders', 300, function () {
+                return DB::table('orders')
+                    ->join('leads', 'orders.order_id', '=', 'leads.order_id')
+                    ->where('leads.is_converted', 0)
+                    ->pluck('orders.order_id')
+                    ->filter()
+                    ->values()
+                    ->toArray();
+            });
 
             $peerOrdersQuery = Order::with(['user', 'lead.user', 'frontendLead.user'])
-                ->whereIn('module_code', $candidateModules);
+                ->whereIn('module_code', $candidateModules)
+                ->whereNotNull('order_id')
+                ->where('order_id', '!=', '')
+                ->whereNotIn('projectstatus', ['Cancelled', 'Trash', 'cancelled', 'trash']);
+
+            if (!empty($unconvertedOrderCodes)) {
+                $peerOrdersQuery->whereNotIn('orders.order_id', $unconvertedOrderCodes);
+            }
 
             if ($currentUserId) {
                 $peerOrdersQuery->where(function ($q) use ($currentUserId) {
@@ -6951,12 +7023,14 @@ public function myRevokePayments(Request $request)
             $peerOrders = $peerOrdersQuery
                 ->where(function ($q) use ($twelveMonthsAgo, $twoMonthsAgo) {
                     $q->where(function ($sub) use ($twelveMonthsAgo, $twoMonthsAgo) {
-                        $sub->where('created_at', '>=', $twelveMonthsAgo)
-                            ->where('created_at', '<=', $twoMonthsAgo);
+                        $sub->whereNotNull('order_date')
+                            ->whereDate('order_date', '<=', $twoMonthsAgo)
+                            ->whereDate('order_date', '>=', $twelveMonthsAgo);
                     })
                     ->orWhere(function ($sub) use ($twelveMonthsAgo, $twoMonthsAgo) {
-                        $sub->where('order_date', '>=', $twelveMonthsAgo->toDateString())
-                            ->where('order_date', '<=', $twoMonthsAgo->toDateString());
+                        $sub->whereNull('order_date')
+                            ->whereDate('created_at', '<=', $twoMonthsAgo)
+                            ->whereDate('created_at', '>=', $twelveMonthsAgo);
                     });
                 })
                 ->orderByDesc('id')
@@ -6964,6 +7038,7 @@ public function myRevokePayments(Request $request)
                 ->get();
 
             $peersGrouped = [];
+            $activeMatchedModules = collect();
 
             foreach ($peerOrders as $pOrder) {
                 $orderDate = $pOrder->order_date ? Carbon::parse($pOrder->order_date) : ($pOrder->created_at ? Carbon::parse($pOrder->created_at) : null);
@@ -6972,11 +7047,11 @@ public function myRevokePayments(Request $request)
                 }
 
                 // Strictly skip any orders placed in the last 2 months or older than 12 months
-                if ($orderDate->gt($twoMonthsAgo) || $orderDate->lt($twelveMonthsAgo)) {
+                if ($orderDate->gt($twoMonthsAgo->endOfDay()) || $orderDate->lt($twelveMonthsAgo->startOfDay())) {
                     continue;
                 }
 
-                $monthsAgo = max(2, min(12, (int)$orderDate->diffInMonths($now)));
+                $monthsAgo = (int) $orderDate->diffInMonths($now);
                 $peerUser = $pOrder->user ?: ($pOrder->lead?->user ?: $pOrder->frontendLead?->user);
                 $peerUid = $pOrder->uid ?: ($peerUser?->id ?? null);
 
@@ -7004,10 +7079,8 @@ public function myRevokePayments(Request $request)
                 $peerCC = preg_replace('/\D+/', '', (string)($peerUser?->countrycode ?: ($pOrder->lead?->countrycode ?: '44')));
                 $fullPhone = $peerCC . $peerDigits;
 
-                $inTargetWindow = true;
-
                 if (!isset($peersGrouped[$key])) {
-                    $latestOrder = $peerUid ? Order::where('uid', $peerUid)->orderByDesc('id')->first() : $pOrder;
+                    $activeMatchedModules->push($pOrder->module_code);
 
                     $peerIdentifier = $peerUid ? 'u_'.$peerUid : ($peerDigits ? 'p_'.$peerDigits : 'e_'.md5($peerEmail));
                     $isContacted = false;
@@ -7047,27 +7120,29 @@ public function myRevokePayments(Request $request)
                         'matched_module_code' => $pOrder->module_code,
                         'matched_order_id' => $pOrder->id,
                         'matched_order_code' => $pOrder->order_id ?: $pOrder->id,
-                        'matched_order_date' => $orderDate ? $orderDate->format('d M Y') : 'N/A',
-                        'time_ago' => $orderDate ? $orderDate->diffForHumans() : '',
+                        'matched_order_date' => $orderDate->format('d M Y'),
+                        'matched_order_status' => $pOrder->projectstatus ?: 'Delivered',
+                        'time_ago' => $orderDate->diffForHumans(),
                         'months_ago' => $monthsAgo,
-                        'in_target_window' => $inTargetWindow,
-                        'latest_order_code' => $latestOrder ? ($latestOrder->order_id ?: $latestOrder->id) : ($pOrder->order_id ?: $pOrder->id),
-                        'latest_order_date' => $latestOrder && $latestOrder->order_date ? Carbon::parse($latestOrder->order_date)->format('d M Y') : ($latestOrder && $latestOrder->created_at ? $latestOrder->created_at->format('d M Y') : 'N/A'),
-                        'latest_order_status' => $latestOrder?->projectstatus ?: $pOrder->projectstatus,
-                        'whatsapp_order_ref' => $latestOrder?->id ?: $pOrder->id,
+                        'in_target_window' => true,
+                        'latest_order_code' => $pOrder->order_id ?: $pOrder->id,
+                        'latest_order_date' => $orderDate->format('d M Y'),
+                        'latest_order_status' => $pOrder->projectstatus ?: 'Delivered',
+                        'whatsapp_order_ref' => $pOrder->id,
                     ];
                 }
             }
 
-            // Sort peers: prioritize those in 2-12 months window
-            $peersList = collect($peersGrouped)->sortByDesc(function ($p) {
-                return ($p['in_target_window'] ? 100 : 0) - abs($p['months_ago'] - 2);
-            })->values()->all();
+            // Only return modules that ACTUALLY have at least 1 matching peer! Zero 0-peer modules returned!
+            $finalSearchedModules = $activeMatchedModules->unique()->values()->all();
+
+            // Sort peers: prioritize most recent in window (closest to 2 months ago)
+            $peersList = collect($peersGrouped)->sortBy('months_ago')->values()->all();
 
             return response()->json([
                 'success' => true,
                 'has_peers' => count($peersList) > 0,
-                'message' => count($peersList) > 0 ? count($peersList) . ' peer(s) found.' : 'No batchmates or peers found who ordered these modules in the last 2-12 months.',
+                'message' => count($peersList) > 0 ? count($peersList) . ' peer(s) found.' : 'No batchmates or peers found who ordered this module in the 2–12 months window (' . $twelveMonthsAgo->format('d M Y') . ' to ' . $twoMonthsAgo->format('d M Y') . ').',
                 'current_customer' => [
                     'name' => $currentCustomerName,
                     'user_id' => $currentUserId,
@@ -7075,7 +7150,7 @@ public function myRevokePayments(Request $request)
                     'title' => $currentOrderTitle,
                     'module_code' => $effectiveCurrentModule ?: 'N/A',
                 ],
-                'searched_modules' => $candidateModules->all(),
+                'searched_modules' => $finalSearchedModules,
                 'peers' => $peersList,
             ]);
 
