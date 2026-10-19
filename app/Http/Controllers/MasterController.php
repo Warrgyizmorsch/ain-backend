@@ -18,7 +18,9 @@ use App\Models\Status;
 use App\Models\User;
 use App\Models\College;
 use App\Models\Source;
+use App\Models\WalletTransaction;
 use Illuminate\Support\Facades\Hash; 
+use Illuminate\Support\Facades\Log; 
 
 
 class MasterController extends Controller
@@ -306,31 +308,93 @@ class MasterController extends Controller
     public function delete_payments(Request $request, $id)
     {
         try {
-            // Find the payment by ID
-            $payment = Payment::findOrFail($id);
+            $payment = Payment::find($id);
+            if (!$payment) {
+                if ($request->ajax() || $request->wantsJson()) {
+                    return response()->json([
+                        'status' => 'error',
+                        'message' => 'Payment not found or already deleted.'
+                    ], 404);
+                }
+                return back()->with('error', 'Payment not found or already deleted.');
+            }
 
-            // Get the order ID of the payment
             $orderId = $payment->order_id;
+            $deletedAmount = $payment->paid_amount;
+            $paymentId = $payment->id;
 
-            // Delete the payment
+            // Resolve order safely
+            $order = null;
+            if ($orderId) {
+                $order = Order::where('id', $orderId)->orWhere('order_id', $orderId)->first();
+            }
+
+            // Refund wallet if payment was made using Wallet
+            if ($payment->company_accounts === 'Wallet' && $order) {
+                $walletUser = User::find($order->uid);
+                if ($walletUser) {
+                    $refundAmount = (float) $payment->paid_amount;
+                    $newBalance = (float) ($walletUser->Wallet ?? 0) + $refundAmount;
+
+                    WalletTransaction::create([
+                        'user_id'       => $walletUser->id,
+                        'amount'        => $refundAmount,
+                        'type'          => 'credit',
+                        'description'   => 'Refund for deleted payment on Order #' . $order->order_id,
+                        'balance_after' => $newBalance,
+                    ]);
+
+                    $walletUser->Wallet = $newBalance;
+                    $walletUser->save();
+                }
+            }
+
+            // Delete payment
             $payment->delete();
 
-            // Calculate the total paid amount for the order
-            $totalPaidAmount = Payment::where('order_id', $orderId)
-                ->where(function ($q) {
-                    $q->where('is_revoked', 0)->orWhereNull('is_revoked');
-                })
-                ->sum('paid_amount');
+            // Recalculate and update order received_amount cleanly
+            if ($order) {
+                Payment::updateOrderReceivedAmount($order->id);
+            } elseif ($orderId) {
+                Payment::updateOrderReceivedAmount($orderId);
+            }
 
-            // Find the order by ID
-            $order = Order::find($orderId);
+            // Log activity
+            if (function_exists('logActivity')) {
+                logActivity('Order', [
+                    'type'       => 'Payment Deleted',
+                    'action'     => 'DELETE_PAYMENT',
+                    'payment_id' => $paymentId,
+                    'order_id'   => $order ? $order->id : $orderId,
+                    'order_no'   => $order ? $order->order_id : null,
+                    'amount'     => $deletedAmount,
+                    'action_by'  => auth()->check() ? auth()->user()->name : 'System',
+                ]);
+            }
 
-            // Update the received amount for the order
-            $order->received_amount = $totalPaidAmount;
-            $order->save();
-        } catch (\Exception $e) {
-            // Handle any exceptions
-            return response()->json(['message' => 'Failed to delete payment'], 500);
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json([
+                    'status' => 'success',
+                    'message' => 'Payment deleted successfully.'
+                ], 200);
+            }
+
+            return back()->with('success', 'Payment deleted successfully.');
+
+        } catch (\Throwable $e) {
+            Log::error('Error deleting payment in MasterController: ' . $e->getMessage(), [
+                'id'    => $id,
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Failed to delete payment: ' . $e->getMessage()
+                ], 500);
+            }
+
+            return back()->with('error', 'Failed to delete payment: ' . $e->getMessage());
         }
     }
    public function revokePayment(Request $request, $id)
