@@ -72,8 +72,11 @@
                     </button>
                 @endif --}}
 
-                @if(auth()->user()->role_id == 9)
-                <a onclick="CallToWriter('{{ $order->id }}')" class="btn btn-icon btn-bg-warning btn-active-color-dark btn-color-white btn-sm me-1 download-btn">
+                @if(in_array((int) auth()->user()->role_id, [1, 4, 5, 9]))
+                <a href="javascript:void(0);"
+                   onclick="event.preventDefault(); event.stopPropagation(); CallToWriter('{{ $order->id }}')"
+                   class="btn btn-icon btn-bg-warning btn-active-color-dark btn-color-white btn-sm me-1 download-btn"
+                   title="Call Writer via Samwad{{ $order->writer_name ? ': ' . $order->writer_name : '' }}">
                     <span class="svg-icon svg-icon-3">
                         <i class="fa fa-phone fa-lg"></i>
                     </span>
