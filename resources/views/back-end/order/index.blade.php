@@ -831,7 +831,17 @@
 </script>
 <script>
     function CallToWriter(orderId) {
-        // Assuming you're using jQuery
+        if (!orderId) return;
+
+        Swal.fire({
+            title: 'Connecting to Samwad...',
+            text: 'Initiating call to writer, please wait.',
+            allowOutsideClick: false,
+            didOpen: () => {
+                Swal.showLoading();
+            }
+        });
+
         $.ajax({
             type: 'POST',
             url: "{{ route('appdialnumber') }}",
@@ -843,28 +853,78 @@
                 if (response.success) {
                     Swal.fire({
                         icon: 'success',
-                        title: 'Success',
-                        text: response.message || 'Call initiated successfully.',
+                        title: 'Call Initiated',
+                        html: `<div>${response.message || 'Call initiated successfully via Samwad.'}</div>` +
+                              (response.writer_name ? `<div class="mt-2 text-muted fs-7">Writer: <strong>${response.writer_name}</strong> (${response.writer_phone || ''})</div>` : ''),
                     });
                 } else {
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Failed',
-                        text: response.error || 'Something went wrong. Please Check the Calling Portal',
-                    });
+                    let writerPhone = response.writer_phone || '';
+                    let writerName = response.writer_name || 'Writer';
+                    let errorText = response.error || 'Something went wrong. Please check the Calling Portal.';
+
+                    if (writerPhone && typeof window.initiateCustomerCall === 'function') {
+                        Swal.fire({
+                            icon: 'warning',
+                            title: 'Samwad Notice',
+                            html: `<div class="mb-3">${errorText}</div>` +
+                                  `<div class="p-2 border rounded bg-light text-start fs-7">` +
+                                  `<strong>Writer:</strong> ${writerName}<br>` +
+                                  `<strong>Phone:</strong> ${writerPhone}` +
+                                  `</div>`,
+                            showCancelButton: true,
+                            confirmButtonText: '<i class="fa fa-phone me-1"></i> Call via Softphone',
+                            cancelButtonText: 'Close',
+                            confirmButtonColor: '#25D366'
+                        }).then((result) => {
+                            if (result.isConfirmed) {
+                                window.initiateCustomerCall(writerPhone, writerName);
+                            }
+                        });
+                    } else {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Samwad Dial Failed',
+                            text: errorText,
+                        });
+                    }
                 }
             },
             error: function(xhr, status, error) {
                 let errorMsg = 'Failed to communicate with the server. Please try again later.';
-                if (xhr.responseJSON && xhr.responseJSON.error) {
-                    errorMsg = xhr.responseJSON.error;
+                let writerPhone = '';
+                let writerName = 'Writer';
+
+                if (xhr.responseJSON) {
+                    if (xhr.responseJSON.error) errorMsg = xhr.responseJSON.error;
+                    if (xhr.responseJSON.writer_phone) writerPhone = xhr.responseJSON.writer_phone;
+                    if (xhr.responseJSON.writer_name) writerName = xhr.responseJSON.writer_name;
                 }
 
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Error',
-                    text: errorMsg,
-                });
+                if (writerPhone && typeof window.initiateCustomerCall === 'function') {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'Samwad Notice',
+                        html: `<div class="mb-3">${errorMsg}</div>` +
+                              `<div class="p-2 border rounded bg-light text-start fs-7">` +
+                              `<strong>Writer:</strong> ${writerName}<br>` +
+                              `<strong>Phone:</strong> ${writerPhone}` +
+                              `</div>`,
+                        showCancelButton: true,
+                        confirmButtonText: '<i class="fa fa-phone me-1"></i> Call via Softphone',
+                        cancelButtonText: 'Close',
+                        confirmButtonColor: '#25D366'
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            window.initiateCustomerCall(writerPhone, writerName);
+                        }
+                    });
+                } else {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Samwad Error',
+                        text: errorMsg,
+                    });
+                }
             }
         });
     }
