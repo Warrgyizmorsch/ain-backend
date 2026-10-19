@@ -4,6 +4,20 @@
 <div class="container mt-5">
     <div class="modal-content rounded">        
         <div class="modal-body scroll-y px-10 px-lg-15 pt-10 pb-15">
+            @if(session('success') || session('Success'))
+                <div class="alert alert-success alert-dismissible fade show mb-5" role="alert">
+                    <span class="fw-bold">{{ session('success') ?: session('Success') }}</span>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            @endif
+
+            @if(session('error') || session('Error'))
+                <div class="alert alert-danger alert-dismissible fade show mb-5" role="alert">
+                    <span class="fw-bold">{{ session('error') ?: session('Error') }}</span>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            @endif
+
             <div class="mb-8">
                 <h1 class="mb-3">{{ isset($editPayment) ? 'Edit Payment' : 'Add Payment' }}</h1>
                 <div class="text-muted fw-bold fs-5" style="display: flex; align-items: center; justify-content: space-between;">
@@ -161,9 +175,10 @@
         const deleteButtons = document.querySelectorAll('.delete-payment');
 
         deleteButtons.forEach(button => {
-            button.addEventListener('click', function () {
+            button.addEventListener('click', function (e) {
+                e.preventDefault();
                 const paymentId = this.getAttribute('data-payment-id');
-                const amount = this.getAttribute('data-amount'); // ✅ get amount from data attribute
+                const amount = this.getAttribute('data-amount') || 0;
 
                 Swal.fire({
                     title: 'Are you sure?',
@@ -175,7 +190,6 @@
                     confirmButtonText: 'Yes, delete it!'
                 }).then((result) => {
                     if (result.isConfirmed) {
-                        // Redirect to your delete route or submit the form
                         const form = document.createElement('form');
                         form.method = 'POST';
                         form.action = '{{ route('orderpayments.delete', ['id' => '__paymentId__']) }}'.replace('__paymentId__', paymentId);
@@ -194,7 +208,7 @@
     });
 </script>
 {{-- mk 6/10/2026: Set sync flag on payment success so orders tab auto-refreshes with updated paid/due amount --}}
-@if(session('success'))
+@if(session('success') || session('Success'))
 <script>
     try {
         localStorage.setItem('order_payment_synced', Date.now().toString());
