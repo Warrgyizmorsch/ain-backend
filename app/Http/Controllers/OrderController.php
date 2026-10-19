@@ -2290,21 +2290,77 @@ class OrderController extends Controller
 
     public function orderPayment_delete(Request $req, $id)
     {
-        $order = $req->input('order_id');
-        $newOrder = Order::find($order);
-        // Safely subtract only if enough amount is available
-        $amountToSubtract = $req->input('amount');
-        $currentReceived = $newOrder->received_amount;
+        try {
+            $payment = Payment::find($id);
+            if (!$payment) {
+                return redirect()->back()->with('error', 'Payment detail not found or already deleted.');
+            }
 
-        if ($amountToSubtract > $currentReceived) {
-            return redirect()->back()->with('error', 'Cannot subtract more than received amount.');
-        }
-        Payment::destroy($id);
-        if ($newOrder) {
-            Payment::updateOrderReceivedAmount($newOrder->id);
-        }
+            // Determine order by payment's own order_id or fallback to request input
+            $orderId = $payment->order_id ?: $req->input('order_id');
+            $order = null;
+            if ($orderId) {
+                $order = Order::where('id', $orderId)->orWhere('order_id', $orderId)->first();
+            }
 
-        return redirect()->back()->with('Success', 'Action Submitted');
+            // If this payment was paid from Wallet, refund to the client's wallet
+            if ($payment->company_accounts === 'Wallet' && $order) {
+                $walletUser = User::find($order->uid);
+                if ($walletUser) {
+                    $refundAmount = (float) $payment->paid_amount;
+                    $newBalance = (float) ($walletUser->Wallet ?? 0) + $refundAmount;
+
+                    WalletTransaction::create([
+                        'user_id'       => $walletUser->id,
+                        'amount'        => $refundAmount,
+                        'type'          => 'credit',
+                        'description'   => 'Refund for deleted payment on Order #' . $order->order_id,
+                        'balance_after' => $newBalance,
+                    ]);
+
+                    $walletUser->Wallet = $newBalance;
+                    $walletUser->save();
+                }
+            }
+
+            $deletedAmount = $payment->paid_amount;
+            $deletedPaymentId = $payment->id;
+            $orderNumericId = $order ? $order->id : (is_numeric($orderId) ? $orderId : null);
+
+            // Delete the payment record
+            $payment->delete();
+
+            // Recalculate order's received_amount from remaining active payments
+            if ($orderNumericId) {
+                Payment::updateOrderReceivedAmount($orderNumericId);
+            } elseif ($orderId) {
+                Payment::updateOrderReceivedAmount($orderId);
+            }
+
+            if (function_exists('logActivity')) {
+                logActivity('Order', [
+                    'type'       => 'Payment Deleted',
+                    'action'     => 'DELETE_PAYMENT',
+                    'payment_id' => $deletedPaymentId,
+                    'order_id'   => $order ? $order->id : $orderId,
+                    'order_no'   => $order ? $order->order_id : null,
+                    'amount'     => $deletedAmount,
+                    'action_by'  => auth()->check() ? auth()->user()->name : 'System',
+                ]);
+            }
+
+            return redirect()->back()
+                ->with('success', 'Payment detail deleted successfully.')
+                ->with('Success', 'Payment detail deleted successfully.');
+
+        } catch (\Throwable $e) {
+            Log::error('Error deleting payment: ' . $e->getMessage(), [
+                'payment_id' => $id,
+                'trace'      => $e->getTraceAsString(),
+            ]);
+
+            return redirect()->back()->with('error', 'Failed to delete payment: ' . $e->getMessage());
+        }
     }
 
     public function insert_feedback(Request $req, $id)

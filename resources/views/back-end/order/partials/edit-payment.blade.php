@@ -55,7 +55,7 @@
                                             <!-- Your table cell with SweetAlert -->
                                             <td>
                                                 @if(Auth::user()->role_id == 1)
-                                                <a href="#" class="btn btn-icon btn-bg-light btn-active-color-primary btn-sm delete-payment" data-payment-id="{{ $payment->id }}">
+                                                <a href="#" class="btn btn-icon btn-bg-light btn-active-color-primary btn-sm delete-payment" data-payment-id="{{ $payment->id }}" data-amount="{{ $payment->paid_amount }}">
                                                     <span class="svg-icon svg-icon-3">
                                                         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
                                                             <path d="M5 9C5 8.44772 5.44772 8 6 8H18C18.5523 8 19 8.44772 19 9V18C19 19.6569 17.6569 21 16 21H8C6.34315 21 5 19.6569 5 18V9Z" fill="black"></path>
@@ -70,50 +70,49 @@
                                                 </a>
 
                                             </td>
-
-                                            <!-- Script to handle SweetAlert -->
-                                            <script>
-                                                document.addEventListener('DOMContentLoaded', function () {
-                                                    const deleteButtons = document.querySelectorAll('.delete-payment');
-
-                                                    deleteButtons.forEach(button => {
-                                                        button.addEventListener('click', function () {
-                                                            const paymentId = this.getAttribute('data-payment-id');
-
-                                                            Swal.fire({
-                                                                title: 'Are you sure?',
-                                                                text: 'Are You Sure To Delete Payment Deatail !',
-                                                                icon: 'warning',
-                                                                showCancelButton: true,
-                                                                confirmButtonColor: '#3085d6',
-                                                                cancelButtonColor: '#d33',
-                                                                confirmButtonText: 'Yes, delete it!'
-                                                            }).then((result) => {
-                                                                if (result.isConfirmed) {
-                                                                    // Redirect to your delete route or submit the form
-                                                                    const form = document.createElement('form');
-                                                                    form.method = 'POST';
-                                                                    form.action = '{{ route('orderpayments.delete', ['id' => '__paymentId__']) }}'.replace('__paymentId__', paymentId);
-                                                                    form.innerHTML = `
-                                                                        @csrf
-                                                                        @method('DELETE')
-                                                                        <input type="hidden" name="order_id" value="{{ $order->id }}">
-                                                                        <input type="hidden" name="amount" value="{{ $payment->paid_amount }}">
-                                                                    `;
-                                                                    document.body.appendChild(form);
-                                                                    form.submit();
-                                                                }
-                                                            });
-                                                        });
-                                                    });
-                                                });
-                                            </script>
-
                                         </tr>
                                     @endforeach
                                 </tbody>
-							
-							</table>
+                            </table>
+
+                            <!-- Script to handle SweetAlert -->
+                            <script>
+                                document.addEventListener('DOMContentLoaded', function () {
+                                    const deleteButtons = document.querySelectorAll('.delete-payment');
+
+                                    deleteButtons.forEach(button => {
+                                        button.addEventListener('click', function (e) {
+                                            e.preventDefault();
+                                            const paymentId = this.getAttribute('data-payment-id');
+                                            const amount = this.getAttribute('data-amount') || 0;
+
+                                            Swal.fire({
+                                                title: 'Are you sure?',
+                                                text: 'Are You Sure To Delete Payment Deatail !',
+                                                icon: 'warning',
+                                                showCancelButton: true,
+                                                confirmButtonColor: '#3085d6',
+                                                cancelButtonColor: '#d33',
+                                                confirmButtonText: 'Yes, delete it!'
+                                            }).then((result) => {
+                                                if (result.isConfirmed) {
+                                                    const form = document.createElement('form');
+                                                    form.method = 'POST';
+                                                    form.action = '{{ route('orderpayments.delete', ['id' => '__paymentId__']) }}'.replace('__paymentId__', paymentId);
+                                                    form.innerHTML = `
+                                                        @csrf
+                                                        @method('DELETE')
+                                                        <input type="hidden" name="order_id" value="{{ $order->id }}">
+                                                        <input type="hidden" name="amount" value="${amount}">
+                                                    `;
+                                                    document.body.appendChild(form);
+                                                    form.submit();
+                                                }
+                                            });
+                                        });
+                                    });
+                                });
+                            </script>
                             
 						</div>
 					</div>

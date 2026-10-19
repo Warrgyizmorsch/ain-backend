@@ -306,7 +306,7 @@ Route::middleware(['auth', 'check.permission'])->group(function () {
     Route::get('/next2call/call-report', [PluginController::class, 'next2callCallReport'])->name('next2call.call-report');
     route::get('comment/{id}', [OrderController::class, 'orderCommentPage'])->name('comment');
     route::get('orderpayments/{id}', [OrderController::class, 'orderPayment'])->name('orderpayments');
-    route::delete('orderpayments/{id}', [OrderController::class, 'orderPayment_delete'])->name('orderpayments.delete');
+    Route::match(['delete', 'post'], 'orderpayments/{id}', [OrderController::class, 'orderPayment_delete'])->name('orderpayments.delete');
     Route::post('/comment/{id}', [OrderController::class, 'insert_feedback'])->name('comment.insert');
     Route::post('/orderedit/{id}', [OrderController::class, 'OrderEditwriterAdmin'])->name('orderedit.update');
     Route::post('/orders/save-referral', [OrderController::class, 'saveReferral'])->name('orders.save.referral');
@@ -507,6 +507,7 @@ Route::middleware(['auth', 'check.permission'])->group(function () {
         Route::get('/payment-modal-content/{orderId}/{paymentId?}', [OrderController::class, 'paymentModalContent'])->name('orders.payment.modal.content');
         Route::post('/payment/store/{orderId}', [OrderController::class, 'storePayment'])->name('orders.payment.form.store');
         Route::put('/payment/update/{orderId}/{paymentId}', [OrderController::class, 'updatePayment'])->name('orders.payment.form.update');
+        Route::match(['delete', 'post'], '/payment/delete/{id}', [OrderController::class, 'orderPayment_delete'])->name('orders.payment.delete');
         Route::get('/urgent-orders', [OrderController::class, 'urgentOrders']);
         Route::get('/statuses/list', [OrderController::class, 'getStatuses']);
         Route::get('/peer-suggestions/{orderId}', [OrderController::class, 'getPeerSuggestions'])->name('orders.peer.suggestions');
