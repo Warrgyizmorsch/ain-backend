@@ -224,7 +224,7 @@
                                          <td  style="justify-content:center" class=" text-center icon-container my-auto d-flex">
                                         @if (auth()->user()->role_id == 1)
                                             
-                                            <a href="#" style="color:white" class="btn btn-icon btn-bg-danger btn-active-color-light btn-sm me-1 delete-link" id="delete-payment-{{$payment->id}}" onclick="deletePayment({{$payment->id}})">
+                                            <a href="#" style="color:white" class="btn btn-icon btn-bg-danger btn-active-color-light btn-sm me-1 delete-link" id="delete-payment-{{$payment->id}}" onclick="event.preventDefault(); deletePayment({{$payment->id}})">
                                                 <span class="svg-icon svg-icon-3">
                                                     <li class="fa fa-trash fa-lg"></li>
                                                 </span>
@@ -439,29 +439,38 @@
                 confirmButtonText: 'Yes, delete it!'
             }).then((result) => {
                 if (result.isConfirmed) {
-                    // User confirmed deletion, send AJAX request
                     $.ajax({
-                        url: '/Payments/' + paymentId,
-                        type: 'DELETE',
+                        url: '{{ url('/Payments') }}/' + paymentId,
+                        type: 'POST',
+                        data: {
+                            _method: 'DELETE',
+                            _token: '{{ csrf_token() }}'
+                        },
                         headers: {
-                                'X-CSRF-TOKEN': '{{ csrf_token() }}'
-                            },
+                            'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                        },
                         success: function(response) {
-                            // Handle success
                             Swal.fire({
                                 title: 'Deleted!',
-                                text: response.message,
-                                icon: 'success'
+                                text: (response && response.message) ? response.message : 'Payment deleted successfully.',
+                                icon: 'success',
+                                timer: 1500,
+                                showConfirmButton: false
+                            }).then(() => {
+                                $('#delete-payment-' + paymentId).closest('tr').fadeOut(300, function() {
+                                    $(this).remove();
+                                });
+                                location.reload();
                             });
-                            // Remove the deleted payment from the UI
-                            $('#delete-payment-' + paymentId).remove();
-                            location.reload();
                         },
                         error: function(xhr, status, error) {
-                            // Handle errors
+                            var errMsg = 'Failed to delete payment.';
+                            if (xhr.responseJSON && xhr.responseJSON.message) {
+                                errMsg = xhr.responseJSON.message;
+                            }
                             Swal.fire({
                                 title: 'Error!',
-                                text: 'Failed to delete payment',
+                                text: errMsg,
                                 icon: 'error'
                             });
                             console.error(xhr.responseText);
