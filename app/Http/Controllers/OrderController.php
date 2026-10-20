@@ -2293,6 +2293,12 @@ class OrderController extends Controller
         try {
             $payment = Payment::find($id);
             if (!$payment) {
+                if ($req->ajax() || $req->wantsJson()) {
+                    return response()->json([
+                        'status'  => 'error',
+                        'message' => 'Payment detail not found or already deleted.'
+                    ], 404);
+                }
                 return redirect()->back()->with('error', 'Payment detail not found or already deleted.');
             }
 
@@ -2349,6 +2355,22 @@ class OrderController extends Controller
                 ]);
             }
 
+            if ($req->ajax() || $req->wantsJson()) {
+                return response()->json([
+                    'status'       => 'success',
+                    'success'      => true,
+                    'message'      => 'Payment detail deleted successfully.',
+                    'order_id'     => $order ? $order->id : $orderId,
+                    'redirect_url' => $orderNumericId ? route('orders.payment.form', ['orderId' => $orderNumericId]) : null,
+                ]);
+            }
+
+            if ($orderNumericId) {
+                return redirect()->route('orders.payment.form', ['orderId' => $orderNumericId])
+                    ->with('success', 'Payment detail deleted successfully.')
+                    ->with('Success', 'Payment detail deleted successfully.');
+            }
+
             return redirect()->back()
                 ->with('success', 'Payment detail deleted successfully.')
                 ->with('Success', 'Payment detail deleted successfully.');
@@ -2358,6 +2380,13 @@ class OrderController extends Controller
                 'payment_id' => $id,
                 'trace'      => $e->getTraceAsString(),
             ]);
+
+            if ($req->ajax() || $req->wantsJson()) {
+                return response()->json([
+                    'status'  => 'error',
+                    'message' => 'Failed to delete payment: ' . $e->getMessage()
+                ], 500);
+            }
 
             return redirect()->back()->with('error', 'Failed to delete payment: ' . $e->getMessage());
         }
@@ -4915,25 +4944,24 @@ class OrderController extends Controller
     //     return view('back-end.order.payment-page', compact('order', 'editPayment'));
     // }
     public function showPaymentForm($orderId, $paymentId = null)
-{
-    if ($paymentId) {
-
-        $order = Order::with(['payment' => function ($q) use ($paymentId) {
-            $q->where('id', $paymentId);
-        }, 'additionals'])->findOrFail($orderId);
-
-        $editPayment = Payment::where('id', $paymentId)
-            ->where('order_id', $orderId)
-            ->firstOrFail();
-
-    } else {
-
+    {
         $order = Order::with(['payment', 'additionals'])->findOrFail($orderId);
-        $editPayment = null;
-    }
 
-    return view('back-end.order.payment-page', compact('order', 'editPayment'));
-}
+        if ($paymentId) {
+            $editPayment = Payment::where('id', $paymentId)
+                ->where('order_id', $orderId)
+                ->first();
+
+            if (!$editPayment) {
+                return redirect()->route('orders.payment.form', ['orderId' => $orderId])
+                    ->with('error', 'The requested payment was not found or has already been deleted.');
+            }
+        } else {
+            $editPayment = null;
+        }
+
+        return view('back-end.order.payment-page', compact('order', 'editPayment'));
+    }
 
     public function paymentModalContent(Request $request, $orderId, $paymentId = null)
     {
