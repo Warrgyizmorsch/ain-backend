@@ -4,6 +4,13 @@
 <div class="container mt-5">
     <div class="modal-content rounded">        
         <div class="modal-body scroll-y px-10 px-lg-15 pt-10 pb-15">
+            @if(request()->has('deleted_id'))
+                <div class="alert alert-success alert-dismissible fade show mb-5" role="alert">
+                    <span class="fw-bold">Payment #{{ request('deleted_id') }} {{ request('deleted_amount') ? '(£' . request('deleted_amount') . ')' : '' }} deleted successfully. Showing remaining payments for this order.</span>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            @endif
+
             @if(session('success') || session('Success'))
                 <div class="alert alert-success alert-dismissible fade show mb-5" role="alert">
                     <span class="fw-bold">{{ session('success') ?: session('Success') }}</span>
@@ -50,10 +57,18 @@
                         <tbody>
                             @if ($order->payment->count())
                                 @foreach($order->payment as $payment)
-                                    <tr>
-                                        <td class="text-center px-2">{{ $loop->iteration }}</td>
+                                    <tr @if(isset($editPayment) && $editPayment->id == $payment->id) style="background-color: #f1faff;" @endif>
+                                        <td class="text-center px-2">
+                                            <span class="fw-bolder">{{ $loop->iteration }}</span><br>
+                                            <span class="badge badge-light-dark fs-9">#{{ $payment->id }}</span>
+                                        </td>
                                         <td>{{ $payment->payment_date }}</td>
-                                        <td>{{ $payment->paid_amount }}</td>
+                                        <td>
+                                            <span class="fw-bold">£{{ $payment->paid_amount }}</span>
+                                            @if(isset($editPayment) && $editPayment->id == $payment->id)
+                                                <span class="badge badge-light-primary fs-9 ms-1">Editing</span>
+                                            @endif
+                                        </td>
                                         <td>{{ $payment->payee_name }}</td>
                                         <td>{{ $payment->company_accounts }}</td>
                                         <td>{{ $payment->reference }}</td>
@@ -72,9 +87,12 @@
                                                 <i class="fa fa-edit"></i>
                                             </a>
                                             @if(Auth::user()->role_id == 1)
-                                                <a href="#" class="btn btn-sm btn-icon btn-bg-light btn-active-color-danger btn-color-dark delete-payment"
-                                                    data-payment-id="{{ $payment->id }}"
-                                                    data-amount="{{ $payment->paid_amount }}">
+                                                <a href="javascript:void(0);" 
+                                                   class="btn btn-sm btn-icon btn-bg-light btn-active-color-danger btn-color-dark delete-payment"
+                                                   onclick="event.preventDefault(); event.stopPropagation(); confirmDeletePayment('{{ $payment->id }}', '{{ $payment->paid_amount }}', '{{ $order->id }}')"
+                                                   data-payment-id="{{ $payment->id }}"
+                                                   data-amount="{{ $payment->paid_amount }}"
+                                                   title="Delete Payment">
                                                     <i class="fa fa-trash"></i>
                                                 </a>
                                             @endif
@@ -169,42 +187,85 @@
         </div>
     </div>
 </div>
-<!-- Script to handle SweetAlert -->
+<!-- Script to handle SweetAlert Delete Payment -->
 <script>
-    document.addEventListener('DOMContentLoaded', function () {
-        const deleteButtons = document.querySelectorAll('.delete-payment');
+    var isDeletingPayment = false;
 
-        deleteButtons.forEach(button => {
-            button.addEventListener('click', function (e) {
-                e.preventDefault();
-                const paymentId = this.getAttribute('data-payment-id');
-                const amount = this.getAttribute('data-amount') || 0;
+    function confirmDeletePayment(paymentId, amount, orderId) {
+        if (!paymentId || isDeletingPayment) return;
+
+        Swal.fire({
+            title: 'Are you sure?',
+            text: 'Are You Sure To Delete Payment Deatail !',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#3085d6',
+            cancelButtonColor: '#d33',
+            confirmButtonText: 'Yes, delete it!'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                isDeletingPayment = true;
 
                 Swal.fire({
-                    title: 'Are you sure?',
-                    text: 'Are You Sure To Delete Payment Deatail !',
-                    icon: 'warning',
-                    showCancelButton: true,
-                    confirmButtonColor: '#3085d6',
-                    cancelButtonColor: '#d33',
-                    confirmButtonText: 'Yes, delete it!'
-                }).then((result) => {
-                    if (result.isConfirmed) {
-                        const form = document.createElement('form');
-                        form.method = 'POST';
-                        form.action = '{{ route('orderpayments.delete', ['id' => '__paymentId__']) }}'.replace('__paymentId__', paymentId);
-                        form.innerHTML = `
-                            @csrf
-                            @method('DELETE')
-                            <input type="hidden" name="order_id" value="{{ $order->id }}">
-                            <input type="hidden" name="amount" value="${amount}">
-                        `;
-                        document.body.appendChild(form);
-                        form.submit();
+                    title: 'Deleting...',
+                    text: 'Please wait while the payment detail is being deleted.',
+                    allowOutsideClick: false,
+                    allowEscapeKey: false,
+                    didOpen: () => {
+                        Swal.showLoading();
                     }
                 });
-            });
+
+                $.ajax({
+                    url: '{{ route('orderpayments.delete', ['id' => '__paymentId__']) }}'.replace('__paymentId__', paymentId),
+                    type: 'POST',
+                    data: {
+                        _method: 'DELETE',
+                        _token: '{{ csrf_token() }}',
+                        order_id: orderId,
+                        amount: amount || 0
+                    },
+                    headers: {
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                    },
+                    success: function (response) {
+                        try {
+                            localStorage.setItem('order_payment_synced', Date.now().toString());
+                        } catch (e) {}
+
+                        Swal.fire({
+                            title: 'Deleted!',
+                            text: (response && response.message) ? response.message : 'Payment detail deleted successfully.',
+                            icon: 'success',
+                            timer: 1500,
+                            showConfirmButton: false
+                        }).then(() => {
+                            window.location.href = '{{ route('orders.payment.form', ['orderId' => $order->id]) }}?deleted_id=' + encodeURIComponent(paymentId) + '&deleted_amount=' + encodeURIComponent(amount);
+                        });
+                    },
+                    error: function (xhr) {
+                        isDeletingPayment = false;
+                        var errMsg = 'Failed to delete payment.';
+                        if (xhr.responseJSON && xhr.responseJSON.message) {
+                            errMsg = xhr.responseJSON.message;
+                        }
+                        Swal.fire({
+                            title: 'Error!',
+                            text: errMsg,
+                            icon: 'error'
+                        });
+                    }
+                });
+            }
         });
+    }
+
+    $(document).on('click', '.delete-payment', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        const paymentId = $(this).attr('data-payment-id');
+        const amount = $(this).attr('data-amount') || 0;
+        confirmDeletePayment(paymentId, amount, '{{ $order->id }}');
     });
 </script>
 {{-- mk 6/10/2026: Set sync flag on payment success so orders tab auto-refreshes with updated paid/due amount --}}
