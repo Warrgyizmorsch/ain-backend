@@ -244,11 +244,20 @@ class EmailCampaignController extends Controller
         // Populate Recipients
         $this->populateRecipients($campaign, $request);
 
-        // If Send Now, dispatch job immediately
+        // If Send Now, dispatch job immediately (synchronously if <= 5 recipients for instant test feedback)
         if ($campaign->status === 'processing') {
             $campaign->started_at = now();
             $campaign->save();
-            ProcessEmailCampaignJob::dispatch($campaign->id);
+
+            if ($campaign->total_recipients <= 5) {
+                try {
+                    (new ProcessEmailCampaignJob($campaign->id))->handle();
+                } catch (\Throwable $e) {
+                    \Illuminate\Support\Facades\Log::error("Direct campaign dispatch error: " . $e->getMessage());
+                }
+            } else {
+                ProcessEmailCampaignJob::dispatch($campaign->id);
+            }
         }
 
         return redirect()->route('emails.campaigns.show', $campaign->id)
@@ -293,7 +302,15 @@ class EmailCampaignController extends Controller
         }
         $campaign->save();
 
-        ProcessEmailCampaignJob::dispatch($campaign->id);
+        if ($campaign->total_recipients <= 5) {
+            try {
+                (new ProcessEmailCampaignJob($campaign->id))->handle();
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::error("Direct campaign dispatch error: " . $e->getMessage());
+            }
+        } else {
+            ProcessEmailCampaignJob::dispatch($campaign->id);
+        }
 
         return back()->with('success', 'Campaign dispatch started.');
     }
@@ -319,7 +336,15 @@ class EmailCampaignController extends Controller
         $campaign->status = 'processing';
         $campaign->save();
 
-        ProcessEmailCampaignJob::dispatch($campaign->id);
+        if ($campaign->total_recipients <= 5) {
+            try {
+                (new ProcessEmailCampaignJob($campaign->id))->handle();
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::error("Direct campaign dispatch error: " . $e->getMessage());
+            }
+        } else {
+            ProcessEmailCampaignJob::dispatch($campaign->id);
+        }
 
         return back()->with('success', 'Campaign resumed.');
     }
@@ -338,17 +363,36 @@ class EmailCampaignController extends Controller
     /**
      * 1x1 Transparent GIF Open Tracking Pixel
      */
-    public function trackOpen(string $token): Response
+    public function trackOpen(string $token, Request $request): Response
     {
         try {
             $recipient = EmailCampaignRecipient::where('tracking_token', $token)->first();
             if ($recipient && empty($recipient->opened_at)) {
-                $recipient->opened_at = now();
-                $recipient->save();
+                $userAgent = strtolower((string) $request->userAgent());
+                $purpose   = strtolower((string) ($request->header('purpose') ?? $request->header('x-purpose') ?? $request->header('sec-purpose') ?? ''));
 
-                EmailCampaign::where('id', $recipient->campaign_id)->increment('opened_count');
+                // 1. Filter browser & mail client prefetch / preview headers
+                $isPrefetch = str_contains($purpose, 'prefetch') || str_contains($purpose, 'preview');
+
+                // 2. Filter known automated security crawlers, mail gateways, anti-virus bots & proxy bots
+                $isKnownBot = preg_match('/(bot|crawler|spider|slurp|barracuda|proofpoint|mimecast|trendmicro|symantec|kaspersky|clamav|virus|scanner)/i', $userAgent);
+
+                // 3. Filter instant machine scans: If request arrives within 6 seconds of dispatch, it is an automated MTA delivery scan
+                $sentAt = $recipient->sent_at ? \Carbon\Carbon::parse($recipient->sent_at) : null;
+                $isInstantScanner = $sentAt && $sentAt->diffInSeconds(now()) < 6;
+
+                if (!$isPrefetch && !$isKnownBot && !$isInstantScanner) {
+                    $recipient->opened_at = now();
+                    $recipient->save();
+
+                    EmailCampaign::where('id', $recipient->campaign_id)->increment('opened_count');
+                } else {
+                    \Illuminate\Support\Facades\Log::info("Campaign tracking: Filtered automated scan for recipient {$recipient->recipient_email} (UA: {$userAgent}, Prefetch: {$purpose}, Instant: " . ($isInstantScanner ? 'yes' : 'no') . ")");
+                }
             }
-        } catch (\Throwable $e) {}
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning("Error tracking email open: " . $e->getMessage());
+        }
 
         // 1x1 transparent GIF
         $gif = base64_decode('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7');
@@ -370,13 +414,21 @@ class EmailCampaignController extends Controller
 
         try {
             $recipient = EmailCampaignRecipient::where('tracking_token', $token)->first();
-            if ($recipient && empty($recipient->clicked_at)) {
-                $recipient->clicked_at = now();
+            if ($recipient) {
+                // If user clicked link, they certainly opened the email as well
+                if (empty($recipient->opened_at)) {
+                    $recipient->opened_at = now();
+                    EmailCampaign::where('id', $recipient->campaign_id)->increment('opened_count');
+                }
+                if (empty($recipient->clicked_at)) {
+                    $recipient->clicked_at = now();
+                    EmailCampaign::where('id', $recipient->campaign_id)->increment('clicked_count');
+                }
                 $recipient->save();
-
-                EmailCampaign::where('id', $recipient->campaign_id)->increment('clicked_count');
             }
-        } catch (\Throwable $e) {}
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning("Error tracking email click: " . $e->getMessage());
+        }
 
         return redirect()->away($decodedUrl);
     }
