@@ -315,6 +315,20 @@
                     @endif
                 @endforeach
 
+
+                @if (function_exists('is_email_campaign_enabled') && is_email_campaign_enabled())
+                    <div class="menu-item">
+                        <a class="menu-link {{ request()->is('emails/campaigns*') ? 'active' : '' }}"
+                            href="{{ route('emails.campaigns.index') }}">
+                            <span class="menu-icon">
+                                <i class="fa fa-bullhorn fs-4 text-primary"></i>
+                            </span>
+                            <span class="menu-title">Email Campaigns</span>
+                        </a>
+                    </div>
+                @endif
+
+
             </div>
         </div>
     </div>
@@ -463,6 +477,7 @@
     #kt_aside .menu-link .menu-icon i.fa-file-excel {
         color: #107c41 !important;
     }
+
     #kt_aside .menu-link:hover .menu-icon i.fa-file-excel,
     #kt_aside .menu-link.active .menu-icon i.fa-file-excel {
         color: #22c55e !important;

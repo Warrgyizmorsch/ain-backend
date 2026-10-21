@@ -1,454 +1,528 @@
 <!--begin::Header-->
 <div id="kt_header" class="header align-items-stretch">
-	<div class="container-fluid d-flex align-items-stretch justify-content-between">
+    <div class="container-fluid d-flex align-items-stretch justify-content-between">
 
-		<!--begin::Aside toggle (mobile)-->
-		<div class="d-flex align-items-center d-lg-none ms-n3 me-1" title="Show aside menu">
-			<div class="btn btn-icon btn-active-light-primary w-30px h-30px w-md-40px h-md-40px"
-				id="kt_aside_mobile_toggle">
-				<!-- SVG Icon -->
-				<span class="svg-icon svg-icon-2x mt-1">
-					<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
-						<path d="M21 7H3C2.4 7 2 6.6 2 6V4C2 3.4 2.4 3 3 3H21C21.6 3 22 3.4 22 4V6C22 6.6 21.6 7 21 7Z"
-							fill="black" />
-						<path opacity="0.3"
-							d="M21 14H3C2.4 14 2 13.6 2 13V11C2 10.4 2.4 10 3 10H21C21.6 10 22 10.4 22 11V13C22 13.6 21.6 14 21 14ZM22 20V18C22 17.4 21.6 17 21 17H3C2.4 17 2 17.4 2 18V20C2 20.6 2.4 21 3 21H21C21.6 21 22 20.6 22 20Z"
-							fill="black" />
-					</svg>
-				</span>
-			</div>
-		</div>
-		<!--end::Aside toggle-->
-		
-		<!--begin::Logo (mobile)-->
-		<div class="d-flex align-items-center flex-grow-1 flex-lg-grow-0">
-			<a href="{{ route('dashboard') }}" class="d-lg-none">
-				<img alt="Logo" src="{{ asset('assets/media/avatars/assignment_logo.png') }}" class="h-50px" />
-			</a>
-		</div>
-		<!--end::Logo-->
+        <!--begin::Aside toggle (mobile)-->
+        <div class="d-flex align-items-center d-lg-none ms-n3 me-1" title="Show aside menu">
+            <div class="btn btn-icon btn-active-light-primary w-30px h-30px w-md-40px h-md-40px"
+                id="kt_aside_mobile_toggle">
+                <!-- SVG Icon -->
+                <span class="svg-icon svg-icon-2x mt-1">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
+                        fill="none">
+                        <path d="M21 7H3C2.4 7 2 6.6 2 6V4C2 3.4 2.4 3 3 3H21C21.6 3 22 3.4 22 4V6C22 6.6 21.6 7 21 7Z"
+                            fill="black" />
+                        <path opacity="0.3"
+                            d="M21 14H3C2.4 14 2 13.6 2 13V11C2 10.4 2.4 10 3 10H21C21.6 10 22 10.4 22 11V13C22 13.6 21.6 14 21 14ZM22 20V18C22 17.4 21.6 17 21 17H3C2.4 17 2 17.4 2 18V20C2 20.6 2.4 21 3 21H21C21.6 21 22 20.6 22 20Z"
+                            fill="black" />
+                    </svg>
+                </span>
+            </div>
+        </div>
+        <!--end::Aside toggle-->
 
-		<!--begin::Navigation + User Info-->
-		<div class="d-flex align-items-stretch justify-content-between flex-lg-grow-1">
+        <!--begin::Logo (mobile)-->
+        <div class="d-flex align-items-center flex-grow-1 flex-lg-grow-0">
+            <a href="{{ route('dashboard') }}" class="d-lg-none">
+                <img alt="Logo" src="{{ asset('assets/media/avatars/assignment_logo.png') }}" class="h-50px" />
+            </a>
+        </div>
+        <!--end::Logo-->
 
-			<!--begin::Navbar-->
-			<div class="d-flex align-items-stretch" id="kt_header_nav">
-				<div class="header-menu align-items-stretch" data-kt-drawer="true" data-kt-drawer-name="header-menu"
-					data-kt-drawer-activate="{default: true, lg: false}" data-kt-drawer-overlay="true"
-					data-kt-drawer-width="{default:'200px', '300px': '250px'}" data-kt-drawer-direction="end"
-					data-kt-drawer-toggle="#kt_header_menu_mobile_toggle" data-kt-swapper="true"
-					data-kt-swapper-mode="prepend" data-kt-swapper-parent="{default: '#kt_body', lg: '#kt_header_nav'}">
+        <!--begin::Navigation + User Info-->
+        <div class="d-flex align-items-stretch justify-content-between flex-lg-grow-1">
 
-					<div class="menu menu-lg-rounded menu-column menu-lg-row menu-state-bg menu-title-gray-700 
+            <!--begin::Navbar-->
+            <div class="d-flex align-items-stretch" id="kt_header_nav">
+                <div class="header-menu align-items-stretch" data-kt-drawer="true" data-kt-drawer-name="header-menu"
+                    data-kt-drawer-activate="{default: true, lg: false}" data-kt-drawer-overlay="true"
+                    data-kt-drawer-width="{default:'200px', '300px': '250px'}" data-kt-drawer-direction="end"
+                    data-kt-drawer-toggle="#kt_header_menu_mobile_toggle" data-kt-swapper="true"
+                    data-kt-swapper-mode="prepend" data-kt-swapper-parent="{default: '#kt_body', lg: '#kt_header_nav'}">
+
+                    <div class="menu menu-lg-rounded menu-column menu-lg-row menu-state-bg menu-title-gray-700 
                                 menu-state-title-primary menu-state-icon-primary menu-state-bullet-primary 
-                                menu-arrow-gray-400 fw-bold my-5 my-lg-0 align-items-stretch" id="#kt_header_menu"
-						data-kt-menu="true">
+                                menu-arrow-gray-400 fw-bold my-5 my-lg-0 align-items-stretch"
+                        id="#kt_header_menu" data-kt-menu="true">
 
-						<!-- Dashboard Link -->
-						<div class="menu-item me-lg-1">
-							<a class="menu-link active py-3" href="{{ route('dashboard') }}">
-								<span class="menu-title">Dashboard</span>
-							</a>
-						</div>
-					</div>
-				</div>
-			</div>
-			<!--end::Navbar-->
-			@php
-				$todaySeconds = \DB::table('user_working_times')
-					->where('user_id', Auth::id())
-					->where('date', date('Y-m-d'))
-					->value('active_seconds') ?? 0;
-			@endphp
-			<!--begin::User Menu-->
-			<div class="d-flex align-items-stretch flex-shrink-0">
-				<div class="d-flex align-items-center ms-1 ms-lg-3" id="kt_header_user_menu_toggle">
-					<div class="d-flex align-items-center ms-3 me-4">
-						@php
-							$clientEmailConfigId = crm_email_account_id('client');
-							$writerEmailConfigId = crm_email_account_id('writer');
+                        <!-- Dashboard Link -->
+                        <div class="menu-item me-lg-1">
+                            <a class="menu-link active py-3" href="{{ route('dashboard') }}">
+                                <span class="menu-title">Dashboard</span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!--end::Navbar-->
+            @php
+                $todaySeconds =
+                    \DB::table('user_working_times')
+                        ->where('user_id', Auth::id())
+                        ->where('date', date('Y-m-d'))
+                        ->value('active_seconds') ?? 0;
+            @endphp
+            <!--begin::User Menu-->
+            <div class="d-flex align-items-stretch flex-shrink-0">
+                <div class="d-flex align-items-center ms-1 ms-lg-3" id="kt_header_user_menu_toggle">
+                    <div class="d-flex align-items-center ms-3 me-4">
+                        @php
+                            $clientEmailConfigId = crm_email_account_id('client');
+                            $writerEmailConfigId = crm_email_account_id('writer');
 
-							$clientEmailUrl = route('emails.index', ['account_id' => $clientEmailConfigId]);
-							$writerEmailUrl = route('emails.index', ['account_id' => $writerEmailConfigId]);
+                            $clientEmailUrl = route('emails.index', ['account_id' => $clientEmailConfigId]);
+                            $writerEmailUrl = route('emails.index', ['account_id' => $writerEmailConfigId]);
 
-							$clientUnreadCount = \Illuminate\Support\Facades\Cache::remember('crm_hdr_client_unread_' . $clientEmailConfigId, 30, function() use ($clientEmailConfigId) {
-								return \App\Models\EmailMessage::where('email_configuration_id', $clientEmailConfigId)
-									->where('direction', 'inbound')->where('folder', '!=', 'trash')->where('is_read', false)->count();
-							});
+                            $clientUnreadCount = \Illuminate\Support\Facades\Cache::remember(
+                                'crm_hdr_client_unread_' . $clientEmailConfigId,
+                                30,
+                                function () use ($clientEmailConfigId) {
+                                    return \App\Models\EmailMessage::where(
+                                        'email_configuration_id',
+                                        $clientEmailConfigId,
+                                    )
+                                        ->where('direction', 'inbound')
+                                        ->where('folder', '!=', 'trash')
+                                        ->where('is_read', false)
+                                        ->count();
+                                },
+                            );
 
-							$writerUnreadCount = \Illuminate\Support\Facades\Cache::remember('crm_hdr_writer_unread_' . $writerEmailConfigId, 30, function() use ($writerEmailConfigId) {
-								return \App\Models\EmailMessage::where('email_configuration_id', $writerEmailConfigId)
-									->where('direction', 'inbound')->where('folder', '!=', 'trash')->where('is_read', false)->count();
-							});
-						@endphp
+                            $writerUnreadCount = \Illuminate\Support\Facades\Cache::remember(
+                                'crm_hdr_writer_unread_' . $writerEmailConfigId,
+                                30,
+                                function () use ($writerEmailConfigId) {
+                                    return \App\Models\EmailMessage::where(
+                                        'email_configuration_id',
+                                        $writerEmailConfigId,
+                                    )
+                                        ->where('direction', 'inbound')
+                                        ->where('folder', '!=', 'trash')
+                                        ->where('is_read', false)
+                                        ->count();
+                                },
+                            );
+                        @endphp
 
-						<style>
-							.crm-header-nav-btn {
-								display: inline-flex;
-								align-items: center;
-								gap: 7px;
-								padding: 6px 13px;
-								font-size: 13px;
-								font-weight: 700;
-								border-radius: 6px;
-								text-decoration: none !important;
-								transition: all 0.18s ease-in-out;
-								line-height: 1.3;
-								cursor: pointer;
-								box-shadow: 0 1px 3px rgba(0,0,0,0.06);
-							}
-							.crm-header-nav-btn .crm-nav-icon {
-								display: inline-flex;
-								align-items: center;
-								justify-content: center;
-								font-size: 14px;
-								transition: all 0.18s ease-in-out;
-							}
-							.crm-header-nav-btn .crm-nav-text {
-								font-size: 13px;
-								font-weight: 700;
-								transition: all 0.18s ease-in-out;
-							}
+                        <style>
+                            .crm-header-nav-btn {
+                                display: inline-flex;
+                                align-items: center;
+                                gap: 7px;
+                                padding: 6px 13px;
+                                font-size: 13px;
+                                font-weight: 700;
+                                border-radius: 6px;
+                                text-decoration: none !important;
+                                transition: all 0.18s ease-in-out;
+                                line-height: 1.3;
+                                cursor: pointer;
+                                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+                            }
 
-							/* WhatsApp Button */
-							.crm-header-nav-btn.crm-nav-wa {
-								background-color: #e8f8f0;
-								color: #0f5132 !important;
-								border: 1px solid #b7e4c7;
-							}
-							.crm-header-nav-btn.crm-nav-wa .crm-nav-icon svg {
-								fill: #25D366;
-								transition: fill 0.18s ease-in-out;
-							}
-							.crm-header-nav-btn.crm-nav-wa:hover {
-								background-color: #25D366 !important;
-								color: #ffffff !important;
-								border-color: #20ba5a !important;
-								box-shadow: 0 3px 8px rgba(37, 211, 102, 0.35);
-							}
-							.crm-header-nav-btn.crm-nav-wa:hover .crm-nav-icon svg {
-								fill: #ffffff !important;
-							}
-							.crm-header-nav-btn.crm-nav-wa:hover .crm-nav-text {
-								color: #ffffff !important;
-							}
+                            .crm-header-nav-btn .crm-nav-icon {
+                                display: inline-flex;
+                                align-items: center;
+                                justify-content: center;
+                                font-size: 14px;
+                                transition: all 0.18s ease-in-out;
+                            }
 
-							/* Client Email Button */
-							.crm-header-nav-btn.crm-nav-client {
-								background-color: #f3f0ff;
-								color: #59359a !important;
-								border: 1px solid #dcd2f9;
-							}
-							.crm-header-nav-btn.crm-nav-client .crm-nav-icon i {
-								color: #7239ea;
-								transition: color 0.18s ease-in-out;
-							}
-							.crm-header-nav-btn.crm-nav-client:hover {
-								background-color: #7239ea !important;
-								color: #ffffff !important;
-								border-color: #632ed6 !important;
-								box-shadow: 0 3px 8px rgba(114, 57, 234, 0.35);
-							}
-							.crm-header-nav-btn.crm-nav-client:hover .crm-nav-icon i {
-								color: #ffffff !important;
-							}
-							.crm-header-nav-btn.crm-nav-client:hover .crm-nav-text {
-								color: #ffffff !important;
-							}
+                            .crm-header-nav-btn .crm-nav-text {
+                                font-size: 13px;
+                                font-weight: 700;
+                                transition: all 0.18s ease-in-out;
+                            }
 
-							/* Write Email Button */
-							.crm-header-nav-btn.crm-nav-writer {
-								background-color: #eaf6ff;
-								color: #0070ba !important;
-								border: 1px solid #c0e2fc;
-							}
-							.crm-header-nav-btn.crm-nav-writer .crm-nav-icon i {
-								color: #009ef7;
-								transition: color 0.18s ease-in-out;
-							}
-							.crm-header-nav-btn.crm-nav-writer:hover {
-								background-color: #009ef7 !important;
-								color: #ffffff !important;
-								border-color: #008be0 !important;
-								box-shadow: 0 3px 8px rgba(0, 158, 247, 0.35);
-							}
-							.crm-header-nav-btn.crm-nav-writer:hover .crm-nav-icon i {
-								color: #ffffff !important;
-							}
-							.crm-header-nav-btn.crm-nav-writer:hover .crm-nav-text {
-								color: #ffffff !important;
-							}
+                            /* WhatsApp Button */
+                            .crm-header-nav-btn.crm-nav-wa {
+                                background-color: #e8f8f0;
+                                color: #0f5132 !important;
+                                border: 1px solid #b7e4c7;
+                            }
 
-							/* Excel Sheets Button */
-							.crm-header-nav-btn.crm-nav-excel {
-								background-color: #e8f8f0;
-								color: #0d8a4e !important;
-								border: 1px solid #b7ebd0;
-							}
-							.crm-header-nav-btn.crm-nav-excel .crm-nav-icon i {
-								color: #107c41;
-								transition: color 0.18s ease-in-out;
-							}
-							.crm-header-nav-btn.crm-nav-excel:hover {
-								background-color: #107c41 !important;
-								color: #ffffff !important;
-								border-color: #0b6a36 !important;
-								box-shadow: 0 3px 8px rgba(16, 124, 65, 0.35);
-							}
-							.crm-header-nav-btn.crm-nav-excel:hover .crm-nav-icon i {
-								color: #ffffff !important;
-							}
-							.crm-header-nav-btn.crm-nav-excel:hover .crm-nav-text {
-								color: #ffffff !important;
-							}
-						</style>
+                            .crm-header-nav-btn.crm-nav-wa .crm-nav-icon svg {
+                                fill: #25D366;
+                                transition: fill 0.18s ease-in-out;
+                            }
 
-						<!--begin::WhatsApp Header Button-->
-						<a href="{{ route('whatsapp.chat') }}" class="crm-header-nav-btn crm-nav-wa me-3" title="WhatsApp Chat">
-							<span class="crm-nav-icon">
-								<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
-									<path d="M13.601 2.326A7.85 7.85 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.364 2.76 1.057 3.965L0 16l4.204-1.102a7.9 7.9 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.9 7.9 0 0 0 13.6 2.326zM7.994 14.521a6.6 6.6 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.56 6.56 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592m3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.73.73 0 0 0-.529.247c-.182.198-.691.677-.691 1.654s.707 2.002.806 2.134c.098.133 1.392 2.123 3.372 2.978.471.204.838.326 1.124.418.473.15.905.129 1.246.078.38-.058 1.17-.479 1.338-.943.166-.464.166-.862.116-.944-.049-.082-.182-.133-.38-.232"/>
-								</svg>
-							</span>
-							<span class="crm-nav-text">WhatsApp</span>
-						</a>
-						<!--end::WhatsApp Header Button-->
+                            .crm-header-nav-btn.crm-nav-wa:hover {
+                                background-color: #25D366 !important;
+                                color: #ffffff !important;
+                                border-color: #20ba5a !important;
+                                box-shadow: 0 3px 8px rgba(37, 211, 102, 0.35);
+                            }
 
-						<!--begin::Client Email Header Button-->
-						<a href="{{ $clientEmailUrl }}" class="crm-header-nav-btn crm-nav-client me-3" title="Client Email Channel (order@assignnmentinneed.com)">
-							<span class="crm-nav-icon">
-								<i class="fa fa-envelope fs-7"></i>
-							</span>
-							<span class="crm-nav-text">Client Email</span>
-						</a>
-						<!--end::Client Email Header Button-->
+                            .crm-header-nav-btn.crm-nav-wa:hover .crm-nav-icon svg {
+                                fill: #ffffff !important;
+                            }
 
-						<!--begin::Writer Email Header Button-->
-						<a href="{{ $writerEmailUrl }}" class="crm-header-nav-btn crm-nav-writer me-3" title="Writer Email Channel (assignmentinneedhelp@gmail.com)">
-							<span class="crm-nav-icon">
-								<i class="fa fa-envelope-open-text fs-7"></i>
-							</span>
-							<span class="crm-nav-text">Writer Email</span>
-						</a>
-						<!--end::Writer Email Header Button-->
+                            .crm-header-nav-btn.crm-nav-wa:hover .crm-nav-text {
+                                color: #ffffff !important;
+                            }
 
-						<!--begin::Excel Sheets Header Button-->
-						<a href="{{ route('spreadsheets.index') }}" class="crm-header-nav-btn crm-nav-excel me-3" title="Excel Spreadsheets">
-							<span class="crm-nav-icon">
-								<i class="fa fa-file-excel fs-7"></i>
-							</span>
-							<span class="crm-nav-text">Excel Sheets</span>
-						</a>
-						<!--end::Excel Sheets Header Button-->
+                            /* Client Email Button */
+                            .crm-header-nav-btn.crm-nav-client {
+                                background-color: #f3f0ff;
+                                color: #59359a !important;
+                                border: 1px solid #dcd2f9;
+                            }
 
-						@if(auth()->check() && auth()->user()->role_id == 1)
-							<div class="dropdown me-3">
-								<button type="button" class="btn btn-icon btn-light-primary position-relative" data-bs-toggle="dropdown" aria-expanded="false" title="Login OTP notifications">
-									<i class="fa fa-bell fs-4"></i>
-									@if(($globalLoginOtpCount ?? 0) > 0)
-										<span id="loginOtpBellCount" class="position-absolute top-0 start-100 translate-middle badge badge-circle badge-danger fw-bold fs-9">
-											{{ $globalLoginOtpCount }}
-										</span>
-									@else
-										<span id="loginOtpBellCount" class="position-absolute top-0 start-100 translate-middle badge badge-circle badge-danger fw-bold fs-9 d-none">0</span>
-									@endif
-								</button>
+                            .crm-header-nav-btn.crm-nav-client .crm-nav-icon i {
+                                color: #7239ea;
+                                transition: color 0.18s ease-in-out;
+                            }
 
-								<div class="dropdown-menu dropdown-menu-end p-0 shadow-sm" style="width: 380px; max-width: calc(100vw - 24px);">
-									<div class="px-5 py-4 border-bottom">
-										<div class="d-flex align-items-center justify-content-between">
-											<div class="fw-bolder fs-6">Login OTP Notifications</div>
-											@if(($globalLoginOtpCount ?? 0) > 0)
-												<span class="badge badge-light-danger">{{ $globalLoginOtpCount }} pending</span>
-											@endif
-										</div>
-									</div>
+                            .crm-header-nav-btn.crm-nav-client:hover {
+                                background-color: #7239ea !important;
+                                color: #ffffff !important;
+                                border-color: #632ed6 !important;
+                                box-shadow: 0 3px 8px rgba(114, 57, 234, 0.35);
+                            }
 
-									<div id="loginOtpNotificationList" class="mh-350px overflow-auto">
-										@forelse(($globalLoginOtpNotifications ?? collect()) as $otpNotification)
-											<a href="{{ route('admin.login-otp-notifications', ['user_id' => $otpNotification->user_id]) }}" class="d-block px-5 py-4 border-bottom bg-hover-light text-decoration-none">
-												<div class="d-flex align-items-start justify-content-between gap-3">
-													<div class="min-w-0">
-														<div class="fw-bolder text-gray-900 text-truncate">
-															{{ $otpNotification->user->name ?? 'Deleted user' }}
-														</div>
-														<div class="text-muted fs-8 text-truncate">
-															{{ $otpNotification->user->email ?? '' }}
-														</div>
-														<div class="text-muted fs-8">
-															IP: {{ $otpNotification->ip_address ?? 'N/A' }}
-														</div>
-														@if(($otpNotification->failed_attempts ?? 0) > 0)
-															<div class="text-danger fs-8 fw-bold">
-																Wrong attempts: {{ $otpNotification->failed_attempts }}
-															</div>
-														@endif
-													</div>
-													<div class="text-end flex-shrink-0">
-														@if($otpNotification->status === 'pending' && (!$otpNotification->expires_at || $otpNotification->expires_at->isFuture()))
-															<span class="badge badge-light-success fs-6 fw-bolder">{{ $otpNotification->otp_code }}</span>
-														@else
-															<span class="badge badge-light-secondary">{{ ucfirst($otpNotification->status) }}</span>
-														@endif
-														<div class="text-muted fs-9 mt-2">
-															{{ optional($otpNotification->created_at)->diffForHumans() }}
-														</div>
-													</div>
-												</div>
-											</a>
-										@empty
-											<div class="px-5 py-8 text-center text-muted">
-												No login OTP notifications.
-											</div>
-										@endforelse
-									</div>
+                            .crm-header-nav-btn.crm-nav-client:hover .crm-nav-icon i {
+                                color: #ffffff !important;
+                            }
 
-									<div class="px-5 py-3 text-center border-top">
-										<a href="{{ route('admin.login-otp-notifications') }}" class="btn btn-sm btn-light-primary fw-bold w-100">
-											View User History
-										</a>
-									</div>
-								</div>
-							</div>
-						@endif
-						<div class="dropdown me-3">
-							<button type="button" class="btn btn-sm btn-light-warning fw-bold" id="breakBtn" data-bs-toggle="dropdown">
-								Break
-							</button>
+                            .crm-header-nav-btn.crm-nav-client:hover .crm-nav-text {
+                                color: #ffffff !important;
+                            }
 
-							<ul class="dropdown-menu" id="breakDropdown">
-								<li><button type="button" class="dropdown-item break-start" data-type="Lunch Break">Lunch Break</button></li>
-								<li><button type="button" class="dropdown-item break-start" data-type="Tea Break">Tea Break</button></li>
-							</ul>
-						</div>
-						<div class="bg-light-primary rounded-pill px-4 py-2 border border-primary me-3">
-							<span class="fs-7 fw-bold text-gray-700">Working Time: </span>
-							<span id="working-timer" class="fs-6 fw-bolder text-primary">00:00:00</span>
-						</div>
+                            /* Write Email Button */
+                            .crm-header-nav-btn.crm-nav-writer {
+                                background-color: #eaf6ff;
+                                color: #0070ba !important;
+                                border: 1px solid #c0e2fc;
+                            }
 
-						<!--begin::Chrome Magnifier / Zoom Widget (Option B)-->
-						<div class="dropdown me-3 position-relative" id="crmZoomWrapper">
-							<button type="button" 
-									class="btn btn-sm btn-icon btn-light-primary position-relative" 
-									id="crmZoomToggleBtn" 
-									title="Page Zoom / Magnifier"
-									style="width: 36px; height: 36px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;">
-								<i class="fa fa-search-plus fs-5 text-primary crm-zoom-icon"></i>
-								<span id="crmZoomBadge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-primary text-white d-none" style="font-size: 9px !important; padding: 2px 4px !important; transform: translate(-30%, -20%) !important;">100%</span>
-							</button>
+                            .crm-header-nav-btn.crm-nav-writer .crm-nav-icon i {
+                                color: #009ef7;
+                                transition: color 0.18s ease-in-out;
+                            }
 
-							<!--begin::Chrome Magnifier Floating Pill Widget (Option B)-->
-							<div id="crmZoomPillWidget" 
-								 class="crm-zoom-pill shadow" 
-								 style="display: none; position: absolute; top: calc(100% + 10px); right: 0; z-index: 1060; background: #ffffff; border-radius: 30px; padding: 6px 16px; box-shadow: 0 6px 25px rgba(0,0,0,0.18) !important; border: 1px solid #dadce0; align-items: center; gap: 14px; white-space: nowrap; user-select: none;">
-								
-								<!-- Zoom Percentage Display -->
-								<span id="crmZoomLabel" style="font-size: 15px; font-weight: 600; color: #202124; min-width: 48px; text-align: left; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
-									100%
-								</span>
+                            .crm-header-nav-btn.crm-nav-writer:hover {
+                                background-color: #009ef7 !important;
+                                color: #ffffff !important;
+                                border-color: #008be0 !important;
+                                box-shadow: 0 3px 8px rgba(0, 158, 247, 0.35);
+                            }
 
-								<!-- Minus Button -->
-								<button type="button" 
-										id="crmZoomOutBtn" 
-										class="crm-zoom-btn-circle" 
-										title="Zoom out" 
-										style="width: 28px; height: 28px; border-radius: 50%; border: 1px solid transparent; background: transparent; color: #3c4043; font-size: 20px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s ease;">
-									<span style="font-weight: 500; font-size: 22px; line-height: 0; margin-top: -2px;">&minus;</span>
-								</button>
+                            .crm-header-nav-btn.crm-nav-writer:hover .crm-nav-icon i {
+                                color: #ffffff !important;
+                            }
 
-								<!-- Plus Button -->
-								<button type="button" 
-										id="crmZoomInBtn" 
-										class="crm-zoom-btn-circle" 
-										title="Zoom in" 
-										style="width: 28px; height: 28px; border-radius: 50%; border: 1px solid transparent; background: transparent; color: #3c4043; font-size: 18px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s ease;">
-									<span style="font-weight: 500; font-size: 20px; line-height: 0; margin-top: -1px;">+</span>
-								</button>
+                            .crm-header-nav-btn.crm-nav-writer:hover .crm-nav-text {
+                                color: #ffffff !important;
+                            }
 
-								<!-- Divider -->
-								<div style="width: 1px; height: 22px; background: #e0e0e0; margin: 0 2px;"></div>
+                            /* Excel Sheets Button */
+                            .crm-header-nav-btn.crm-nav-excel {
+                                background-color: #e8f8f0;
+                                color: #0d8a4e !important;
+                                border: 1px solid #b7ebd0;
+                            }
 
-								<!-- Reset Button -->
-								<button type="button" 
-										id="crmZoomResetBtn" 
-										title="Reset to 100%" 
-										style="border: 1px solid #dadce0; border-radius: 20px; background: #ffffff; color: #1a73e8; font-size: 13px; font-weight: 600; padding: 4px 14px; cursor: pointer; transition: all 0.15s ease; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
-									Reset
-								</button>
-							</div>
-							<!--end::Chrome Magnifier Floating Pill Widget-->
-						</div>
-						<!--end::Chrome Magnifier / Zoom Widget-->
-					</div>
+                            .crm-header-nav-btn.crm-nav-excel .crm-nav-icon i {
+                                color: #107c41;
+                                transition: color 0.18s ease-in-out;
+                            }
 
-					<div class="cursor-pointer symbol symbol-30px symbol-md-40px" data-kt-menu-trigger="click"
-						data-kt-menu-attach="parent" data-kt-menu-placement="bottom-end">
+                            .crm-header-nav-btn.crm-nav-excel:hover {
+                                background-color: #107c41 !important;
+                                color: #ffffff !important;
+                                border-color: #0b6a36 !important;
+                                box-shadow: 0 3px 8px rgba(16, 124, 65, 0.35);
+                            }
 
-						<!-- User Avatar -->
-						<img src="{{ asset(Auth::user()->photo ?? 'assets/media/avatars/blank.png') }}" alt="user" />
-					</div>
+                            .crm-header-nav-btn.crm-nav-excel:hover .crm-nav-icon i {
+                                color: #ffffff !important;
+                            }
 
-					<!-- User Dropdown Menu -->
-					<div class="menu menu-sub menu-sub-dropdown menu-column menu-rounded menu-gray-800 
-                                menu-state-bg menu-state-primary fw-bold py-4 fs-6 w-275px" data-kt-menu="true">
+                            .crm-header-nav-btn.crm-nav-excel:hover .crm-nav-text {
+                                color: #ffffff !important;
+                            }
+                        </style>
 
-						<!-- User Info -->
-						<div class="menu-item px-3">
-							<div class="menu-content d-flex align-items-center px-3">
-								<div class="symbol symbol-50px me-5">
-									<img src="{{ asset(Auth::user()->photo ?? 'assets/media/avatars/blank.png') }}"
-										alt="Logo" />
-								</div>
+                        <!--begin::WhatsApp Header Button-->
+                        <a href="{{ route('whatsapp.chat') }}" class="crm-header-nav-btn crm-nav-wa me-3"
+                            title="WhatsApp Chat">
+                            <span class="crm-nav-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"
+                                    viewBox="0 0 16 16">
+                                    <path
+                                        d="M13.601 2.326A7.85 7.85 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.364 2.76 1.057 3.965L0 16l4.204-1.102a7.9 7.9 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.9 7.9 0 0 0 13.6 2.326zM7.994 14.521a6.6 6.6 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.56 6.56 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592m3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.73.73 0 0 0-.529.247c-.182.198-.691.677-.691 1.654s.707 2.002.806 2.134c.098.133 1.392 2.123 3.372 2.978.471.204.838.326 1.124.418.473.15.905.129 1.246.078.38-.058 1.17-.479 1.338-.943.166-.464.166-.862.116-.944-.049-.082-.182-.133-.38-.232" />
+                                </svg>
+                            </span>
+                            <span class="crm-nav-text">WhatsApp</span>
+                        </a>
+                        <!--end::WhatsApp Header Button-->
 
-								<div class="d-flex flex-column">
-									<div class="fw-bolder d-flex align-items-center fs-5">
-										{{ Auth::user()->name }}
-										<span class="badge badge-light-success fw-bolder fs-8 px-2 py-1 ms-2">
-											{{ getUserRoleName(Auth::user()->role_id) }}
-										</span>
-									</div>
-									<a href="#" class="fw-bold text-muted text-hover-primary fs-7">
-										{{ Auth::user()->email }}
-									</a>
-								</div>
-							</div>
-						</div>
+                        <!--begin::Client Email Header Button-->
+                        <a href="{{ $clientEmailUrl }}" class="crm-header-nav-btn crm-nav-client me-3"
+                            title="Client Email Channel (order@assignnmentinneed.com)">
+                            <span class="crm-nav-icon">
+                                <i class="fa fa-envelope fs-7"></i>
+                            </span>
+                            <span class="crm-nav-text">Client Email</span>
+                        </a>
+                        <!--end::Client Email Header Button-->
 
-						<div class="separator my-2"></div>
+                        <!--begin::Writer Email Header Button-->
+                        <a href="{{ $writerEmailUrl }}" class="crm-header-nav-btn crm-nav-writer me-3"
+                            title="Writer Email Channel (assignmentinneedhelp@gmail.com)">
+                            <span class="crm-nav-icon">
+                                <i class="fa fa-envelope-open-text fs-7"></i>
+                            </span>
+                            <span class="crm-nav-text">Writer Email</span>
+                        </a>
+                        <!--end::Writer Email Header Button-->
 
-						<!-- Profile -->
-						<div class="menu-item px-5">
-							<a href="/profile" class="menu-link px-5">My Profile</a>
-						</div>
+                        <!--begin::Excel Sheets Header Button-->
+                        <a href="{{ route('spreadsheets.index') }}" class="crm-header-nav-btn crm-nav-excel me-3"
+                            title="Excel Spreadsheets">
+                            <span class="crm-nav-icon">
+                                <i class="fa fa-file-excel fs-7"></i>
+                            </span>
+                            <span class="crm-nav-text">Excel Sheets</span>
+                        </a>
+                        <!--end::Excel Sheets Header Button-->
 
-						<div class="separator my-2"></div>
 
-						<!-- Sign Out -->
-						<div class="menu-item px-5">
-							<a href="{{ route('logout') }}" class="menu-link px-5"
-								onclick="event.preventDefault(); document.getElementById('logout-form').submit();">
-								Sign Out
-							</a>
+                        @if (function_exists('is_email_campaign_enabled') && is_email_campaign_enabled())
+                            <!--begin::Email Campaigns Header Button-->
+                            <a href="{{ route('emails.campaigns.index') }}"
+                                class="crm-header-nav-btn crm-nav-campaigns me-3" title="Email Marketing Campaigns"
+                                style="background: linear-gradient(135deg, #eff6ff, #dbeafe); border: 1px solid #93c5fd;">
+                                <span class="crm-nav-icon">
+                                    <i class="fa fa-bullhorn fs-7 text-primary"></i>
+                                </span>
+                                <span class="crm-nav-text text-primary fw-bolder">Campaigns</span>
+                            </a>
+                            <!--end::Email Campaigns Header Button-->
+                        @endif
 
-							<form id="logout-form" action="{{ route('logout') }}" method="POST" class="d-none">
-								@csrf
-							</form>
-						</div>
 
-						<div class="separator my-2"></div>
-					</div>
-				</div>
 
-				<!-- Mobile Menu Toggle -->
-				
-			</div>
-			<!--end::User Menu-->
-		</div>
-		<!--end::Navigation + User Info-->
-	</div>
+                        @if (auth()->check() && auth()->user()->role_id == 1)
+                            <div class="dropdown me-3">
+                                <button type="button" class="btn btn-icon btn-light-primary position-relative"
+                                    data-bs-toggle="dropdown" aria-expanded="false" title="Login OTP notifications">
+                                    <i class="fa fa-bell fs-4"></i>
+                                    @if (($globalLoginOtpCount ?? 0) > 0)
+                                        <span id="loginOtpBellCount"
+                                            class="position-absolute top-0 start-100 translate-middle badge badge-circle badge-danger fw-bold fs-9">
+                                            {{ $globalLoginOtpCount }}
+                                        </span>
+                                    @else
+                                        <span id="loginOtpBellCount"
+                                            class="position-absolute top-0 start-100 translate-middle badge badge-circle badge-danger fw-bold fs-9 d-none">0</span>
+                                    @endif
+                                </button>
+
+                                <div class="dropdown-menu dropdown-menu-end p-0 shadow-sm"
+                                    style="width: 380px; max-width: calc(100vw - 24px);">
+                                    <div class="px-5 py-4 border-bottom">
+                                        <div class="d-flex align-items-center justify-content-between">
+                                            <div class="fw-bolder fs-6">Login OTP Notifications</div>
+                                            @if (($globalLoginOtpCount ?? 0) > 0)
+                                                <span class="badge badge-light-danger">{{ $globalLoginOtpCount }}
+                                                    pending</span>
+                                            @endif
+                                        </div>
+                                    </div>
+
+                                    <div id="loginOtpNotificationList" class="mh-350px overflow-auto">
+                                        @forelse(($globalLoginOtpNotifications ?? collect()) as $otpNotification)
+                                            <a href="{{ route('admin.login-otp-notifications', ['user_id' => $otpNotification->user_id]) }}"
+                                                class="d-block px-5 py-4 border-bottom bg-hover-light text-decoration-none">
+                                                <div class="d-flex align-items-start justify-content-between gap-3">
+                                                    <div class="min-w-0">
+                                                        <div class="fw-bolder text-gray-900 text-truncate">
+                                                            {{ $otpNotification->user->name ?? 'Deleted user' }}
+                                                        </div>
+                                                        <div class="text-muted fs-8 text-truncate">
+                                                            {{ $otpNotification->user->email ?? '' }}
+                                                        </div>
+                                                        <div class="text-muted fs-8">
+                                                            IP: {{ $otpNotification->ip_address ?? 'N/A' }}
+                                                        </div>
+                                                        @if (($otpNotification->failed_attempts ?? 0) > 0)
+                                                            <div class="text-danger fs-8 fw-bold">
+                                                                Wrong attempts: {{ $otpNotification->failed_attempts }}
+                                                            </div>
+                                                        @endif
+                                                    </div>
+                                                    <div class="text-end flex-shrink-0">
+                                                        @if (
+                                                            $otpNotification->status === 'pending' &&
+                                                                (!$otpNotification->expires_at || $otpNotification->expires_at->isFuture()))
+                                                            <span
+                                                                class="badge badge-light-success fs-6 fw-bolder">{{ $otpNotification->otp_code }}</span>
+                                                        @else
+                                                            <span
+                                                                class="badge badge-light-secondary">{{ ucfirst($otpNotification->status) }}</span>
+                                                        @endif
+                                                        <div class="text-muted fs-9 mt-2">
+                                                            {{ optional($otpNotification->created_at)->diffForHumans() }}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </a>
+                                        @empty
+                                            <div class="px-5 py-8 text-center text-muted">
+                                                No login OTP notifications.
+                                            </div>
+                                        @endforelse
+                                    </div>
+
+                                    <div class="px-5 py-3 text-center border-top">
+                                        <a href="{{ route('admin.login-otp-notifications') }}"
+                                            class="btn btn-sm btn-light-primary fw-bold w-100">
+                                            View User History
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        @endif
+                        <div class="dropdown me-3">
+                            <button type="button" class="btn btn-sm btn-light-warning fw-bold" id="breakBtn"
+                                data-bs-toggle="dropdown">
+                                Break
+                            </button>
+
+                            <ul class="dropdown-menu" id="breakDropdown">
+                                <li><button type="button" class="dropdown-item break-start"
+                                        data-type="Lunch Break">Lunch Break</button></li>
+                                <li><button type="button" class="dropdown-item break-start"
+                                        data-type="Tea Break">Tea Break</button></li>
+                            </ul>
+                        </div>
+                        <div class="bg-light-primary rounded-pill px-4 py-2 border border-primary me-3">
+                            <span class="fs-7 fw-bold text-gray-700">Working Time: </span>
+                            <span id="working-timer" class="fs-6 fw-bolder text-primary">00:00:00</span>
+                        </div>
+
+                        <!--begin::Chrome Magnifier / Zoom Widget (Option B)-->
+                        <div class="dropdown me-3 position-relative" id="crmZoomWrapper">
+                            <button type="button" class="btn btn-sm btn-icon btn-light-primary position-relative"
+                                id="crmZoomToggleBtn" title="Page Zoom / Magnifier"
+                                style="width: 36px; height: 36px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;">
+                                <i class="fa fa-search-plus fs-5 text-primary crm-zoom-icon"></i>
+                                <span id="crmZoomBadge"
+                                    class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-primary text-white d-none"
+                                    style="font-size: 9px !important; padding: 2px 4px !important; transform: translate(-30%, -20%) !important;">100%</span>
+                            </button>
+
+                            <!--begin::Chrome Magnifier Floating Pill Widget (Option B)-->
+                            <div id="crmZoomPillWidget" class="crm-zoom-pill shadow"
+                                style="display: none; position: absolute; top: calc(100% + 10px); right: 0; z-index: 1060; background: #ffffff; border-radius: 30px; padding: 6px 16px; box-shadow: 0 6px 25px rgba(0,0,0,0.18) !important; border: 1px solid #dadce0; align-items: center; gap: 14px; white-space: nowrap; user-select: none;">
+
+                                <!-- Zoom Percentage Display -->
+                                <span id="crmZoomLabel"
+                                    style="font-size: 15px; font-weight: 600; color: #202124; min-width: 48px; text-align: left; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+                                    100%
+                                </span>
+
+                                <!-- Minus Button -->
+                                <button type="button" id="crmZoomOutBtn" class="crm-zoom-btn-circle"
+                                    title="Zoom out"
+                                    style="width: 28px; height: 28px; border-radius: 50%; border: 1px solid transparent; background: transparent; color: #3c4043; font-size: 20px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s ease;">
+                                    <span
+                                        style="font-weight: 500; font-size: 22px; line-height: 0; margin-top: -2px;">&minus;</span>
+                                </button>
+
+                                <!-- Plus Button -->
+                                <button type="button" id="crmZoomInBtn" class="crm-zoom-btn-circle" title="Zoom in"
+                                    style="width: 28px; height: 28px; border-radius: 50%; border: 1px solid transparent; background: transparent; color: #3c4043; font-size: 18px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s ease;">
+                                    <span
+                                        style="font-weight: 500; font-size: 20px; line-height: 0; margin-top: -1px;">+</span>
+                                </button>
+
+                                <!-- Divider -->
+                                <div style="width: 1px; height: 22px; background: #e0e0e0; margin: 0 2px;"></div>
+
+                                <!-- Reset Button -->
+                                <button type="button" id="crmZoomResetBtn" title="Reset to 100%"
+                                    style="border: 1px solid #dadce0; border-radius: 20px; background: #ffffff; color: #1a73e8; font-size: 13px; font-weight: 600; padding: 4px 14px; cursor: pointer; transition: all 0.15s ease; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+                                    Reset
+                                </button>
+                            </div>
+                            <!--end::Chrome Magnifier Floating Pill Widget-->
+                        </div>
+                        <!--end::Chrome Magnifier / Zoom Widget-->
+                    </div>
+
+                    <div class="cursor-pointer symbol symbol-30px symbol-md-40px" data-kt-menu-trigger="click"
+                        data-kt-menu-attach="parent" data-kt-menu-placement="bottom-end">
+
+                        <!-- User Avatar -->
+                        <img src="{{ asset(Auth::user()->photo ?? 'assets/media/avatars/blank.png') }}"
+                            alt="user" />
+                    </div>
+
+                    <!-- User Dropdown Menu -->
+                    <div class="menu menu-sub menu-sub-dropdown menu-column menu-rounded menu-gray-800 
+                                menu-state-bg menu-state-primary fw-bold py-4 fs-6 w-275px"
+                        data-kt-menu="true">
+
+                        <!-- User Info -->
+                        <div class="menu-item px-3">
+                            <div class="menu-content d-flex align-items-center px-3">
+                                <div class="symbol symbol-50px me-5">
+                                    <img src="{{ asset(Auth::user()->photo ?? 'assets/media/avatars/blank.png') }}"
+                                        alt="Logo" />
+                                </div>
+
+                                <div class="d-flex flex-column">
+                                    <div class="fw-bolder d-flex align-items-center fs-5">
+                                        {{ Auth::user()->name }}
+                                        <span class="badge badge-light-success fw-bolder fs-8 px-2 py-1 ms-2">
+                                            {{ getUserRoleName(Auth::user()->role_id) }}
+                                        </span>
+                                    </div>
+                                    <a href="#" class="fw-bold text-muted text-hover-primary fs-7">
+                                        {{ Auth::user()->email }}
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="separator my-2"></div>
+
+                        <!-- Profile -->
+                        <div class="menu-item px-5">
+                            <a href="/profile" class="menu-link px-5">My Profile</a>
+                        </div>
+
+                        <div class="separator my-2"></div>
+
+                        <!-- Sign Out -->
+                        <div class="menu-item px-5">
+                            <a href="{{ route('logout') }}" class="menu-link px-5"
+                                onclick="event.preventDefault(); document.getElementById('logout-form').submit();">
+                                Sign Out
+                            </a>
+
+                            <form id="logout-form" action="{{ route('logout') }}" method="POST" class="d-none">
+                                @csrf
+                            </form>
+                        </div>
+
+                        <div class="separator my-2"></div>
+                    </div>
+                </div>
+
+                <!-- Mobile Menu Toggle -->
+
+            </div>
+            <!--end::User Menu-->
+        </div>
+        <!--end::Navigation + User Info-->
+    </div>
 </div>
 <!--end::Header-->
-<div class="modal fade" id="activeBreakModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false" aria-hidden="true">
+<div class="modal fade" id="activeBreakModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false"
+    aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content text-center">
             <div class="modal-body py-10">
@@ -472,9 +546,9 @@
 <script>
     let timerInterval;
     // DB se fetch kiye hue seconds yahan pass karein
-    let totalSeconds = parseInt("{{ $todaySeconds }}") || 0; 
+    let totalSeconds = parseInt("{{ $todaySeconds }}") || 0;
     let idleTime = 0;
-    const IDLE_LIMIT = 20; 
+    const IDLE_LIMIT = 20;
 
     const timerDisplay = document.getElementById('working-timer');
 
@@ -496,7 +570,7 @@
         if (lastTime) {
             // LocalStorage se tabhi lein jab wo DB wale time se zyada ho (Multi-tab sync fix)
             let storageTime = parseInt(lastTime);
-            if(storageTime > totalSeconds) {
+            if (storageTime > totalSeconds) {
                 totalSeconds = storageTime;
                 timerDisplay.innerText = formatTime(totalSeconds);
             }
@@ -516,17 +590,17 @@
 
     function startTimer() {
         if (timerInterval) return;
-        
+
         timerInterval = setInterval(() => {
             if (idleTime < IDLE_LIMIT) {
                 totalSeconds++;
                 idleTime++;
-                
+
                 const timeStr = formatTime(totalSeconds);
                 timerDisplay.innerText = timeStr;
-                
+
                 localStorage.setItem('active_working_time', totalSeconds);
-                
+
                 // Har 30 seconds mein save
                 if (totalSeconds % 30 === 0) saveTimeToDB();
             } else {
@@ -547,7 +621,7 @@
     }
 
     // Listen to mouse/key events
-    ['mousemove', 'keydown', 'scroll', 'click'].forEach(evt => 
+    ['mousemove', 'keydown', 'scroll', 'click'].forEach(evt =>
         window.addEventListener(evt, resetIdleTimer)
     );
 
@@ -566,34 +640,34 @@
     // Tab close save
     window.onbeforeunload = saveTimeToDB;
 
-document.addEventListener('DOMContentLoaded', function () {
+    document.addEventListener('DOMContentLoaded', function() {
 
-    let currentBreakType = null;
-    let activeBreakModal = null;
+        let currentBreakType = null;
+        let activeBreakModal = null;
 
-    const breakBtn = document.getElementById('breakBtn');
-    const breakDropdown = document.getElementById('breakDropdown');
-    const activeBreakTitle = document.getElementById('activeBreakTitle');
-    const endBreakModalBtn = document.getElementById('endBreakModalBtn');
+        const breakBtn = document.getElementById('breakBtn');
+        const breakDropdown = document.getElementById('breakDropdown');
+        const activeBreakTitle = document.getElementById('activeBreakTitle');
+        const endBreakModalBtn = document.getElementById('endBreakModalBtn');
 
-    if (!breakBtn || !breakDropdown || !activeBreakTitle || !endBreakModalBtn) {
-        return;
-    }
+        if (!breakBtn || !breakDropdown || !activeBreakTitle || !endBreakModalBtn) {
+            return;
+        }
 
-    if (document.getElementById('activeBreakModal')) {
-        activeBreakModal = new bootstrap.Modal(document.getElementById('activeBreakModal'), {
-            backdrop: 'static',
-            keyboard: false
-        });
-    }
+        if (document.getElementById('activeBreakModal')) {
+            activeBreakModal = new bootstrap.Modal(document.getElementById('activeBreakModal'), {
+                backdrop: 'static',
+                keyboard: false
+            });
+        }
 
-    function setBreakButton(type, syncStorage = true) {
-        currentBreakType = type;
+        function setBreakButton(type, syncStorage = true) {
+            currentBreakType = type;
 
-        if (type) {
-            breakBtn.innerText = type;
+            if (type) {
+                breakBtn.innerText = type;
 
-            breakDropdown.innerHTML = `
+                breakDropdown.innerHTML = `
                 <li>
                     <button type="button" class="dropdown-item break-end" data-type="${type}">
                         End ${type}
@@ -601,385 +675,397 @@ document.addEventListener('DOMContentLoaded', function () {
                 </li>
             `;
 
-            activeBreakTitle.innerText = type + ' Active';
+                activeBreakTitle.innerText = type + ' Active';
 
-            if (activeBreakModal) {
-                activeBreakModal.show();
-            }
+                if (activeBreakModal) {
+                    activeBreakModal.show();
+                }
 
-            stopTimer();
+                stopTimer();
 
-            if (syncStorage) {
-                localStorage.setItem('active_break_type', type);
-            }
+                if (syncStorage) {
+                    localStorage.setItem('active_break_type', type);
+                }
 
-        } else {
-            breakBtn.innerText = 'Break';
+            } else {
+                breakBtn.innerText = 'Break';
 
-            breakDropdown.innerHTML = `
+                breakDropdown.innerHTML = `
                 <li><button type="button" class="dropdown-item break-start" data-type="Lunch Break">Lunch Break</button></li>
                 <li><button type="button" class="dropdown-item break-start" data-type="Tea Break">Tea Break</button></li>
             `;
 
-            if (activeBreakModal) {
-                activeBreakModal.hide();
-            }
+                if (activeBreakModal) {
+                    activeBreakModal.hide();
+                }
 
-            startTimer();
+                startTimer();
 
-            if (syncStorage) {
-                localStorage.removeItem('active_break_type');
+                if (syncStorage) {
+                    localStorage.removeItem('active_break_type');
+                }
             }
         }
-    }
 
-    function startUserBreak(type) {
-        fetch("{{ route('user.break.start') }}", {
-            method: "POST",
-            headers: {
-                "X-CSRF-TOKEN": "{{ csrf_token() }}",
-                "Content-Type": "application/json",
-                "Accept": "application/json"
-            },
-            body: JSON.stringify({
-                break_type: type
-            })
-        })
-        .then(res => res.json())
-        .then(() => {
-            setBreakButton(type, true);
-        })
-        .catch(err => {
-            console.error(err);
-            alert('Break start failed');
+        function startUserBreak(type) {
+            fetch("{{ route('user.break.start') }}", {
+                    method: "POST",
+                    headers: {
+                        "X-CSRF-TOKEN": "{{ csrf_token() }}",
+                        "Content-Type": "application/json",
+                        "Accept": "application/json"
+                    },
+                    body: JSON.stringify({
+                        break_type: type
+                    })
+                })
+                .then(res => res.json())
+                .then(() => {
+                    setBreakButton(type, true);
+                })
+                .catch(err => {
+                    console.error(err);
+                    alert('Break start failed');
+                });
+        }
+
+        function endUserBreak(type) {
+            fetch("{{ route('user.break.end') }}", {
+                    method: "POST",
+                    headers: {
+                        "X-CSRF-TOKEN": "{{ csrf_token() }}",
+                        "Content-Type": "application/json",
+                        "Accept": "application/json"
+                    },
+                    body: JSON.stringify({
+                        break_type: type
+                    })
+                })
+                .then(res => res.json())
+                .then(() => {
+                    setBreakButton(null, true);
+                })
+                .catch(err => {
+                    console.error(err);
+                    alert('Break end failed');
+                });
+        }
+
+        document.addEventListener('click', function(e) {
+            if (e.target.classList.contains('break-start')) {
+                e.preventDefault();
+
+                let type = e.target.getAttribute('data-type');
+                startUserBreak(type);
+            }
+
+            if (e.target.classList.contains('break-end')) {
+                e.preventDefault();
+
+                let type = e.target.getAttribute('data-type');
+                endUserBreak(type);
+            }
         });
-    }
 
-    function endUserBreak(type) {
-        fetch("{{ route('user.break.end') }}", {
-            method: "POST",
-            headers: {
-                "X-CSRF-TOKEN": "{{ csrf_token() }}",
-                "Content-Type": "application/json",
-                "Accept": "application/json"
-            },
-            body: JSON.stringify({
-                break_type: type
-            })
-        })
-        .then(res => res.json())
-        .then(() => {
-            setBreakButton(null, true);
-        })
-        .catch(err => {
-            console.error(err);
-            alert('Break end failed');
+        endBreakModalBtn.addEventListener('click', function() {
+            if (currentBreakType) {
+                endUserBreak(currentBreakType);
+            }
         });
-    }
 
-    document.addEventListener('click', function (e) {
-        if (e.target.classList.contains('break-start')) {
-            e.preventDefault();
-
-            let type = e.target.getAttribute('data-type');
-            startUserBreak(type);
-        }
-
-        if (e.target.classList.contains('break-end')) {
-            e.preventDefault();
-
-            let type = e.target.getAttribute('data-type');
-            endUserBreak(type);
-        }
-    });
-
-    endBreakModalBtn.addEventListener('click', function () {
-        if (currentBreakType) {
-            endUserBreak(currentBreakType);
-        }
-    });
-
-    window.addEventListener('storage', function (e) {
-        if (e.key === 'active_break_type') {
-            if (e.newValue) {
-                setBreakButton(e.newValue, false);
-            } else {
-                setBreakButton(null, false);
+        window.addEventListener('storage', function(e) {
+            if (e.key === 'active_break_type') {
+                if (e.newValue) {
+                    setBreakButton(e.newValue, false);
+                } else {
+                    setBreakButton(null, false);
+                }
             }
-        }
+        });
+
+        fetch("{{ route('user.break.current') }}", {
+                method: "GET",
+                headers: {
+                    "Accept": "application/json"
+                }
+            })
+            .then(res => res.json())
+            .then(res => {
+                if (res.active) {
+                    setBreakButton(res.break_type, true);
+                } else {
+                    setBreakButton(null, true);
+                }
+            });
     });
 
-    fetch("{{ route('user.break.current') }}", {
-        method: "GET",
-        headers: {
-            "Accept": "application/json"
-        }
-    })
-    .then(res => res.json())
-    .then(res => {
-        if (res.active) {
-            setBreakButton(res.break_type, true);
-        } else {
-            setBreakButton(null, true);
-        }
-    });
-});
+    @if (auth()->check() && (int) auth()->user()->role_id === 1)
+        document.addEventListener('DOMContentLoaded', function() {
+            const bellCount = document.getElementById('loginOtpBellCount');
+            const notificationList = document.getElementById('loginOtpNotificationList');
 
-@if(auth()->check() && (int) auth()->user()->role_id === 1)
-document.addEventListener('DOMContentLoaded', function () {
-    const bellCount = document.getElementById('loginOtpBellCount');
-    const notificationList = document.getElementById('loginOtpNotificationList');
-
-    if (!bellCount || !notificationList) {
-        return;
-    }
-
-    const escapeHtml = function (value) {
-        const element = document.createElement('div');
-        element.textContent = value == null ? '' : String(value);
-        return element.innerHTML;
-    };
-
-    const refreshLoginOtpNotifications = function () {
-        fetch("{{ route('admin.login-otp-notifications.pending') }}", {
-            headers: { 'Accept': 'application/json' },
-            cache: 'no-store'
-        })
-        .then(function (response) {
-            if (!response.ok) {
-                throw new Error('OTP notification request failed');
-            }
-            return response.json();
-        })
-        .then(function (data) {
-            const count = Number(data.count || 0);
-            bellCount.textContent = count;
-            bellCount.classList.toggle('d-none', count === 0);
-
-            if (!data.notifications || data.notifications.length === 0) {
-                notificationList.innerHTML = '<div class="px-5 py-8 text-center text-muted">No pending login OTP notifications.</div>';
+            if (!bellCount || !notificationList) {
                 return;
             }
 
-            notificationList.innerHTML = data.notifications.map(function (notification) {
-                const detailsUrl = "{{ route('admin.login-otp-notifications') }}?user_id=" + encodeURIComponent(notification.user_id);
-                return '<a href="' + detailsUrl + '" class="d-block px-5 py-4 border-bottom bg-hover-light text-decoration-none">' +
-                    '<div class="d-flex align-items-start justify-content-between gap-3">' +
-                        '<div class="min-w-0">' +
-                            '<div class="fw-bolder text-gray-900 text-truncate">' + escapeHtml(notification.user_name) + '</div>' +
-                            '<div class="text-muted fs-8 text-truncate">' + escapeHtml(notification.user_email) + '</div>' +
-                            '<div class="text-muted fs-8">Role: ' + escapeHtml(notification.role_id) + ' · IP: ' + escapeHtml(notification.ip_address || 'N/A') + '</div>' +
-                        '</div>' +
-                        '<div class="text-end flex-shrink-0">' +
-                            '<span class="badge badge-light-success fs-6 fw-bolder">' + escapeHtml(notification.otp_code) + '</span>' +
-                            '<div class="text-muted fs-9 mt-2">' + escapeHtml(notification.requested_at || '') + '</div>' +
-                        '</div>' +
-                    '</div>' +
-                '</a>';
-            }).join('');
-        })
-        .catch(function (error) {
-            console.error('Login OTP notification refresh failed:', error);
-        });
-    };
+            const escapeHtml = function(value) {
+                const element = document.createElement('div');
+                element.textContent = value == null ? '' : String(value);
+                return element.innerHTML;
+            };
 
-    refreshLoginOtpNotifications();
-    window.setInterval(refreshLoginOtpNotifications, 5000);
-});
-@endif
+            const refreshLoginOtpNotifications = function() {
+                fetch("{{ route('admin.login-otp-notifications.pending') }}", {
+                        headers: {
+                            'Accept': 'application/json'
+                        },
+                        cache: 'no-store'
+                    })
+                    .then(function(response) {
+                        if (!response.ok) {
+                            throw new Error('OTP notification request failed');
+                        }
+                        return response.json();
+                    })
+                    .then(function(data) {
+                        const count = Number(data.count || 0);
+                        bellCount.textContent = count;
+                        bellCount.classList.toggle('d-none', count === 0);
+
+                        if (!data.notifications || data.notifications.length === 0) {
+                            notificationList.innerHTML =
+                                '<div class="px-5 py-8 text-center text-muted">No pending login OTP notifications.</div>';
+                            return;
+                        }
+
+                        notificationList.innerHTML = data.notifications.map(function(notification) {
+                            const detailsUrl =
+                                "{{ route('admin.login-otp-notifications') }}?user_id=" +
+                                encodeURIComponent(notification.user_id);
+                            return '<a href="' + detailsUrl +
+                                '" class="d-block px-5 py-4 border-bottom bg-hover-light text-decoration-none">' +
+                                '<div class="d-flex align-items-start justify-content-between gap-3">' +
+                                '<div class="min-w-0">' +
+                                '<div class="fw-bolder text-gray-900 text-truncate">' +
+                                escapeHtml(notification.user_name) + '</div>' +
+                                '<div class="text-muted fs-8 text-truncate">' + escapeHtml(
+                                    notification.user_email) + '</div>' +
+                                '<div class="text-muted fs-8">Role: ' + escapeHtml(notification
+                                    .role_id) + ' · IP: ' + escapeHtml(notification
+                                    .ip_address || 'N/A') + '</div>' +
+                                '</div>' +
+                                '<div class="text-end flex-shrink-0">' +
+                                '<span class="badge badge-light-success fs-6 fw-bolder">' +
+                                escapeHtml(notification.otp_code) + '</span>' +
+                                '<div class="text-muted fs-9 mt-2">' + escapeHtml(notification
+                                    .requested_at || '') + '</div>' +
+                                '</div>' +
+                                '</div>' +
+                                '</a>';
+                        }).join('');
+                    })
+                    .catch(function(error) {
+                        console.error('Login OTP notification refresh failed:', error);
+                    });
+            };
+
+            refreshLoginOtpNotifications();
+            window.setInterval(refreshLoginOtpNotifications, 5000);
+        });
+    @endif
 </script>
 
 {{-- begin::Chrome Magnifier / Zoom Widget Script (Option B) --}}
 <script>
-(function() {
-    var ZOOM_STEPS = [50, 67, 75, 80, 90, 100, 110, 125, 150, 175, 200];
-    var autoDismissTimer = null;
+    (function() {
+        var ZOOM_STEPS = [50, 67, 75, 80, 90, 100, 110, 125, 150, 175, 200];
+        var autoDismissTimer = null;
 
-    function getCrmPageZoomKey() {
-        try {
-            var p = (window.location.pathname || '').toLowerCase().replace(/^\/+/, '');
-            var s = p.split('/')[0] || 'dashboard';
-            if (s.indexOf('whatsapp') !== -1 || s === 'wab') return 'crm_zoom_whatsapp';
-            if (s.indexOf('email') !== -1) return 'crm_zoom_emails';
-            if (s.indexOf('lead') !== -1) return 'crm_zoom_leads';
-            if (s.indexOf('order') !== -1) return 'crm_zoom_orders';
-            if (s === 'dashboard' || !s) return 'crm_zoom_dashboard';
-            return 'crm_zoom_' + s.replace(/[^a-z0-9_-]/g, '_');
-        } catch(e) {
-            return 'crm_zoom_default';
-        }
-    }
-
-    function getSavedZoom() {
-        try {
-            var key = getCrmPageZoomKey();
-            var val = parseInt(localStorage.getItem(key), 10);
-            if (!isNaN(val) && val >= 50 && val <= 200) {
-                return val;
-            }
-        } catch(e) {}
-        return 100;
-    }
-
-    function applyZoom(zoomVal) {
-        zoomVal = parseInt(zoomVal, 10) || 100;
-        if (zoomVal < 50) zoomVal = 50;
-        if (zoomVal > 200) zoomVal = 200;
-
-        if (zoomVal === 100) {
-            document.body.style.zoom = '';
-        } else {
-            document.body.style.zoom = (zoomVal / 100);
-        }
-
-        try {
-            var key = getCrmPageZoomKey();
-            if (zoomVal === 100) {
-                localStorage.removeItem(key);
-            } else {
-                localStorage.setItem(key, zoomVal);
-            }
-        } catch(e) {}
-
-        var label = document.getElementById('crmZoomLabel');
-        if (label) label.textContent = zoomVal + '%';
-
-        var badge = document.getElementById('crmZoomBadge');
-        if (badge) {
-            if (zoomVal !== 100) {
-                badge.textContent = zoomVal + '%';
-                badge.classList.remove('d-none');
-            } else {
-                badge.classList.add('d-none');
+        function getCrmPageZoomKey() {
+            try {
+                var p = (window.location.pathname || '').toLowerCase().replace(/^\/+/, '');
+                var s = p.split('/')[0] || 'dashboard';
+                if (s.indexOf('whatsapp') !== -1 || s === 'wab') return 'crm_zoom_whatsapp';
+                if (s.indexOf('email') !== -1) return 'crm_zoom_emails';
+                if (s.indexOf('lead') !== -1) return 'crm_zoom_leads';
+                if (s.indexOf('order') !== -1) return 'crm_zoom_orders';
+                if (s === 'dashboard' || !s) return 'crm_zoom_dashboard';
+                return 'crm_zoom_' + s.replace(/[^a-z0-9_-]/g, '_');
+            } catch (e) {
+                return 'crm_zoom_default';
             }
         }
 
-        var resetBtn = document.getElementById('crmZoomResetBtn');
-        if (resetBtn) {
-            if (zoomVal === 100) {
-                resetBtn.style.opacity = '0.5';
-                resetBtn.style.cursor = 'default';
-            } else {
-                resetBtn.style.opacity = '1';
-                resetBtn.style.cursor = 'pointer';
-            }
-        }
-    }
-
-    function startAutoDismiss() {
-        clearTimeout(autoDismissTimer);
-        autoDismissTimer = setTimeout(function() {
-            hideWidget();
-        }, 3500);
-    }
-
-    function showWidget() {
-        var widget = document.getElementById('crmZoomPillWidget');
-        if (!widget) return;
-        widget.style.display = 'inline-flex';
-        startAutoDismiss();
-    }
-
-    function hideWidget() {
-        clearTimeout(autoDismissTimer);
-        var widget = document.getElementById('crmZoomPillWidget');
-        if (!widget) return;
-        widget.style.display = 'none';
-    }
-
-    function toggleWidget() {
-        var widget = document.getElementById('crmZoomPillWidget');
-        if (!widget) return;
-        if (widget.style.display === 'none' || !widget.style.display) {
-            showWidget();
-        } else {
-            hideWidget();
-        }
-    }
-
-    document.addEventListener('DOMContentLoaded', function() {
-        try {
-            if (localStorage.getItem('crm_page_zoom')) {
-                localStorage.removeItem('crm_page_zoom');
-            }
-        } catch(e) {}
-
-        var currentZoom = getSavedZoom();
-        applyZoom(currentZoom);
-
-        var toggleBtn = document.getElementById('crmZoomToggleBtn');
-        var inBtn = document.getElementById('crmZoomInBtn');
-        var outBtn = document.getElementById('crmZoomOutBtn');
-        var resetBtn = document.getElementById('crmZoomResetBtn');
-        var widget = document.getElementById('crmZoomPillWidget');
-
-        if (toggleBtn) {
-            toggleBtn.addEventListener('click', function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                toggleWidget();
-            });
-        }
-
-        if (inBtn) {
-            inBtn.addEventListener('click', function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                var cur = getSavedZoom();
-                var next = 200;
-                for (var i = 0; i < ZOOM_STEPS.length; i++) {
-                    if (ZOOM_STEPS[i] > cur) {
-                        next = ZOOM_STEPS[i];
-                        break;
-                    }
+        function getSavedZoom() {
+            try {
+                var key = getCrmPageZoomKey();
+                var val = parseInt(localStorage.getItem(key), 10);
+                if (!isNaN(val) && val >= 50 && val <= 200) {
+                    return val;
                 }
-                applyZoom(next);
-                startAutoDismiss();
-            });
+            } catch (e) {}
+            return 100;
         }
 
-        if (outBtn) {
-            outBtn.addEventListener('click', function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                var cur = getSavedZoom();
-                var prev = 50;
-                for (var i = ZOOM_STEPS.length - 1; i >= 0; i--) {
-                    if (ZOOM_STEPS[i] < cur) {
-                        prev = ZOOM_STEPS[i];
-                        break;
-                    }
+        function applyZoom(zoomVal) {
+            zoomVal = parseInt(zoomVal, 10) || 100;
+            if (zoomVal < 50) zoomVal = 50;
+            if (zoomVal > 200) zoomVal = 200;
+
+            if (zoomVal === 100) {
+                document.body.style.zoom = '';
+            } else {
+                document.body.style.zoom = (zoomVal / 100);
+            }
+
+            try {
+                var key = getCrmPageZoomKey();
+                if (zoomVal === 100) {
+                    localStorage.removeItem(key);
+                } else {
+                    localStorage.setItem(key, zoomVal);
                 }
-                applyZoom(prev);
-                startAutoDismiss();
-            });
+            } catch (e) {}
+
+            var label = document.getElementById('crmZoomLabel');
+            if (label) label.textContent = zoomVal + '%';
+
+            var badge = document.getElementById('crmZoomBadge');
+            if (badge) {
+                if (zoomVal !== 100) {
+                    badge.textContent = zoomVal + '%';
+                    badge.classList.remove('d-none');
+                } else {
+                    badge.classList.add('d-none');
+                }
+            }
+
+            var resetBtn = document.getElementById('crmZoomResetBtn');
+            if (resetBtn) {
+                if (zoomVal === 100) {
+                    resetBtn.style.opacity = '0.5';
+                    resetBtn.style.cursor = 'default';
+                } else {
+                    resetBtn.style.opacity = '1';
+                    resetBtn.style.cursor = 'pointer';
+                }
+            }
         }
 
-        if (resetBtn) {
-            resetBtn.addEventListener('click', function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                applyZoom(100);
-                startAutoDismiss();
-            });
+        function startAutoDismiss() {
+            clearTimeout(autoDismissTimer);
+            autoDismissTimer = setTimeout(function() {
+                hideWidget();
+            }, 3500);
         }
 
-        if (widget) {
-            widget.addEventListener('mouseenter', function() {
-                clearTimeout(autoDismissTimer);
-            });
-            widget.addEventListener('mouseleave', function() {
-                startAutoDismiss();
-            });
+        function showWidget() {
+            var widget = document.getElementById('crmZoomPillWidget');
+            if (!widget) return;
+            widget.style.display = 'inline-flex';
+            startAutoDismiss();
         }
 
-        document.addEventListener('click', function(e) {
-            var container = document.getElementById('crmZoomWrapper');
-            if (container && !container.contains(e.target)) {
+        function hideWidget() {
+            clearTimeout(autoDismissTimer);
+            var widget = document.getElementById('crmZoomPillWidget');
+            if (!widget) return;
+            widget.style.display = 'none';
+        }
+
+        function toggleWidget() {
+            var widget = document.getElementById('crmZoomPillWidget');
+            if (!widget) return;
+            if (widget.style.display === 'none' || !widget.style.display) {
+                showWidget();
+            } else {
                 hideWidget();
             }
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            try {
+                if (localStorage.getItem('crm_page_zoom')) {
+                    localStorage.removeItem('crm_page_zoom');
+                }
+            } catch (e) {}
+
+            var currentZoom = getSavedZoom();
+            applyZoom(currentZoom);
+
+            var toggleBtn = document.getElementById('crmZoomToggleBtn');
+            var inBtn = document.getElementById('crmZoomInBtn');
+            var outBtn = document.getElementById('crmZoomOutBtn');
+            var resetBtn = document.getElementById('crmZoomResetBtn');
+            var widget = document.getElementById('crmZoomPillWidget');
+
+            if (toggleBtn) {
+                toggleBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    toggleWidget();
+                });
+            }
+
+            if (inBtn) {
+                inBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    var cur = getSavedZoom();
+                    var next = 200;
+                    for (var i = 0; i < ZOOM_STEPS.length; i++) {
+                        if (ZOOM_STEPS[i] > cur) {
+                            next = ZOOM_STEPS[i];
+                            break;
+                        }
+                    }
+                    applyZoom(next);
+                    startAutoDismiss();
+                });
+            }
+
+            if (outBtn) {
+                outBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    var cur = getSavedZoom();
+                    var prev = 50;
+                    for (var i = ZOOM_STEPS.length - 1; i >= 0; i--) {
+                        if (ZOOM_STEPS[i] < cur) {
+                            prev = ZOOM_STEPS[i];
+                            break;
+                        }
+                    }
+                    applyZoom(prev);
+                    startAutoDismiss();
+                });
+            }
+
+            if (resetBtn) {
+                resetBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    applyZoom(100);
+                    startAutoDismiss();
+                });
+            }
+
+            if (widget) {
+                widget.addEventListener('mouseenter', function() {
+                    clearTimeout(autoDismissTimer);
+                });
+                widget.addEventListener('mouseleave', function() {
+                    startAutoDismiss();
+                });
+            }
+
+            document.addEventListener('click', function(e) {
+                var container = document.getElementById('crmZoomWrapper');
+                if (container && !container.contains(e.target)) {
+                    hideWidget();
+                }
+            });
         });
-    });
-})();
+    })();
 </script>
 {{-- end::Chrome Magnifier / Zoom Widget Script --}}

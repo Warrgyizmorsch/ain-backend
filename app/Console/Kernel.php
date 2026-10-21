@@ -29,6 +29,11 @@ class Kernel extends ConsoleKernel
             ->everyMinute()
             ->withoutOverlapping()
             ->runInBackground();
+
+        $schedule->command('campaigns:send-scheduled')
+            ->everyMinute()
+            ->withoutOverlapping()
+            ->runInBackground();
     }
 
     /**
