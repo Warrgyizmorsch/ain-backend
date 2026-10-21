@@ -76,6 +76,21 @@ Route::post('/writer-login', [UserController::class, 'Login']);
 // Email Integration Routes (WhatsApp-like Inbox, Composer, Drafts, Sync)
 Route::prefix('emails')->name('emails.')->middleware(['auth', 'check.permission'])->group(function () {
     Route::get('/', [\App\Http\Controllers\EmailController::class, 'index'])->name('index');
+
+    // Email Campaigns Module (Placed before /{id} so it is never shadowed)
+    Route::prefix('campaigns')->name('campaigns.')->group(function () {
+        Route::get('/', [\App\Http\Controllers\EmailCampaignController::class, 'index'])->name('index');
+        Route::get('/create', [\App\Http\Controllers\EmailCampaignController::class, 'create'])->name('create');
+        Route::post('/store', [\App\Http\Controllers\EmailCampaignController::class, 'store'])->name('store');
+        Route::post('/audience-count', [\App\Http\Controllers\EmailCampaignController::class, 'audienceCount'])->name('audience-count');
+        Route::post('/upload-image', [\App\Http\Controllers\EmailCampaignController::class, 'uploadImage'])->name('upload-image');
+        Route::get('/{id}', [\App\Http\Controllers\EmailCampaignController::class, 'show'])->name('show');
+        Route::post('/{id}/send-now', [\App\Http\Controllers\EmailCampaignController::class, 'sendNow'])->name('send-now');
+        Route::post('/{id}/pause', [\App\Http\Controllers\EmailCampaignController::class, 'pause'])->name('pause');
+        Route::post('/{id}/resume', [\App\Http\Controllers\EmailCampaignController::class, 'resume'])->name('resume');
+        Route::delete('/{id}', [\App\Http\Controllers\EmailCampaignController::class, 'destroy'])->name('destroy');
+    });
+
     Route::middleware('checkrole:1')->group(function () {
         Route::get('/settings', [\App\Http\Controllers\EmailController::class, 'settings'])->name('settings');
         Route::post('/settings/store', [\App\Http\Controllers\EmailController::class, 'storeConfiguration'])->name('settings.store');
@@ -101,7 +116,7 @@ Route::prefix('emails')->name('emails.')->middleware(['auth', 'check.permission'
     Route::get('/attachment/{id}/view', [\App\Http\Controllers\EmailController::class, 'viewAttachment'])->name('attachment.view');
     Route::get('/attachment/{id}/preview-html', [\App\Http\Controllers\EmailController::class, 'previewAttachmentHtml'])->name('attachment.preview-html');
     Route::get('/search/suggest', [\App\Http\Controllers\EmailController::class, 'suggestSearch'])->name('search.suggest');
-    Route::get('/{id}', [\App\Http\Controllers\EmailController::class, 'show'])->name('show');
+    Route::get('/{id}', [\App\Http\Controllers\EmailController::class, 'show'])->where('id', '[0-9]+')->name('show');
     Route::post('/{id}/star', [\App\Http\Controllers\EmailController::class, 'toggleStarById'])->name('star.id');
     Route::delete('/{id}', [\App\Http\Controllers\EmailController::class, 'deleteById'])->name('delete.id');
     Route::post('/{id}/reply', [\App\Http\Controllers\EmailController::class, 'replyToMessage'])->name('reply.id');
@@ -111,6 +126,10 @@ Route::prefix('emails')->name('emails.')->middleware(['auth', 'check.permission'
     Route::post('/templates/save', [\App\Http\Controllers\EmailController::class, 'saveTemplate'])->name('templates.save');
     Route::delete('/templates/{id}', [\App\Http\Controllers\EmailController::class, 'deleteTemplate'])->name('templates.delete');
 });
+
+// Email Campaign Public Tracking (Open Pixel & Click Redirect)
+Route::get('/email/track/open/{token}', [\App\Http\Controllers\EmailCampaignController::class, 'trackOpen'])->name('emails.campaigns.track.open');
+Route::get('/email/track/click/{token}', [\App\Http\Controllers\EmailCampaignController::class, 'trackClick'])->name('emails.campaigns.track.click');
 Route::post('/webhook/emails/inbound', [\App\Http\Controllers\EmailController::class, 'webhook'])
     ->middleware('throttle:60,1')
     ->name('emails.webhook');

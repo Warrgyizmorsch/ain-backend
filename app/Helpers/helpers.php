@@ -1139,5 +1139,17 @@ if (!function_exists('is_dummy_customer_email')) {
     }
 }
 
+if (!function_exists('is_email_campaign_enabled')) {
+    /**
+     * Feature flag: Controls visibility and accessibility of Email Campaigns module.
+     * Controlled via .env: EMAIL_CAMPAIGNS_ENABLED=true/false
+     */
+    function is_email_campaign_enabled(): bool
+    {
+        return filter_var(env('EMAIL_CAMPAIGNS_ENABLED', true), FILTER_VALIDATE_BOOLEAN);
+    }
+}
+
+
 
 
