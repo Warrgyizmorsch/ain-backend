@@ -429,6 +429,10 @@ function uploadCampaignImage(file) {
         data: formData,
         contentType: false,
         processData: false,
+        headers: {
+            'X-CSRF-TOKEN': '{{ csrf_token() }}',
+            'Accept': 'application/json'
+        },
         success: function(res) {
             quill.deleteText(range.index, loadingText.length);
             if (res.success && res.url) {
@@ -440,8 +444,19 @@ function uploadCampaignImage(file) {
         },
         error: function(xhr) {
             quill.deleteText(range.index, loadingText.length);
-            const err = xhr.responseJSON?.message || (xhr.responseJSON?.errors?.image ? xhr.responseJSON.errors.image[0] : 'Failed to upload image.');
-            alert(err);
+            let errMsg = 'Failed to upload image.';
+            if (xhr.responseJSON && xhr.responseJSON.message) {
+                errMsg = xhr.responseJSON.message;
+            } else if (xhr.responseJSON && xhr.responseJSON.errors && xhr.responseJSON.errors.image) {
+                errMsg = xhr.responseJSON.errors.image[0];
+            } else if (xhr.status === 419) {
+                errMsg = 'Session expired. Please refresh the page.';
+            } else if (xhr.status === 413) {
+                errMsg = 'Image file size exceeds server limit.';
+            } else if (xhr.status === 403) {
+                errMsg = 'Permission denied for uploading images.';
+            }
+            alert(errMsg);
         }
     });
 }

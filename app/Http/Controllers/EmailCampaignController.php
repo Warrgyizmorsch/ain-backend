@@ -111,13 +111,31 @@ class EmailCampaignController extends Controller
      */
     public function uploadImage(Request $request): JsonResponse
     {
-        $request->validate([
-            'image' => 'required|image|mimes:jpeg,png,jpg,gif,webp,svg|max:10240',
+        $validator = \Illuminate\Support\Facades\Validator::make($request->all(), [
+            'image' => ['required', 'file', 'max:15360'], // 15MB max
         ]);
 
-        if ($request->hasFile('image')) {
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => $validator->errors()->first() ?: 'Invalid image file.',
+            ], 422);
+        }
+
+        if ($request->hasFile('image') && $request->file('image')->isValid()) {
             $file = $request->file('image');
-            $extension = $file->getClientOriginalExtension() ?: 'png';
+
+            // Validate MIME type starts with image/
+            $mime = strtolower((string) ($file->getMimeType() ?: $file->getClientMimeType()));
+            if (!str_starts_with($mime, 'image/')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Uploaded file must be a valid image (JPEG, PNG, GIF, WebP, SVG).',
+                ], 422);
+            }
+
+            $rawExt = $file->getClientOriginalExtension() ?: ($file->guessExtension() ?: 'png');
+            $extension = strtolower($rawExt);
             $filename = 'campaign_' . time() . '_' . Str::random(10) . '.' . $extension;
 
             $destinationPath = public_path('uploads/campaigns');
@@ -134,7 +152,7 @@ class EmailCampaignController extends Controller
             ]);
         }
 
-        return response()->json(['success' => false, 'message' => 'No image uploaded.'], 400);
+        return response()->json(['success' => false, 'message' => 'No image uploaded or upload was corrupted.'], 400);
     }
 
     /**
