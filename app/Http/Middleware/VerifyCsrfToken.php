@@ -28,5 +28,6 @@ class VerifyCsrfToken extends Middleware
         'admin/plugins/twilio/voice',
         'admin/plugins/twilio/status-callback',
         'admin/plugins/twilio/recording-callback',
+        'emails/campaigns/upload-image',
     ];
 }

@@ -162,10 +162,37 @@ class ProcessEmailCampaignJob implements ShouldQueue
                 }, $personalizedHtml);
 
                 try {
-                    Mail::mailer('smtp')->html($personalizedHtml, function ($message) use ($recipient, $personalizedSubject, $fromAddress, $fromName) {
+                    Mail::mailer('smtp')->send([], [], function ($message) use ($recipient, $personalizedSubject, $fromAddress, $fromName, $personalizedHtml) {
+                        // Automatically embed local campaign images via CID inline attachment so Gmail/Outlook render them without broken '?'
+                        $finalHtml = preg_replace_callback('/<img\s+([^>]*?)src="([^"]+)"([^>]*?)>/i', function ($matches) use ($message) {
+                            $prefix = $matches[1];
+                            $src    = $matches[2];
+                            $suffix = $matches[3];
+
+                            // Skip open tracking pixel
+                            if (str_contains($src, '/email/track/open/')) {
+                                return $matches[0];
+                            }
+
+                            // Match local uploads in uploads/ (campaigns or other assets)
+                            if (str_contains($src, 'uploads/')) {
+                                $pos = strpos($src, 'uploads/');
+                                $relPath = substr($src, $pos);
+                                $relPath = explode('?', $relPath)[0];
+                                $localPath = public_path($relPath);
+                                if (file_exists($localPath)) {
+                                    $cid = $message->embed($localPath);
+                                    return '<img ' . $prefix . 'src="' . $cid . '"' . $suffix . '>';
+                                }
+                            }
+
+                            return $matches[0];
+                        }, $personalizedHtml);
+
                         $message->to($recipient->recipient_email, $recipient->recipient_name ?: '')
                                 ->from($fromAddress, $fromName)
-                                ->subject($personalizedSubject);
+                                ->subject($personalizedSubject)
+                                ->html($finalHtml);
                     });
 
                     $recipient->status = 'sent';
