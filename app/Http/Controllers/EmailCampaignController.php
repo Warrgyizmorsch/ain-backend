@@ -138,13 +138,33 @@ class EmailCampaignController extends Controller
             $extension = strtolower($rawExt);
             $filename = 'campaign_' . time() . '_' . Str::random(10) . '.' . $extension;
 
-            $destinationPath = public_path('uploads/campaigns');
-            if (!file_exists($destinationPath)) {
-                mkdir($destinationPath, 0755, true);
+            $publicDest = public_path('uploads/campaigns');
+            $baseDest   = base_path('uploads/campaigns');
+
+            if (!file_exists($publicDest)) {
+                @mkdir($publicDest, 0777, true);
+            }
+            if (!file_exists($baseDest)) {
+                @mkdir($baseDest, 0777, true);
             }
 
-            $file->move($destinationPath, $filename);
-            $url = asset('uploads/campaigns/' . $filename);
+            // Move uploaded file to public destination
+            $file->move($publicDest, $filename);
+            @chmod($publicDest . '/' . $filename, 0644);
+
+            // Also mirror to base project root uploads so root-level web servers (cPanel/Apache) can serve statically
+            if ($baseDest !== $publicDest) {
+                @copy($publicDest . '/' . $filename, $baseDest . '/' . $filename);
+                @chmod($baseDest . '/' . $filename, 0644);
+            }
+
+            $isSecure = $request->isSecure()
+                || strtolower((string) $request->header('x-forwarded-proto')) === 'https'
+                || strtolower((string) $request->server('HTTP_X_FORWARDED_PROTO')) === 'https'
+                || strtolower((string) $request->server('HTTPS')) === 'on'
+                || str_starts_with((string) config('app.url'), 'https://');
+
+            $url = url('uploads/campaigns/' . $filename, [], $isSecure);
 
             return response()->json([
                 'success' => true,
@@ -153,6 +173,31 @@ class EmailCampaignController extends Controller
         }
 
         return response()->json(['success' => false, 'message' => 'No image uploaded or upload was corrupted.'], 400);
+    }
+
+    /**
+     * Fallback route to serve campaign images directly via PHP stream across all server architectures
+     */
+    public function serveImage(string $filename)
+    {
+        $filename = basename($filename);
+
+        $paths = [
+            public_path('uploads/campaigns/' . $filename),
+            base_path('uploads/campaigns/' . $filename),
+        ];
+
+        foreach ($paths as $path) {
+            if (file_exists($path)) {
+                $mimeType = mime_content_type($path) ?: 'image/png';
+                return response()->file($path, [
+                    'Content-Type' => $mimeType,
+                    'Cache-Control' => 'public, max-age=86400',
+                ]);
+            }
+        }
+
+        abort(404, 'Campaign image not found.');
     }
 
     /**

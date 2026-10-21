@@ -180,6 +180,9 @@ class ProcessEmailCampaignJob implements ShouldQueue
                                 $relPath = substr($src, $pos);
                                 $relPath = explode('?', $relPath)[0];
                                 $localPath = public_path($relPath);
+                                if (!file_exists($localPath)) {
+                                    $localPath = base_path($relPath);
+                                }
                                 if (file_exists($localPath)) {
                                     $cid = $message->embed($localPath);
                                     return '<img ' . $prefix . 'src="' . $cid . '"' . $suffix . '>';
