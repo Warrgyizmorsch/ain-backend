@@ -100,7 +100,13 @@ class CheckPermission
             'whatsapp', 'webhooks/whatsapp'
         ],
         'emails' => [
-            'emails', 'email'
+            'emails', 'email', 'emails/campaigns', 'emails.campaigns', 'campaigns', 'campaigns.index', 'campaigns.create', 'campaigns.store', 'campaigns.upload-image', 'campaigns.audience-count'
+        ],
+        'emails/campaigns' => [
+            'emails/campaigns', 'emails.campaigns', 'campaigns', 'emails.campaigns.index',
+            'emails.campaigns.create', 'emails.campaigns.store', 'emails.campaigns.show',
+            'emails.campaigns.upload-image', 'emails.campaigns.audience-count',
+            'emails.campaigns.track.open', 'emails.campaigns.track.click'
         ],
         'spreadsheets' => [
             'spreadsheets', 'spreadsheet', 'excel'
@@ -150,6 +156,7 @@ class CheckPermission
         'experts' => ['expert'],
         'whatsapp' => ['whatsapp'],
         'emails' => ['emails', 'email'],
+        'emails/campaigns' => ['emails.campaigns', 'campaigns'],
         'spreadsheets' => ['spreadsheets', 'spreadsheet'],
         'sample' => ['samples', 'sample_list'], // mk 14 10 26 - sample aliases
         'samples' => ['sample', 'sample_list'],
@@ -203,6 +210,8 @@ class CheckPermission
             'lead.followups.due-reminders',
             'lead.followups.snooze',
             'lead.followups.dismiss',
+            'emails.campaigns.upload-image',
+            'emails.campaigns.audience-count',
         ];
 
         if ($currentRoute && in_array($currentRoute, $bypassRoutes, true)) {
@@ -223,6 +232,8 @@ class CheckPermission
             'userData', // mk 14 10 26 - Customer mobile/email lookup for lead creation
             'lead/followups-due-reminders',
             'lead/followups',
+            'emails/campaigns/upload-image',
+            'emails/campaigns/audience-count',
         ];
 
         foreach ($bypassPaths as $bp) {

@@ -289,16 +289,41 @@
 
 
                         @if (function_exists('is_email_campaign_enabled') && is_email_campaign_enabled())
-                            <!--begin::Email Campaigns Header Button-->
-                            <a href="{{ route('emails.campaigns.index') }}"
-                                class="crm-header-nav-btn crm-nav-campaigns me-3" title="Email Marketing Campaigns"
-                                style="background: linear-gradient(135deg, #eff6ff, #dbeafe); border: 1px solid #93c5fd;">
-                                <span class="crm-nav-icon">
-                                    <i class="fa fa-bullhorn fs-7 text-primary"></i>
-                                </span>
-                                <span class="crm-nav-text text-primary fw-bolder">Campaigns</span>
-                            </a>
-                            <!--end::Email Campaigns Header Button-->
+                            @php
+                                $canAccessCampaigns = false;
+                                if (auth()->check()) {
+                                    $userRoleId = (int) auth()->user()->role_id;
+                                    if ($userRoleId === 1) {
+                                        $canAccessCampaigns = true;
+                                    } elseif (isset($premission) && isset($menus)) {
+                                        $campaignMenu = $menus->firstWhere('routes', 'emails/campaigns');
+                                        if ($campaignMenu) {
+                                            $campaignMenuIdStr = (string) $campaignMenu->id;
+                                            foreach ($premission as $perm) {
+                                                if ((int) $perm->role_id === $userRoleId) {
+                                                    $mIds = json_decode($perm->menu_id, true) ?? [];
+                                                    if (in_array($campaignMenuIdStr, array_map('strval', (array) $mIds), true)) {
+                                                        $canAccessCampaigns = true;
+                                                    }
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            @endphp
+                            @if ($canAccessCampaigns)
+                                <!--begin::Email Campaigns Header Button-->
+                                <a href="{{ route('emails.campaigns.index') }}"
+                                    class="crm-header-nav-btn crm-nav-campaigns me-3" title="Email Marketing Campaigns"
+                                    style="background: linear-gradient(135deg, #eff6ff, #dbeafe); border: 1px solid #93c5fd;">
+                                    <span class="crm-nav-icon">
+                                        <i class="fa fa-bullhorn fs-7 text-primary"></i>
+                                    </span>
+                                    <span class="crm-nav-text text-primary fw-bolder">Campaigns</span>
+                                </a>
+                                <!--end::Email Campaigns Header Button-->
+                            @endif
                         @endif
 
 

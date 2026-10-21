@@ -28,9 +28,9 @@
 
         .ain-admin-dashboard #kt_toolbar_container {
             background: linear-gradient(125deg, #101828 0%, #243b72 58%, #4f46e5 100%);
-            border-radius: 18px;
-            min-height: 96px;
-            padding: 22px 28px;
+            /* border-radius: 18px; */
+            min-height: 70px;
+            padding: 20px 28px;
             box-shadow: 0 16px 35px rgba(16, 24, 40, .18);
         }
 
@@ -666,8 +666,8 @@
                         </h1>
                     </div>
                     <!-- <div class="d-flex align-items-center py-1">
-                                        <a href="#" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#kt_modal_create_app" id="kt_toolbar_primary_button">Create</a>
-                                       </div> -->
+                                            <a href="#" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#kt_modal_create_app" id="kt_toolbar_primary_button">Create</a>
+                                           </div> -->
                 </div>
             </div>
 
@@ -2450,8 +2450,8 @@
                         </h1>
                     </div>
                     <!-- <div class="d-flex align-items-center py-1">
-                                        <a href="#" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#kt_modal_create_app" id="kt_toolbar_primary_button">Create</a>
-                                       </div> -->
+                                            <a href="#" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#kt_modal_create_app" id="kt_toolbar_primary_button">Create</a>
+                                           </div> -->
                 </div>
             </div>
 
