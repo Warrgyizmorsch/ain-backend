@@ -127,9 +127,12 @@ Route::prefix('emails')->name('emails.')->middleware(['auth', 'check.permission'
     Route::delete('/templates/{id}', [\App\Http\Controllers\EmailController::class, 'deleteTemplate'])->name('templates.delete');
 });
 
-// Email Campaign Public Tracking (Open Pixel & Click Redirect)
+// Email Campaign Public Tracking (Open Pixel & Click Redirect) & Assets
 Route::get('/email/track/open/{token}', [\App\Http\Controllers\EmailCampaignController::class, 'trackOpen'])->name('emails.campaigns.track.open');
 Route::get('/email/track/click/{token}', [\App\Http\Controllers\EmailCampaignController::class, 'trackClick'])->name('emails.campaigns.track.click');
+Route::get('/uploads/campaigns/{filename}', [\App\Http\Controllers\EmailCampaignController::class, 'serveImage'])
+    ->where('filename', '[A-Za-z0-9_\-\.]+')
+    ->name('emails.campaigns.image');
 Route::post('/webhook/emails/inbound', [\App\Http\Controllers\EmailController::class, 'webhook'])
     ->middleware('throttle:60,1')
     ->name('emails.webhook');

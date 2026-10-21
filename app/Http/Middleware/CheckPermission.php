@@ -212,6 +212,7 @@ class CheckPermission
             'lead.followups.dismiss',
             'emails.campaigns.upload-image',
             'emails.campaigns.audience-count',
+            'emails.campaigns.image',
         ];
 
         if ($currentRoute && in_array($currentRoute, $bypassRoutes, true)) {
@@ -234,6 +235,7 @@ class CheckPermission
             'lead/followups',
             'emails/campaigns/upload-image',
             'emails/campaigns/audience-count',
+            'uploads/campaigns',
         ];
 
         foreach ($bypassPaths as $bp) {
