@@ -323,14 +323,14 @@
                             <div class="mb-4">
                                 <label class="form-label fw-bold required">Email Body (HTML)</label>
                                 <div id="quillEditor" style="height: 350px; background: #fff;"></div>
-                                <textarea name="body_html" id="bodyHtmlInput" class="d-none" required></textarea>
+                                <textarea name="body_html" id="bodyHtmlInput" style="display:none;"></textarea>
                             </div>
                         </div>
                     </div>
 
                     <div class="card-footer p-6 border-top d-flex justify-content-between align-items-center bg-light">
                         <a href="{{ route('emails.campaigns.index') }}" class="btn btn-light">Cancel</a>
-                        <button type="submit" class="btn btn-primary fw-bold px-6">
+                        <button type="submit" id="submitCampaignBtn" class="btn btn-primary fw-bold px-6">
                             <i class="fa fa-paper-plane me-1"></i> Save & Launch Campaign
                         </button>
                     </div>
@@ -386,9 +386,61 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Sync Quill with hidden textarea on submit
-    $('#campaignForm').on('submit', function() {
-        $('#bodyHtmlInput').val(quill.root.innerHTML);
+    // Form submit validation & sync
+    $('#campaignForm').on('submit', function(e) {
+        // 1. Sync Quill editor HTML into hidden textarea
+        let htmlContent = '';
+        let textContent = '';
+        if (quill) {
+            htmlContent = (quill.root.innerHTML || '').trim();
+            textContent = (quill.getText() || '').trim();
+        }
+
+        // 2. Validate Campaign Name
+        const nameInput = $('input[name="name"]');
+        if (!nameInput.val() || !nameInput.val().trim()) {
+            e.preventDefault();
+            alert('Please enter a Campaign Name before launching.');
+            nameInput.focus();
+            return false;
+        }
+
+        // 3. Validate Subject Line
+        const subjectInput = $('#campaignSubject');
+        if (!subjectInput.val() || !subjectInput.val().trim()) {
+            e.preventDefault();
+            alert('Please enter an Email Subject Line.');
+            subjectInput.focus();
+            return false;
+        }
+
+        // 4. Validate Email Body
+        const hasContent = textContent.length > 0 || htmlContent.includes('<img') || htmlContent.includes('<table');
+        if (!hasContent || htmlContent === '<p><br></p>') {
+            e.preventDefault();
+            alert('Please enter email content or insert an image into the Email Body.');
+            if (quill) quill.focus();
+            return false;
+        }
+
+        $('#bodyHtmlInput').val(htmlContent);
+
+        // 5. Validate Audience: if CSV is selected, ensure a file is chosen
+        const audienceType = $('#audienceTypeInput').val();
+        if (audienceType === 'csv') {
+            const csvInput = $('input[name="csv_file"]')[0];
+            if (!csvInput || !csvInput.files || !csvInput.files.length) {
+                e.preventDefault();
+                alert('Please choose a CSV file with recipient email addresses.');
+                $('input[name="csv_file"]').focus();
+                return false;
+            }
+        }
+
+        // 6. Show spinner on button
+        const submitBtn = $('#submitCampaignBtn');
+        submitBtn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin me-2"></i> Saving & Launching...');
+        return true;
     });
 
     updateAudienceCount();
