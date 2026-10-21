@@ -214,7 +214,7 @@ class EmailCampaignController extends Controller
             'send_action'            => ['required', 'string', 'in:now,schedule,draft'],
             'scheduled_at'           => ['nullable', 'date'],
             'throttle_rate'          => ['nullable', 'integer', 'min:5', 'max:300'],
-            'csv_file'               => ['nullable', 'file', 'mimes:csv,txt'],
+            'csv_file'               => ['nullable', 'file', 'max:20480'],
         ]);
 
         $status = match ($validated['send_action']) {
@@ -488,13 +488,17 @@ class EmailCampaignController extends Controller
 
         if ($type === 'csv' && $request->hasFile('csv_file')) {
             $file = $request->file('csv_file');
-            if (($handle = fopen($file->getRealPath(), 'r')) !== false) {
+            $ext = strtolower($file->getClientOriginalExtension());
+            if (in_array($ext, ['csv', 'txt', 'xls', 'xlsx']) && ($handle = fopen($file->getRealPath(), 'r')) !== false) {
                 $header = fgetcsv($handle);
                 $emailIdx = 0;
                 $nameIdx = 1;
-                foreach ($header as $i => $col) {
-                    if (str_contains(strtolower($col), 'email')) $emailIdx = $i;
-                    if (str_contains(strtolower($col), 'name')) $nameIdx = $i;
+                if (is_array($header)) {
+                    foreach ($header as $i => $col) {
+                        $colClean = strtolower(trim((string)$col));
+                        if (str_contains($colClean, 'email')) $emailIdx = $i;
+                        if (str_contains($colClean, 'name')) $nameIdx = $i;
+                    }
                 }
 
                 while (($row = fgetcsv($handle)) !== false) {
