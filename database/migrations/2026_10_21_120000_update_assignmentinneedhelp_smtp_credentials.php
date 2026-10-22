@@ -12,8 +12,11 @@ return new class extends Migration
     {
         $account = EmailConfiguration::where('email_address', 'assignmentinneedhelp@gmail.com')->first();
         if ($account) {
-            $account->password = 'wickkjpporzqnnuz';
-            $account->incoming_password = 'wickkjpporzqnnuz';
+            $password = env('ASSIGNMENTINNEEDHELP_MAIL_PASSWORD', $account->password);
+            if (!empty($password)) {
+                $account->password = $password;
+                $account->incoming_password = $password;
+            }
             $account->host = 'smtp.gmail.com';
             $account->port = 465;
             $account->encryption = 'ssl';
