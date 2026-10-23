@@ -216,7 +216,7 @@ class ExportController extends Controller
             fputs($handle, "\xEF\xBB\xBF");
 
             fputcsv($handle, [
-                'Order Code', 'User Name', 'User Email', 'Mobile', 'Order Date',
+                'Order Code', 'User Name', 'User Email', 'Country Code', 'Mobile', 'Order Date',
                 'Deadline', 'Delivery Time', 'Pages', 'Title', 'Status',
                 'Amount', 'Paid', 'Due', 'Team', 'Writer Name',
                 'SubWriter', 'Writer Deadline', 'Chapter', 'Draft Date', 'Draft Time'
@@ -232,6 +232,10 @@ class ExportController extends Controller
                     $userObj = $order->user ?? $order->lead?->user ?? $order->frontendLead?->user;
                     $userName = $userObj->name ?? $order->lead?->user_name ?? '';
                     $userEmail = $userObj->email ?? $order->lead?->email ?? '';
+                    $userCountryCode = $userObj->countrycode ?? $order->lead?->countrycode ?? $order->frontendLead?->countrycode ?? '';
+                    if (!empty($userCountryCode)) {
+                        $userCountryCode = str_starts_with((string)$userCountryCode, '+') ? $userCountryCode : '+' . ltrim((string)$userCountryCode, '+');
+                    }
                     $userMobile = $userObj->mobile_no ?? $order->lead?->mobile ?? '';
 
                     $subWriterNames = [];
@@ -251,6 +255,7 @@ class ExportController extends Controller
                         $order->order_id,
                         $userName,
                         $userEmail,
+                        $userCountryCode,
                         $userMobile,
                         $order->order_date ?? '',
                         $order->delivery_date ?? '',
