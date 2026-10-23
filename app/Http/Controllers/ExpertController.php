@@ -108,6 +108,7 @@ class ExpertController extends Controller
         } 
 
         $expert->save();
+        \App\Services\AuthorService::syncAll();
         return redirect('new-expert')->with('success', 'Expert saved successfully!');
     } catch (\Exception $e) {
         return redirect()->back()->with('error', 'Error updating expert: ' . $e->getMessage());

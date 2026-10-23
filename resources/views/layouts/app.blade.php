@@ -1211,5 +1211,8 @@
         @include('layouts.partials.followup-reminder-alert')
     @endauth
 
+    {{-- Global Meta Tag & Meta Description Character Counter --}}
+    @include('layouts.partials.meta-character-counter')
+
 </body>
 </html>

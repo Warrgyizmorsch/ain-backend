@@ -83,6 +83,8 @@ class AuthorController extends Controller
             'updated_at' => now()
         ]);
 
+        \App\Services\AuthorService::clearCache();
+
         return redirect()
             ->back()
             ->with('success', 'Author Added Successfully');
@@ -158,6 +160,8 @@ class AuthorController extends Controller
                 'updated_at' => now()
             ]);
 
+        \App\Services\AuthorService::clearCache();
+
         return redirect()
             ->back()
             ->with('success', 'Author Updated Successfully');
@@ -192,6 +196,8 @@ class AuthorController extends Controller
         DB::table('author')
             ->where('id', $id)
             ->delete();
+
+        \App\Services\AuthorService::clearCache();
 
         return redirect()
             ->back()

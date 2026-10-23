@@ -84,6 +84,32 @@ class BlogApiController extends Controller
                 ->select('id', 'name', 'photo', 'description')
                 ->first();
 
+            // Resilient fallback if author_id points directly to expert or user id
+            if (!$author && \Illuminate\Support\Facades\Schema::hasTable('expert')) {
+                $expert = DB::table('expert')->where('id', $blog->author_id)->first();
+                if ($expert) {
+                    $cleanDesc = trim(strip_tags($expert->content ?? ''));
+                    $author = (object)[
+                        'id' => $expert->id,
+                        'name' => $expert->name,
+                        'photo' => $expert->image,
+                        'description' => mb_strlen($cleanDesc) > 500 ? mb_substr($cleanDesc, 0, 497) . '...' : $cleanDesc,
+                    ];
+                }
+            }
+
+            if (!$author && \Illuminate\Support\Facades\Schema::hasTable('users')) {
+                $user = DB::table('users')->where('id', $blog->author_id)->first();
+                if ($user) {
+                    $author = (object)[
+                        'id' => $user->id,
+                        'name' => $user->name,
+                        'photo' => $user->photo ?: 'assets/media/avatars/blank.png',
+                        'description' => 'Academic Writer at Assignment in Need',
+                    ];
+                }
+            }
+
             if ($author) {
                 if (!empty($author->photo) && !str_starts_with($author->photo, 'http://') && !str_starts_with($author->photo, 'https://')) {
                     $author->photo = url(ltrim($author->photo, '/'));

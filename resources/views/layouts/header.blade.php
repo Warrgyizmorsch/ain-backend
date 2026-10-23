@@ -302,7 +302,13 @@
                                             foreach ($premission as $perm) {
                                                 if ((int) $perm->role_id === $userRoleId) {
                                                     $mIds = json_decode($perm->menu_id, true) ?? [];
-                                                    if (in_array($campaignMenuIdStr, array_map('strval', (array) $mIds), true)) {
+                                                    if (
+                                                        in_array(
+                                                            $campaignMenuIdStr,
+                                                            array_map('strval', (array) $mIds),
+                                                            true,
+                                                        )
+                                                    ) {
                                                         $canAccessCampaigns = true;
                                                     }
                                                     break;
