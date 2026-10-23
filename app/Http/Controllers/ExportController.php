@@ -205,63 +205,80 @@ class ExportController extends Controller
             }
         }
 
-        // Get filtered orders
-        $filteredOrders = $orders->orderBy('orders.id', 'desc')->get();
-        $totalOrders = $filteredOrders->count();
-        $totalWordCount = $filteredOrders->reduce(function ($carry, $order) {
-            return $carry + (is_numeric($order->pages) ? (int)$order->pages : 0);
-        }, 0);
-
-        // Prepare CSV output
-        $csvData = 'Total Orders,Total Word Count' . PHP_EOL;
-        $csvData .= $totalOrders . ',' . $totalWordCount . PHP_EOL;
-        $csvData .= 'Order Code,User Name,User Email,Mobile,Order Date,Deadline,Delivery Time,Pages,Title,Status,Amount,Paid,Due,Team,Writer Name,SubWriter,Writer Deadline,Chapter,Draft Date,Draft Time' . PHP_EOL;
-
-        foreach ($filteredOrders as $order) {
-            $userObj = $order->user ?? $order->lead?->user ?? $order->frontendLead?->user;
-            $userName = '"' . str_replace('"', '""', $userObj->name ?? $order->lead?->user_name ?? '') . '"';
-            $userEmail = '"' . str_replace('"', '""', $userObj->email ?? $order->lead?->email ?? '') . '"';
-            $userMobile = '"' . str_replace('"', '""', $userObj->mobile_no ?? $order->lead?->mobile ?? '') . '"';
-
-            $subWriterNames = [];
-            if ($order->mulsubwriter) {
-                foreach ($order->mulsubwriter as $msw) {
-                    if (isset($msw->user) && !empty($msw->user->name)) {
-                        $subWriterNames[] = $msw->user->name;
-                    }
-                }
-            }
-
-            $amount = is_numeric($order->amount) ? (float)$order->amount : 0;
-            $received = is_numeric($order->received_amount) ? (float)$order->received_amount : 0;
-            $due = $amount - $received;
-
-            $order_id = '"' . str_replace('"', '""', $order->order_id) . '"';
-            $orderDate = '"' . str_replace('"', '""', $order->order_date ?? '') . '"';
-            $deadline = '"' . str_replace('"', '""', $order->delivery_date ?? '') . '"';
-            $deliveryTime = '"' . str_replace('"', '""', $order->delivery_time ?? '') . '"';
-            $pages = '"' . str_replace('"', '""', $order->pages ?? '') . '"';
-            $title = '"' . str_replace('"', '""', $order->title ?? '') . '"';
-            $projectstatus = '"' . str_replace('"', '""', $order->projectstatus ?? '') . '"';
-            $amountStr = '"' . number_format($amount, 2, '.', '') . '"';
-            $receivedStr = '"' . number_format($received, 2, '.', '') . '"';
-            $dueStr = '"' . number_format($due, 2, '.', '') . '"';
-            $teamName = '"' . str_replace('"', '""', $order->team?->team_name ?? '') . '"';
-            $writerName = '"' . str_replace('"', '""', $order->writer_name ?? '') . '"';
-            $subWriterStr = '"' . str_replace('"', '""', implode(', ', $subWriterNames)) . '"';
-            $writerDeadline = '"' . str_replace('"', '""', $order->writer_deadline ?? '') . '"';
-            $chapter = '"' . str_replace('"', '""', $order->chapter ?? '') . '"';
-            $draftDate = '"' . str_replace('"', '""', $order->draft_date ?? '') . '"';
-            $draftTime = '"' . str_replace('"', '""', $order->draft_time ?? '') . '"';
-
-            $csvData .= $order_id . ',' . $userName . ',' . $userEmail . ',' . $userMobile . ',' . $orderDate . ',' . $deadline . ',' . $deliveryTime . ',' . $pages . ',' . $title . ',' . $projectstatus . ',' . $amountStr . ',' . $receivedStr . ',' . $dueStr . ',' . $teamName . ',' . $writerName . ',' . $subWriterStr . ',' . $writerDeadline . ',' . $chapter . ',' . $draftDate . ',' . $draftTime . PHP_EOL;
-        }
+        set_time_limit(0);
+        ini_set('memory_limit', '1024M');
 
         $filename = 'Orders_' . now()->format('Ymd_His') . '.csv';
 
-        return response($csvData, 200, [
+        return response()->streamDownload(function () use ($orders) {
+            $handle = fopen('php://output', 'w');
+            // Write UTF-8 BOM so Excel opens it with proper encoding
+            fputs($handle, "\xEF\xBB\xBF");
+
+            fputcsv($handle, [
+                'Order Code', 'User Name', 'User Email', 'Mobile', 'Order Date',
+                'Deadline', 'Delivery Time', 'Pages', 'Title', 'Status',
+                'Amount', 'Paid', 'Due', 'Team', 'Writer Name',
+                'SubWriter', 'Writer Deadline', 'Chapter', 'Draft Date', 'Draft Time'
+            ]);
+
+            if (ob_get_level() > 0) {
+                @ob_flush();
+            }
+            @flush();
+
+            $orders->orderBy('orders.id', 'desc')->chunk(500, function ($batchOrders) use ($handle) {
+                foreach ($batchOrders as $order) {
+                    $userObj = $order->user ?? $order->lead?->user ?? $order->frontendLead?->user;
+                    $userName = $userObj->name ?? $order->lead?->user_name ?? '';
+                    $userEmail = $userObj->email ?? $order->lead?->email ?? '';
+                    $userMobile = $userObj->mobile_no ?? $order->lead?->mobile ?? '';
+
+                    $subWriterNames = [];
+                    if ($order->relationLoaded('mulsubwriter') && $order->mulsubwriter) {
+                        foreach ($order->mulsubwriter as $msw) {
+                            if (isset($msw->user) && !empty($msw->user->name)) {
+                                $subWriterNames[] = $msw->user->name;
+                            }
+                        }
+                    }
+
+                    $amount = is_numeric($order->amount) ? (float)$order->amount : 0;
+                    $received = is_numeric($order->received_amount) ? (float)$order->received_amount : 0;
+                    $due = $amount - $received;
+
+                    fputcsv($handle, [
+                        $order->order_id,
+                        $userName,
+                        $userEmail,
+                        $userMobile,
+                        $order->order_date ?? '',
+                        $order->delivery_date ?? '',
+                        $order->delivery_time ?? '',
+                        $order->pages ?? '',
+                        $order->title ?? '',
+                        $order->projectstatus ?? '',
+                        number_format($amount, 2, '.', ''),
+                        number_format($received, 2, '.', ''),
+                        number_format($due, 2, '.', ''),
+                        $order->team?->team_name ?? '',
+                        $order->writer_name ?? '',
+                        implode(', ', $subWriterNames),
+                        $order->writer_deadline ?? '',
+                        $order->chapter ?? '',
+                        $order->draft_date ?? '',
+                        $order->draft_time ?? ''
+                    ]);
+                }
+                if (ob_get_level() > 0) {
+                    @ob_flush();
+                }
+                @flush();
+            });
+
+            fclose($handle);
+        }, $filename, [
             'Content-Type' => 'text/csv; charset=UTF-8',
-            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
             'Cache-Control' => 'no-cache, no-store, must-revalidate',
             'Pragma' => 'no-cache',
             'Expires' => '0',
