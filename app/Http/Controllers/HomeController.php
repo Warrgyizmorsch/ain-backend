@@ -19,6 +19,7 @@ use App\Models\Review;
 use App\Models\Experts;
 use Illuminate\Support\Facades\Cache;
 use App\Services\SchemaService;
+use App\Services\AuthorService;
 use Illuminate\Support\Facades\DB;
 
 class HomeController extends Controller
@@ -1342,10 +1343,13 @@ class HomeController extends Controller
     }
     public function write_blog()
     {
-         $authors = DB::table('author')
-        ->orderBy('name', 'asc')
-        ->get();
-        return view('blog-sample.blog', compact('authors'));
+        $authorData = AuthorService::getAuthorsGrouped();
+        $authors = $authorData['authors'];
+        $expertAuthors = $authorData['expertAuthors'];
+        $writerAuthors = $authorData['writerAuthors'];
+        $otherAuthors = $authorData['otherAuthors'];
+
+        return view('blog-sample.blog', compact('authors', 'expertAuthors', 'writerAuthors', 'otherAuthors'));
     }
     public function blog_list(Request $request)
     {
@@ -1381,11 +1385,14 @@ class HomeController extends Controller
 
         // Decode FAQ data if it exists, otherwise set it as an empty array
         $faqData = !empty($data['blog']->faq) ? json_decode($data['blog']->faq, true) : [];
-        $authors = DB::table('author')
-        ->orderBy('name', 'asc')
-        ->get();
 
-        return view("blog-sample.blog-edit", compact('data', 'faqData', 'authors'));
+        $authorData = AuthorService::getAuthorsGrouped();
+        $authors = $authorData['authors'];
+        $expertAuthors = $authorData['expertAuthors'];
+        $writerAuthors = $authorData['writerAuthors'];
+        $otherAuthors = $authorData['otherAuthors'];
+
+        return view("blog-sample.blog-edit", compact('data', 'faqData', 'authors', 'expertAuthors', 'writerAuthors', 'otherAuthors'));
     }
 
 

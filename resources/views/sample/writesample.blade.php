@@ -93,12 +93,22 @@
                                 </select>
                              </div>
                             <div class="mt-4">
-                                <label for="meta_title" class="form-label fw-bold">Meta Title</label>
-                                 <input type="text"  value="{{$sample->meta_title ?? ''}} " class="form-control" placeholder="Meta Title " name="meta_title" required>
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <label for="meta_title" class="form-label fw-bold mb-0">Meta Title</label>
+                                    <span class="meta-char-counter-badge" id="meta_title-counter">
+                                        <span class="char-count">{{ mb_strlen(trim($sample->meta_title ?? '')) }}</span> characters
+                                    </span>
+                                </div>
+                                <input type="text" id="meta_title" value="{{ trim($sample->meta_title ?? '') }}" class="form-control" placeholder="Meta Title" name="meta_title" required>
                             </div>
                             <div class="mt-4">
-                                <label for="meta_description" class="form-label fw-bold">Meta Description</label>
-                                <textarea type="text"  value="" class="form-control "  placeholder="Meta Discription"name="meta_description" required rows="4" cols="50">{{$sample->meta_description ?? ''}} </textarea>
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <label for="meta_description" class="form-label fw-bold mb-0">Meta Description</label>
+                                    <span class="meta-char-counter-badge" id="meta_description-counter">
+                                        <span class="char-count">{{ mb_strlen(trim($sample->meta_description ?? '')) }}</span> characters
+                                    </span>
+                                </div>
+                                <textarea id="meta_description" class="form-control" placeholder="Meta Description" name="meta_description" required rows="4" cols="50">{{ trim($sample->meta_description ?? '') }}</textarea>
                             </div>
                             <!-- Submit Button -->
                             <div class="mt-4">

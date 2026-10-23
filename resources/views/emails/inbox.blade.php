@@ -4123,7 +4123,10 @@ function initEmailAutocomplete(inputId, dropdownId) {
                         <div class="email-autocomplete-item" data-index="${idx}" data-email="${escapeHtml(email)}" data-name="${escapeHtml(name)}">
                             <div class="email-autocomplete-avatar">${escapeHtml(initials)}</div>
                             <div class="d-flex flex-column" style="min-width:0;">
-                                <div class="email-autocomplete-name text-truncate">${escapeHtml(name)}</div>
+                                <div class="email-autocomplete-name text-truncate">
+                                    ${escapeHtml(name)}
+                                    ${u.user_id ? `<span class="badge bg-light text-muted border ms-1 fs-9">${u.is_lead ? 'Lead #' : 'ID: '}${escapeHtml(String(u.user_id))}</span>` : ''}
+                                </div>
                                 <div class="email-autocomplete-email text-truncate">${escapeHtml(displayEmail)}</div>
                             </div>
                             ${u.mobile_no ? `<span class="badge bg-light text-muted border ms-auto fs-9">${escapeHtml(u.mobile_no)}</span>` : ''}
