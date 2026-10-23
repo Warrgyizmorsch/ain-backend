@@ -30,7 +30,8 @@
         <!--end::Logo-->
 
         <!--begin::Navigation + User Info-->
-        <div class="d-flex align-items-stretch justify-content-between flex-lg-grow-1">
+        {{-- <div class="d-flex align-items-stretch justify-content-between flex-lg-grow-1"> --}}
+        <div class="d-flex align-items-stretch flex-lg-grow-1">
 
             <!--begin::Navbar-->
             <div class="d-flex align-items-stretch" id="kt_header_nav">
@@ -263,7 +264,7 @@
                             <span class="crm-nav-icon">
                                 <i class="fa fa-envelope fs-7"></i>
                             </span>
-                            <span class="crm-nav-text">Client Email</span>
+                            <span class="crm-nav-text">Client</span>
                         </a>
                         <!--end::Client Email Header Button-->
 
@@ -273,7 +274,7 @@
                             <span class="crm-nav-icon">
                                 <i class="fa fa-envelope-open-text fs-7"></i>
                             </span>
-                            <span class="crm-nav-text">Writer Email</span>
+                            <span class="crm-nav-text">Writer</span>
                         </a>
                         <!--end::Writer Email Header Button-->
 
@@ -283,7 +284,7 @@
                             <span class="crm-nav-icon">
                                 <i class="fa fa-file-excel fs-7"></i>
                             </span>
-                            <span class="crm-nav-text">Excel Sheets</span>
+                            <span class="crm-nav-text">Excel</span>
                         </a>
                         <!--end::Excel Sheets Header Button-->
 
