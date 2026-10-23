@@ -174,14 +174,14 @@
                 $cIsClosed = !empty($c['is_closed']);
                 $cTemplateRequired = !empty($c['template_required']);
             @endphp
-            <div class="wab-contact-item {{ $c['active'] ? 'is-active' : '' }}" id="wab-contact-card-{{ preg_replace('/\D+/', '', $cPhone) }}" data-name="{{ strtolower($cDisplayName) }}" data-contact-id="{{ $c['id'] }}" data-url="{{ route('whatsapp.chat') }}" data-phone="{{ $cPhone }}" data-phone-display="{{ $c['phone_display'] ?? mask_phone_for_display('', $cPhone) }}" data-color="{{ $c['color'] }}" data-badge="{{ $c['badge'] ?? 0 }}" data-is-group="{{ !empty($c['is_group']) ? '1' : '0' }}" data-is-archived="{{ $cIsArchived ? '1' : '0' }}" data-is-pinned="{{ $cIsPinned ? '1' : '0' }}" data-is-closed="{{ $cIsClosed ? '1' : '0' }}" data-template-required="{{ $cTemplateRequired ? '1' : '0' }}" data-label-ids="{{ json_encode(array_values(array_map('strval', $cLabelIds ?? []))) }}">
+            <div class="wab-contact-item {{ $c['active'] ? 'is-active' : '' }}" id="wab-contact-card-{{ preg_replace('/\D+/', '', $cPhone) }}" data-name="{{ strtolower($cDisplayName) }}" data-user-id="{{ $c['user_id'] ?? '' }}" data-contact-id="{{ $c['id'] }}" data-url="{{ route('whatsapp.chat') }}" data-phone="{{ $cPhone }}" data-phone-display="{{ $c['phone_display'] ?? mask_phone_for_display('', $cPhone) }}" data-color="{{ $c['color'] }}" data-badge="{{ $c['badge'] ?? 0 }}" data-is-group="{{ !empty($c['is_group']) ? '1' : '0' }}" data-is-archived="{{ $cIsArchived ? '1' : '0' }}" data-is-pinned="{{ $cIsPinned ? '1' : '0' }}" data-is-closed="{{ $cIsClosed ? '1' : '0' }}" data-template-required="{{ $cTemplateRequired ? '1' : '0' }}" data-label-ids="{{ json_encode(array_values(array_map('strval', $cLabelIds ?? []))) }}">
                 <div class="wab-avatar" style="background:{{ $c['color'] }}1a;color:{{ $c['color'] }}">
                     {{ (preg_match('/^\d|\*/', $cDisplayName)) ? '#' : strtoupper(substr($cDisplayName,0,1)) }}
                     <span class="wab-status-badge wab-status--{{ $c['status'] }}"></span>
                 </div>
                 <div class="wab-contact-info">
                     <div class="wab-contact-row-top">
-                        <span class="wab-contact-name">{{ $cDisplayName }}</span>
+                        <span class="wab-contact-name">{{ $cDisplayName }}@if(!empty($c['user_id'])) <span class="badge bg-light text-muted border ms-1 fs-9" style="font-size:10px;padding:1.5px 5px;font-weight:600;">ID: {{ $c['user_id'] }}</span>@endif</span>
                         <div class="d-flex align-items-center gap-1">
                             <span class="wab-pin-indicator text-muted" title="Pinned chat" style="display: {{ $cIsPinned ? 'inline-flex' : 'none' }}; align-items: center;">
                                 <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="0.5" style="transform: rotate(45deg); color: #8696a0;"><path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2l-2-2z"/></svg>
@@ -6706,6 +6706,7 @@ document.addEventListener('DOMContentLoaded', function() {
         div.className = `wab-contact-item ${c.active ? 'is-active' : ''}`;
         div.id = `wab-contact-card-${cleanPhone}`;
         div.dataset.name = displayName.toLowerCase();
+        div.dataset.userId = c.user_id ? String(c.user_id) : '';
         div.dataset.contactId = c.id;
         div.dataset.url = @json(route('whatsapp.chat'));
         div.dataset.phone = c.phone || '';
@@ -6742,7 +6743,7 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>
             <div class="wab-contact-info">
                 <div class="wab-contact-row-top">
-                    <span class="wab-contact-name">${escapeHtml(displayName)}</span>
+                    <span class="wab-contact-name">${escapeHtml(displayName)} ${c.user_id ? `<span class="badge bg-light text-muted border ms-1 fs-9" style="font-size:10px;padding:1.5px 5px;font-weight:600;">ID: ${escapeHtml(String(c.user_id))}</span>` : ''}</span>
                     <div class="d-flex align-items-center gap-1">
                         <span class="wab-pin-indicator text-muted" title="Pinned chat" style="display: ${c.is_pinned ? 'inline-flex' : 'none'}; align-items: center;">
                             <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="0.5" style="transform: rotate(45deg); color: #8696a0;"><path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2l-2-2z"/></svg>
@@ -6881,6 +6882,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const name = (item.dataset.name || '').toLowerCase();
                 const phone = (item.dataset.phone || '').toLowerCase();
                 const phoneDisplay = (item.dataset.phoneDisplay || '').toLowerCase();
+                const userId = (item.dataset.userId || '').toLowerCase();
                 const q = contactSearchQuery.toLowerCase().trim();
                 const cleanPhone = phone.replace(/\D+/g, '');
                 const cleanPhoneDisplay = phoneDisplay.replace(/[^\d*]/g, '');
@@ -6890,7 +6892,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (parts.length > 0) {
                         const pattern = '^.*' + parts.map(p => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('.*') + '.*$';
                         const reg = new RegExp(pattern, 'i');
-                        matchSearch = reg.test(phone) || reg.test(cleanPhone) || reg.test(phoneDisplay) || reg.test(cleanPhoneDisplay) || reg.test(name);
+                        matchSearch = reg.test(phone) || reg.test(cleanPhone) || reg.test(phoneDisplay) || reg.test(cleanPhoneDisplay) || reg.test(name) || reg.test(userId);
                     } else {
                         matchSearch = true;
                     }
@@ -6899,6 +6901,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     matchSearch = name.includes(q) || 
                                   phone.includes(q) || 
                                   phoneDisplay.includes(q) || 
+                                  (userId && userId === cleanQ) ||
+                                  (userId && userId.includes(cleanQ)) ||
                                   (cleanQ.length >= 3 && cleanPhone.includes(cleanQ));
                 }
             }

@@ -300,14 +300,24 @@
                                 @endif
                             </div>
                             <div class="mb-3">
-                                <label for="blogTitle" class="form-label">Meta Tag</label>
-                                <input type="text" class="form-control" value="{{ $expert->meta_tag ?? '' }}" name="MetaTag"
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <label for="MetaTag" class="form-label mb-0 fw-bold">Meta Tag</label>
+                                    <span class="meta-char-counter-badge" id="MetaTag-counter">
+                                        <span class="char-count">{{ mb_strlen($expert->meta_tag ?? '') }}</span> characters
+                                    </span>
+                                </div>
+                                <input type="text" class="form-control" id="MetaTag" value="{{ $expert->meta_tag ?? '' }}" name="MetaTag"
                                     required>
                             </div>
                             <div class="mb-3">
-                                <label for="blogTitle" class="form-label">Meta Description</label>
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <label for="Metadescription" class="form-label mb-0 fw-bold">Meta Description</label>
+                                    <span class="meta-char-counter-badge" id="Metadescription-counter">
+                                        <span class="char-count">{{ mb_strlen($expert->meta_description ?? '') }}</span> characters
+                                    </span>
+                                </div>
                                 <textarea class="form-control" name="Metadescription"
-                                    id="">{{ $expert->meta_description ?? '' }}</textarea>
+                                    id="Metadescription" rows="3">{{ $expert->meta_description ?? '' }}</textarea>
                             </div>
                             <button type="button" class="btn btn-success mt-2 add-review">+ Add Review</button>
                             <button type="submit"

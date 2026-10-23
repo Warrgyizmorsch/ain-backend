@@ -1934,12 +1934,38 @@ class WhatsappController extends Controller
             $cleanSearch = preg_replace('/\D+/', '', $search);
             $clean10 = strlen($cleanSearch) >= 10 ? substr($cleanSearch, -10) : $cleanSearch;
 
-            // Resolve users: utilize find_user_ids_by_search_term (handles masked phone/email/name)
-            $matchedUserIds = find_user_ids_by_search_term($search);
+            // Direct Unique User ID match check (e.g. 11099, 14426)
+            $exactUser = is_numeric($search) ? User::find((int) $search) : null;
+
+            // Order reference check (e.g. UKS44000 or numeric order ID)
+            $orderCustomerUids = Order::query()
+                ->where('order_id', $search)
+                ->orWhere('id', is_numeric($search) ? (int) $search : 0)
+                ->pluck('uid')
+                ->filter()
+                ->all();
+
+            $matchedUserIds = [];
+            if ($exactUser) {
+                $matchedUserIds[] = $exactUser->id;
+            }
+            if (! empty($orderCustomerUids)) {
+                $matchedUserIds = array_merge($matchedUserIds, $orderCustomerUids);
+            }
+
+            // Also check standard search term helper
+            $termUserIds = find_user_ids_by_search_term($search);
+            if (is_numeric($search) && $exactUser) {
+                // If it was an exact user ID search, do NOT pull in random users who just have these numbers in their email
+                $matchedUserIds = array_values(array_unique($matchedUserIds));
+            } else {
+                $matchedUserIds = array_values(array_unique(array_merge($matchedUserIds, $termUserIds)));
+            }
+
             if (! empty($matchedUserIds)) {
                 $matchedUsers = User::query()
                     ->whereIn('id', $matchedUserIds)
-                    ->get(['id', 'name', 'mobile_no', 'email']);
+                    ->get(['id', 'name', 'countrycode', 'countrycode2', 'mobile_no', 'mobile_no2', 'email']);
             }
 
             // Leads search
@@ -1962,7 +1988,7 @@ class WhatsappController extends Controller
                             }
                         }
                     })
-                    ->get(['id', 'user_name', 'mobile', 'email']);
+                    ->get(['id', 'user_name', 'countrycode', 'mobile', 'email']);
             } else {
                 $matchedLeads = Leads::query()
                     ->where(function ($q) use ($search, $cleanSearch, $clean10) {
@@ -1974,14 +2000,49 @@ class WhatsappController extends Controller
                         if ($clean10 !== '') {
                             $q->orWhere('mobile', 'like', "%{$clean10}");
                         }
+                        if (is_numeric($search)) {
+                            $q->orWhere('id', (int) $search);
+                        }
                     })
-                    ->get(['id', 'user_name', 'mobile', 'email']);
+                    ->get(['id', 'user_name', 'countrycode', 'mobile', 'email']);
             }
 
             $allMatchedSearchPhones = [];
-            foreach ($matchedUsers->pluck('mobile_no')->concat($matchedLeads->pluck('mobile'))->filter()->unique() as $p) {
-                foreach ($this->getPhoneVariants($p) as $v) {
-                    $allMatchedSearchPhones[$v] = true;
+            foreach ($matchedUsers as $mu) {
+                if (! empty($mu->mobile_no)) {
+                    $normPhone = preg_replace('/\D+/', '', (string) ($mu->countrycode . $mu->mobile_no));
+                    if ($normPhone) {
+                        foreach ($this->getPhoneVariants($normPhone) as $v) {
+                            $allMatchedSearchPhones[$v] = true;
+                        }
+                    }
+                    foreach ($this->getPhoneVariants($mu->mobile_no) as $v) {
+                        $allMatchedSearchPhones[$v] = true;
+                    }
+                }
+                if (! empty($mu->mobile_no2)) {
+                    $normPhone2 = preg_replace('/\D+/', '', (string) ($mu->countrycode2 . $mu->mobile_no2));
+                    if ($normPhone2) {
+                        foreach ($this->getPhoneVariants($normPhone2) as $v) {
+                            $allMatchedSearchPhones[$v] = true;
+                        }
+                    }
+                    foreach ($this->getPhoneVariants($mu->mobile_no2) as $v) {
+                        $allMatchedSearchPhones[$v] = true;
+                    }
+                }
+            }
+            foreach ($matchedLeads as $ml) {
+                if (! empty($ml->mobile)) {
+                    $normLeadPhone = preg_replace('/\D+/', '', (string) (($ml->countrycode ?? '') . $ml->mobile));
+                    if ($normLeadPhone) {
+                        foreach ($this->getPhoneVariants($normLeadPhone) as $v) {
+                            $allMatchedSearchPhones[$v] = true;
+                        }
+                    }
+                    foreach ($this->getPhoneVariants($ml->mobile) as $v) {
+                        $allMatchedSearchPhones[$v] = true;
+                    }
                 }
             }
             $searchPhoneKeys = array_keys($allMatchedSearchPhones);
@@ -2160,14 +2221,24 @@ class WhatsappController extends Controller
         }
 
         $users = ! empty($allVariants)
-            ? User::query()->whereIn('mobile_no', array_keys($allVariants))->get(['id', 'name', 'mobile_no'])
+            ? User::query()
+                ->where(function ($uq) use ($allVariants) {
+                    $uq->whereIn('mobile_no', array_keys($allVariants))
+                        ->orWhereIn('mobile_no2', array_keys($allVariants));
+                })
+                ->get(['id', 'name', 'countrycode', 'mobile_no', 'countrycode2', 'mobile_no2'])
             : collect();
 
         $userMap = [];
         foreach ($users as $u) {
-            $matchedPhone = $allVariants[$u->mobile_no] ?? null;
-            if ($matchedPhone && ! isset($userMap[$matchedPhone])) {
-                $userMap[$matchedPhone] = $u;
+            foreach ([$u->mobile_no, $u->mobile_no2, $u->countrycode . $u->mobile_no, $u->countrycode2 . $u->mobile_no2] as $m) {
+                $cleanM = preg_replace('/\D+/', '', (string) $m);
+                if ($cleanM && isset($allVariants[$cleanM])) {
+                    $matchedPhone = $allVariants[$cleanM];
+                    if (! isset($userMap[$matchedPhone])) {
+                        $userMap[$matchedPhone] = $u;
+                    }
+                }
             }
         }
 
@@ -2279,6 +2350,7 @@ class WhatsappController extends Controller
 
             return [
                 'id' => $contact->id,
+                'user_id' => $user?->id,
                 'phone' => $contact->phone,
                 'phone_display' => mask_phone_for_display('', $contact->phone),
                 'name' => $name,
@@ -2360,8 +2432,17 @@ class WhatsappController extends Controller
             }
         }
 
-        // Sort: Pinned chats always stay on top
-        usort($contacts, function ($a, $b) {
+        // Sort: Exact User ID match stays on top, then pinned chats
+        $exactUserId = (is_numeric($search) && strlen($search) >= 2) ? (int) $search : null;
+
+        usort($contacts, function ($a, $b) use ($exactUserId) {
+            if ($exactUserId) {
+                $aIsExact = (! empty($a['user_id']) && (int) $a['user_id'] === $exactUserId) ? 1 : 0;
+                $bIsExact = (! empty($b['user_id']) && (int) $b['user_id'] === $exactUserId) ? 1 : 0;
+                if ($aIsExact !== $bIsExact) {
+                    return $bIsExact - $aIsExact;
+                }
+            }
             $aPinned = ! empty($a['is_pinned']) ? 1 : 0;
             $bPinned = ! empty($b['is_pinned']) ? 1 : 0;
             if ($aPinned !== $bPinned) {
@@ -2382,18 +2463,23 @@ class WhatsappController extends Controller
             }
 
             foreach ($matchedUsers as $mu) {
-                if ($mu->mobile_no && ! isset($existingVariants[$mu->mobile_no])) {
+                $fullPhone = preg_replace('/\D+/', '', (string) ($mu->countrycode . $mu->mobile_no)) ?: $mu->mobile_no;
+                if ($fullPhone && ! isset($existingVariants[$fullPhone]) && ! isset($existingVariants[$mu->mobile_no])) {
+                    foreach ($this->getPhoneVariants($fullPhone) as $v) {
+                        $existingVariants[$v] = true;
+                    }
                     foreach ($this->getPhoneVariants($mu->mobile_no) as $v) {
                         $existingVariants[$v] = true;
                     }
                     $contacts[] = [
                         'id' => 'u_'.$mu->id,
-                        'phone' => $mu->mobile_no,
-                        'phone_display' => mask_phone_for_display('', $mu->mobile_no),
-                        'name' => $mu->name ?: mask_phone_for_display('', $mu->mobile_no),
-                        'msg' => 'CRM User ('.($mu->email ?: mask_phone_for_display('', $mu->mobile_no)).')',
+                        'user_id' => $mu->id,
+                        'phone' => $fullPhone,
+                        'phone_display' => mask_phone_for_display($mu->countrycode, $mu->mobile_no),
+                        'name' => $mu->name ?: mask_phone_for_display($mu->countrycode, $mu->mobile_no),
+                        'msg' => 'CRM User ('.($mu->email ?: mask_phone_for_display($mu->countrycode, $mu->mobile_no)).')',
                         'time' => 'User',
-                        'active' => $mu->mobile_no === $activePhone,
+                        'active' => $fullPhone === $activePhone,
                         'badge' => 0,
                         'color' => '#00a884',
                         'status' => 'offline',

@@ -82,13 +82,42 @@
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Author</label>
-                            <select name="author_id" class="form-control" required>
+                            <select name="author_id" class="form-select form-control" data-control="select2" data-placeholder="Select Author" required>
                                 <option value="">Select Author</option>
-                                @foreach($authors as $author)
-                                    <option value="{{ $author->id }}" {{ old('author_id') == $author->id ? 'selected' : '' }}>
-                                        {{ $author->name }}
-                                    </option>
-                                @endforeach
+                                @if(isset($expertAuthors) && $expertAuthors->isNotEmpty())
+                                    <optgroup label="Expert Writers (Academic Experts)">
+                                        @foreach($expertAuthors as $author)
+                                            <option value="{{ $author->id }}" {{ old('author_id') == $author->id ? 'selected' : '' }}>
+                                                {{ $author->name }}
+                                            </option>
+                                        @endforeach
+                                    </optgroup>
+                                @endif
+                                @if(isset($writerAuthors) && $writerAuthors->isNotEmpty())
+                                    <optgroup label="Staff / CRM Writers">
+                                        @foreach($writerAuthors as $author)
+                                            <option value="{{ $author->id }}" {{ old('author_id') == $author->id ? 'selected' : '' }}>
+                                                {{ $author->name }}
+                                            </option>
+                                        @endforeach
+                                    </optgroup>
+                                @endif
+                                @if(isset($otherAuthors) && $otherAuthors->isNotEmpty())
+                                    <optgroup label="Other Authors">
+                                        @foreach($otherAuthors as $author)
+                                            <option value="{{ $author->id }}" {{ old('author_id') == $author->id ? 'selected' : '' }}>
+                                                {{ $author->name }}
+                                            </option>
+                                        @endforeach
+                                    </optgroup>
+                                @endif
+                                @if((!isset($expertAuthors) || $expertAuthors->isEmpty()) && (!isset($writerAuthors) || $writerAuthors->isEmpty()))
+                                    @foreach($authors as $author)
+                                        <option value="{{ $author->id }}" {{ old('author_id') == $author->id ? 'selected' : '' }}>
+                                            {{ $author->name }}
+                                        </option>
+                                    @endforeach
+                                @endif
                             </select>
                         </div>
                         <div class="mb-3">
@@ -96,12 +125,22 @@
                             <textarea id="summernote" name="blogContent" required>{!! old('blogContent') !!}</textarea>
                         </div>
                         <div class="mb-3">
-                            <label for="MetaTag" class="form-label">Meta Tag</label>
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <label for="MetaTag" class="form-label mb-0 fw-bold">Meta Tag</label>
+                                <span class="meta-char-counter-badge" id="MetaTag-counter">
+                                    <span class="char-count">{{ mb_strlen(old('MetaTag') ?? '') }}</span> characters
+                                </span>
+                            </div>
                             <input type="text" class="form-control" id="MetaTag" name="MetaTag" value="{{ old('MetaTag') }}" required>
                         </div>
                         <div class="mb-3">
-                            <label for="Metadescription" class="form-label">Meta Description</label>
-                            <textarea class="form-control" name="Metadescription" id="Metadescription" required>{{ old('Metadescription') }}</textarea>
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <label for="Metadescription" class="form-label mb-0 fw-bold">Meta Description</label>
+                                <span class="meta-char-counter-badge" id="Metadescription-counter">
+                                    <span class="char-count">{{ mb_strlen(old('Metadescription') ?? '') }}</span> characters
+                                </span>
+                            </div>
+                            <textarea class="form-control" name="Metadescription" id="Metadescription" rows="3" required>{{ old('Metadescription') }}</textarea>
                         </div>
                         <h2>FAQ</h2>
                         <div id="faq-container">

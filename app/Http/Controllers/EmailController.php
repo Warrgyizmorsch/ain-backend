@@ -152,11 +152,17 @@ class EmailController extends Controller
                 // Only search users table if query is an email address or customer name, not an alphanumeric order code like UKS60312
                 $matchingContactEmails = User::query()->where('email', $cleanSearch)->limit(5)->pluck('email')->all();
             } elseif (! preg_match('/^[a-zA-Z]{1,5}\d+$/', $cleanSearch) && strlen($cleanSearch) >= 3) {
+                $isNumericSearch = is_numeric($cleanSearch);
+                $numericSearchId = $isNumericSearch ? (int) $cleanSearch : 0;
+
                 $matchingContactEmails = User::query()
-                    ->where(function ($userQuery) use ($cleanSearch) {
+                    ->where(function ($userQuery) use ($cleanSearch, $isNumericSearch, $numericSearchId) {
                         $userQuery->where('name', 'like', "%{$cleanSearch}%")
                             ->orWhere('email', 'like', "%{$cleanSearch}%")
                             ->orWhere('mobile_no', 'like', "%{$cleanSearch}%");
+                        if ($isNumericSearch) {
+                            $userQuery->orWhere('id', $numericSearchId);
+                        }
                     })
                     ->whereNotNull('email')
                     ->limit(20)
@@ -165,10 +171,42 @@ class EmailController extends Controller
                     ->all();
             }
 
-            // Also resolve customer email if search query is an order code (e.g. UKS60312 or numeric ID)
+            // Also resolve customer email if search query is an order code (e.g. UKS60312), numeric order ID, or user ID (uid)
+            $isNumericSearch = is_numeric($cleanSearch);
+            $numericSearchId = $isNumericSearch ? (int) $cleanSearch : 0;
+
+            if ($isNumericSearch) {
+                $userByDirectId = User::query()
+                    ->where('id', $numericSearchId)
+                    ->whereNotNull('email')
+                    ->where('email', '!=', '')
+                    ->limit(10)
+                    ->pluck('email')
+                    ->filter()
+                    ->all();
+                if (! empty($userByDirectId)) {
+                    $matchingContactEmails = array_values(array_unique(array_merge($matchingContactEmails, $userByDirectId)));
+                }
+
+                $leadByDirectId = Leads::query()
+                    ->where('id', $numericSearchId)
+                    ->whereNotNull('email')
+                    ->where('email', '!=', '')
+                    ->limit(10)
+                    ->pluck('email')
+                    ->filter()
+                    ->all();
+                if (! empty($leadByDirectId)) {
+                    $matchingContactEmails = array_values(array_unique(array_merge($matchingContactEmails, $leadByDirectId)));
+                }
+            }
+
             $orderCustomerEmails = Order::query()
                 ->where('order_id', $cleanSearch)
-                ->orWhere('id', is_numeric($cleanSearch) ? (int) $cleanSearch : 0)
+                ->when($isNumericSearch, function ($q) use ($numericSearchId) {
+                    $q->orWhere('id', $numericSearchId)
+                        ->orWhere('uid', $numericSearchId);
+                })
                 ->with('user:id,email')
                 ->get()
                 ->pluck('user.email')
@@ -2299,29 +2337,46 @@ class EmailController extends Controller
             return response()->json(['users' => []]);
         }
 
+        $isNumeric = is_numeric($query);
+        $numericId = $isNumeric ? (int) $query : null;
+
         $users = User::query()
-            ->where(function ($q) use ($query) {
+            ->where(function ($q) use ($query, $isNumeric, $numericId) {
                 $q->where('name', 'like', "%{$query}%")
                     ->orWhere('email', 'like', "%{$query}%")
                     ->orWhere('mobile_no', 'like', "%{$query}%");
+                if ($isNumeric) {
+                    $q->orWhere('id', $numericId);
+                }
             })
             ->whereNotNull('email')
             ->where('email', '!=', '')
             ->select('id', 'name', 'email', 'mobile_no')
             ->limit(10)
-            ->get();
+            ->get()
+            ->each(function ($u) {
+                $u->is_lead = false;
+                $u->user_id = $u->id;
+            });
 
         $leadEmails = Leads::query()
-            ->where(function ($q) use ($query) {
+            ->where(function ($q) use ($query, $isNumeric, $numericId) {
                 $q->where('user_name', 'like', "%{$query}%")
                     ->orWhere('email', 'like', "%{$query}%")
                     ->orWhere('mobile', 'like', "%{$query}%");
+                if ($isNumeric) {
+                    $q->orWhere('id', $numericId);
+                }
             })
             ->whereNotNull('email')
             ->where('email', '!=', '')
             ->select('id', 'user_name as name', 'email', 'mobile as mobile_no')
             ->limit(10)
-            ->get();
+            ->get()
+            ->each(function ($l) {
+                $l->is_lead = true;
+                $l->user_id = $l->id;
+            });
 
         $isSuperAdmin = auth()->check() && (int) auth()->user()->role_id === 1;
 
@@ -2404,20 +2459,54 @@ class EmailController extends Controller
                 $matchedLeadEmails = Leads::query()->where('email', 'like', $maskedPattern)->limit(20)->pluck('email')->filter()->all();
                 $matchingContactEmails = array_values(array_unique(array_merge($matchedUserEmails, $matchedLeadEmails)));
             } else {
+                $isNumericQuery = is_numeric($query);
+                $numericQueryId = $isNumericQuery ? (int) $query : 0;
+
                 $matchingContactEmails = User::query()
-                    ->where(function ($userQuery) use ($query, $terms) {
+                    ->where(function ($userQuery) use ($query, $terms, $isNumericQuery, $numericQueryId) {
                         $userQuery->where('name', 'like', "%{$query}%")
                             ->orWhere('email', 'like', "%{$query}%")
                             ->orWhere('mobile_no', 'like', "%{$query}%");
+                        if ($isNumericQuery) {
+                            $userQuery->orWhere('id', $numericQueryId);
+                        }
                         foreach ($terms as $t) {
                             $userQuery->orWhere('name', 'like', "%{$t}%")
                                 ->orWhere('email', 'like', "%{$t}%");
+                            if (is_numeric($t)) {
+                                $userQuery->orWhere('id', (int) $t);
+                            }
                         }
                     })
                     ->whereNotNull('email')
                     ->pluck('email')
                     ->filter()
                     ->all();
+
+                if ($isNumericQuery) {
+                    $orderEmails = Order::query()
+                        ->where('order_id', $query)
+                        ->orWhere('id', $numericQueryId)
+                        ->orWhere('uid', $numericQueryId)
+                        ->with('user:id,email')
+                        ->get()
+                        ->pluck('user.email')
+                        ->filter()
+                        ->all();
+                    if (! empty($orderEmails)) {
+                        $matchingContactEmails = array_values(array_unique(array_merge($matchingContactEmails, $orderEmails)));
+                    }
+
+                    $leadEmails = Leads::query()
+                        ->where('id', $numericQueryId)
+                        ->whereNotNull('email')
+                        ->pluck('email')
+                        ->filter()
+                        ->all();
+                    if (! empty($leadEmails)) {
+                        $matchingContactEmails = array_values(array_unique(array_merge($matchingContactEmails, $leadEmails)));
+                    }
+                }
             }
 
             $emailQuery->where(function ($deepQuery) use ($query, $terms, $matchingContactEmails) {
