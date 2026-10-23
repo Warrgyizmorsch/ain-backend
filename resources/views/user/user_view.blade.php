@@ -635,12 +635,18 @@
         });
 
         function exportUsers() {
-            // Retrieve filter parameters
-            var userId = $('#selectedValue').val() || $('input[name="user_id"]').val();
-            var startDate = $('input[name="start_date"]').val();
-            var endDate = $('input[name="end_date"]').val();
-            var roleId = $('select[name="role"]').val();
-            var countrycode = $('select[name="countrycode"]').val();
+            var urlParams = new URLSearchParams(window.location.search);
+
+            var userId = $('#selectedValue').val() || $('input[name="user_id"]').val() || urlParams.get('user_id') || urlParams.get('uid') || '';
+            var userText = $('#searchInput').val() || $('input[name="user"]').val() || urlParams.get('user') || '';
+            var startDate = $('input[name="start_date"]').val() || urlParams.get('start_date') || '';
+            var endDate = $('input[name="end_date"]').val() || urlParams.get('end_date') || '';
+            var roleId = $('select[name="role"]').val() || urlParams.get('role') || '';
+            var countrycode = $('select[name="countrycode"]').val() || urlParams.get('countrycode') || '';
+            var orderCategory = $('select[name="order_category"]').val() || urlParams.get('order_category') || '';
+            var collegeName = $('select[name="college_name"]').val() || urlParams.get('college_name') || '';
+            var groupId = $('select[name="group_id"]').val() || urlParams.get('group_id') || '';
+            var tab = urlParams.get('tab') || $('input[name="tab"]').val() || '{{ $tab ?? "all" }}';
 
             // Use CSRF token for security
             var csrfToken = $('meta[name="csrf-token"]').attr('content');
@@ -648,10 +654,15 @@
             var requestData = {
                 _token: csrfToken,
                 user_id: userId,
+                user: userText,
                 start_date: startDate,
                 end_date: endDate,
                 role: roleId,
-                countrycode: countrycode
+                countrycode: countrycode,
+                order_category: orderCategory,
+                college_name: collegeName,
+                group_id: groupId,
+                tab: tab
             };
 
             $.ajax({

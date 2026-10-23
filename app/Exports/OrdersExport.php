@@ -224,9 +224,9 @@ class OrdersExport implements FromQuery, WithChunkReading, WithMapping, WithHead
         }
 
         // Date filtering
-        $from = $filters['fromDate'] ?? null;
-        $to = $filters['toDate'] ?? null;
-        $dateField = $filters['dateStatus'] ?? null;
+        $from = $filters['fromDate'] ?? $filters['from_date'] ?? null;
+        $to = $filters['toDate'] ?? $filters['to_date'] ?? null;
+        $dateField = $filters['dateStatus'] ?? $filters['date_status'] ?? null;
 
         if ($from && $to && $dateField) {
             if ($dateField === 'draft_date') {

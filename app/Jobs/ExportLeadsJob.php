@@ -33,13 +33,14 @@ class ExportLeadsJob implements ShouldQueue
         try {
             Excel::store(new LeadsExport($this->filters), $this->filePath, 'public');
 
-            // Cache for later retrieval (valid for 10 mins)
-            Cache::put('lead_export_' . $this->userId, $this->filePath, now()->addMinutes(10));
+            // Cache for later retrieval (valid for 60 mins)
+            Cache::put('lead_export_' . $this->userId, $this->filePath, now()->addMinutes(60));
             
-            // 2. Dispatch cleanup job (delayed by given minutes)
-            // Only send filePath to be deleted — it's already available
-            CleanOldExportFiles::dispatch($this->filePath)
-                ->delay(now()->addMinutes(env('EXPORT_CLEANUP_EXPIRY_MINUTES', 2)));
+            // Dispatch cleanup job only if not on sync connection
+            if (config('queue.default') !== 'sync') {
+                CleanOldExportFiles::dispatch($this->filePath)
+                    ->delay(now()->addMinutes((int) env('EXPORT_CLEANUP_EXPIRY_MINUTES', 60)));
+            }
         } catch (\Throwable $th) {
             //throw $th;
         } finally{
