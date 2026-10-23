@@ -5,6 +5,7 @@ on:
     branches:
       - deployment
       - main
+      - UAT_PROD
   workflow_dispatch:
 
 jobs:

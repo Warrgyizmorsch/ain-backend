@@ -16,197 +16,255 @@ class ExportController extends Controller
 {
      public function export(Request $request)
     {
-        // Retrieve filter parameters from the request
-        $searchTerm = $request->input('search');
+        // Retrieve filter parameters from the request supporting both camelCase and snake_case
+        $searchTerm = trim((string)($request->input('search') ?: $request->input('searchTerm') ?: ''));
         $uid = $request->input('uid');
+        $userParam = trim((string)($request->input('user') ?: $request->input('searchInput') ?: ''));
         $status = $request->input('status');
         $writer = $request->input('writer');
-        $dateStatus = $request->input('date_status');
-        $fromDate = $request->input('from_date');
-        $toDate = $request->input('to_date');
-        $WriterTL = $request->input('WriterTL');
+        $dateStatus = $request->input('dateStatus') ?: $request->input('date_status');
+        $fromDate = $request->input('fromDate') ?: $request->input('from_date');
+        $toDate = $request->input('toDate') ?: $request->input('to_date');
+        $WriterTL = $request->input('WriterTL') ?: $request->input('writerTL');
         $SubWriter = $request->input('SubWriter');
         $college = $request->input('college');
         $extra = $request->input('extra');
-        $secondaryMobile = $request->input('secondary_mobile');
-        $selectedDataTextBox = $request->input('selectedDataTextBox');
+        $module_code = $request->input('module_code') ?: $request->input('secondary_mobile');
         $semester = $request->input('semester');
+        $paper_type = $request->input('paper_type') ?: $request->input('typeofpaper');
+        $team_id = $request->input('team_id') ?: $request->input('filter_team_id');
+        $offer = $request->input('offer');
+        $duec = $request->input('duec');
+        $marks_filter = $request->input('marks_filter');
+        $deadline_status = $request->input('deadline_status');
+        $today_deadline_filter = $request->input('today_deadline_filter');
+        $yesterday_deadline_filter = $request->input('yesterday_deadline_filter');
+        $today_writer_deadline_filter = $request->input('today_writer_deadline_filter');
+        $month = $request->input('month');
 
         // Query orders based on the filter parameters
-        $orders = Order::with('user')
-            ->where('uid', '!=', 0);
+        $orders = Order::with(['user', 'lead.user', 'frontendLead.user', 'team', 'writer', 'mulsubwriter.user'])
+            ->where(function ($q) {
+                $q->whereNotNull('orders.uid')
+                  ->orWhereNotNull('orders.lead_id');
+            });
 
-        // Apply filter conditions
+        // Apply search by order ID or title
         if ($searchTerm) {
             $orders->where(function ($query) use ($searchTerm) {
-                $query->where('order_id', 'like', '%' . $searchTerm . '%')
-                    ->orWhere('title', 'like', '%' . $searchTerm . '%');
+                $query->where('orders.order_id', 'like', '%' . $searchTerm . '%')
+                    ->orWhere('orders.title', 'like', '%' . $searchTerm . '%');
             });
         }
-        
-         if ($semester) {
-             $orders->where('semester', $semester);
-        }
 
-        if ($selectedDataTextBox) {
-            $orders->where('order_id', $selectedDataTextBox);
-        }
-
+        // Customer search (UID or Name/Email/Mobile)
         if ($uid) {
-            $orders->where('uid', $uid);
+            $orders->where('orders.uid', $uid);
+        } elseif ($userParam) {
+            $matchingUserIds = User::where('name', 'like', '%' . $userParam . '%')
+                ->orWhere('email', 'like', '%' . $userParam . '%')
+                ->orWhere('mobile_no', 'like', '%' . $userParam . '%')
+                ->pluck('id')->toArray();
+
+            $orders->where(function ($q) use ($matchingUserIds, $userParam) {
+                if (!empty($matchingUserIds)) {
+                    $q->whereIn('orders.uid', $matchingUserIds)
+                      ->orWhereHas('lead', fn($lq) => $lq->whereIn('emp_id', $matchingUserIds))
+                      ->orWhereHas('frontendLead', fn($flq) => $flq->whereIn('emp_id', $matchingUserIds));
+                }
+                $q->orWhereHas('lead', function ($lq) use ($userParam) {
+                    $lq->where('user_name', 'like', '%' . $userParam . '%')
+                       ->orWhere('email', 'like', '%' . $userParam . '%')
+                       ->orWhere('mobile', 'like', '%' . $userParam . '%');
+                });
+            });
         }
 
-        if ($secondaryMobile) {
-            $orders->where('module_code', 'like', '%' . $secondaryMobile . '%');
+        if ($semester) {
+            $orders->where('orders.semester', $semester);
+        }
+
+        if ($module_code) {
+            $orders->where('orders.module_code', 'like', '%' . $module_code . '%');
+        }
+
+        if ($paper_type) {
+            $orders->where('orders.typeofpaper', $paper_type);
         }
 
         if ($status) {
-            $orders->where('projectstatus', $status);
+            if ($status === 'Hold Work') {
+                $orders->where(function ($sq) {
+                    $sq->where('orders.projectstatus', 'Hold Work')
+                       ->orWhere('orders.projectstatus', 'Hold(writer query)');
+                });
+            } else {
+                $orders->where('orders.projectstatus', $status);
+            }
         }
 
         if ($writer) {
-            if ($writer == 'team 13') {
-                $orders->where('admin_id', 8392);
+            if ($writer === 'team 13') {
+                $orders->where('orders.admin_id', 8392);
+            } elseif ($writer === 'Not Assign') {
+                $orders->where(function ($q) {
+                    $q->whereNull('orders.writer_name')->orWhere('orders.writer_name', '');
+                });
             } else {
-                $orders->where('writer_name', 'like', $writer);
+                $orders->where('orders.writer_name', 'like', $writer);
             }
         }
 
-        if ($dateStatus != '' || $fromDate != '' || $toDate != '') 
-        {
-            if ($fromDate != '' && $toDate != '' && $dateStatus != '') 
-            {
-                if($dateStatus == 'draft_date')
-                {
-                    $orders->whereBetween($dateStatus, [$fromDate, $toDate])->where('draftrequired' , 'y' );
-                }
-                else
-                {
-                    if ($dateStatus == 'failed_at') {
-                        $orders = Order::where('is_fail', 1)
-                        ->whereBetween(DB::raw("STR_TO_DATE($dateStatus, '%Y-%m-%d')"), [$fromDate, $toDate]);
-                    }else {
-                        $orders->whereBetween($dateStatus, [$fromDate, $toDate]);
-                    }
-                }
-            } 
-            elseif($fromDate != '' && $toDate != '')
-            {
-                $orders->whereBetween('order_date', [$fromDate, $toDate]);
-            }
-            elseif($fromDate != '')
-            {
-                $orders->where('order_date', $fromDate);
-            }
+        // Role & Team scoping
+        if (auth()->check() && (int)auth()->user()->role_id === 9 && !empty(auth()->user()->team_id)) {
+            $orders->where('orders.team_id', auth()->user()->team_id);
+        } elseif (!empty($team_id)) {
+            $orders->where('orders.team_id', $team_id);
+        }
 
-            elseif($dateStatus != '')
-             {
-                $orders->where('order_date', Carbon::today());
-             }
+        // Date filtering
+        if ($fromDate && $toDate && $dateStatus) {
+            if ($dateStatus === 'draft_date') {
+                $orders->whereBetween($dateStatus, [$fromDate, $toDate])->where('draftrequired', 'y');
+            } else {
+                $orders->whereBetween($dateStatus, [$fromDate, $toDate]);
+            }
+        } elseif ($fromDate && $toDate) {
+            $orders->whereBetween('order_date', [$fromDate, $toDate]);
+        } elseif ($fromDate) {
+            $orders->whereDate('order_date', $fromDate);
+        } elseif ($toDate) {
+            $orders->whereDate('order_date', '<=', $toDate);
+        } elseif ($dateStatus) {
+            $orders->whereDate('order_date', Carbon::today());
         }
 
         if ($WriterTL) {
-            $orders->where('wid', $WriterTL);
+            $orders->where('orders.wid', $WriterTL);
         }
 
         if ($SubWriter) {
-            // $orders->where('swid', $SubWriter);
-            $multipleWriters = multipleswiter::where('user_id', $SubWriter)->get();
-                    
-            $orderIds = $multipleWriters->pluck('order_id')->toArray();
-            
-            $orders->whereIn('id', $orderIds);
+            $orderIds = multipleswiter::where('user_id', $SubWriter)->pluck('order_id')->toArray();
+            $orders->whereIn('orders.id', $orderIds);
         }
 
         if ($college) {
-            $orders->where('college_name', $college);
+            $orders->where('orders.college_name', $college);
+        }
+
+        if ($offer) {
+            $orders->where('orders.offer', 'like', '%' . $offer . '%');
+        }
+
+        if ($duec) {
+            if ($duec === 'due') {
+                $orders->whereRaw('(amount - received_amount) > 0');
+            } elseif ($duec === 'no due') {
+                $orders->whereRaw('(amount - received_amount) <= 0');
+            }
+        }
+
+        if ($marks_filter) {
+            $orders->where('orders.marks', $marks_filter);
+        }
+
+        if ($deadline_status === 'overdue') {
+            $now = now();
+            $orders->where(function ($q) use ($now) {
+                $q->where('delivery_date', '<', $now->toDateString())
+                    ->orWhere(function ($q2) use ($now) {
+                        $q2->where('delivery_date', '=', $now->toDateString())
+                            ->whereNotNull('delivery_time')
+                            ->where('delivery_time', '<', $now->toTimeString());
+                    });
+            })->whereNotIn('projectstatus', ['Completed', 'Delivered', 'Cancelled', 'Feedback', 'Feedback Delivered']);
+        } elseif ($deadline_status === 'missed') {
+            $orders->whereIn('projectstatus', ['Completed', 'Delivered', 'Cancelled', 'Feedback', 'Feedback Delivered'])
+                ->whereColumn('updated_at', '>', 'delivery_date');
+        }
+
+        if ($today_deadline_filter) {
+            $orders->whereDate('delivery_date', Carbon::today());
+        }
+        if ($yesterday_deadline_filter) {
+            $orders->whereDate('delivery_date', Carbon::yesterday());
+        }
+        if ($today_writer_deadline_filter) {
+            $orders->whereDate('writer_deadline', Carbon::today());
         }
 
         if ($extra) {
-            if ($extra == 'tech') {
+            if ($extra === 'tech') {
                 $orders->where('tech', '1');
-            } elseif ($extra == 'resit') {
+            } elseif ($extra === 'resit') {
                 $orders->where('resit', 'on');
-            } elseif ($extra == 'failedjob') {
+            } elseif ($extra === 'failedjob') {
                 $orders->where('is_fail', '1');
-            } elseif ($extra == '1') {
+            } elseif ($extra === '1') {
                 $orders->where('services', 'First Class Work');
             }
         }
 
         // Get filtered orders
-        $filteredOrders = $orders->orderBy('id', 'desc')->get();
-        $totalWordCount = 0; 
+        $filteredOrders = $orders->orderBy('orders.id', 'desc')->get();
+        $totalOrders = $filteredOrders->count();
         $totalWordCount = $filteredOrders->reduce(function ($carry, $order) {
-            return $carry + (is_numeric($order->pages) ? $order->pages : 0);
-        }, 0); 
-        $totalOrders = $filteredOrders->count(); 
+            return $carry + (is_numeric($order->pages) ? (int)$order->pages : 0);
+        }, 0);
 
-        
-        // Prepare CSV file content with headers
+        // Prepare CSV output
         $csvData = 'Total Orders,Total Word Count' . PHP_EOL;
-    
-        // Add the total orders and total word count in the first row
         $csvData .= $totalOrders . ',' . $totalWordCount . PHP_EOL;
-        // Prepare CSV file content
-        $csvData .= 'Order Code,User Name,User Email,Mobile,Order Date,Pages,Title,Delivery Date,Delivery Time,Amount,Team,Writer Name,SubWriter,Writer Deadline,Chapter,Draft Date,Draft Time' . PHP_EOL;
-        foreach ($filteredOrders as $order) {
-             // Initialize the variable to store SubWriter names
-             $subWriterNames = [];
+        $csvData .= 'Order Code,User Name,User Email,Mobile,Order Date,Deadline,Delivery Time,Pages,Title,Status,Amount,Paid,Due,Team,Writer Name,SubWriter,Writer Deadline,Chapter,Draft Date,Draft Time' . PHP_EOL;
 
-             // Retrieve SubWriter names
-           if ($order->mulsubwriter) {
-                foreach ($order->mulsubwriter as $mulsubwriter) {
-                    // Check if $mulsubwriter->user is set and not null, then check if $mulsubwriter->user->name is set and not empty
-                    if (isset($mulsubwriter->user) && !empty($mulsubwriter->user->name)) {
-                        $subWriterNames[] = $mulsubwriter->user->name;
+        foreach ($filteredOrders as $order) {
+            $userObj = $order->user ?? $order->lead?->user ?? $order->frontendLead?->user;
+            $userName = '"' . str_replace('"', '""', $userObj->name ?? $order->lead?->user_name ?? '') . '"';
+            $userEmail = '"' . str_replace('"', '""', $userObj->email ?? $order->lead?->email ?? '') . '"';
+            $userMobile = '"' . str_replace('"', '""', $userObj->mobile_no ?? $order->lead?->mobile ?? '') . '"';
+
+            $subWriterNames = [];
+            if ($order->mulsubwriter) {
+                foreach ($order->mulsubwriter as $msw) {
+                    if (isset($msw->user) && !empty($msw->user->name)) {
+                        $subWriterNames[] = $msw->user->name;
                     }
                 }
             }
 
-             
-             // Retrieve Writer name
-             if ($order->writer !== null) {
-                $writerName2 = $order->writer->name;
-            } else {
-                // Handle the case when $order->writer is null
-                // For example, you could set a default value for $writerName2
-                $writerName2 = "";
-            }
-            
-            // Access user's name and email from the user relationship
-            $userName = '"' . ($order->user->name ?? '') . '"';
-            $userEmail = '"' . ($order->user->email ?? '') . '"';
-            $userMobile = '"' . ($order->user->mobile_no ?? '') . '"';
-            // Enclose fields in double quotes to treat commas as a single block in Excel
-            $order_id = '"' . $order->order_id . '"';
-            $orderDate = '"' . $order->order_date . '"';
-            $pages = '"' . $order->pages . '"';
-            $title = '"' . $order->title . '"';
-            $deliveryDate = '"' . $order->delivery_date . '"';
-            $deliveryTime = '"' . $order->delivery_time . '"';
-            $amount = '"' . $order->amount . '"';
-            $writerName = '"' . $order->writer_name . '"';
-                    $writer_name = '"' . $writerName2 . '"';
-                    $sub_writer_names = '"' . implode(', ', $subWriterNames) . '"';
-            $writerDeadline = '"' . $order->writer_deadline . '"';
-            $chapter = '"' . $order->chapter . '"';
-            $draftDate = '"' . $order->draft_date . '"';
-            $draftTime = '"' . $order->draft_time . '"';
-        
-            $csvData .= $order_id . ',' . $userName . ',' . $userEmail . ',' . $userMobile . ',' . $orderDate . ',' . $pages . ',' . $title . ','  . $deliveryDate . ',' . $deliveryTime . ',' . $amount . ',' . $writerName . ',' . $writer_name . ',' . $sub_writer_names. ',' . $writerDeadline . ',' . $chapter . ',' . $draftDate . ',' . $draftTime .  PHP_EOL;
+            $amount = is_numeric($order->amount) ? (float)$order->amount : 0;
+            $received = is_numeric($order->received_amount) ? (float)$order->received_amount : 0;
+            $due = $amount - $received;
+
+            $order_id = '"' . str_replace('"', '""', $order->order_id) . '"';
+            $orderDate = '"' . str_replace('"', '""', $order->order_date ?? '') . '"';
+            $deadline = '"' . str_replace('"', '""', $order->delivery_date ?? '') . '"';
+            $deliveryTime = '"' . str_replace('"', '""', $order->delivery_time ?? '') . '"';
+            $pages = '"' . str_replace('"', '""', $order->pages ?? '') . '"';
+            $title = '"' . str_replace('"', '""', $order->title ?? '') . '"';
+            $projectstatus = '"' . str_replace('"', '""', $order->projectstatus ?? '') . '"';
+            $amountStr = '"' . number_format($amount, 2, '.', '') . '"';
+            $receivedStr = '"' . number_format($received, 2, '.', '') . '"';
+            $dueStr = '"' . number_format($due, 2, '.', '') . '"';
+            $teamName = '"' . str_replace('"', '""', $order->team?->team_name ?? '') . '"';
+            $writerName = '"' . str_replace('"', '""', $order->writer_name ?? '') . '"';
+            $subWriterStr = '"' . str_replace('"', '""', implode(', ', $subWriterNames)) . '"';
+            $writerDeadline = '"' . str_replace('"', '""', $order->writer_deadline ?? '') . '"';
+            $chapter = '"' . str_replace('"', '""', $order->chapter ?? '') . '"';
+            $draftDate = '"' . str_replace('"', '""', $order->draft_date ?? '') . '"';
+            $draftTime = '"' . str_replace('"', '""', $order->draft_time ?? '') . '"';
+
+            $csvData .= $order_id . ',' . $userName . ',' . $userEmail . ',' . $userMobile . ',' . $orderDate . ',' . $deadline . ',' . $deliveryTime . ',' . $pages . ',' . $title . ',' . $projectstatus . ',' . $amountStr . ',' . $receivedStr . ',' . $dueStr . ',' . $teamName . ',' . $writerName . ',' . $subWriterStr . ',' . $writerDeadline . ',' . $chapter . ',' . $draftDate . ',' . $draftTime . PHP_EOL;
         }
 
-        // Generate file name with current timestamp
-        $filename = 'Orders_' . now()->format('YmdHis') . '.csv';
+        $filename = 'Orders_' . now()->format('Ymd_His') . '.csv';
 
-        // Save CSV content to storage
-        Storage::disk('local')->put($filename, $csvData);
-
-        // Download the CSV file
-        return Response::download(storage_path('app/' . $filename), $filename, [
-            'Content-Type' => 'text/csv',
+        return response($csvData, 200, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
             'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+            'Cache-Control' => 'no-cache, no-store, must-revalidate',
+            'Pragma' => 'no-cache',
+            'Expires' => '0',
         ]);
     }
 
