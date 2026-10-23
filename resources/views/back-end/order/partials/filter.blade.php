@@ -583,9 +583,9 @@
                         </a>
                     @endif
                 </div>
-                @if (auth()->user()->role_id == 1)
+                @if (in_array((int) auth()->user()->role_id, [1, 4, 9]))
                     <div class="d-flex align-items-center gap-2">
-                        <button type="button" class="btn btn-sm btn-danger" style="display: none;"
+                        <button type="button" class="btn btn-sm btn-danger"
                             id="export-order-btn">
                             Export
                         </button>
@@ -1119,7 +1119,7 @@ disableScrollHandler();
 $('#lead-rows').hide().empty();
 $('#initial-order-rows').show();
 $('#filter-total').text(`All Orders`);
-$('#export-order-btn').hide();
+$('#export-order-btn').show();
 }
 
 function enableScrollHandler() {
@@ -1768,7 +1768,7 @@ resetFilters();
         $('#lead-rows').hide().empty();
         $('#initial-order-rows').show();
         $('#filter-total').text('All Orders');
-        $('#export-order-btn').hide();
+        $('#export-order-btn').show();
         $('#resetFiltersBtn, #topResetFiltersBtn').hide();
         var el = document.getElementById('additionalFiltersRow');
         if (el) el.style.setProperty('display', 'none', 'important');
@@ -1995,34 +1995,35 @@ resetFilters();
                 showCancelButton: true,
                 cancelButtonText: 'Cancel',
             }).then((result) => {
+                const urlParams = new URLSearchParams(window.location.search);
                 const exportFilters = {
-                    search: $('#search').val() || "",
-                    uid: $('#selectedValue').val() || "",
-                    group_id: $('#group_id').val() || "",
-                    status: $('#status').val() || "",
-                    writer: $('#writer').val() || "",
-                    dateStatus: $('#date_status').val() || "",
-                    fromDate: $('#from_date').val() || "",
-                    toDate: $('#to_date').val() || "",
-                    WriterTL: $('#writerTL').val() || "",
-                    SubWriter: $('#SubWriter').val() || "",
-                    college: $('#college').val() || "",
-                    extra: $('#extra').val() || "",
-                    module_code: $('#module_code').val() || "",
-                    paper_type: $('#paper_type').val() || "",
-                    semester: $('#semester').val() || "",
-                    month: $('#month').val() || "",
-                    payment: $('#payment').val() || "",
-                    deadline_status: $('#deadline_status').val() || "",
-                    team_id: $('#filter_team_id').val() || "",
-                    offer: $('#offer').val() || "",
-                    duec: $('#duec').val() || "",
-                    marks_filter: $('#marks_filter').val() || "",
-                    today_deadline_filter: $('#today_deadline_filter').val() || "",
-                    yesterday_deadline_filter: $('#yesterday_deadline_filter').val() || "",
-                    today_writer_deadline_filter: $('#today_writer_deadline_filter')
-                    .val() || "",
-                    duration_gap: $('#duration_gap_filter').val() || ""
+                    search: ($('#search').val() || urlParams.get('search') || "").trim(),
+                    uid: $('#selectedValue').val() || urlParams.get('uid') || "",
+                    user: ($('#searchInput').val() || urlParams.get('user') || '').trim(),
+                    group_id: $('#group_id').val() || urlParams.get('group_id') || "",
+                    status: $('#status').val() || urlParams.get('status') || "",
+                    writer: $('#writer').val() || urlParams.get('writer') || "",
+                    dateStatus: $('#date_status').val() || urlParams.get('dateStatus') || urlParams.get('date_status') || "",
+                    fromDate: $('#from_date').val() || urlParams.get('fromDate') || urlParams.get('from_date') || "",
+                    toDate: $('#to_date').val() || urlParams.get('toDate') || urlParams.get('to_date') || "",
+                    WriterTL: $('#writerTL').val() || urlParams.get('WriterTL') || urlParams.get('writerTL') || "",
+                    SubWriter: $('#SubWriter').val() || urlParams.get('SubWriter') || "",
+                    college: $('#college').val() || urlParams.get('college') || "",
+                    extra: $('#extra').val() || urlParams.get('extra') || "",
+                    module_code: $('#module_code').val() || urlParams.get('module_code') || "",
+                    paper_type: $('#paper_type').val() || urlParams.get('paper_type') || "",
+                    semester: $('#semester').val() || urlParams.get('semester') || "",
+                    month: $('#month').val() || urlParams.get('month') || "",
+                    payment: $('#payment').val() || urlParams.get('payment') || "",
+                    deadline_status: $('#deadline_status').val() || urlParams.get('deadline_status') || "",
+                    team_id: $('#filter_team_id').val() || urlParams.get('team_id') || "",
+                    offer: $('#offer').val() || urlParams.get('offer') || "",
+                    duec: $('#duec').val() || urlParams.get('duec') || "",
+                    marks_filter: $('#marks_filter').val() || urlParams.get('marks_filter') || "",
+                    today_deadline_filter: $('#today_deadline_filter').val() || urlParams.get('today_deadline_filter') || "",
+                    yesterday_deadline_filter: $('#yesterday_deadline_filter').val() || urlParams.get('yesterday_deadline_filter') || "",
+                    today_writer_deadline_filter: ($('#today_writer_deadline_filter').val() || urlParams.get('today_writer_deadline_filter') || ""),
+                    duration_gap: $('#duration_gap_filter').val() || urlParams.get('duration_gap') || ""
                 };
 
                 if (result.isConfirmed) {

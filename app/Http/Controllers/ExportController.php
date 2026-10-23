@@ -392,70 +392,215 @@ class ExportController extends Controller
     }
 
     public function exportUsers(Request $request)
-{
-    // Retrieve filter parameters from the request
-    $searchUserId = $request->input('user_id');
-    $startDate = $request->input('start_date');
-    $endDate = $request->input('end_date');
-    $roleId = $request->input('role');
-    $countrycode = $request->input('countrycode');
-    
-    // Initialize the user query
-    $usersQuery = User::query()->where('flag', 0);
+    {
+        // Retrieve filter parameters from the request
+        $searchUserId = $request->input('user_id') ?? $request->input('uid');
+        $userText = trim((string) ($request->input('user') ?? $request->input('user_name') ?? $request->input('search') ?? ''));
+        $startDate = $request->input('start_date');
+        $endDate = $request->input('end_date');
+        $roleId = $request->input('role');
+        $countrycode = $request->input('countrycode');
+        $orderFilter = $request->input('order_category');
+        $collegeName = $request->input('college_name');
+        $groupId = $request->input('group_id');
+        $tab = $request->get('tab', 'all');
 
-    // Apply filters
-    if ($searchUserId) {
-        $usersQuery->where('id', $searchUserId);
+        $globalCountries = [
+            'India' => ['+91', '91', '091'],
+            'USA/Canada' => ['+1', '1'],
+            'UK' => ['+44', '44'],
+            'Australia' => ['+61', '61'],
+            'UAE' => ['+971', '971'],
+            'Pakistan' => ['+92', '92'],
+            'Bangladesh' => ['+880', '880'],
+            'Sri Lanka' => ['+94', '94'],
+            'Nepal' => ['+977', '977'],
+            'Azerbaijan' => ['+994', '994'],
+            'Romania' => ['+40', '40'],
+            'New Zealand' => ['+64', '64'],
+            'Ghana' => ['+233', '233'],
+            'Denmark' => ['+45', '45'],
+            'Germany' => ['+49', '49'],
+            'Nigeria' => ['+234', '234'],
+            'Saudi Arabia' => ['+966', '966'],
+            'South Africa' => ['+27', '27'],
+            'Singapore' => ['+65', '65'],
+            'Malaysia' => ['+60', '60'],
+            'Ireland' => ['+353', '353'],
+            'Oman' => ['+968', '968'],
+            'Qatar' => ['+974', '974'],
+            'Kuwait' => ['+965', '965'],
+            'Bahrain' => ['+973', '973'],
+            'France' => ['+33', '33'],
+            'Italy' => ['+39', '39'],
+            'Spain' => ['+34', '34'],
+            'Netherlands' => ['+31', '31'],
+            'Sweden' => ['+46', '46'],
+            'Switzerland' => ['+41', '41'],
+            'China' => ['+86', '86'],
+            'Japan' => ['+81', '81'],
+            'South Korea' => ['+82', '82'],
+            'Russia' => ['+7', '7'],
+            'Brazil' => ['+55', '55'],
+            'Mexico' => ['+52', '52'],
+            'Egypt' => ['+20', '20'],
+            'Kenya' => ['+254', '254'],
+            'Uganda' => ['+256', '256'],
+            'Turkey' => ['+90', '90'],
+            'Iran' => ['+98', '98'],
+            'Ukraine' => ['+380', '380'],
+            'Bulgaria' => ['+359', '359'],
+            'Guinea' => ['+224', '224'],
+            'Malta' => ['+356', '356'],
+            'Liberia' => ['+231', '231'],
+            'Mauritius' => ['+230', '230'],
+            'Greece' => ['+30', '30'],
+            'Austria' => ['+43', '43'],
+            'Iraq' => ['+964', '964'],
+            'Cameroon' => ['+237', '237'],
+            'Albania' => ['+355', '355'],
+            'Belgium' => ['+32', '32'],
+            'Israel' => ['+972', '972'],
+            'Zambia' => ['+260', '260'],
+            'Latvia' => ['+371', '371']
+        ];
+
+        $allKnownCodes = [];
+        foreach ($globalCountries as $codes) {
+            $allKnownCodes = array_merge($allKnownCodes, $codes);
+        }
+
+        $oneAndHalfYearAgo = Carbon::now()->subMonths(18);
+
+        // Initialize the user query
+        $usersQuery = User::query()->where('flag', 0);
+
+        // Basic Filters
+        if ($searchUserId) {
+            $usersQuery->where('id', $searchUserId);
+        } elseif ($userText !== '') {
+            $cleanUserText = preg_replace('/\D+/', '', $userText);
+            $last10 = strlen($cleanUserText) >= 10 ? substr($cleanUserText, -10) : $cleanUserText;
+
+            $usersQuery->where(function ($q) use ($userText, $cleanUserText, $last10) {
+                $q->where('name', 'like', '%' . $userText . '%')
+                  ->orWhere('email', 'like', '%' . $userText . '%')
+                  ->orWhere('mobile_no', 'like', '%' . $userText . '%')
+                  ->orWhere('mobile_no2', 'like', '%' . $userText . '%');
+                if (!empty($cleanUserText)) {
+                    $q->orWhere('mobile_no', 'like', '%' . $cleanUserText . '%')
+                      ->orWhereRaw("CONCAT(COALESCE(countrycode, ''), COALESCE(mobile_no, '')) LIKE ?", ["%{$cleanUserText}%"]);
+                }
+                if (!empty($last10)) {
+                    $q->orWhere('mobile_no', 'like', '%' . $last10 . '%');
+                }
+            });
+        }
+
+        if ($startDate && !$endDate) {
+            $usersQuery->whereDate('created_at', $startDate);
+        }
+
+        if ($startDate && $endDate) {
+            $usersQuery->whereBetween('created_at', [$startDate, $endDate]);
+        }
+
+        if ($roleId) {
+            $usersQuery->where('role_id', $roleId);
+        }
+
+        if ($groupId) {
+            $usersQuery->whereHas('groups', fn ($q) => $q->where('group_masters.id', $groupId));
+        }
+
+        if ($countrycode) {
+            $escapedAllCodes = array_map(function ($c) {
+                return str_replace('+', '\\\\+', $c);
+            }, $allKnownCodes);
+            $allCodesRegex = '^(' . implode('|', $escapedAllCodes) . ')';
+
+            if ($countrycode === 'Other') {
+                $usersQuery->where(function ($q) use ($allKnownCodes, $allCodesRegex) {
+                    $q->where(function ($subQ) use ($allKnownCodes) {
+                        $subQ->whereNotIn('countrycode', $allKnownCodes)
+                            ->orWhereNull('countrycode')
+                            ->orWhere('countrycode', '');
+                    });
+                    $q->where(function ($subQ) use ($allCodesRegex) {
+                        $subQ->where('mobile_no', 'NOT REGEXP', $allCodesRegex)
+                            ->orWhereNull('mobile_no')
+                            ->orWhere('mobile_no', '');
+                    });
+                });
+            } elseif (array_key_exists($countrycode, $globalCountries)) {
+                $selectedCodes = $globalCountries[$countrycode];
+                $usersQuery->whereIn('countrycode', $selectedCodes);
+            }
+        }
+
+        if ($collegeName) {
+            $usersQuery->whereHas('orders', function ($q) use ($collegeName) {
+                $q->where('college_name', $collegeName);
+            });
+        }
+
+        if ($orderFilter) {
+            $usersQuery->whereHas(
+                'orders',
+                function ($q) use ($oneAndHalfYearAgo) {
+                    $q->where('order_date', '>=', $oneAndHalfYearAgo);
+                },
+                ($orderFilter == 'loyal' ? '>' : ($orderFilter == 'repeated' ? '>=' : '<=')),
+                ($orderFilter == 'loyal' ? 10 : ($orderFilter == 'repeated' ? 4 : 3))
+            );
+        }
+
+        // Base customer requirement (matches UI tab rules: only users with an order or lead)
+        if (!$searchUserId && $userText === '') {
+            $usersQuery->where(function ($customerQuery) {
+                $customerQuery->whereHas('orders')->orWhereHas('leads');
+            });
+        }
+
+        // Tab selection filtering
+        if ($tab === 'confirmed') {
+            $usersQuery->whereHas('orders');
+        } elseif ($tab === 'not_confirmed') {
+            $usersQuery->whereHas('leads')->whereDoesntHave('orders');
+        }
+
+        // Retrieve filtered users data from the database
+        $users = $usersQuery->orderBy('id', 'desc')->get();
+
+        // Prepare CSV file content with headers
+        $csvData = "Name,Email,CountryCode,MobileNo,CountryCode2,MobileNo2,Role,JoinDate" . PHP_EOL;
+
+        // Generate CSV data
+        foreach ($users as $user) {
+            $csvData .= '"' . implode('","', [
+                str_replace('"', '""', (string)$user->name),
+                str_replace('"', '""', (string)$user->email),
+                str_replace('"', '""', (string)$user->countrycode),
+                str_replace('"', '""', (string)$user->mobile_no),
+                str_replace('"', '""', (string)$user->countrycode2),
+                str_replace('"', '""', (string)$user->mobile_no2),
+                str_replace('"', '""', (string)$this->getRoleName($user->role_id)),
+                $user->created_at ? $user->created_at->format('d M Y (h:i:s a)') : ''
+            ]) . '"' . PHP_EOL;
+        }
+
+        // Generate file name
+        $filename = 'users_' . now()->format('YmdHis') . '.csv';
+
+        // Save CSV content to storage
+        Storage::disk('local')->put($filename, $csvData);
+
+        // Return the file as a download response
+        return Response::download(storage_path('app/' . $filename), $filename, [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+        ]);
     }
-
-    if ($startDate && !$endDate) {
-        $usersQuery->whereDate('created_at', $startDate);
-    }
-
-    if ($startDate && $endDate) {
-        $usersQuery->whereBetween('created_at', [$startDate, $endDate]);
-    }
-
-    if ($roleId) {
-        $usersQuery->where('role_id', $roleId);
-    }
-
-    if ($countrycode) {
-        $usersQuery->where('countrycode', $countrycode);
-    }
-
-    // Retrieve filtered users data from the database
-    $users = $usersQuery->orderBy('id', 'desc')->get();
-
-    // Prepare CSV file content with headers
-    $csvData = "Name,Email,CountryCode,MobileNo,CountryCode2,MobileNo2,Role,JoinDate" . PHP_EOL;
-
-    // Generate CSV data
-    foreach ($users as $user) {
-        $csvData .= '"' . implode('","', [
-            $user->name,
-            $user->email,
-            $user->countrycode,
-            $user->mobile_no,
-            $user->countrycode2,
-            $user->mobile_no2,
-            $this->getRoleName($user->role_id),
-            $user->created_at ? $user->created_at->format('d M Y (h:i:s a)') : ''
-        ]) . '"' . PHP_EOL;
-    }
-
-    // Generate file name
-    $filename = 'users_' . now()->format('YmdHis') . '.csv';
-
-    // Save CSV content to storage
-    Storage::disk('local')->put($filename, $csvData);
-
-    // Return the file as a download response
-    return Response::download(storage_path('app/' . $filename), $filename, [
-        'Content-Type' => 'text/csv',
-        'Content-Disposition' => 'attachment; filename="' . $filename . '"',
-    ]);
-}
 
     public function exportWD(Request $request)
     {
