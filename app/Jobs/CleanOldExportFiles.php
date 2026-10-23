@@ -15,15 +15,41 @@ class CleanOldExportFiles implements ShouldQueue
 
     protected $filePath;
 
-    public function __construct($filePath)
+    public function __construct($filePath = null)
     {
         $this->filePath = $filePath;
     }
 
-    public function handle()
+    public function handle(): void
     {
-        if (Storage::disk('public')->exists($this->filePath)) {
-            Storage::disk('public')->delete($this->filePath);
+        // 1. If queue is sync, delay is ignored by Laravel and executes immediately.
+        // Never delete the active export file immediately on sync queue.
+        $isSync = config('queue.default') === 'sync' || $this->connection === 'sync';
+
+        if (!$isSync && !empty($this->filePath) && Storage::disk('public')->exists($this->filePath)) {
+            $lastModified = Storage::disk('public')->lastModified($this->filePath);
+            // Only delete if the file is at least 30 minutes old
+            if (time() - $lastModified >= 1800) {
+                Storage::disk('public')->delete($this->filePath);
+            }
+        }
+
+        // 2. Housekeeping: purge any stale export files older than 2 hours
+        self::cleanupExpired(7200);
+    }
+
+    public static function cleanupExpired(int $olderThanSeconds = 7200): void
+    {
+        try {
+            $files = Storage::disk('public')->files('exports');
+            $now = time();
+            foreach ($files as $file) {
+                if ($now - Storage::disk('public')->lastModified($file) > $olderThanSeconds) {
+                    Storage::disk('public')->delete($file);
+                }
+            }
+        } catch (\Throwable $e) {
+            // Silently ignore cleanup errors
         }
     }
 }

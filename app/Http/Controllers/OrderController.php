@@ -40,6 +40,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use App\Jobs\ExportOrdersJob;
+use App\Jobs\CleanOldExportFiles;
 use Illuminate\Support\Facades\Log;
 
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -311,6 +312,8 @@ class OrderController extends Controller
 
     public function export(Request $request)
     {
+        CleanOldExportFiles::cleanupExpired(7200);
+
         $filters = $request->all();
         $userId = auth()->id();
         $exportId = (string) Str::uuid();

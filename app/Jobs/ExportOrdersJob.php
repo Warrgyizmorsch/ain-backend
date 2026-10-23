@@ -65,11 +65,13 @@ class ExportOrdersJob implements ShouldQueue
                 'total' => $totalRows,
                 'message' => 'Export ready to download.',
                 'file_path' => $this->filePath,
-            ], now()->addMinutes(10));
+            ], now()->addMinutes(60));
 
-            // Dispatch cleanup job to delete the file after delay
-            CleanOldExportFiles::dispatch($this->filePath)
-                ->delay(now()->addMinutes(env('EXPORT_CLEANUP_EXPIRY_MINUTES', 2)));
+            // Dispatch cleanup job to delete the file after delay only if not on sync connection
+            if (config('queue.default') !== 'sync') {
+                CleanOldExportFiles::dispatch($this->filePath)
+                    ->delay(now()->addMinutes((int) env('EXPORT_CLEANUP_EXPIRY_MINUTES', 60)));
+            }
         } catch (\Throwable $th) {
             Log::error('Order export failed', [
                 'user_id' => $this->userId,

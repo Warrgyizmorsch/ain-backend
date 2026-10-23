@@ -1,8 +1,13 @@
 <div class="p-3 bg-light rounded">
-    <h5 class="fw-bold mb-3">{{ $title }}</h5>
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="fw-bold mb-0 text-gray-800">{{ $title }} ({{ count($users) }})</h5>
+        <button type="button" class="btn btn-sm btn-danger" onclick="exportRetentionUserList(this, '{{ addslashes($title) }}')">
+            <i class="fa fa-file-excel me-1"></i> Export
+        </button>
+    </div>
 
     <div class="table-responsive" style="max-height: 420px; overflow-y: auto; overflow-x: auto;">
-        <table class="table table-sm table-bordered align-middle mb-0">
+        <table class="table table-sm table-bordered align-middle mb-0 retention-user-table">
             <thead style="position: sticky; top: 0; z-index: 5;">
                 <tr class="fw-bold bg-white">
                     <th>#</th>
@@ -19,7 +24,7 @@
                     <tr>
                         <td>{{ $key + 1 }}</td>
                         <td class="fw-bold">{{ $user->name ?? 'N/A' }}</td>
-                        <td>+{{ $user->countrycode }} {{ $user->mobile_no }}</td>
+                        <td>{{ $user->countrycode ? '+' . ltrim($user->countrycode, '+') . ' ' : '' }}{{ $user->mobile_no }}</td>
                         <td>{{ $user->email ?? 'N/A' }}</td>
                         <td>
                             <span class="badge badge-light-primary">
