@@ -1980,134 +1980,52 @@ resetFilters();
         }
     });
 
-    // Export handler
+    // Export handler - direct reliable download
     $(document).ready(function() {
-        $(document).on("click", "#export-order-btn", function() {
-            $(this).hide();
+        $(document).on("click", "#export-order-btn", function(e) {
+            e.preventDefault();
 
-            Swal.fire({
-                title: 'Choose Export Option',
-                icon: 'question',
-                showConfirmButton: true,
-                confirmButtonText: 'Export All',
-                showDenyButton: true,
-                denyButtonText: 'Custom Export',
-                showCancelButton: true,
-                cancelButtonText: 'Cancel',
-            }).then((result) => {
-                const urlParams = new URLSearchParams(window.location.search);
-                const exportFilters = {
-                    search: ($('#search').val() || urlParams.get('search') || "").trim(),
-                    uid: $('#selectedValue').val() || urlParams.get('uid') || "",
-                    user: ($('#searchInput').val() || urlParams.get('user') || '').trim(),
-                    group_id: $('#group_id').val() || urlParams.get('group_id') || "",
-                    status: $('#status').val() || urlParams.get('status') || "",
-                    writer: $('#writer').val() || urlParams.get('writer') || "",
-                    dateStatus: $('#date_status').val() || urlParams.get('dateStatus') || urlParams.get('date_status') || "",
-                    fromDate: $('#from_date').val() || urlParams.get('fromDate') || urlParams.get('from_date') || "",
-                    toDate: $('#to_date').val() || urlParams.get('toDate') || urlParams.get('to_date') || "",
-                    WriterTL: $('#writerTL').val() || urlParams.get('WriterTL') || urlParams.get('writerTL') || "",
-                    SubWriter: $('#SubWriter').val() || urlParams.get('SubWriter') || "",
-                    college: $('#college').val() || urlParams.get('college') || "",
-                    extra: $('#extra').val() || urlParams.get('extra') || "",
-                    module_code: $('#module_code').val() || urlParams.get('module_code') || "",
-                    paper_type: $('#paper_type').val() || urlParams.get('paper_type') || "",
-                    semester: $('#semester').val() || urlParams.get('semester') || "",
-                    month: $('#month').val() || urlParams.get('month') || "",
-                    payment: $('#payment').val() || urlParams.get('payment') || "",
-                    deadline_status: $('#deadline_status').val() || urlParams.get('deadline_status') || "",
-                    team_id: $('#filter_team_id').val() || urlParams.get('team_id') || "",
-                    offer: $('#offer').val() || urlParams.get('offer') || "",
-                    duec: $('#duec').val() || urlParams.get('duec') || "",
-                    marks_filter: $('#marks_filter').val() || urlParams.get('marks_filter') || "",
-                    today_deadline_filter: $('#today_deadline_filter').val() || urlParams.get('today_deadline_filter') || "",
-                    yesterday_deadline_filter: $('#yesterday_deadline_filter').val() || urlParams.get('yesterday_deadline_filter') || "",
-                    today_writer_deadline_filter: ($('#today_writer_deadline_filter').val() || urlParams.get('today_writer_deadline_filter') || ""),
-                    duration_gap: $('#duration_gap_filter').val() || urlParams.get('duration_gap') || ""
-                };
+            const urlParams = new URLSearchParams(window.location.search);
+            const exportFilters = {
+                search: ($('#search').val() || urlParams.get('search') || "").trim(),
+                uid: $('#selectedValue').val() || urlParams.get('uid') || "",
+                user: ($('#searchInput').val() || urlParams.get('user') || '').trim(),
+                group_id: $('#group_id').val() || urlParams.get('group_id') || "",
+                status: $('#status').val() || urlParams.get('status') || "",
+                writer: $('#writer').val() || urlParams.get('writer') || "",
+                dateStatus: $('#date_status').val() || urlParams.get('dateStatus') || urlParams.get('date_status') || "",
+                fromDate: $('#from_date').val() || urlParams.get('fromDate') || urlParams.get('from_date') || "",
+                toDate: $('#to_date').val() || urlParams.get('toDate') || urlParams.get('to_date') || "",
+                WriterTL: $('#writerTL').val() || urlParams.get('WriterTL') || urlParams.get('writerTL') || "",
+                SubWriter: $('#SubWriter').val() || urlParams.get('SubWriter') || "",
+                college: $('#college').val() || urlParams.get('college') || "",
+                extra: $('#extra').val() || urlParams.get('extra') || "",
+                module_code: $('#module_code').val() || urlParams.get('module_code') || "",
+                paper_type: $('#paper_type').val() || urlParams.get('paper_type') || "",
+                semester: $('#semester').val() || urlParams.get('semester') || "",
+                month: $('#month').val() || urlParams.get('month') || "",
+                payment: $('#payment').val() || urlParams.get('payment') || "",
+                deadline_status: $('#deadline_status').val() || urlParams.get('deadline_status') || "",
+                team_id: $('#filter_team_id').val() || urlParams.get('team_id') || "",
+                offer: $('#offer').val() || urlParams.get('offer') || "",
+                duec: $('#duec').val() || urlParams.get('duec') || "",
+                marks_filter: $('#marks_filter').val() || urlParams.get('marks_filter') || "",
+                today_deadline_filter: $('#today_deadline_filter').val() || urlParams.get('today_deadline_filter') || "",
+                yesterday_deadline_filter: $('#yesterday_deadline_filter').val() || urlParams.get('yesterday_deadline_filter') || "",
+                today_writer_deadline_filter: ($('#today_writer_deadline_filter').val() || urlParams.get('today_writer_deadline_filter') || ""),
+                duration_gap: $('#duration_gap_filter').val() || urlParams.get('duration_gap') || ""
+            };
 
-                if (result.isConfirmed) {
-                    sendExport(exportFilters);
-                } else if (result.isDenied) {
-                    Swal.fire({
-                        title: 'Select Columns to Export',
-                        html: `
-                            <div style="text-align: left;">
-                                <label><input type="checkbox" value="order_id" class="export-column" > Order ID</label><br>
-                                <label><input type="checkbox" value="customer_name" class="export-column" > Name</label><br>
-                                <label><input type="checkbox" value="customer_email" class="export-column" > Email</label><br>
-                                <label><input type="checkbox" value="customer_country_code" class="export-column" > Country Code</label><br>
-                                <label><input type="checkbox" value="customer_phone" class="export-column" > Phone</label><br>
-                                <label><input type="checkbox" value="order_date" class="export-column" > Order Date</label><br>
-                                <label><input type="checkbox" value="deadline" class="export-column" > Deadline</label><br>
-                                <label><input type="checkbox" value="project_title" class="export-column" > Project Title</label><br>
-                                <label><input type="checkbox" value="status" class="export-column" > Status</label><br>
-                                <label><input type="checkbox" value="pages" class="export-column" > Words</label><br>
-                                <label><input type="checkbox" value="price" class="export-column" > Price</label><br>
-                                <label><input type="checkbox" value="received" class="export-column" > Received</label><br>
-                                <label><input type="checkbox" value="due" class="export-column" > Due</label><br>
-                                <label><input type="checkbox" value="writer" class="export-column" > Writer</label><br>
-                                <label><input type="checkbox" value="other" class="export-column" > Other</label><br>
-                            </div>
-                        `,
-                        confirmButtonText: 'Export Selected',
-                        showCancelButton: true,
-                        preConfirm: () => {
-                            const selected = $(".export-column:checked").map(
-                                function() {
-                                    return $(this).val();
-                                }).get();
-
-                            if (selected.length === 0) {
-                                Swal.showValidationMessage(
-                                    "Please select at least one column");
-                            }
-                            return selected;
-                        }
-                    }).then((colRes) => {
-                        if (colRes.isConfirmed) {
-                            sendExport({
-                                ...exportFilters,
-                                selected_columns: colRes.value
-                            });
-                        } else {
-                            $('#export-order-btn').show();
-                        }
-                    });
-                } else {
-                    $('#export-order-btn').show();
+            const params = new URLSearchParams();
+            Object.keys(exportFilters).forEach(key => {
+                const val = exportFilters[key];
+                if (val !== null && val !== undefined && val !== '') {
+                    params.append(key, val);
                 }
             });
 
-            function sendExport(payload) {
-                fetch("/order/export", {
-                        method: "POST",
-                        headers: {
-                            "X-CSRF-TOKEN": document.querySelector('meta[name="csrf-token"]')
-                                .content,
-                            "Content-Type": "application/json",
-                        },
-                        body: JSON.stringify(payload),
-                    })
-                    .then(async res => {
-                        const data = await res.json().catch(() => ({}));
-                        if (!res.ok) throw new Error(data.message ||
-                            'Export could not be started.');
-                        return data;
-                    })
-                    .then((data) => {
-                        sessionStorage.removeItem('orderExportProgressDismissed');
-                        localStorage.setItem("orderExportStatus", "pending");
-                        if (window.showExportProgress) {
-                            window.showExportProgress('order', data);
-                        }
-                    })
-                    .catch(error => {
-                        console.error("Export Error: ", error);
-                        $('#export-order-btn').show();
-                        Swal.fire('Export Failed', error.message || 'Please try again.', 'error');
-                    });
-            }
+            // Instant direct CSV download
+            window.location.href = '/export?' + params.toString();
         });
     });
 </script>

@@ -61,11 +61,7 @@ Route::middleware(['auth'])->group(function () {
     Route::resource('subject-pages', SubjectPageController::class)->except(['show']);
 });
 Route::get('/lead/export/status', [LeadsController::class, 'exportStatus']);
-Route::post('/order/export', [OrderController::class, 'export'])->name('order.export');
-Route::get('/order/export/status', [OrderController::class, 'exportStatus']);
-Route::get('/order/export/download/{exportId}', [OrderController::class, 'downloadExport'])
-    ->middleware('auth')
-    ->name('order.export.download');
+Route::any('/order/export', [ExportController::class, 'export'])->name('order.export');
 Route::post('/lead/assign-type', [LeadsController::class, 'assignType'])
     ->name('lead.assignType');
 Route::post('/lead-reason-update', [LeadsController::class, 'updateLeadReason'])
