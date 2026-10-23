@@ -312,33 +312,7 @@ class OrderController extends Controller
 
     public function export(Request $request)
     {
-        CleanOldExportFiles::cleanupExpired(7200);
-
-        $filters = $request->all();
-        $userId = auth()->id();
-        $exportId = (string) Str::uuid();
-        $filename = 'exports/orders_export_' . $userId . '_' . now()->format('YmdHis') . '.xlsx';
-        $statusKey = 'order_export_status_' . $userId;
-
-        Cache::put($statusKey, [
-            'export_id' => $exportId,
-            'status' => 'queued',
-            'progress' => 0,
-            'message' => 'Export queued...',
-        ], now()->addMinutes(30));
-
-        // Run after the HTTP response on the sync connection, so export works
-        // even when a separate queue worker is unavailable.
-        ExportOrdersJob::dispatch($filters, $filename, $userId, $exportId)
-            ->onConnection('sync')
-            ->afterResponse();
-
-        return response()->json([
-            'status' => 'queued',
-            'export_id' => $exportId,
-            'progress' => 0,
-            'message' => 'Export started. It will be available shortly.',
-        ]);
+        return app(ExportController::class)->export($request);
     }
 
     public function exportStatus()
