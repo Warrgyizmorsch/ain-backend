@@ -585,7 +585,79 @@
                 </div>
                 @if (in_array((int) auth()->user()->role_id, [1, 4, 9]))
                     <div class="d-flex align-items-center gap-2">
-                        <button type="button" class="btn btn-sm btn-danger"
+                        <script>
+                            function exportOrdersDirect() {
+                                try {
+                                    var urlParams = new URLSearchParams(window.location.search);
+                                    var getVal = function(id, param) {
+                                        var el = document.getElementById(id);
+                                        return (el && el.value ? el.value : (urlParams.get(param) || '')).trim();
+                                    };
+
+                                    var exportFilters = {
+                                        search: getVal('search', 'search'),
+                                        uid: getVal('selectedValue', 'uid'),
+                                        user: getVal('searchInput', 'user'),
+                                        group_id: getVal('group_id', 'group_id'),
+                                        status: getVal('status', 'status'),
+                                        writer: getVal('writer', 'writer'),
+                                        dateStatus: getVal('date_status', 'dateStatus') || urlParams.get('date_status') || '',
+                                        fromDate: getVal('from_date', 'fromDate') || urlParams.get('from_date') || '',
+                                        toDate: getVal('to_date', 'toDate') || urlParams.get('to_date') || '',
+                                        WriterTL: getVal('writerTL', 'WriterTL') || urlParams.get('writerTL') || '',
+                                        SubWriter: getVal('SubWriter', 'SubWriter'),
+                                        college: getVal('college', 'college'),
+                                        extra: getVal('extra', 'extra'),
+                                        module_code: getVal('module_code', 'module_code') || urlParams.get('secondary_mobile') || '',
+                                        paper_type: getVal('paper_type', 'paper_type') || urlParams.get('typeofpaper') || '',
+                                        semester: getVal('semester', 'semester'),
+                                        month: getVal('month', 'month'),
+                                        payment: getVal('payment', 'payment'),
+                                        deadline_status: getVal('deadline_status', 'deadline_status'),
+                                        team_id: getVal('filter_team_id', 'team_id'),
+                                        offer: getVal('offer', 'offer'),
+                                        duec: getVal('duec', 'duec'),
+                                        marks_filter: getVal('marks_filter', 'marks_filter'),
+                                        today_deadline_filter: getVal('today_deadline_filter', 'today_deadline_filter'),
+                                        yesterday_deadline_filter: getVal('yesterday_deadline_filter', 'yesterday_deadline_filter'),
+                                        today_writer_deadline_filter: getVal('today_writer_deadline_filter', 'today_writer_deadline_filter'),
+                                        duration_gap: getVal('duration_gap_filter', 'duration_gap')
+                                    };
+
+                                    var params = new URLSearchParams();
+                                    for (var k in exportFilters) {
+                                        if (exportFilters[k]) {
+                                            params.append(k, exportFilters[k]);
+                                        }
+                                    }
+
+                                    var btn = document.getElementById('export-order-btn');
+                                    if (btn) {
+                                        btn.disabled = true;
+                                        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span> Exporting...';
+                                    }
+
+                                    var exportUrl = '/export?' + params.toString();
+                                    var dlLink = document.createElement('a');
+                                    dlLink.href = exportUrl;
+                                    dlLink.setAttribute('download', '');
+                                    document.body.appendChild(dlLink);
+                                    dlLink.click();
+
+                                    setTimeout(function() {
+                                        if (dlLink.parentNode) dlLink.parentNode.removeChild(dlLink);
+                                        if (btn) {
+                                            btn.disabled = false;
+                                            btn.innerHTML = 'Export';
+                                        }
+                                    }, 4000);
+                                } catch (err) {
+                                    console.error('Export error:', err);
+                                    window.location.href = '/export';
+                                }
+                            }
+                        </script>
+                        <button type="button" onclick="exportOrdersDirect()" class="btn btn-sm btn-danger"
                             id="export-order-btn">
                             Export
                         </button>
@@ -1980,52 +2052,72 @@ resetFilters();
         }
     });
 
-    // Export handler - direct reliable download
+    // Global direct export handler
+    window.exportOrdersDirect = function() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const exportFilters = {
+            search: ($('#search').val() || urlParams.get('search') || "").trim(),
+            uid: $('#selectedValue').val() || urlParams.get('uid') || "",
+            user: ($('#searchInput').val() || urlParams.get('user') || '').trim(),
+            group_id: $('#group_id').val() || urlParams.get('group_id') || "",
+            status: $('#status').val() || urlParams.get('status') || "",
+            writer: $('#writer').val() || urlParams.get('writer') || "",
+            dateStatus: $('#date_status').val() || urlParams.get('dateStatus') || urlParams.get('date_status') || "",
+            fromDate: $('#from_date').val() || urlParams.get('fromDate') || urlParams.get('from_date') || "",
+            toDate: $('#to_date').val() || urlParams.get('toDate') || urlParams.get('to_date') || "",
+            WriterTL: $('#writerTL').val() || urlParams.get('WriterTL') || urlParams.get('writerTL') || "",
+            SubWriter: $('#SubWriter').val() || urlParams.get('SubWriter') || "",
+            college: $('#college').val() || urlParams.get('college') || "",
+            extra: $('#extra').val() || urlParams.get('extra') || "",
+            module_code: $('#module_code').val() || urlParams.get('module_code') || "",
+            paper_type: $('#paper_type').val() || urlParams.get('paper_type') || "",
+            semester: $('#semester').val() || urlParams.get('semester') || "",
+            month: $('#month').val() || urlParams.get('month') || "",
+            payment: $('#payment').val() || urlParams.get('payment') || "",
+            deadline_status: $('#deadline_status').val() || urlParams.get('deadline_status') || "",
+            team_id: $('#filter_team_id').val() || urlParams.get('team_id') || "",
+            offer: $('#offer').val() || urlParams.get('offer') || "",
+            duec: $('#duec').val() || urlParams.get('duec') || "",
+            marks_filter: $('#marks_filter').val() || urlParams.get('marks_filter') || "",
+            today_deadline_filter: $('#today_deadline_filter').val() || urlParams.get('today_deadline_filter') || "",
+            yesterday_deadline_filter: $('#yesterday_deadline_filter').val() || urlParams.get('yesterday_deadline_filter') || "",
+            today_writer_deadline_filter: ($('#today_writer_deadline_filter').val() || urlParams.get('today_writer_deadline_filter') || ""),
+            duration_gap: $('#duration_gap_filter').val() || urlParams.get('duration_gap') || ""
+        };
+
+        const params = new URLSearchParams();
+        Object.keys(exportFilters).forEach(key => {
+            const val = exportFilters[key];
+            if (val !== null && val !== undefined && val !== '') {
+                params.append(key, val);
+            }
+        });
+
+        // Visual feedback
+        const $btn = $('#export-order-btn');
+        const originalText = $btn.html();
+        $btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span> Exporting...');
+
+        // Instant reliable CSV download
+        const exportUrl = '/export?' + params.toString();
+        const dlLink = document.createElement('a');
+        dlLink.href = exportUrl;
+        dlLink.setAttribute('download', '');
+        document.body.appendChild(dlLink);
+        dlLink.click();
+
+        setTimeout(function() {
+            if (dlLink.parentNode) {
+                document.body.removeChild(dlLink);
+            }
+            $btn.prop('disabled', false).html(originalText);
+        }, 3000);
+    };
+
     $(document).ready(function() {
         $(document).on("click", "#export-order-btn", function(e) {
             e.preventDefault();
-
-            const urlParams = new URLSearchParams(window.location.search);
-            const exportFilters = {
-                search: ($('#search').val() || urlParams.get('search') || "").trim(),
-                uid: $('#selectedValue').val() || urlParams.get('uid') || "",
-                user: ($('#searchInput').val() || urlParams.get('user') || '').trim(),
-                group_id: $('#group_id').val() || urlParams.get('group_id') || "",
-                status: $('#status').val() || urlParams.get('status') || "",
-                writer: $('#writer').val() || urlParams.get('writer') || "",
-                dateStatus: $('#date_status').val() || urlParams.get('dateStatus') || urlParams.get('date_status') || "",
-                fromDate: $('#from_date').val() || urlParams.get('fromDate') || urlParams.get('from_date') || "",
-                toDate: $('#to_date').val() || urlParams.get('toDate') || urlParams.get('to_date') || "",
-                WriterTL: $('#writerTL').val() || urlParams.get('WriterTL') || urlParams.get('writerTL') || "",
-                SubWriter: $('#SubWriter').val() || urlParams.get('SubWriter') || "",
-                college: $('#college').val() || urlParams.get('college') || "",
-                extra: $('#extra').val() || urlParams.get('extra') || "",
-                module_code: $('#module_code').val() || urlParams.get('module_code') || "",
-                paper_type: $('#paper_type').val() || urlParams.get('paper_type') || "",
-                semester: $('#semester').val() || urlParams.get('semester') || "",
-                month: $('#month').val() || urlParams.get('month') || "",
-                payment: $('#payment').val() || urlParams.get('payment') || "",
-                deadline_status: $('#deadline_status').val() || urlParams.get('deadline_status') || "",
-                team_id: $('#filter_team_id').val() || urlParams.get('team_id') || "",
-                offer: $('#offer').val() || urlParams.get('offer') || "",
-                duec: $('#duec').val() || urlParams.get('duec') || "",
-                marks_filter: $('#marks_filter').val() || urlParams.get('marks_filter') || "",
-                today_deadline_filter: $('#today_deadline_filter').val() || urlParams.get('today_deadline_filter') || "",
-                yesterday_deadline_filter: $('#yesterday_deadline_filter').val() || urlParams.get('yesterday_deadline_filter') || "",
-                today_writer_deadline_filter: ($('#today_writer_deadline_filter').val() || urlParams.get('today_writer_deadline_filter') || ""),
-                duration_gap: $('#duration_gap_filter').val() || urlParams.get('duration_gap') || ""
-            };
-
-            const params = new URLSearchParams();
-            Object.keys(exportFilters).forEach(key => {
-                const val = exportFilters[key];
-                if (val !== null && val !== undefined && val !== '') {
-                    params.append(key, val);
-                }
-            });
-
-            // Instant direct CSV download
-            window.location.href = '/export?' + params.toString();
+            window.exportOrdersDirect();
         });
     });
 </script>

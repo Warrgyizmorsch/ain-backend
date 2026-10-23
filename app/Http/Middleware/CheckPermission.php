@@ -213,6 +213,8 @@ class CheckPermission
             'emails.campaigns.upload-image',
             'emails.campaigns.audience-count',
             'emails.campaigns.image',
+            'export.orders',
+            'order.export',
         ];
 
         if ($currentRoute && in_array($currentRoute, $bypassRoutes, true)) {
@@ -236,6 +238,8 @@ class CheckPermission
             'emails/campaigns/upload-image',
             'emails/campaigns/audience-count',
             'uploads/campaigns',
+            'export',
+            'order/export',
         ];
 
         foreach ($bypassPaths as $bp) {
