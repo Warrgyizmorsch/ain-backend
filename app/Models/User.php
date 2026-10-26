@@ -126,19 +126,14 @@ class User extends Authenticatable
     public function convertedOrders()
     {
         return $this->hasMany(Order::class, 'uid', 'id')
-            ->whereNotIn('orders.order_id', function ($query) {
-                $query->select('order_id')
-                    ->from('leads')
-                    ->where('is_converted', 0)
-                    ->whereNotNull('order_id');
-            })
-            ->where(function ($q) {
-                $q->whereNull('orders.lead_id')
-                  ->orWhereNotIn('orders.lead_id', function ($lq) {
-                      $lq->select('id')
-                          ->from('leads')
-                          ->where('is_converted', 0);
-                  });
+            ->where(function ($oq) {
+                $oq->whereNull('orders.lead_id')
+                   ->orWhereNotExists(function ($sub) {
+                       $sub->select(\Illuminate\Support\Facades\DB::raw(1))
+                           ->from('leads')
+                           ->whereColumn('leads.id', 'orders.lead_id')
+                           ->where('leads.is_converted', 0);
+                   });
             });
     }
 

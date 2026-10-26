@@ -268,9 +268,9 @@ class UserController extends Controller
         $oneAndHalfYearAgo = \Carbon\Carbon::now()->subMonths(18);
         $oneYearAgo = \Carbon\Carbon::now()->subYear();
         $query = User::with('groups:id,name')->withCount([
-            'orders as total_orders_count',
+            'convertedOrders as total_orders_count',
             'leads',
-            'orders' => function ($q) use ($oneAndHalfYearAgo) {
+            'convertedOrders as orders_count' => function ($q) use ($oneAndHalfYearAgo) {
                 $q->where('order_date', '>=', $oneAndHalfYearAgo);
             },
             'followups' => function ($q) use ($oneYearAgo) {
@@ -357,7 +357,7 @@ class UserController extends Controller
 
         if ($orderFilter) {
             $query->whereHas(
-                'orders',
+                'convertedOrders',
                 function ($q) use ($oneAndHalfYearAgo) {
                     $q->where('order_date', '>=', $oneAndHalfYearAgo);
                 },
@@ -371,7 +371,7 @@ class UserController extends Controller
         // All Customers = Confirmed + Not Confirmed.
         if (!$searchUserId && $userText === '') {
             $query->where(function ($customerQuery) {
-                $customerQuery->whereHas('orders')->orWhereHas('leads');
+                $customerQuery->whereHas('convertedOrders')->orWhereHas('leads');
             });
         }
 
@@ -381,9 +381,9 @@ class UserController extends Controller
         $tab = $request->get('tab', 'all');
         $tabFilteredQuery = clone $query;
         if ($tab === 'confirmed') {
-            $tabFilteredQuery->whereHas('orders');
+            $tabFilteredQuery->whereHas('convertedOrders');
         } elseif ($tab === 'not_confirmed') {
-            $tabFilteredQuery->whereHas('leads')->whereDoesntHave('orders');
+            $tabFilteredQuery->whereHas('leads')->whereDoesntHave('convertedOrders');
         }
 
         $data['users'] = $tabFilteredQuery->orderBy('id', 'desc')->paginate($perPage);
@@ -410,10 +410,10 @@ class UserController extends Controller
         }
 
         $countAll = (clone $query)->count();
-        $countConfirmed = (clone $query)->whereHas('orders')->count();
+        $countConfirmed = (clone $query)->whereHas('convertedOrders')->count();
         $countNotConfirmed = (clone $query)
             ->whereHas('leads')
-            ->whereDoesntHave('orders')
+            ->whereDoesntHave('convertedOrders')
             ->count();
 
         // Do not load every user into the filter dropdown. The Select2 field

@@ -626,7 +626,7 @@ class ExportController extends Controller
 
         if ($orderFilter) {
             $usersQuery->whereHas(
-                'orders',
+                'convertedOrders',
                 function ($q) use ($oneAndHalfYearAgo) {
                     $q->where('order_date', '>=', $oneAndHalfYearAgo);
                 },
@@ -638,15 +638,15 @@ class ExportController extends Controller
         // Base customer requirement (matches UI tab rules: only users with an order or lead)
         if (!$searchUserId && $userText === '') {
             $usersQuery->where(function ($customerQuery) {
-                $customerQuery->whereHas('orders')->orWhereHas('leads');
+                $customerQuery->whereHas('convertedOrders')->orWhereHas('leads');
             });
         }
 
         // Tab selection filtering
         if ($tab === 'confirmed') {
-            $usersQuery->whereHas('orders');
+            $usersQuery->whereHas('convertedOrders');
         } elseif ($tab === 'not_confirmed') {
-            $usersQuery->whereHas('leads')->whereDoesntHave('orders');
+            $usersQuery->whereHas('leads')->whereDoesntHave('convertedOrders');
         }
 
         // Retrieve filtered users data from the database
