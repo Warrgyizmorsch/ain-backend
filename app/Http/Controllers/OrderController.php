@@ -953,7 +953,8 @@ class OrderController extends Controller
 
             if ($req->input('status') == 'Completed') {
                 $order->projectstatus = $req->input('status');
-                $order->status_date = Carbon::now('Asia/Kolkata');
+                // $order->status_date = Carbon::now('Asia/Kolkata');
+                $order->status_date = Carbon::now('Europe/London');
                 $order->status_by   = auth()->user()->name;
 
                 $resolvedEmail = $this->resolveCustomerOrderEmail($order, $req->input('email'));
@@ -973,10 +974,12 @@ class OrderController extends Controller
                     return redirect()->back()->with('warning', 'Order cannot be marked as Delivered if there is any due payment remaining.');
                 }
                 $order->projectstatus = $req->input('status');
-                $order->delivery_date = Carbon::now('Asia/Kolkata')->toDateString();
+                // $order->delivery_date = Carbon::now('Asia/Kolkata')->toDateString();
+                $order->delivery_date = Carbon::now('Europe/London')->toDateString();
             } else {
                 $order->projectstatus = $req->input('status');
-                $order->status_date = Carbon::now('Asia/Kolkata');
+                // $order->status_date = Carbon::now('Asia/Kolkata');
+                $order->status_date = Carbon::now('Europe/London');
                 $order->status_by   = auth()->user()->name;
             }
 
@@ -1075,7 +1078,8 @@ class OrderController extends Controller
             $order->pages = $req->input('word');
             if ($req->input('status') == 'Completed') {
                 $order->projectstatus = $req->input('status');
-                $order->status_date = Carbon::now('Asia/Kolkata');
+                // $order->status_date = Carbon::now('Asia/Kolkata');
+                $order->status_date = Carbon::now('Europe/London');
                 $order->status_by   = auth()->user()->name;
 
                 $resolvedEmail = $this->resolveCustomerOrderEmail($order, $req->input('email'));
@@ -1096,7 +1100,8 @@ class OrderController extends Controller
                 $order->projectstatus = $req->input('status');
             } else {
                 $order->projectstatus = $req->input('status');
-                $order->status_date = Carbon::now('Asia/Kolkata');
+                // $order->status_date = Carbon::now('Asia/Kolkata');
+                $order->status_date = Carbon::now('Europe/London');
                 $order->status_by   = auth()->user()->name;
             }
             if ($req->input('writer_name') == 'team 13') {
@@ -3305,7 +3310,8 @@ class OrderController extends Controller
 
         $order->writer_deadline = $request->input('writer_date');
 
-        $order->qc_date = Carbon::now('Asia/Kolkata');
+        // $order->qc_date = Carbon::now('Asia/Kolkata');
+        $order->qc_date = Carbon::now('Europe/London');
 
         $order->save();
 
@@ -3617,13 +3623,16 @@ class OrderController extends Controller
 
             // 2. Order Update
             if ($statusName->status == 'Delivered') {
-                $order->delivery_date = Carbon::now('Asia/Kolkata')->toDateString();
+                // $order->delivery_date = Carbon::now('Asia/Kolkata')->toDateString();
+                $order->delivery_date = Carbon::now('Europe/London')->toDateString();
             }
             $order->projectstatus = $statusName->status;
-            $order->status_date = Carbon::now('Asia/Kolkata');
+            // $order->status_date = Carbon::now('Asia/Kolkata');
+            $order->status_date = Carbon::now('Europe/London');
             $order->status_by = auth()->user() ? auth()->user()->name : 'System';
             if (trim(Str::lower($statusName->status)) === 'writer query') {
-                $order->writerstatus_date = Carbon::now('Asia/Kolkata');
+                // $order->writerstatus_date = Carbon::now('Asia/Kolkata');
+                $order->writerstatus_date = Carbon::now('Europe/London');
             }
             if ($statusName->status == 'Feedback' && $request->filled('feedback_date')) {
                 $order->f_delivery_date = $request->feedback_date;

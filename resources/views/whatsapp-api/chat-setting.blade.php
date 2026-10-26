@@ -37,10 +37,11 @@
             <div class="mb-6">
                 <label for="timezone" class="form-label fw-semibold">Timezone</label>
                 <select id="timezone" class="form-select form-select-solid">
-                    <option selected>Asia/Calcutta (+05:30)</option>
+                    {{-- <option selected>Asia/Calcutta (+05:30)</option> --}}
+                    <option>Asia/Calcutta (+05:30)</option>
                     <option>UTC (+00:00)</option>
                     <option>America/New_York (-05:00)</option>
-                    <option>Europe/London (+01:00)</option>
+                    <option selected>Europe/London (+01:00)</option>
                 </select>
             </div>
 
