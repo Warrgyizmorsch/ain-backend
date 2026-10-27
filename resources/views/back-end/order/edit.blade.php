@@ -457,45 +457,92 @@
                                         });
                                     });
 
-                                    // =================== SEARCH INPUT AUTOCOMPLETE ===================
-                                    $('#searchInput').on('input', function () {
-                                        var searchValue = $(this).val();
-                                        if (searchValue.length >= 3) {
-                                            $.ajax({
-                                                url: "{{ route('search-order') }}",
-                                                type: "GET",
-                                                data: { user: searchValue },
-                                                success: function (response) {
-                                                    var results = '';
-                                                    $('#searchDatalist').empty();
-                                                    if (response.length > 0) {
-                                                        $.each(response, function (key, value) {
-                                                            $('#searchDatalist').append('<option value="' + value.email + '">' + value.name + ' (' + value.mobile_no + ')</option>');
-                                                        });
-                                                        if (response.length === 1) {
-                                                            $('#searchInput').val(response[0].email);
-                                                            $('#selectedValue').val(response[0].id);
-                                                        }
-                                                    } else {
-                                                        results = '<div>No results found</div>';
-                                                    }
-                                                    $('#searchResultss').html(results);
-                                                }
-                                            });
-                                        } else {
-                                            $('#searchResultss').empty();
-                                        }
-                                    });
+                                    // =================== SEARCH INPUT AUTOCOMPLETE & USER REASSIGNMENT ===================
+                                    var searchedUsersMap = {};
 
-                                    // Set hidden field from datalist
-                                    $('#searchInput').on('input', function () {
-                                        var selectedEmail = $(this).val();
-                                        var selectedOption = $('#searchDatalist option[value="' + selectedEmail + '"]');
-                                        if (selectedOption.length > 0) {
-                                            var selectedId = selectedOption.data('id');
-                                            $('#selectedValue').val(selectedId);
+                                    $('#searchInput').on('input change', function () {
+                                        var searchValue = $(this).val().trim();
+
+                                        // 1. Check if the value matches an option in datalist (user selected an option)
+                                        var matchedOption = $('#searchDatalist option').filter(function () {
+                                            return $(this).val() === searchValue;
+                                        });
+
+                                        if (matchedOption.length > 0) {
+                                            var selectedId = matchedOption.attr('data-id') || matchedOption.data('id');
+                                            if (selectedId) {
+                                                $('#selectedValue').val(selectedId);
+                                                var userObj = searchedUsersMap[selectedId];
+                                                if (userObj) {
+                                                    if (userObj.name) $('input[name="user_name"]').val(userObj.name);
+                                                    if (userObj.email) $('#emailInput').val(userObj.email);
+                                                    if (userObj.countrycode) $('#country_primary').val(userObj.countrycode);
+                                                    if (userObj.mobile_no) $('#primary').val(userObj.mobile_no);
+                                                }
+                                                $('#searchResultss').html(
+                                                    '<div class="alert alert-success d-flex align-items-center p-2 mt-2 mb-0">' +
+                                                    '<i class="fa fa-check-circle text-success fs-4 me-2"></i>' +
+                                                    '<div><strong>Selected User:</strong> #' + selectedId + ' ' + (userObj && userObj.name ? '(' + userObj.name + ')' : '') +
+                                                    ' &mdash; <span class="text-muted">Form submit karne par yeh order is user ko assign ho jayega.</span></div>' +
+                                                    '</div>'
+                                                );
+                                                return;
+                                            }
+                                        }
+
+                                        // 2. If input was cleared by user
+                                        if (searchValue.length === 0) {
+                                            $('#selectedValue').val('');
+                                            $('#searchResultss').empty();
+                                            return;
+                                        }
+
+                                        // 3. User is typing a search term (trigger AJAX with debounce)
+                                        if (searchValue.length >= 2) {
+                                            clearTimeout(window.searchUserTimer);
+                                            window.searchUserTimer = setTimeout(function () {
+                                                $.ajax({
+                                                    url: "{{ route('search-order') }}",
+                                                    type: "GET",
+                                                    data: { user: searchValue },
+                                                    success: function (response) {
+                                                        $('#searchDatalist').empty();
+                                                        searchedUsersMap = {};
+                                                        if (response && response.length > 0) {
+                                                            $.each(response, function (key, value) {
+                                                                searchedUsersMap[value.id] = value;
+                                                                var displayVal = (value.email && value.email.trim() !== '') 
+                                                                    ? value.email 
+                                                                    : ((value.name || 'User') + ' - ' + (value.mobile_no || 'ID:' + value.id));
+                                                                var optionText = (value.name || 'User #' + value.id) + 
+                                                                    ' (📞 ' + (value.mobile_no || 'N/A') + 
+                                                                    (value.email ? ' | ' + value.email : '') + 
+                                                                    ' | ID: ' + value.id + ')';
+
+                                                                $('#searchDatalist').append(
+                                                                    $('<option>')
+                                                                        .attr('data-id', value.id)
+                                                                        .attr('value', displayVal)
+                                                                        .text(optionText)
+                                                                );
+                                                            });
+                                                            $('#searchResultss').html(
+                                                                '<div class="text-muted fs-8 mt-1"><i class="fa fa-info-circle me-1"></i> ' +
+                                                                response.length + ' matching user(s) found. Niche list me se click karke select karein.</div>'
+                                                            );
+                                                        } else {
+                                                            $('#selectedValue').val('');
+                                                            $('#searchResultss').html('<div class="text-danger fs-8 mt-1">No user found matching "' + searchValue + '"</div>');
+                                                        }
+                                                    },
+                                                    error: function () {
+                                                        $('#searchResultss').html('<div class="text-danger fs-8 mt-1">Error searching users</div>');
+                                                    }
+                                                });
+                                            }, 250);
                                         } else {
                                             $('#selectedValue').val('');
+                                            $('#searchResultss').empty();
                                         }
                                     });
 
