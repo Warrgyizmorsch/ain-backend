@@ -1021,6 +1021,9 @@ class OrderController extends Controller
             if ($req->input('uid') != '') {
 
                 $order->uid = $req->input('uid');
+                if (!empty($order->lead_id)) {
+                    Leads::where('id', $order->lead_id)->update(['emp_id' => $req->input('uid')]);
+                }
             } else {
 
                 $user = User::find($order->uid);
