@@ -2389,6 +2389,8 @@ public function userRetentionReport(Request $request)
                 DB::raw('COALESCE(latest_orders.last_order_date, NULL) as last_order_date'),
                 DB::raw('COALESCE(latest_orders.total_orders, 0) as total_orders')
             )
+            ->where('users.role_id', 2)
+            ->where('users.flag', 0)
             ->whereDate('users.created_at', '>=', $monthStart)
             ->whereDate('users.created_at', '<=', $monthEnd);
 
