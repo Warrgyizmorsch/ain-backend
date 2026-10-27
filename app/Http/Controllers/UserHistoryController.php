@@ -2350,86 +2350,120 @@ public function userRetentionReport(Request $request)
 {
     $year = $request->input('year', now()->year);
 
-    $latestOrders = DB::table('orders')
-        ->select(
-            'uid',
-            DB::raw('MAX(created_at) as last_order_date'),
-            DB::raw('COUNT(id) as total_orders')
-        )
-        ->whereNotNull('uid')
-        ->where('uid', '!=', 0)
-        ->groupBy('uid');
+        $unconverted = \Illuminate\Support\Facades\Cache::remember('unconverted_leads_filter_set', 300, function() {
+            $leadIds = DB::table('leads')
+                ->where('is_converted', '!=', 1)
+                ->pluck('id')
+                ->all();
+            $orderIds = DB::table('leads')
+                ->where('is_converted', '!=', 1)
+                ->whereNotNull('order_id')
+                ->where('order_id', '!=', '')
+                ->pluck('order_id')
+                ->all();
+            return ['lead_ids' => $leadIds, 'order_ids' => $orderIds];
+        });
 
-    $months = [];
-
-    $currentMonth = ($year == now()->year) ? now()->month : 12;
-    for ($m = 1; $m <= $currentMonth; $m++) {
-
-        $monthStart = \Carbon\Carbon::create($year, $m, 1)->startOfMonth();
-        $monthEnd   = \Carbon\Carbon::create($year, $m, 1)->endOfMonth();
-
-        // Jan users => Apr to Dec retain window
-        $retainStart = $monthStart->copy()->addMonths(3)->startOfMonth();
-        $retainEnd   = \Carbon\Carbon::create($year, 12, 31)->endOfDay();
-
-        // Jan users => no order till Sep means not retain
-        $notRetainEnd = $monthStart->copy()->addMonths(8)->endOfMonth();
-
-        $cohortUsers = DB::table('users')
-            ->leftJoinSub($latestOrders, 'latest_orders', function ($join) {
-                $join->on('users.id', '=', 'latest_orders.uid');
-            })
+        $latestOrdersQuery = DB::table('orders')
             ->select(
-                'users.id',
-                'users.name',
-                'users.email',
-                'users.countrycode',
-                'users.mobile_no',
-                'users.created_at',
-                DB::raw('COALESCE(latest_orders.last_order_date, NULL) as last_order_date'),
-                DB::raw('COALESCE(latest_orders.total_orders, 0) as total_orders')
+                'orders.uid',
+                DB::raw('MAX(orders.created_at) as last_order_date'),
+                DB::raw('COUNT(orders.id) as total_orders')
             )
-            ->where('users.role_id', 2)
-            ->where('users.flag', 0)
-            ->whereDate('users.created_at', '>=', $monthStart)
-            ->whereDate('users.created_at', '<=', $monthEnd);
+            ->whereNotNull('orders.uid')
+            ->where('orders.uid', '!=', 0);
 
-        if ($request->filled('user')) {
-            $search = $request->user;
-
-            $cohortUsers->where(function ($q) use ($search) {
-                $q->where('users.name', 'like', '%' . $search . '%')
-                    ->orWhere('users.email', 'like', '%' . $search . '%')
-                    ->orWhere('users.mobile_no', 'like', '%' . $search . '%');
-            });
+        if (!empty($unconverted['lead_ids'])) {
+            $latestOrdersQuery->whereNotIn('orders.lead_id', $unconverted['lead_ids']);
+        }
+        if (!empty($unconverted['order_ids'])) {
+            $latestOrdersQuery->whereNotIn('orders.order_id', $unconverted['order_ids']);
         }
 
-        $newUsers = (clone $cohortUsers)
-            ->orderByDesc('users.created_at')
-            ->get();
+        $latestOrders = $latestOrdersQuery->groupBy('orders.uid');
 
-        $retainUsers = (clone $cohortUsers)
-            ->whereExists(function ($q) use ($retainStart, $retainEnd) {
-                $q->select(DB::raw(1))
-                    ->from('orders')
-                    ->whereColumn('orders.uid', 'users.id')
-                    ->whereDate('orders.created_at', '>=', $retainStart)
-                    ->whereDate('orders.created_at', '<=', $retainEnd);
-            })
-            ->orderByDesc('users.created_at')
-            ->get();
+        $months = [];
 
-        $notRetainUsers = (clone $cohortUsers)
-            ->whereNotNull('latest_orders.last_order_date')
-            ->whereNotExists(function ($q) use ($monthEnd, $notRetainEnd) {
-                $q->select(DB::raw(1))
-                    ->from('orders')
-                    ->whereColumn('orders.uid', 'users.id')
-                    ->whereDate('orders.created_at', '>', $monthEnd)
-                    ->whereDate('orders.created_at', '<=', $notRetainEnd);
-            })
-            ->orderByDesc('users.created_at')
-            ->get();
+        $currentMonth = ($year == now()->year) ? now()->month : 12;
+        for ($m = 1; $m <= $currentMonth; $m++) {
+
+            $monthStart = \Carbon\Carbon::create($year, $m, 1)->startOfMonth();
+            $monthEnd   = \Carbon\Carbon::create($year, $m, 1)->endOfMonth();
+
+            // Jan users => Apr to Dec retain window
+            $retainStart = $monthStart->copy()->addMonths(3)->startOfMonth();
+            $retainEnd   = \Carbon\Carbon::create($year, 12, 31)->endOfDay();
+
+            // Jan users => no order till Sep means not retain
+            $notRetainEnd = $monthStart->copy()->addMonths(8)->endOfMonth();
+
+            $cohortUsers = DB::table('users')
+                ->leftJoinSub($latestOrders, 'latest_orders', function ($join) {
+                    $join->on('users.id', '=', 'latest_orders.uid');
+                })
+                ->select(
+                    'users.id',
+                    'users.name',
+                    'users.email',
+                    'users.countrycode',
+                    'users.mobile_no',
+                    'users.created_at',
+                    DB::raw('COALESCE(latest_orders.last_order_date, NULL) as last_order_date'),
+                    DB::raw('COALESCE(latest_orders.total_orders, 0) as total_orders')
+                )
+                ->where('users.role_id', 2)
+                ->where('users.flag', 0)
+                ->whereDate('users.created_at', '>=', $monthStart)
+                ->whereDate('users.created_at', '<=', $monthEnd);
+
+            if ($request->filled('user')) {
+                $search = $request->user;
+
+                $cohortUsers->where(function ($q) use ($search) {
+                    $q->where('users.name', 'like', '%' . $search . '%')
+                        ->orWhere('users.email', 'like', '%' . $search . '%')
+                        ->orWhere('users.mobile_no', 'like', '%' . $search . '%');
+                });
+            }
+
+            $newUsers = (clone $cohortUsers)
+                ->orderByDesc('users.created_at')
+                ->get();
+
+            $retainUsers = (clone $cohortUsers)
+                ->whereExists(function ($q) use ($retainStart, $retainEnd, $unconverted) {
+                    $orderQ = $q->select(DB::raw(1))
+                        ->from('orders')
+                        ->whereColumn('orders.uid', 'users.id')
+                        ->whereDate('orders.created_at', '>=', $retainStart)
+                        ->whereDate('orders.created_at', '<=', $retainEnd);
+                    if (!empty($unconverted['lead_ids'])) {
+                        $orderQ->whereNotIn('orders.lead_id', $unconverted['lead_ids']);
+                    }
+                    if (!empty($unconverted['order_ids'])) {
+                        $orderQ->whereNotIn('orders.order_id', $unconverted['order_ids']);
+                    }
+                })
+                ->orderByDesc('users.created_at')
+                ->get();
+
+            $notRetainUsers = (clone $cohortUsers)
+                ->whereNotNull('latest_orders.last_order_date')
+                ->whereNotExists(function ($q) use ($monthEnd, $notRetainEnd, $unconverted) {
+                    $orderQ = $q->select(DB::raw(1))
+                        ->from('orders')
+                        ->whereColumn('orders.uid', 'users.id')
+                        ->whereDate('orders.created_at', '>', $monthEnd)
+                        ->whereDate('orders.created_at', '<=', $notRetainEnd);
+                    if (!empty($unconverted['lead_ids'])) {
+                        $orderQ->whereNotIn('orders.lead_id', $unconverted['lead_ids']);
+                    }
+                    if (!empty($unconverted['order_ids'])) {
+                        $orderQ->whereNotIn('orders.order_id', $unconverted['order_ids']);
+                    }
+                })
+                ->orderByDesc('users.created_at')
+                ->get();
 
         $months[] = [
             'month_no' => $m,
