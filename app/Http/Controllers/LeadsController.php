@@ -1146,6 +1146,9 @@ class LeadsController extends Controller
             $lead->converted_at = now();
             $lead->save();
 
+            // Tareeka 1: Smart Cache Invalidation
+            remove_converted_order_from_cache([$lead->order_id, $order->order_id ?? null]);
+
             // Return a response with updated data
             return response()->json(['message' => 'Lead converted successfully', 'order' => $order]);
         } catch (\Exception $e) {
@@ -1572,6 +1575,9 @@ class LeadsController extends Controller
         $leadData->is_converted = 1;
         $leadData->converted_at = now();
         $leadData->save();
+
+        // Tareeka 1: Smart Cache Invalidation
+        remove_converted_order_from_cache([$leadData->order_id, $order->order_id ?? null]);
 
         return redirect('/order');
     }
@@ -2677,13 +2683,21 @@ class LeadsController extends Controller
             ], 404);
         }
 
-        // Step 2: Check if order exists
+        // Step 2: Check if order exists (by lead_id or order_id)
         $order = Order::where('lead_id', $lead_id)->first();
-        // dd($order);
+        if (! $order && ! empty($lead->order_id)) {
+            $order = Order::where('order_id', $lead->order_id)->first();
+        }
         // Step 3: Create new order if not found
         if (! $order) {
             $order = new Order;
             $order->lead_id = $lead->id;
+            $order->order_id = $lead->order_id;
+        } else {
+            $order->lead_id = $lead->id;
+            if (empty($order->order_id)) {
+                $order->order_id = $lead->order_id;
+            }
         }
 
         // Step 4: Map lead data to order
@@ -2718,6 +2732,9 @@ class LeadsController extends Controller
         $lead->is_converted = 1;
         $lead->converted_at = now();
         $lead->save();
+
+        // Tareeka 1: Smart Cache Invalidation (remove converted order from unconverted cache so it appears immediately)
+        remove_converted_order_from_cache([$lead->order_id, $order->order_id]);
 
         logActivity('Lead', [
             'type' => 'Lead Converted to Order',
