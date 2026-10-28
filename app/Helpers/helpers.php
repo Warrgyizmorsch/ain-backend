@@ -1149,7 +1149,29 @@ if (!function_exists('is_email_campaign_enabled')) {
         return filter_var(env('EMAIL_CAMPAIGNS_ENABLED', true), FILTER_VALIDATE_BOOLEAN);
     }
 }
+if (!function_exists('remove_converted_order_from_cache')) {
+    /**
+     * Smart Cache Invalidation: Removes converted order code(s) from
+     * the 'unconverted_order_codes_in_orders' cache so the converted order
+     * is immediately visible on the Orders page without flushing the entire cache.
+     */
+    function remove_converted_order_from_cache($orderCodes): void
+    {
+        if (empty($orderCodes)) {
+            return;
+        }
 
+        $targets = array_filter((array) $orderCodes);
+        if (empty($targets)) {
+            return;
+        }
 
-
-
+        if (\Illuminate\Support\Facades\Cache::has('unconverted_order_codes_in_orders')) {
+            $cached = \Illuminate\Support\Facades\Cache::get('unconverted_order_codes_in_orders', []);
+            if (is_array($cached)) {
+                $updated = array_values(array_diff($cached, $targets));
+                \Illuminate\Support\Facades\Cache::put('unconverted_order_codes_in_orders', $updated, 300);
+            }
+        }
+    }
+}
