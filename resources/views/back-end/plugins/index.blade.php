@@ -11,6 +11,7 @@
     $apiSecret = !empty($twilioSettings['api_secret']) ? $twilioSettings['api_secret'] : env('TWILIO_API_SECRET', env('TWILIO_SECRET', 'rNXWstz1t72NSD4n60eT1uz2mZZLzfWe'));
     $twimlAppSid = !empty($twilioSettings['twiml_app_sid']) ? $twilioSettings['twiml_app_sid'] : env('TWILIO_TWIML_APP_SID', env('TWILIO_APP_SID', 'APde9388f580c06d9c737fbc995a3601a7'));
     $agentNumber = !empty($twilioSettings['default_agent_number']) ? $twilioSettings['default_agent_number'] : ($currentUserPhone ?? '');
+    $recordCalls = !empty($twilioSettings['record_calls']);
     $callMode = !empty($twilioSettings['call_mode']) ? $twilioSettings['call_mode'] : 'webrtc';
 
     $n2cSettings = optional($next2callPlugin)->settings ?? [];
@@ -283,6 +284,18 @@
                                 <label class="form-check-label fw-bold ms-3" for="is_active_checkbox">
                                     Enable Twilio Voice Calling in Orders Page
                                 </label>
+                            </div>
+                        </div>
+
+                        <div class="col-12 pt-3 border-top">
+                            <div class="form-check form-switch form-check-custom form-check-solid">
+                                <input class="form-check-input h-20px w-35px" type="checkbox" name="record_calls" value="1" id="record_calls_checkbox" {{ $recordCalls ? 'checked' : '' }}>
+                                <label class="form-check-label fw-bold ms-3" for="record_calls_checkbox">
+                                    <i class="fa fa-microphone text-danger me-1"></i> Record Voice Calls (Save Audio Recordings)
+                                </label>
+                            </div>
+                            <div class="text-muted fs-8 ms-11 mt-1">
+                                Automatically record voice conversations for answered calls and link recordings in Call History.
                             </div>
                         </div>
                     </div>

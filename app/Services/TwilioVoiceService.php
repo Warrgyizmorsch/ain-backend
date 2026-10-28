@@ -222,6 +222,10 @@ class TwilioVoiceService
 
         $statusCallbackUrl    = url('api/twilio/status-callback');
         $recordingCallbackUrl = url('api/twilio/recording-callback');
+        if (request()->isSecure() || request()->header('x-forwarded-proto') === 'https' || str_contains($statusCallbackUrl, 'warrgyizmorsch.com')) {
+            $statusCallbackUrl = str_replace('http://', 'https://', $statusCallbackUrl);
+            $recordingCallbackUrl = str_replace('http://', 'https://', $recordingCallbackUrl);
+        }
 
         // Case 1: Outbound call initiated from browser to an external phone number
         if (!empty($cleanTo) && !str_starts_with($cleanTo, 'client:') && $formattedTo !== $formattedCallerId && strlen($cleanTo) >= 7) {
@@ -436,11 +440,18 @@ class TwilioVoiceService
             return ['success' => false, 'message' => 'Customer phone number is invalid or empty.'];
         }
 
+        $statusCallbackUrl    = url('api/twilio/status-callback');
+        $recordingCallbackUrl = url('api/twilio/recording-callback');
+        if (request()->isSecure() || request()->header('x-forwarded-proto') === 'https' || str_contains($statusCallbackUrl, 'warrgyizmorsch.com')) {
+            $statusCallbackUrl = str_replace('http://', 'https://', $statusCallbackUrl);
+            $recordingCallbackUrl = str_replace('http://', 'https://', $recordingCallbackUrl);
+        }
+
         $orderText = $orderId ? " regarding Order Number {$orderId}" : '';
         $twiml = '<Response>'
             . '<Say voice="alice">Connecting your call' . htmlspecialchars($orderText) . '. Please wait while we dial the customer.</Say>'
-            . '<Dial callerId="' . htmlspecialchars($formattedFrom) . '" timeout="30">'
-            . '<Number>' . htmlspecialchars($formattedCustomer) . '</Number>'
+            . '<Dial callerId="' . htmlspecialchars($formattedFrom) . '" timeout="30" record="record-from-answer-dual" recordingStatusCallback="' . htmlspecialchars($recordingCallbackUrl) . '">'
+            . '<Number statusCallback="' . htmlspecialchars($statusCallbackUrl) . '" statusCallbackEvent="initiated ringing answered completed">' . htmlspecialchars($formattedCustomer) . '</Number>'
             . '</Dial>'
             . '</Response>';
 

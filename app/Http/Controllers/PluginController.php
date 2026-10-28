@@ -239,7 +239,7 @@ class PluginController extends Controller
             'twiml_app_sid' => trim($validated['twiml_app_sid'] ?? ''),
             'default_agent_number' => trim($validated['default_agent_number'] ?? ''),
             'call_mode' => $validated['call_mode'] ?? 'webrtc',
-            'record_calls' => (bool) ($validated['record_calls'] ?? false),
+            'record_calls' => $request->boolean('record_calls'),
         ];
         $plugin->updated_by = Auth::id();
         if (!$plugin->exists) {
@@ -1202,7 +1202,7 @@ class PluginController extends Controller
         try {
             $callSid   = $request->input('CallSid') ?: $request->input('DialCallSid');
             $rawStatus = strtolower((string) ($request->input('CallStatus') ?: $request->input('DialCallStatus') ?: 'completed'));
-            $duration  = (int) ($request->input('CallDuration') ?: $request->input('DialCallDuration') ?: 0);
+            $duration  = (int) ($request->input('CallDuration') ?: $request->input('DialCallDuration') ?: $request->input('RecordingDuration') ?: 0);
             $from      = $request->input('From', '');
             $to        = $request->input('To', '');
             $dirInput  = strtolower((string) $request->input('Direction', ''));
