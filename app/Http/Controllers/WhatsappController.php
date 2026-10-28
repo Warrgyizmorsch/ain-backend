@@ -62,6 +62,13 @@ class WhatsappController extends Controller
         $settings = $request->input("settings.{$provider}", []);
         $settings['webhook_url'] = url('/api/webhooks/whatsapp');
 
+        if ($provider === 'ai-sense') {
+            $projectId = trim((string) ($settings['project_id'] ?? ''));
+            if (! empty($projectId)) {
+                $settings['api_url'] = "https://apis.aisensy.com/project-apis/v1/project/{$projectId}/messages";
+            }
+        }
+
         WhatsappSetting::query()->update(['is_active' => false]);
 
         WhatsappSetting::query()->updateOrCreate(
@@ -1616,7 +1623,7 @@ class WhatsappController extends Controller
                             $langStr = $t['language'] ?? 'English (UK)';
                             $langCode = (stripos($langStr, 'UK') !== false || stripos($langStr, 'GB') !== false)
                                 ? 'en_GB'
-                                : ((stripos($langStr, 'US') !== false) ? 'en_US' : 'en_GB');
+                                : ((stripos($langStr, 'US') !== false) ? 'en_US' : ((strcasecmp(trim($langStr), 'English') === 0) ? 'en' : 'en_GB'));
 
                             $buttons = [];
                             if (! empty($t['quick_replies']) && is_array($t['quick_replies'])) {
@@ -1756,7 +1763,7 @@ class WhatsappController extends Controller
         $rawLang = is_object($template) ? ($template->language ?? 'en_GB') : ($template['language'] ?? 'en_GB');
         $templateLang = (stripos($rawLang, 'UK') !== false || stripos($rawLang, 'GB') !== false)
             ? 'en_GB'
-            : ((stripos($rawLang, 'US') !== false) ? 'en_US' : 'en_GB');
+            : ((stripos($rawLang, 'US') !== false) ? 'en_US' : ((strcasecmp(trim($rawLang), 'English') === 0) ? 'en' : 'en_GB'));
 
         if (! empty($footerText)) {
             $fullMessageText = $renderedBody."\n\n— ".$footerText;
@@ -3121,7 +3128,19 @@ class WhatsappController extends Controller
 
     private function normalizePhone(string $countryCode, string $mobile): string
     {
-        return '+'.ltrim(preg_replace('/\D+/', '', $countryCode.$mobile), '+');
+        $cleanCc = preg_replace('/\D+/', '', $countryCode);
+        $cleanMobile = preg_replace('/\D+/', '', $mobile);
+
+        if (! empty($cleanCc)) {
+            $cleanMobile = ltrim($cleanMobile, '0');
+            if (str_starts_with($cleanMobile, $cleanCc)) {
+                return '+'.$cleanMobile;
+            }
+
+            return '+'.$cleanCc.$cleanMobile;
+        }
+
+        return '+'.$cleanMobile;
     }
 
     private function avatarColor(int $index): string

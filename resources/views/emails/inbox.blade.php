@@ -4125,7 +4125,7 @@ function initEmailAutocomplete(inputId, dropdownId) {
                             <div class="d-flex flex-column" style="min-width:0;">
                                 <div class="email-autocomplete-name text-truncate">
                                     ${escapeHtml(name)}
-                                    ${u.user_id ? `<span class="badge bg-light text-muted border ms-1 fs-9">${u.is_lead ? 'Lead #' : 'ID: '}${escapeHtml(String(u.user_id))}</span>` : ''}
+                                    ${u.is_writer ? '<span class="badge bg-success text-white ms-1 fs-9">Writer</span>' : (u.user_id ? `<span class="badge bg-light text-muted border ms-1 fs-9">${u.is_lead ? 'Lead #' : 'ID: '}${escapeHtml(String(u.user_id))}</span>` : '')}
                                 </div>
                                 <div class="email-autocomplete-email text-truncate">${escapeHtml(displayEmail)}</div>
                             </div>
@@ -4415,7 +4415,7 @@ function openComposeModal(prefill = {}) {
 
     clearComposeRecipients();
     if (prefill.to) {
-        String(prefill.to).split(',').forEach(email => addComposeRecipient(email));
+        String(prefill.to).split(',').forEach(email => addComposeRecipient(email.trim(), prefill.to_name || ''));
     }
     if (prefill.subject) {
         document.getElementById('composeSubject').value = prefill.subject;
@@ -5234,6 +5234,20 @@ document.addEventListener('DOMContentLoaded', function() {
         const clearBtn = document.getElementById('clearSearchBtn');
         if (clearBtn) clearBtn.style.display = 'inline-block';
         highlightSearchTermsInList(initSearchVal);
+    }
+
+    // Auto-open compose widget if requested via URL query params (e.g. from Order page)
+    if (urlParams.get('compose') === '1' || urlParams.has('to')) {
+        setTimeout(function() {
+            if (typeof openComposeModal === 'function') {
+                openComposeModal({
+                    accountId: urlParams.get('account_id') || currentAccountId,
+                    to: urlParams.get('to') || '',
+                    to_name: urlParams.get('to_name') || '',
+                    subject: urlParams.get('subject') || ''
+                });
+            }
+        }, 250);
     }
 });
 

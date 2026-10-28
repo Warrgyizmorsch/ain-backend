@@ -1,35 +1,48 @@
     @php
-    $roleId = optional(auth()->user())->role_id ?? 0;
-    $orderIdStyle = "";
-    $isFrontendOrder = optional($order->lead)->frontendorder == '1'
-        || optional($order->frontendLead)->frontendorder == '1';
+        $roleId = optional(auth()->user())->role_id ?? 0;
+        $orderIdStyle = '';
+        $isFrontendOrder =
+            optional($order->lead)->frontendorder == '1' || optional($order->frontendLead)->frontendorder == '1';
 
-    $effectiveUser = $order->user ?: (optional($order->lead)->user ?: optional($order->frontendLead)->user);
-    $effectiveTitle = $order->title ?: (optional($order->lead)->project_title ?: optional($order->frontendLead)->project_title);
-    $effectiveOrderDate = $order->order_date ?: (optional($order->lead)->created_at ?: (optional($order->lead)->create_at ?: $order->created_at));
-    $effectiveDeliveryDate = $order->delivery_date ?: (optional($order->lead)->deadline ?: optional($order->frontendLead)->deadline);
-    $effectiveDeliveryTime = $order->delivery_time ?: (optional($order->lead)->delivery_time ?: optional($order->frontendLead)->delivery_time);
-    $effectivePages = $order->pages ?: (optional($order->lead)->pages ?: optional($order->frontendLead)->pages);
-    $effectiveAmount = $order->amount ?: (optional($order->lead)->price ?: optional($order->frontendLead)->price);
-    $effectiveSemester = $order->semester ?: (optional($order->lead)->semester ?: optional($order->frontendLead)->semester);
-    $effectiveChapter = $order->chapter ?: (optional($order->lead)->chapter ?: optional($order->frontendLead)->chapter);
-    $effectiveTech = $order->tech ?: (optional($order->lead)->tech ?: optional($order->frontendLead)->tech);
-    $effectiveResit = $order->resit ?: (optional($order->lead)->resit ?: optional($order->frontendLead)->resit);
-    $effectiveModuleCode = $order->module_code ?: (optional($order->lead)->module_code ?: optional($order->frontendLead)->module_code);
-    $effectiveServices = $order->services ?: (optional($order->lead)->service_type ?: optional($order->frontendLead)->service_type);
+        $effectiveUser = $order->user ?: (optional($order->lead)->user ?: optional($order->frontendLead)->user);
+        $effectiveTitle =
+            $order->title ?: (optional($order->lead)->project_title ?: optional($order->frontendLead)->project_title);
+        $effectiveOrderDate =
+            $order->order_date ?:
+            (optional($order->lead)->created_at ?:
+            (optional($order->lead)->create_at ?:
+            $order->created_at));
+        $effectiveDeliveryDate =
+            $order->delivery_date ?: (optional($order->lead)->deadline ?: optional($order->frontendLead)->deadline);
+        $effectiveDeliveryTime =
+            $order->delivery_time ?:
+            (optional($order->lead)->delivery_time ?:
+            optional($order->frontendLead)->delivery_time);
+        $effectivePages = $order->pages ?: (optional($order->lead)->pages ?: optional($order->frontendLead)->pages);
+        $effectiveAmount = $order->amount ?: (optional($order->lead)->price ?: optional($order->frontendLead)->price);
+        $effectiveSemester =
+            $order->semester ?: (optional($order->lead)->semester ?: optional($order->frontendLead)->semester);
+        $effectiveChapter =
+            $order->chapter ?: (optional($order->lead)->chapter ?: optional($order->frontendLead)->chapter);
+        $effectiveTech = $order->tech ?: (optional($order->lead)->tech ?: optional($order->frontendLead)->tech);
+        $effectiveResit = $order->resit ?: (optional($order->lead)->resit ?: optional($order->frontendLead)->resit);
+        $effectiveModuleCode =
+            $order->module_code ?: (optional($order->lead)->module_code ?: optional($order->frontendLead)->module_code);
+        $effectiveServices =
+            $order->services ?: (optional($order->lead)->service_type ?: optional($order->frontendLead)->service_type);
 
-    if ($order->failed_followup_highlight ?? false) {
-        $orderIdStyle = "
+        if ($order->failed_followup_highlight ?? false) {
+            $orderIdStyle = "
             background-color: #ffeaea !important;
             color: #b50000 !important;
             border: 2px solid #ff0000 !important;
         ";
-    } elseif (optional($effectiveUser)->feedback_issue == 1) {
-        $orderIdStyle = "color: blue;";
-    }
+        } elseif (optional($effectiveUser)->feedback_issue == 1) {
+            $orderIdStyle = 'color: blue;';
+        }
 
     @endphp
-    {{-- <tr id="lead-{{ $order->id }}" @if( optional($effectiveUser)->is_fail == 1 || optional($effectiveUser)->feedback_issue == 1) style="color:blue" @endif id="order_{{ $order->id }}" class="{{ ($order->is_read == 1) ? 'bold-row' : '' }}" > --}}
+    {{-- <tr id="lead-{{ $order->id }}" @if (optional($effectiveUser)->is_fail == 1 || optional($effectiveUser)->feedback_issue == 1) style="color:blue" @endif id="order_{{ $order->id }}" class="{{ ($order->is_read == 1) ? 'bold-row' : '' }}" > --}}
     <tr id="lead-{{ $order->id }}">
         <td class="text-center" style="padding-right: 0px;">
             {{ $index + 1 }}
@@ -37,30 +50,39 @@
 
 
         <td class="text-center" style="position: sticky; left: 0; background: white; z-index: 2;">
-            <div style="display:grid; grid-template-columns:repeat(4, max-content); justify-content:center; align-items:center; gap:6px;">
+            <div
+                style="display:grid; grid-template-columns:repeat(4, max-content); justify-content:center; align-items:center; gap:6px;">
 
-                @if($effectiveUser)
-                    <button type="button" class="btn btn-sm btn-light-success fw-bold" title="Manage User Groups" data-user-group-button="{{ $effectiveUser->id }}" data-groups='@json($effectiveUser->groups->pluck("id"))' onclick="openUserGroupModal({{ $effectiveUser->id }}, @js($effectiveUser->name), JSON.parse(this.dataset.groups))">G</button>
+                @if ($effectiveUser)
+                    <button type="button" class="btn btn-sm btn-light-success fw-bold" title="Manage User Groups"
+                        data-user-group-button="{{ $effectiveUser->id }}" data-groups='@json($effectiveUser->groups->pluck('id'))'
+                        onclick="openUserGroupModal({{ $effectiveUser->id }}, @js($effectiveUser->name), JSON.parse(this.dataset.groups))">G</button>
                 @endif
 
                 <!-- Edit Order Button -->
-                <a target="_blank" style="background-color: #1e1e2d;" href="orders/edit/{{ $order->id }}" class="btn btn-icon btn-sm" title="Edit Order">
+                <a target="_blank" style="background-color: #1e1e2d;" href="orders/edit/{{ $order->id }}"
+                    class="btn btn-icon btn-sm" title="Edit Order">
                     <i style="color: white;" class="fa fa-edit"></i>
                 </a>
 
                 <!-- Orders Button (O) -->
-                @if($effectiveUser)
-                    <a href="{{ url('/orders') }}?uid={{ $effectiveUser->id }}&user={{ urlencode($effectiveUser->name) }}" target="_blank" 
+                @if ($effectiveUser)
+                    <a href="{{ url('/orders') }}?uid={{ $effectiveUser->id }}&user={{ urlencode($effectiveUser->name) }}"
+                        target="_blank"
                         class="btn btn-sm btn-icon p-0 d-inline-flex align-items-center justify-content-center shadow-xs position-relative"
-                        style="background-color: #009ef7; color: white; width: 28px; height: 28px; min-width: 28px; border-radius: 6px;" title="View User Orders">
+                        style="background-color: #009ef7; color: white; width: 28px; height: 28px; min-width: 28px; border-radius: 6px;"
+                        title="View User Orders">
                         <span class="fw-bolder" style="font-size: 13px;">O</span>
                         @php
                             $userOrderCount = isset($effectiveUser->converted_orders_count)
                                 ? (int) $effectiveUser->converted_orders_count
-                                : ($effectiveUser ? (int) $effectiveUser->convertedOrders()->count() : 0);
+                                : ($effectiveUser
+                                    ? (int) $effectiveUser->convertedOrders()->count()
+                                    : 0);
                         @endphp
-                        @if($userOrderCount > 0)
-                            <span style="position:absolute; top:-5px; right:-5px; background:#e53e3e; color:#ffffff; font-size:9px; font-weight:700; line-height:1; padding:2px 4px; border-radius:10px; box-shadow:0 1px 2px rgba(0,0,0,0.3);">
+                        @if ($userOrderCount > 0)
+                            <span
+                                style="position:absolute; top:-5px; right:-5px; background:#e53e3e; color:#ffffff; font-size:9px; font-weight:700; line-height:1; padding:2px 4px; border-radius:10px; box-shadow:0 1px 2px rgba(0,0,0,0.3);">
                                 {{ $userOrderCount }}
                             </span>
                         @endif
@@ -70,105 +92,109 @@
                 <!-- Call Customer Buttons: Twilio & Next2Call -->
                 @php
                     $rowPhone = optional($effectiveUser)->mobile_no ?? '';
-                    $rowCC = preg_replace('/\D+/', '', (string)(optional($effectiveUser)->countrycode ?? ''));
+                    $rowCC = preg_replace('/\D+/', '', (string) (optional($effectiveUser)->countrycode ?? ''));
                     $rowName = addslashes(optional($effectiveUser)->name ?? 'Customer');
                 @endphp
-                @if($rowPhone)
-                {{-- Twilio Call Button --}}
-                <a href="#"
-                   id="twilioCallBtnorderrow{{ $order->id }}"
-                   onclick="event.preventDefault(); event.stopPropagation(); initiateTwilioCall('{{ $rowCC . $rowPhone }}', '{{ $rowName }}');"
-                   class="btn btn-icon btn-sm"
-                   style="width:28px;height:28px;min-width:28px;border-radius:6px;background-color:#25D366;color:#ffffff;display:inline-flex;align-items:center;justify-content:center;transition:transform 0.2s ease,background-color 0.2s ease;"
-                   onmouseover="this.style.backgroundColor='#1ebd58';this.style.transform='scale(1.1)';"
-                   onmouseout="this.style.backgroundColor='#25D366';this.style.transform='scale(1)';"
-                   title="Call via Twilio">
-                    <i class="fa fa-phone text-white" style="font-size:12px;"></i>
-                </a>
+                @if ($rowPhone)
+                    {{-- Twilio Call Button --}}
+                    <a href="#" id="twilioCallBtnorderrow{{ $order->id }}"
+                        onclick="event.preventDefault(); event.stopPropagation(); initiateTwilioCall('{{ $rowCC . $rowPhone }}', '{{ $rowName }}');"
+                        class="btn btn-icon btn-sm"
+                        style="width:28px;height:28px;min-width:28px;border-radius:6px;background-color:#25D366;color:#ffffff;display:inline-flex;align-items:center;justify-content:center;transition:transform 0.2s ease,background-color 0.2s ease;"
+                        onmouseover="this.style.backgroundColor='#1ebd58';this.style.transform='scale(1.1)';"
+                        onmouseout="this.style.backgroundColor='#25D366';this.style.transform='scale(1)';"
+                        title="Call via Twilio">
+                        <i class="fa fa-phone text-white" style="font-size:12px;"></i>
+                    </a>
 
-                {{-- Next2Call Button (with red 2 badge) --}}
-                <a href="#"
-                   id="n2cCallBtnorderrow{{ $order->id }}"
-                   onclick="event.preventDefault(); event.stopPropagation(); initiateNext2Call('{{ $rowCC . $rowPhone }}', '{{ $rowName }}');"
-                   class="btn btn-icon btn-sm position-relative"
-                   style="width:28px;height:28px;min-width:28px;border-radius:6px;background-color:#25D366;color:#ffffff;display:inline-flex;align-items:center;justify-content:center;transition:transform 0.2s ease,background-color 0.2s ease;"
-                   onmouseover="this.style.backgroundColor='#1ebd58';this.style.transform='scale(1.1)';"
-                   onmouseout="this.style.backgroundColor='#25D366';this.style.transform='scale(1)';"
-                   title="Call via Next2Call">
-                    <i class="fa fa-phone text-white" style="font-size:12px;"></i>
-                    <span style="position:absolute;bottom:-2px;right:-1px;background:#e53e3e;color:#ffffff;font-size:8px;font-weight:900;line-height:1;padding:1px 2.5px;border-radius:2px;box-shadow:0 1px 2px rgba(0,0,0,0.3);font-family:Arial,sans-serif;pointer-events:none;">2</span>
-                </a>
+                    {{-- Next2Call Button (with red 2 badge) --}}
+                    <a href="#" id="n2cCallBtnorderrow{{ $order->id }}"
+                        onclick="event.preventDefault(); event.stopPropagation(); initiateNext2Call('{{ $rowCC . $rowPhone }}', '{{ $rowName }}');"
+                        class="btn btn-icon btn-sm position-relative"
+                        style="width:28px;height:28px;min-width:28px;border-radius:6px;background-color:#25D366;color:#ffffff;display:inline-flex;align-items:center;justify-content:center;transition:transform 0.2s ease,background-color 0.2s ease;"
+                        onmouseover="this.style.backgroundColor='#1ebd58';this.style.transform='scale(1.1)';"
+                        onmouseout="this.style.backgroundColor='#25D366';this.style.transform='scale(1)';"
+                        title="Call via Next2Call">
+                        <i class="fa fa-phone text-white" style="font-size:12px;"></i>
+                        <span
+                            style="position:absolute;bottom:-2px;right:-1px;background:#e53e3e;color:#ffffff;font-size:8px;font-weight:900;line-height:1;padding:1px 2.5px;border-radius:2px;box-shadow:0 1px 2px rgba(0,0,0,0.3);font-family:Arial,sans-serif;pointer-events:none;">2</span>
+                    </a>
                 @endif
 
                 <!-- Button to Open Unified Payment Page -->
-                <a href="{{ route('orders.payment.form', ['orderId' => $order->id]) }}"
-                    target="_blank"
-                    class="btn btn-icon btn-success btn-sm position-relative"
-                    title="Add/Edit Payment">
+                <a href="{{ route('orders.payment.form', ['orderId' => $order->id]) }}" target="_blank"
+                    class="btn btn-icon btn-success btn-sm position-relative" title="Add/Edit Payment">
                     <i class="fa fa-money"></i>
-                    @if($order->payment->contains(function($p) {
-                        return empty($p->payee_name) || empty($p->company_accounts);
-                    }))
-                    <i class="fa fa-question-circle text-danger bg-white"
-                        title="Incomplete payment info"
-                        style="position: absolute; top: -3px; right: -3px; font-size: 11px; border-radius: 50%;"></i>
+                    @if (
+                        $order->payment->contains(function ($p) {
+                            return empty($p->payee_name) || empty($p->company_accounts);
+                        }))
+                        <i class="fa fa-question-circle text-danger bg-white" title="Incomplete payment info"
+                            style="position: absolute; top: -3px; right: -3px; font-size: 11px; border-radius: 50%;"></i>
                     @endif
                 </a>
 
                 <!-- Mark as Failed Button -->
-                <a href="javascript:void(0);" onclick="showConfirmation({{ $order->id }}, {{ $order->is_fail }})" class="btn btn-icon btn-danger btn-sm" title="Mark as Failed">
+                <a href="javascript:void(0);" onclick="showConfirmation({{ $order->id }}, {{ $order->is_fail }})"
+                    class="btn btn-icon btn-danger btn-sm" title="Mark as Failed">
                     <i class="fa fa-times-circle"></i>
                 </a>
 
-                @if(in_array($roleId, [1, 4, 9]))
-                    <button type="button" class="btn btn-icon btn-sm btn-light-danger" title="Looking For Refund" onclick="markLookingForRefund({{ $order->id }})">
+                @if (in_array($roleId, [1, 4, 9]))
+                    <button type="button" class="btn btn-icon btn-sm btn-light-danger" title="Looking For Refund"
+                        onclick="markLookingForRefund({{ $order->id }})">
                         <span class="fw-bold fs-6">R</span>
                     </button>
 
-                    <button type="button" class="btn btn-icon btn-sm btn-light-primary" title="Add Additional" onclick="openAdditionalModal({{ $order->id }})">
+                    <button type="button" class="btn btn-icon btn-sm btn-light-primary" title="Add Additional"
+                        onclick="openAdditionalModal({{ $order->id }})">
                         <span class="fw-bold fs-6">A</span>
                     </button>
                 @endif
 
-                @if(in_array($roleId, [1, 4, 5, 9]))
-                <a href="javascript:void(0);"
-                   onclick="event.preventDefault(); event.stopPropagation(); CallToWriter('{{ $order->id }}')"
-                   class="btn btn-icon btn-bg-warning btn-active-color-dark btn-color-white btn-sm me-1 download-btn"
-                   title="Call Writer via Samwad{{ $order->writer_name ? ': ' . $order->writer_name : '' }}">
-                    <span class="svg-icon svg-icon-3">
-                        <i class="fa fa-phone fa-lg"></i>
-                    </span>
-                </a>
+                @if (in_array($roleId, [1, 4, 5, 9]))
+                    <a href="javascript:void(0);"
+                        onclick="event.preventDefault(); event.stopPropagation(); CallToWriter('{{ $order->id }}')"
+                        class="btn btn-icon btn-bg-warning btn-active-color-dark btn-color-white btn-sm me-1 download-btn"
+                        title="Call Writer via Samwad{{ $order->writer_name ? ': ' . $order->writer_name : '' }}">
+                        <span class="svg-icon svg-icon-3">
+                            <i class="fa fa-phone fa-lg"></i>
+                        </span>
+                    </a>
                 @endif
 
                 <!-- Batchmate / Module Peer Suggestion Button -->
-                <button type="button"
-                        class="btn btn-icon btn-sm btn-light-info peer-match-btn"
-                        id="peerMatchBtn{{ $order->id }}"
-                        onclick="event.stopPropagation(); openPeerSuggestionModal({{ $order->id }});"
-                        title="Find Batchmate / Module Peer (2-12 months)"
-                        style="width:28px;height:28px;min-width:28px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;background-color:#f1faff;color:#009ef7;border:1px solid #c9e9fe;transition:transform 0.15s ease;"
-                        onmouseover="this.style.backgroundColor='#009ef7';this.style.color='#ffffff';this.style.transform='scale(1.1)';"
-                        onmouseout="this.style.backgroundColor='#f1faff';this.style.color='#009ef7';this.style.transform='scale(1)';">
+                <button type="button" class="btn btn-icon btn-sm btn-light-info peer-match-btn"
+                    id="peerMatchBtn{{ $order->id }}"
+                    onclick="event.stopPropagation(); openPeerSuggestionModal({{ $order->id }});"
+                    title="Find Batchmate / Module Peer (2-12 months)"
+                    style="width:28px;height:28px;min-width:28px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;background-color:#f1faff;color:#009ef7;border:1px solid #c9e9fe;transition:transform 0.15s ease;"
+                    onmouseover="this.style.backgroundColor='#009ef7';this.style.color='#ffffff';this.style.transform='scale(1.1)';"
+                    onmouseout="this.style.backgroundColor='#f1faff';this.style.color='#009ef7';this.style.transform='scale(1)';">
                     <i class="fa fa-users" style="font-size:12px;"></i>
                 </button>
 
                 <!-- Chat / Comment Button (MOVED TO LAST POSITION) -->
-                <button onclick="loadCommentDrawer({{ $order->id }})" class="btn btn-icon btn-secondary btn-sm" title="Open Chat / Comments">
+                <button onclick="loadCommentDrawer({{ $order->id }})" class="btn btn-icon btn-secondary btn-sm"
+                    title="Open Chat / Comments">
                     <span>T</span>
                 </button>
             </div>
             {!! get_order_duration_gap_badge($order, $effectiveDeliveryDate) !!}
         </td>
-        
-        <td id="order-cell-{{ $order->id }}" class="text-center {{ ($order->is_read == 1) ? 'bold-row' : '' }}" style="{{ $orderIdStyle }}">
-           @if($isFrontendOrder)
+
+        <td id="order-cell-{{ $order->id }}" class="text-center {{ $order->is_read == 1 ? 'bold-row' : '' }}"
+            style="{{ $orderIdStyle }}">
+            @if ($isFrontendOrder)
                 <div class="d-inline-flex align-items-center justify-content-center">
                     <span class="badge badge-light-primary fs-7 fw-bold">
                         {{ $order->order_id }}
                     </span>
-                    @if(!empty($order->order_id))
-                        <button type="button" class="btn btn-icon btn-sm btn-active-light-primary ms-1 p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Order ID" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $order->order_id }}', 'Order ID copied!');">
+                    @if (!empty($order->order_id))
+                        <button type="button"
+                            class="btn btn-icon btn-sm btn-active-light-primary ms-1 p-0 flex-shrink-0"
+                            style="width: 18px; height: 18px;" title="Copy Order ID"
+                            onclick="event.stopPropagation(); crmCopyToClipboard('{{ $order->order_id }}', 'Order ID copied!');">
                             <i class="fa fa-clone fs-8 text-muted"></i>
                         </button>
                     @endif
@@ -178,55 +204,52 @@
                     <span class="fw-bold text-gray-800">
                         {{ $order->order_id }}
                     </span>
-                    @if(!empty($order->order_id))
-                        <button type="button" class="btn btn-icon btn-sm btn-active-light-primary ms-1 p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Order ID" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $order->order_id }}', 'Order ID copied!');">
+                    @if (!empty($order->order_id))
+                        <button type="button"
+                            class="btn btn-icon btn-sm btn-active-light-primary ms-1 p-0 flex-shrink-0"
+                            style="width: 18px; height: 18px;" title="Copy Order ID"
+                            onclick="event.stopPropagation(); crmCopyToClipboard('{{ $order->order_id }}', 'Order ID copied!');">
                             <i class="fa fa-clone fs-8 text-muted"></i>
                         </button>
                     @endif
                 </div><br>
             @endif
-            @if($roleId != 4)
-            <div class="d-inline-flex align-items-center justify-content-center gap-1 mb-1 order-team-badge-container-{{ $order->id }}">
-                @if($order->team?->team_name)
-                    @if(in_array($roleId, [1, 9]))
-                        <span 
-                            class="badge badge-light-primary fs-7 fw-bold cursor-pointer"
-                            data-bs-toggle="modal"
-                            data-bs-target="#changeTeamModal"
-                            onclick="openTeamModal('{{ $order->id }}', '{{ $order->team_id }}')"
-                            title="Click to change team"
-                        >
-                            <i class="fas fa-users fs-9 me-1"></i>{{ $order->team->team_name }}
-                        </span>
-                    @else
-                        <span class="badge badge-light-primary fs-7 fw-bold">
-                            <i class="fas fa-users fs-9 me-1"></i>{{ $order->team->team_name }}
+            @if ($roleId != 4)
+                <div
+                    class="d-inline-flex align-items-center justify-content-center gap-1 mb-1 order-team-badge-container-{{ $order->id }}">
+                    @if ($order->team?->team_name)
+                        @if (in_array($roleId, [1, 9]))
+                            <span class="badge badge-light-primary fs-7 fw-bold cursor-pointer" data-bs-toggle="modal"
+                                data-bs-target="#changeTeamModal"
+                                onclick="openTeamModal('{{ $order->id }}', '{{ $order->team_id }}')"
+                                title="Click to change team">
+                                <i class="fas fa-users fs-9 me-1"></i>{{ $order->team->team_name }}
+                            </span>
+                        @else
+                            <span class="badge badge-light-primary fs-7 fw-bold">
+                                <i class="fas fa-users fs-9 me-1"></i>{{ $order->team->team_name }}
+                            </span>
+                        @endif
+                    @elseif(in_array($roleId, [1, 9]))
+                        <span class="badge badge-light-secondary text-muted fs-8 fw-bold cursor-pointer"
+                            data-bs-toggle="modal" data-bs-target="#changeTeamModal"
+                            onclick="openTeamModal('{{ $order->id }}', '')" title="Click to assign team">
+                            <i class="fas fa-plus fs-9 me-1"></i> Assign Team
                         </span>
                     @endif
-                @elseif(in_array($roleId, [1, 9]))
-                    <span 
-                        class="badge badge-light-secondary text-muted fs-8 fw-bold cursor-pointer"
-                        data-bs-toggle="modal"
-                        data-bs-target="#changeTeamModal"
-                        onclick="openTeamModal('{{ $order->id }}', '')"
-                        title="Click to assign team"
-                    >
-                        <i class="fas fa-plus fs-9 me-1"></i> Assign Team
-                    </span>
-                @endif
-            </div><br>
+                </div><br>
             @endif
 
-            @if($order->marks)
-            <span class="fs-7 fw-bold">Marks:</span>{{ $order->marks }}<br>
+            @if ($order->marks)
+                <span class="fs-7 fw-bold">Marks:</span>{{ $order->marks }}<br>
             @endif
 
-            @if($effectiveSemester)
-            <span class="badge badge-light-warning fs-7 fw-bold mb-1">{{ $effectiveSemester }}</span>
+            @if ($effectiveSemester)
+                <span class="badge badge-light-warning fs-7 fw-bold mb-1">{{ $effectiveSemester }}</span>
             @endif
 
-             @if($order->offer)
-             <span class="badge badge-light-success fs-7 fw-bold mb-1">{{$order->offer}}</span><br>
+            @if ($order->offer)
+                <span class="badge badge-light-success fs-7 fw-bold mb-1">{{ $order->offer }}</span><br>
             @endif
 
             <span id="orderTicketNumber{{ $order->id }}"
@@ -235,35 +258,42 @@
             </span>
 
             @if ($effectiveResit == 'on' || $effectiveResit == '1')
-            <span class="badge badge-light-danger fs-7 fw-bold mb-1">Resit</span><br>
+                <span class="badge badge-light-danger fs-7 fw-bold mb-1">Resit</span><br>
             @endif
 
-            @if($effectiveServices == 'First Class Work')
-            <span class="badge badge-light-info fs-7 fw-bold mb-1">First Class Work</span>
+            @if ($effectiveServices == 'First Class Work')
+                <span class="badge badge-light-info fs-7 fw-bold mb-1">First Class Work</span>
             @endif
 
-            @if($order->is_fail == 1)
-            <span class="badge badge-light-danger fs-7 fw-bold mt-1">
-                Fail Order<br>{{ \Carbon\Carbon::parse($order->failed_at)->format('d M Y H:i:s A') }}
-            </span>
+            @if ($order->is_fail == 1)
+                <span class="badge badge-light-danger fs-7 fw-bold mt-1">
+                    Fail Order<br>{{ \Carbon\Carbon::parse($order->failed_at)->format('d M Y H:i:s A') }}
+                </span>
             @endif
         </td>
-         <td class="text-center" id="referral-cell-{{ $order->id }}">
-            @if($order->referal && strtolower($order->referal) !== 'no')
+        <td class="text-center" id="referral-cell-{{ $order->id }}">
+            @if ($order->referal && strtolower($order->referal) !== 'no')
                 <span class="badge badge-light-success fs-7 fw-bold mb-1">Conversation: Yes</span><br>
-                @if($order->client_will_refer)
-                    <span class="badge {{ $order->client_will_refer === 'yes' ? 'badge-light-success' : 'badge-light-danger' }} fs-7 fw-bold">
+                @if ($order->client_will_refer)
+                    <span
+                        class="badge {{ $order->client_will_refer === 'yes' ? 'badge-light-success' : 'badge-light-danger' }} fs-7 fw-bold">
                         Will Refer: {{ $order->client_will_refer === 'yes' ? 'Yes' : 'No' }}
                     </span>
                 @endif
             @else
                 <div class="dropdown d-inline-block">
-                    <button class="btn {{ $order->referal && strtolower($order->referal) === 'no' ? 'btn-light-danger btn-referral-no' : 'btn-light btn-active-light-primary' }} btn-sm py-1 px-3 fs-7 fw-bold dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                    <button
+                        class="btn {{ $order->referal && strtolower($order->referal) === 'no' ? 'btn-light-danger btn-referral-no' : 'btn-light btn-active-light-primary' }} btn-sm py-1 px-3 fs-7 fw-bold dropdown-toggle"
+                        type="button" data-bs-toggle="dropdown" aria-expanded="false">
                         {{ $order->referal && strtolower($order->referal) === 'no' ? 'Conversation: No' : 'Referral' }}
                     </button>
-                    <ul class="dropdown-menu dropdown-menu-end shadow-sm border-0 fs-7 py-2" style="min-width: 100px;">
-                        <li><a class="dropdown-item py-2 text-success fw-bold" href="javascript:void(0)" onclick="openReferralModal('{{ $order->id }}', '{{ $order->order_id }}')">Yes</a></li>
-                        <li><a class="dropdown-item py-2 text-danger fw-bold" href="javascript:void(0)" onclick="submitReferral('{{ $order->id }}', 'no')">No</a></li>
+                    <ul class="dropdown-menu dropdown-menu-end shadow-sm border-0 fs-7 py-2"
+                        style="min-width: 100px;">
+                        <li><a class="dropdown-item py-2 text-success fw-bold" href="javascript:void(0)"
+                                onclick="openReferralModal('{{ $order->id }}', '{{ $order->order_id }}')">Yes</a>
+                        </li>
+                        <li><a class="dropdown-item py-2 text-danger fw-bold" href="javascript:void(0)"
+                                onclick="submitReferral('{{ $order->id }}', 'no')">No</a></li>
                     </ul>
                 </div>
             @endif
@@ -271,179 +301,219 @@
 
         <td class="text-center">
             @php
-                $orderUserId = $effectiveUser ? $effectiveUser->id : ($order->uid ?? null);
+                $orderUserId = $effectiveUser ? $effectiveUser->id : $order->uid ?? null;
             @endphp
-            @if($effectiveUser)
-            @php
-                $userAssignedLabels = optional($effectiveUser)->labels ?? collect();
-                $userAssignedLabelIds = $userAssignedLabels->pluck('id')->all();
-                $rawUserMobile = $effectiveUser->mobile_no ?: '';
-                $rawUserEmail = $effectiveUser->email ?: '';
-            @endphp
-            <div class="d-flex align-items-center justify-content-center">
-                <span class="fw-bold">{{ $effectiveUser->name }}</span>
-            </div>
-            @if(!empty($orderUserId))
-                <div class="d-inline-flex align-items-center justify-content-center gap-1 my-1">
-                    <span class="badge badge-light-dark fs-8 fw-bold">ID: {{ $orderUserId }}</span>
-                    <button type="button" class="btn btn-icon btn-sm btn-active-light-dark p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy User ID" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $orderUserId }}', 'User ID copied!');">
-                        <i class="fa fa-clone fs-8 text-muted"></i>
-                    </button>
-                </div><br>
-            @endif
-
-            @if(!empty($effectiveUser->client_review))
-            <span class="duplicate-info-wrapper">
-
-                <a
-                    class=""
-                    style="width:22px;height:22px;font-size:13px;line-height:1;">
-                    <i class="fa fa-info-circle"></i>
-                </a>
-
-                <div class="duplicate-popup shadow">
-                    <span>{{$effectiveUser->client_review}}</span>
+            @if ($effectiveUser)
+                @php
+                    $userAssignedLabels = optional($effectiveUser)->labels ?? collect();
+                    $userAssignedLabelIds = $userAssignedLabels->pluck('id')->all();
+                    $rawUserMobile = $effectiveUser->mobile_no ?: '';
+                    $rawUserEmail = $effectiveUser->email ?: '';
+                @endphp
+                <div class="d-flex align-items-center justify-content-center">
+                    <span class="fw-bold">{{ $effectiveUser->name }}</span>
                 </div>
+                @if (!empty($orderUserId))
+                    <div class="d-inline-flex align-items-center justify-content-center gap-1 my-1">
+                        <span class="badge badge-light-dark fs-8 fw-bold">ID: {{ $orderUserId }}</span>
+                        <button type="button" class="btn btn-icon btn-sm btn-active-light-dark p-0 flex-shrink-0"
+                            style="width: 18px; height: 18px;" title="Copy User ID"
+                            onclick="event.stopPropagation(); crmCopyToClipboard('{{ $orderUserId }}', 'User ID copied!');">
+                            <i class="fa fa-clone fs-8 text-muted"></i>
+                        </button>
+                    </div><br>
+                @endif
 
-            </span>
-            @endif
+                @if (!empty($effectiveUser->client_review))
+                    <span class="duplicate-info-wrapper">
 
-            @php
-                $count = optional($effectiveUser)->orders_count ?? 0;
-                if($count > 10) { 
-                    $class = "badge-light-success"; 
-                    $label = "Loyal Customer"; 
-                } elseif($count >= 4) { 
-                    $class = "badge-light-warning"; 
-                    $label = "Retainer"; 
-                } else { 
-                    $class = "badge-light-info"; 
-                    $label = "Beginner"; 
-                } 
-                $isSuperAdmin = (int) ($roleId ?? optional(auth()->user())->role_id) === 1;
-                $effMob = $effectiveUser->mobile_no;
-                $effEmail = $effectiveUser->email;
-                $effCC = $effectiveUser->countrycode;
+                        <a class="" style="width:22px;height:22px;font-size:13px;line-height:1;">
+                            <i class="fa fa-info-circle"></i>
+                        </a>
 
-                if ($isSuperAdmin && (str_contains((string)$effMob, '*') || str_contains((string)$effEmail, '*'))) {
-                    $cleanLead = $order->lead ?: $order->frontendLead;
-                    if ($cleanLead) {
-                        if (str_contains((string)$effMob, '*') && !empty($cleanLead->mobile) && !str_contains((string)$cleanLead->mobile, '*')) {
-                            $effMob = $cleanLead->mobile;
-                            $effCC = $cleanLead->countrycode ?: $effCC;
-                        }
-                        if (str_contains((string)$effEmail, '*') && !empty($cleanLead->email) && !str_contains((string)$cleanLead->email, '*')) {
-                            $effEmail = $cleanLead->email;
+                        <div class="duplicate-popup shadow">
+                            <span>{{ $effectiveUser->client_review }}</span>
+                        </div>
+
+                    </span>
+                @endif
+
+                @php
+                    $count = optional($effectiveUser)->orders_count ?? 0;
+                    if ($count > 10) {
+                        $class = 'badge-light-success';
+                        $label = 'Loyal Customer';
+                    } elseif ($count >= 4) {
+                        $class = 'badge-light-warning';
+                        $label = 'Retainer';
+                    } else {
+                        $class = 'badge-light-info';
+                        $label = 'Beginner';
+                    }
+                    $isSuperAdmin = (int) ($roleId ?? optional(auth()->user())->role_id) === 1;
+                    $effMob = $effectiveUser->mobile_no;
+                    $effEmail = $effectiveUser->email;
+                    $effCC = $effectiveUser->countrycode;
+
+                    if (
+                        $isSuperAdmin &&
+                        (str_contains((string) $effMob, '*') || str_contains((string) $effEmail, '*'))
+                    ) {
+                        $cleanLead = $order->lead ?: $order->frontendLead;
+                        if ($cleanLead) {
+                            if (
+                                str_contains((string) $effMob, '*') &&
+                                !empty($cleanLead->mobile) &&
+                                !str_contains((string) $cleanLead->mobile, '*')
+                            ) {
+                                $effMob = $cleanLead->mobile;
+                                $effCC = $cleanLead->countrycode ?: $effCC;
+                            }
+                            if (
+                                str_contains((string) $effEmail, '*') &&
+                                !empty($cleanLead->email) &&
+                                !str_contains((string) $cleanLead->email, '*')
+                            ) {
+                                $effEmail = $cleanLead->email;
+                            }
                         }
                     }
-                }
 
-                $displayMobile = $isSuperAdmin 
-                    ? trim(($effCC ? '+'.preg_replace('/\D+/', '', (string)$effCC).' ' : '') . $effMob)
-                    : mask_phone_for_display($effectiveUser->countrycode, $effectiveUser->mobile_no);
-                $displayEmail = $isSuperAdmin 
-                    ? $effEmail 
-                    : mask_email_for_display($effectiveUser->email);
-            @endphp
+                    $displayMobile = $isSuperAdmin
+                        ? trim(($effCC ? '+' . preg_replace('/\D+/', '', (string) $effCC) . ' ' : '') . $effMob)
+                        : mask_phone_for_display($effectiveUser->countrycode, $effectiveUser->mobile_no);
+                    $displayEmail = $isSuperAdmin ? $effEmail : mask_email_for_display($effectiveUser->email);
+                @endphp
 
-            <div class="d-inline-flex align-items-center justify-content-center gap-1 my-1">
-                <span class="badge {{ $class }} fw-bold fs-8" style="width: fit-content;">
-                    {{ $label }}
-                </span>
-                @if(!empty($rawUserMobile))
-                    <span class="badge badge-light-danger fs-7 fw-bold">{{ $displayMobile }}</span>
-                    <button type="button" class="btn btn-icon btn-sm btn-active-light-danger p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Mobile" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $displayMobile }}', 'Mobile number copied!');">
-                        <i class="fa fa-clone fs-8 text-danger"></i>
-                    </button>
-                @endif
-            </div><br>
-
-            @if(!empty($effectiveUser->email))
-                <div class="d-inline-flex align-items-center justify-content-center my-1">
-                    <span class="fs-7 fw-bold text-break">{{ $displayEmail }}</span>
-                    <button type="button" class="btn btn-icon btn-sm btn-active-light-primary ms-1 p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Email" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $displayEmail }}', 'Email copied!');">
-                        <i class="fa fa-clone fs-8 text-muted"></i>
-                    </button>
-                </div><br>
-            @endif
-
-            @php
-                $clientAccountId = crm_email_account_id('client');
-                $orderCode = trim((string)($order->order_id ?: $order->id));
-                $orderRawWAPhone = preg_replace('/\D+/', '', (string)((optional($effectiveUser)->countrycode ?? '') . (optional($effectiveUser)->mobile_no ?? '')));
-                $orderRawEmail = optional($effectiveUser)->email ?? '';
-                $orderSearchTerm = !empty($orderCode) ? $orderCode : $orderRawEmail;
-                $orderEmailUrl = route('emails.index', array_filter(['account_id' => $clientAccountId, 'search' => $orderSearchTerm]));
-            @endphp
-
-            {{-- Direct Contact Actions: WhatsApp & Email --}}
-            <div class="d-inline-flex align-items-center justify-content-center gap-2 my-1">
-                <form method="POST" action="{{ route('whatsapp.chat.open-order') }}" target="_blank" class="d-inline-flex m-0">
-                    @csrf
-                    <input type="hidden" name="order_ref" value="{{ $order->id }}">
-                    <button type="submit" class="btn btn-icon btn-sm crm-btn-wa" title="Open WhatsApp Chat">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 16 16">
-                        <path d="M13.601 2.326A7.85 7.85 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.364 2.76 1.057 3.965L0 16l4.204-1.102a7.9 7.9 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.9 7.9 0 0 0 13.6 2.326zM7.994 14.521a6.6 6.6 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.56 6.56 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592m3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.73.73 0 0 0-.529.247c-.182.198-.691.677-.691 1.654s.707 2.002.806 2.134c.098.133 1.392 2.123 3.372 2.978.471.204.838.326 1.124.418.473.15.905.129 1.246.078.38-.058 1.17-.479 1.338-.943.166-.464.166-.862.116-.944-.049-.082-.182-.133-.38-.232"/>
-                    </svg>
-                    </button>
-                </form>
-                <a href="{{ $orderEmailUrl }}" target="_blank" class="btn btn-icon btn-sm crm-btn-email" title="Client Email: {{ $orderCode ? 'Order ' . $orderCode : ($orderRawEmail ?: 'Open Emails') }}">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 16 16">
-                        <path d="M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2zm2-1a1 1 0 0 0-1 1v.217l7 4.2 7-4.2V4a1 1 0 0 0-1-1zm13 2.383-4.708 2.825L15 11.105zm-.034 6.876-5.64-3.471L8 9.583l-1.326-.795-5.64 3.47A1 1 0 0 0 2 13h12a1 1 0 0 0 .966-.741M1 11.105l4.708-2.897L1 5.383z"/>
-                    </svg>
-                </a>
-            </div>
-            <br>
-
-            {{-- User Assigned Labels Chips --}}
-            <div class="d-flex flex-wrap justify-content-center gap-1 my-1" data-user-labels-badges="{{ $effectiveUser->id }}" @if(!empty($rawUserMobile)) data-user-labels-badges-phone="{{ preg_replace('/\D+/', '', $rawUserMobile) }}" @endif>
-                @foreach($userAssignedLabels as $lbl)
-                    <span class="badge" style="background:{{ $lbl->color }}1f; color:{{ $lbl->color }}; border:1px solid {{ $lbl->color }}4d; font-size: 10px; padding: 2px 6px; font-weight: 600; display: inline-flex; align-items: center; gap: 3px;">
-                        <span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:{{ $lbl->color }};"></span>{{ $lbl->name }}
-                    </span>
-                @endforeach
-            </div>
-
-            @if($effectiveUser->groups)
-            <span data-user-group-badges="{{ $effectiveUser->id }}">@foreach($effectiveUser->groups as $group)<span class="badge badge-light-primary fs-8 me-1">{{ $group->name }}</span>@endforeach</span>
-            @endif
-
-            <div class="d-flex justify-content-center align-items-center gap-2 mt-2">
-                <button type="button" class="btn btn-icon btn-sm btn-light-success crm-btn-tag" title="Assign Labels" data-user-label-button="{{ $effectiveUser->id }}" data-labels='@json($userAssignedLabelIds)' onclick="openUserLabelModal({{ $effectiveUser->id }}, @js($effectiveUser->name), @js($displayMobile), @js($displayEmail), JSON.parse(this.dataset.labels || '[]'))">
-                    <i class="fa fa-tag fs-7"></i>
-                </button>
-
-                <button type="button" class="btn btn-icon btn-sm btn-light-info" title="Add Review" onclick="openReviewModal({{ $effectiveUser->id }})">
-                    <span class="fw-bold fs-6">B</span>
-                </button>
-
-                <button type="button" class="btn btn-icon btn-sm btn-light-primary" title="Assign Marks"
-                    onclick="openMarksModal({{$order->id }}, '{{ $order->marks ?? '' }}')">
-                    <span class="fw-bold fs-6">M</span>
-                </button>
-
-                @if($order->looking_for_refund == 1)
-                    <span class="btn btn-icon btn-sm btn-light-danger" title="Looking For Refund">
-                        <span class="fw-bold fs-6">R</span>
-                    </span>
-                @endif
-            </div>
-
-            @else
-            <span class="badge badge-light-danger fs-7 fw-bold">User Was Deleted</span>
-            @if(!empty($orderUserId))
                 <div class="d-inline-flex align-items-center justify-content-center gap-1 my-1">
-                    <span class="badge badge-light-dark fs-8 fw-bold">ID: {{ $orderUserId }}</span>
-                    <button type="button" class="btn btn-icon btn-sm btn-active-light-dark p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy User ID" onclick="event.stopPropagation(); crmCopyToClipboard('{{ $orderUserId }}', 'User ID copied!');">
-                        <i class="fa fa-clone fs-8 text-muted"></i>
-                    </button>
+                    <span class="badge {{ $class }} fw-bold fs-8" style="width: fit-content;">
+                        {{ $label }}
+                    </span>
+                    @if (!empty($rawUserMobile))
+                        <span class="badge badge-light-danger fs-7 fw-bold">{{ $displayMobile }}</span>
+                        <button type="button" class="btn btn-icon btn-sm btn-active-light-danger p-0 flex-shrink-0"
+                            style="width: 18px; height: 18px;" title="Copy Mobile"
+                            onclick="event.stopPropagation(); crmCopyToClipboard('{{ $displayMobile }}', 'Mobile number copied!');">
+                            <i class="fa fa-clone fs-8 text-danger"></i>
+                        </button>
+                    @endif
+                </div><br>
+
+                @if (!empty($effectiveUser->email))
+                    <div class="d-inline-flex align-items-center justify-content-center my-1">
+                        <span class="fs-7 fw-bold text-break">{{ $displayEmail }}</span>
+                        <button type="button"
+                            class="btn btn-icon btn-sm btn-active-light-primary ms-1 p-0 flex-shrink-0"
+                            style="width: 18px; height: 18px;" title="Copy Email"
+                            onclick="event.stopPropagation(); crmCopyToClipboard('{{ $displayEmail }}', 'Email copied!');">
+                            <i class="fa fa-clone fs-8 text-muted"></i>
+                        </button>
+                    </div><br>
+                @endif
+
+                @php
+                    $clientAccountId = crm_email_account_id('client');
+                    $orderCode = trim((string) ($order->order_id ?: $order->id));
+                    $orderRawWAPhone = preg_replace(
+                        '/\D+/',
+                        '',
+                        (string) ((optional($effectiveUser)->countrycode ?? '') .
+                            (optional($effectiveUser)->mobile_no ?? '')),
+                    );
+                    $orderRawEmail = optional($effectiveUser)->email ?? '';
+                    $orderSearchTerm = !empty($orderCode) ? $orderCode : $orderRawEmail;
+                    $orderEmailUrl = route(
+                        'emails.index',
+                        array_filter(['account_id' => $clientAccountId, 'search' => $orderSearchTerm]),
+                    );
+                @endphp
+
+                {{-- Direct Contact Actions: WhatsApp & Email --}}
+                <div class="d-inline-flex align-items-center justify-content-center gap-2 my-1">
+                    <form method="POST" action="{{ route('whatsapp.chat.open-order') }}" target="_blank"
+                        class="d-inline-flex m-0">
+                        @csrf
+                        <input type="hidden" name="order_ref" value="{{ $order->id }}">
+                        <button type="submit" class="btn btn-icon btn-sm crm-btn-wa" title="Open WhatsApp Chat">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15"
+                                viewBox="0 0 16 16">
+                                <path
+                                    d="M13.601 2.326A7.85 7.85 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.364 2.76 1.057 3.965L0 16l4.204-1.102a7.9 7.9 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.9 7.9 0 0 0 13.6 2.326zM7.994 14.521a6.6 6.6 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.56 6.56 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592m3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.73.73 0 0 0-.529.247c-.182.198-.691.677-.691 1.654s.707 2.002.806 2.134c.098.133 1.392 2.123 3.372 2.978.471.204.838.326 1.124.418.473.15.905.129 1.246.078.38-.058 1.17-.479 1.338-.943.166-.464.166-.862.116-.944-.049-.082-.182-.133-.38-.232" />
+                            </svg>
+                        </button>
+                    </form>
+                    <a href="{{ $orderEmailUrl }}" target="_blank" class="btn btn-icon btn-sm crm-btn-email"
+                        title="Client Email: {{ $orderCode ? 'Order ' . $orderCode : ($orderRawEmail ?: 'Open Emails') }}">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 16 16">
+                            <path
+                                d="M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2zm2-1a1 1 0 0 0-1 1v.217l7 4.2 7-4.2V4a1 1 0 0 0-1-1zm13 2.383-4.708 2.825L15 11.105zm-.034 6.876-5.64-3.471L8 9.583l-1.326-.795-5.64 3.47A1 1 0 0 0 2 13h12a1 1 0 0 0 .966-.741M1 11.105l4.708-2.897L1 5.383z" />
+                        </svg>
+                    </a>
                 </div>
-            @endif
+                <br>
+
+                {{-- User Assigned Labels Chips --}}
+                <div class="d-flex flex-wrap justify-content-center gap-1 my-1"
+                    data-user-labels-badges="{{ $effectiveUser->id }}"
+                    @if (!empty($rawUserMobile)) data-user-labels-badges-phone="{{ preg_replace('/\D+/', '', $rawUserMobile) }}" @endif>
+                    @foreach ($userAssignedLabels as $lbl)
+                        <span class="badge"
+                            style="background:{{ $lbl->color }}1f; color:{{ $lbl->color }}; border:1px solid {{ $lbl->color }}4d; font-size: 10px; padding: 2px 6px; font-weight: 600; display: inline-flex; align-items: center; gap: 3px;">
+                            <span
+                                style="display:inline-block;width:5px;height:5px;border-radius:50%;background:{{ $lbl->color }};"></span>{{ $lbl->name }}
+                        </span>
+                    @endforeach
+                </div>
+
+                @if ($effectiveUser->groups)
+                    <span data-user-group-badges="{{ $effectiveUser->id }}">
+                        @foreach ($effectiveUser->groups as $group)
+                            <span class="badge badge-light-primary fs-8 me-1">{{ $group->name }}</span>
+                        @endforeach
+                    </span>
+                @endif
+
+                <div class="d-flex justify-content-center align-items-center gap-2 mt-2">
+                    <button type="button" class="btn btn-icon btn-sm btn-light-success crm-btn-tag"
+                        title="Assign Labels" data-user-label-button="{{ $effectiveUser->id }}"
+                        data-labels='@json($userAssignedLabelIds)'
+                        onclick="openUserLabelModal({{ $effectiveUser->id }}, @js($effectiveUser->name), @js($displayMobile), @js($displayEmail), JSON.parse(this.dataset.labels || '[]'))">
+                        <i class="fa fa-tag fs-7"></i>
+                    </button>
+
+                    <button type="button" class="btn btn-icon btn-sm btn-light-info" title="Add Review"
+                        onclick="openReviewModal({{ $effectiveUser->id }})">
+                        <span class="fw-bold fs-6">B</span>
+                    </button>
+
+                    <button type="button" class="btn btn-icon btn-sm btn-light-primary" title="Assign Marks"
+                        onclick="openMarksModal({{ $order->id }}, '{{ $order->marks ?? '' }}')">
+                        <span class="fw-bold fs-6">M</span>
+                    </button>
+
+                    @if ($order->looking_for_refund == 1)
+                        <span class="btn btn-icon btn-sm btn-light-danger" title="Looking For Refund">
+                            <span class="fw-bold fs-6">R</span>
+                        </span>
+                    @endif
+                </div>
+            @else
+                <span class="badge badge-light-danger fs-7 fw-bold">User Was Deleted</span>
+                @if (!empty($orderUserId))
+                    <div class="d-inline-flex align-items-center justify-content-center gap-1 my-1">
+                        <span class="badge badge-light-dark fs-8 fw-bold">ID: {{ $orderUserId }}</span>
+                        <button type="button" class="btn btn-icon btn-sm btn-active-light-dark p-0 flex-shrink-0"
+                            style="width: 18px; height: 18px;" title="Copy User ID"
+                            onclick="event.stopPropagation(); crmCopyToClipboard('{{ $orderUserId }}', 'User ID copied!');">
+                            <i class="fa fa-clone fs-8 text-muted"></i>
+                        </button>
+                    </div>
+                @endif
             @endif
         </td>
 
         <td class="text-center">
-            @if(!empty($effectiveOrderDate) && strtotime($effectiveOrderDate))
+            @if (!empty($effectiveOrderDate) && strtotime($effectiveOrderDate))
                 {{ \Carbon\Carbon::parse($effectiveOrderDate)->format('d M Y') }}
             @else
                 <span class="badge badge-light-danger fs-7 fw-bold">N/A</span>
@@ -452,49 +522,52 @@
 
         <td class="text-center" style="cursor: pointer;" onclick="updateDeliveryDate({{ $order->id }})">
             @php
-            $deadlineDate = null;
+                $deadlineDate = null;
 
-            if ($effectiveDeliveryDate) {
-                $dateTimeString = $effectiveDeliveryDate;
+                if ($effectiveDeliveryDate) {
+                    $dateTimeString = $effectiveDeliveryDate;
 
-                if ($effectiveDeliveryTime) {
-                    $dateTimeString .= ' ' . $effectiveDeliveryTime;
+                    if ($effectiveDeliveryTime) {
+                        $dateTimeString .= ' ' . $effectiveDeliveryTime;
+                    }
+
+                    try {
+                        $deadlineDate = \Carbon\Carbon::parse($dateTimeString);
+                    } catch (\Exception $e) {
+                        $deadlineDate = null;
+                    }
                 }
-
-                try {
-                    $deadlineDate = \Carbon\Carbon::parse($dateTimeString);
-                } catch (\Exception $e) {
-                    $deadlineDate = null;
-                }
-            }
-            $isOverdue = $deadlineDate && $deadlineDate->isPast() && !in_array($order->projectstatus, ['Delivered', 'Completed']);
+                $isOverdue =
+                    $deadlineDate &&
+                    $deadlineDate->isPast() &&
+                    !in_array($order->projectstatus, ['Delivered', 'Completed']);
             @endphp
 
-            @if($deadlineDate)
-            <span style="{{ $isOverdue ? 'color: #F1416C; font-weight: bold;' : '' }}">
-                {{ $deadlineDate->format('d M Y') }}
-            </span>
+            @if ($deadlineDate)
+                <span style="{{ $isOverdue ? 'color: #F1416C; font-weight: bold;' : '' }}">
+                    {{ $deadlineDate->format('d M Y') }}
+                </span>
             @else
-            <span class="badge badge-light-danger fs-7 fw-bold">Not Available</span>
+                <span class="badge badge-light-danger fs-7 fw-bold">Not Available</span>
             @endif
 
-            @if($order->draftrequired == 'Y')
-            <br>
-            <span class="badge badge-light-success fs-8 fw-bold mt-1">
-                Draft: {{ \Carbon\Carbon::parse($order->draft_date)->format('d M Y') }} ({{ \Carbon\Carbon::parse($order->draft_time)->format('H:i') }})
-            </span>
+            @if ($order->draftrequired == 'Y')
+                <br>
+                <span class="badge badge-light-success fs-8 fw-bold mt-1">
+                    Draft: {{ \Carbon\Carbon::parse($order->draft_date)->format('d M Y') }}
+                    ({{ \Carbon\Carbon::parse($order->draft_time)->format('H:i') }})
+                </span>
             @endif
 
-            @if($deadlineDate)
-            <div class="order-countdown-timer fw-bolder fs-8 mt-2"
-                data-deadline="{{ $deadlineDate->toIso8601String() }}"
-                data-status="{{ $order->projectstatus }}"
-                data-updated="{{ $order->updated_at ? \Carbon\Carbon::parse($order->updated_at)->toIso8601String() : '' }}">
-                <i class="fa fa-spinner fa-spin fs-8"></i> Loading...
-            </div>
+            @if ($deadlineDate)
+                <div class="order-countdown-timer fw-bolder fs-8 mt-2"
+                    data-deadline="{{ $deadlineDate->toIso8601String() }}" data-status="{{ $order->projectstatus }}"
+                    data-updated="{{ $order->updated_at ? \Carbon\Carbon::parse($order->updated_at)->toIso8601String() : '' }}">
+                    <i class="fa fa-spinner fa-spin fs-8"></i> Loading...
+                </div>
             @endif
 
-            @if($order->f_delivery_date)
+            @if ($order->f_delivery_date)
                 <div class="mt-1">
                     <span class="badge badge-light-warning fs-8 fw-bold">
                         Feedback Date: {{ \Carbon\Carbon::parse($order->f_delivery_date)->format('d M Y') }}
@@ -504,33 +577,41 @@
         </td>
 
         <td class="text-center" style="width:50px">
-            @if($effectiveTitle)
+            @if ($effectiveTitle)
                 <div class="d-inline-flex align-items-center justify-content-center flex-wrap">
                     <span>{!! $effectiveTitle !!}</span>
-                    <button type="button" class="btn btn-icon btn-sm btn-active-light-primary ms-1 p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Project Title" data-copy-text="{{ strip_tags($effectiveTitle) }}" onclick="event.stopPropagation(); crmCopyToClipboard(this.getAttribute('data-copy-text'), 'Project Title copied!');">
+                    <button type="button" class="btn btn-icon btn-sm btn-active-light-primary ms-1 p-0 flex-shrink-0"
+                        style="width: 18px; height: 18px;" title="Copy Project Title"
+                        data-copy-text="{{ strip_tags($effectiveTitle) }}"
+                        onclick="event.stopPropagation(); crmCopyToClipboard(this.getAttribute('data-copy-text'), 'Project Title copied!');">
                         <i class="fa fa-clone fs-8 text-muted"></i>
                     </button>
                 </div>
             @else
                 <span class="badge badge-light-danger fs-7 fw-bold">Not Available</span>
             @endif
-            @if($effectiveSemester)
-            <br>Semester: ({{ $effectiveSemester }})
+            @if ($effectiveSemester)
+                <br>Semester: ({{ $effectiveSemester }})
             @endif
-            @if($effectiveChapter)
-            <br><span class="badge badge-light-danger fs-7 fw-bold">{{ $effectiveChapter }}</span>
+            @if ($effectiveChapter)
+                <br><span class="badge badge-light-danger fs-7 fw-bold">{{ $effectiveChapter }}</span>
             @endif
-            @if($effectiveTech == '1' || $effectiveTech === 'on')
-            <br><span class="badge badge-light-success fs-7 fw-bold">Technical Work</span>
+            @if ($effectiveTech == '1' || $effectiveTech === 'on')
+                <br><span class="badge badge-light-success fs-7 fw-bold">Technical Work</span>
             @endif
-            @if($effectiveModuleCode)
+            @if ($effectiveModuleCode)
                 <br>
                 <div class="d-inline-flex align-items-center justify-content-center mt-1">
                     <span class="badge badge-light-danger fs-7 fw-bold">{{ $effectiveModuleCode }}</span>
-                    <button type="button" class="btn btn-icon btn-sm btn-active-light-primary ms-1 p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Copy Module Code" data-copy-text="{{ $effectiveModuleCode }}" onclick="event.stopPropagation(); crmCopyToClipboard(this.getAttribute('data-copy-text'), 'Module Code copied!');">
+                    <button type="button" class="btn btn-icon btn-sm btn-active-light-primary ms-1 p-0 flex-shrink-0"
+                        style="width: 18px; height: 18px;" title="Copy Module Code"
+                        data-copy-text="{{ $effectiveModuleCode }}"
+                        onclick="event.stopPropagation(); crmCopyToClipboard(this.getAttribute('data-copy-text'), 'Module Code copied!');">
                         <i class="fa fa-clone fs-8 text-muted"></i>
                     </button>
-                    <button type="button" class="btn btn-icon btn-sm btn-active-light-info ms-1 p-0 flex-shrink-0" style="width: 18px; height: 18px;" title="Find Batchmates for {{ $effectiveModuleCode }}" onclick="event.stopPropagation(); openPeerSuggestionModal({{ $order->id }});">
+                    <button type="button" class="btn btn-icon btn-sm btn-active-light-info ms-1 p-0 flex-shrink-0"
+                        style="width: 18px; height: 18px;" title="Find Batchmates for {{ $effectiveModuleCode }}"
+                        onclick="event.stopPropagation(); openPeerSuggestionModal({{ $order->id }});">
                         <i class="fa fa-users fs-8 text-primary"></i>
                     </button>
                 </div>
@@ -539,75 +620,97 @@
 
         <td class="text-center" style="cursor: pointer;" onclick="status('{{ $order->id }}')">
             @switch($order->projectstatus)
-            @case('Other')
-            <span class="badge badge-light-primary fs-7 fw-bold" style="background:#44f2e4; color:black">{{ $order->projectstatus }}</span>
-            @break
-            @case('Pending')
-            <span class="badge badge-light-warning fs-7 fw-bold" style="background:pink; color:white">{{ $order->projectstatus }}</span>
-            @break
-            @case('In Progress')
-            <span class="badge badge-light-info fs-7 fw-bold">{{ $order->projectstatus }}</span>
-            @break
-            @case('Hold Work')
-            @case('Hold(writer query)')
-            <span class="badge badge-light-danger fs-7 fw-bold">{{ $order->projectstatus }}</span>
-            @break
-            @case('writer query')
-            @case('Writer Query')
-            <span class="badge badge-light-secondary fs-7 fw-bold" style="background:#e4e6ef; color:#181c32">
-                {{ $order->projectstatus }}
-            </span>
-            @break
-            @case('Completed')
-            <span class="badge badge-light-warning fs-7 fw-bold" style="background:#eaea00; color:black">{{ $order->projectstatus }}</span>
-            @break
-            @case('Delivered')
-            <span class="badge badge-light-success fs-7 fw-bold" style="background:green; color:white">{{ $order->projectstatus }}</span>
-            @break
-            @case('Feedback')
-            <span class="badge badge-light-primary fs-7 fw-bold" style="background:black; color:white">{{ $order->projectstatus }}</span>
-            @break
-            @case('Feedback Delivered')
-            <span class="badge badge-light-danger fs-7 fw-bold" style="background:black; color:white">{{ $order->projectstatus }}</span>
-            @break
-            @case('Cancelled')
-            <span class="badge badge-light-danger fs-7 fw-bold">{{ $order->projectstatus }}</span>
-            @break
-            @case('Draft Ready')
-            <span class="badge badge-light-primary fs-7 fw-bold" style="background:#eaea00; color:black">{{ $order->projectstatus }}</span>
-            @break
-            @case('Draft Delivered')
-            <span class="badge badge-light-primary fs-7 fw-bold" style="background:green; color:white">{{ $order->projectstatus }}</span>
-            @break
-            @case('Initiated')
-            <span class="badge badge-light-primary fs-7 fw-bold" style="background:pink; color:white">{{ $order->projectstatus }}</span>
-            @break
-            @case('Advance Assignment')
-            <span class="badge badge-light-danger fs-7 fw-bold" style="background:#44f2e4; color:black">{{ $order->projectstatus }}</span>
-            @break
+                @case('Other')
+                    <span class="badge badge-light-primary fs-7 fw-bold"
+                        style="background:#44f2e4; color:black">{{ $order->projectstatus }}</span>
+                @break
 
-            @default
-            <span class="badge badge-light-danger fs-7 fw-bold">Not Available</span>
+                @case('Pending')
+                    <span class="badge badge-light-warning fs-7 fw-bold"
+                        style="background:pink; color:white">{{ $order->projectstatus }}</span>
+                @break
+
+                @case('In Progress')
+                    <span class="badge badge-light-info fs-7 fw-bold">{{ $order->projectstatus }}</span>
+                @break
+
+                @case('Hold Work')
+                @case('Hold(writer query)')
+                    <span class="badge badge-light-danger fs-7 fw-bold">{{ $order->projectstatus }}</span>
+                @break
+
+                @case('writer query')
+                @case('Writer Query')
+                    <span class="badge badge-light-secondary fs-7 fw-bold" style="background:#e4e6ef; color:#181c32">
+                        {{ $order->projectstatus }}
+                    </span>
+                @break
+
+                @case('Completed')
+                    <span class="badge badge-light-warning fs-7 fw-bold"
+                        style="background:#eaea00; color:black">{{ $order->projectstatus }}</span>
+                @break
+
+                @case('Delivered')
+                    <span class="badge badge-light-success fs-7 fw-bold"
+                        style="background:green; color:white">{{ $order->projectstatus }}</span>
+                @break
+
+                @case('Feedback')
+                    <span class="badge badge-light-primary fs-7 fw-bold"
+                        style="background:black; color:white">{{ $order->projectstatus }}</span>
+                @break
+
+                @case('Feedback Delivered')
+                    <span class="badge badge-light-danger fs-7 fw-bold"
+                        style="background:black; color:white">{{ $order->projectstatus }}</span>
+                @break
+
+                @case('Cancelled')
+                    <span class="badge badge-light-danger fs-7 fw-bold">{{ $order->projectstatus }}</span>
+                @break
+
+                @case('Draft Ready')
+                    <span class="badge badge-light-primary fs-7 fw-bold"
+                        style="background:#eaea00; color:black">{{ $order->projectstatus }}</span>
+                @break
+
+                @case('Draft Delivered')
+                    <span class="badge badge-light-primary fs-7 fw-bold"
+                        style="background:green; color:white">{{ $order->projectstatus }}</span>
+                @break
+
+                @case('Initiated')
+                    <span class="badge badge-light-primary fs-7 fw-bold"
+                        style="background:pink; color:white">{{ $order->projectstatus }}</span>
+                @break
+
+                @case('Advance Assignment')
+                    <span class="badge badge-light-danger fs-7 fw-bold"
+                        style="background:#44f2e4; color:black">{{ $order->projectstatus }}</span>
+                @break
+
+                @default
+                    <span class="badge badge-light-danger fs-7 fw-bold">Not Available</span>
             @endswitch
             @php
-            $statusCounts = $data['projectStatusCounts']->where('order_Id', $order->id)
-            ->where('status', $order->projectstatus);
+                $statusCounts = $data['projectStatusCounts']
+                    ->where('order_Id', $order->id)
+                    ->where('status', $order->projectstatus);
             @endphp
             @if ($statusCounts->isNotEmpty())
-            @foreach ($statusCounts as $statusCount)
-            <span class="badge badge-sm badge-circle badge-light-success">{{ $statusCount->count }}</span>
-            @endforeach
+                @foreach ($statusCounts as $statusCount)
+                    <span class="badge badge-sm badge-circle badge-light-success">{{ $statusCount->count }}</span>
+                @endforeach
 
-            @if($order->feedback && $order->feedback->count() > 0)
-            <button type="button"
-                class="btn btn-icon btn-sm btn-light mt-2"
-                title="View History"
-                onclick='event.stopPropagation(); orderHistoryModel({!! json_encode($order->feedback) !!})'>
-                <i class="fas fa-history"></i>
-            </button>
+                @if ($order->feedback && $order->feedback->count() > 0)
+                    <button type="button" class="btn btn-icon btn-sm btn-light mt-2" title="View History"
+                        onclick='event.stopPropagation(); orderHistoryModel({!! json_encode($order->feedback) !!})'>
+                        <i class="fas fa-history"></i>
+                    </button>
+                @endif
             @endif
-            @endif
-            @if(optional($order->lead)->l_status)
+            @if (optional($order->lead)->l_status)
                 <br>
                 <span class="badge badge-light-info fs-8 fw-bold mt-1">
                     Lead: {{ $order->lead->l_status }}
@@ -617,30 +720,38 @@
 
         <td class="text-center">
             @switch($order->status_issue)
-            @case('Issue Raised')
-            <span class="badge badge-light-danger fs-7 fw-bold">{{ $order->status_issue }}</span>
-            @break
-            @case('Client Discussion Done')
-            <span class="badge badge-light-info fs-7 fw-bold">{{ $order->status_issue }}</span>
-            @break
-            @case('Writer discussion Done')
-            <span class="badge badge-light-success fs-7 fw-bold">{{ $order->status_issue }}</span>
-            @break
-            @case('Work in progress')
-            <span class="badge badge-light-warning fs-7 fw-bold">{{ $order->status_issue }}</span>
-            @break
-            @case('Case Resolved')
-            <span class="badge badge-light-success fs-7 fw-bold">{{ $order->status_issue }}</span>
-            @break
+                @case('Issue Raised')
+                    <span class="badge badge-light-danger fs-7 fw-bold">{{ $order->status_issue }}</span>
+                @break
 
-            @case('Issues Raised Again')
-            <span class="badge badge-light-danger fs-7 fw-bold" style="background:red; color:white">{{ $order->status_issue }}</span>
-            @break
-            @case('Retention')
-            <span class="badge badge-light-danger fs-7 fw-bold" style="background:red; color:white">{{ $order->status_issue }}</span>
-            @break
-            @default
-            <span class="badge badge-light-warning fs-7 fw-bold">Not Available</span>
+                @case('Client Discussion Done')
+                    <span class="badge badge-light-info fs-7 fw-bold">{{ $order->status_issue }}</span>
+                @break
+
+                @case('Writer discussion Done')
+                    <span class="badge badge-light-success fs-7 fw-bold">{{ $order->status_issue }}</span>
+                @break
+
+                @case('Work in progress')
+                    <span class="badge badge-light-warning fs-7 fw-bold">{{ $order->status_issue }}</span>
+                @break
+
+                @case('Case Resolved')
+                    <span class="badge badge-light-success fs-7 fw-bold">{{ $order->status_issue }}</span>
+                @break
+
+                @case('Issues Raised Again')
+                    <span class="badge badge-light-danger fs-7 fw-bold"
+                        style="background:red; color:white">{{ $order->status_issue }}</span>
+                @break
+
+                @case('Retention')
+                    <span class="badge badge-light-danger fs-7 fw-bold"
+                        style="background:red; color:white">{{ $order->status_issue }}</span>
+                @break
+
+                @default
+                    <span class="badge badge-light-warning fs-7 fw-bold">Not Available</span>
             @endswitch
         </td>
 
@@ -654,8 +765,10 @@
                 $extraWords = $order->additionals ? $order->additionals->sum('additional_word_count') : 0;
             @endphp
 
-            @if($effectivePages)
-                {{ $effectivePages }}@if($extraWords > 0)+{{ $extraWords }}@endif
+            @if ($effectivePages)
+                {{ $effectivePages }}@if ($extraWords > 0)
+                    +{{ $extraWords }}
+                @endif
             @elseif($extraWords > 0)
                 {{ $extraWords }}
             @else
@@ -673,13 +786,16 @@
                 $extraPrice = $order->additionals ? $order->additionals->sum('additional_price') : 0;
             @endphp
 
-            @if(!empty($order->coupon_code))
+            @if (!empty($order->coupon_code))
                 <div class="text-success small fw-bold">Coupon: {{ $order->coupon_code }}</div>
-                <div class="text-danger small">-£{{ number_format((float)($order->coupon_discount_amount ?? 0), 2) }}</div>
+                <div class="text-danger small">-£{{ number_format((float) ($order->coupon_discount_amount ?? 0), 2) }}
+                </div>
             @endif
 
-            @if($effectiveAmount)
-                £{{ $effectiveAmount }}@if($extraPrice > 0)+{{ $extraPrice }}@endif
+            @if ($effectiveAmount)
+                £{{ $effectiveAmount }}@if ($extraPrice > 0)
+                    +{{ $extraPrice }}
+                @endif
             @elseif($extraPrice > 0)
                 £{{ $extraPrice }}
             @else
@@ -693,20 +809,20 @@
 
         <td class="text-center" style="width:50px">
             @php
-                $extraPriceAmt = $order->additionals ? (float)$order->additionals->sum('additional_price') : 0;
-                $basePriceAmt  = is_numeric($effectiveAmount) ? (float)$effectiveAmount : 0;
-                $recvPriceAmt  = is_numeric($order->received_amount) ? (float)$order->received_amount : 0;
-                $calcDueAmt    = max(0, ($basePriceAmt + $extraPriceAmt) - $recvPriceAmt);
+                $extraPriceAmt = $order->additionals ? (float) $order->additionals->sum('additional_price') : 0;
+                $basePriceAmt = is_numeric($effectiveAmount) ? (float) $effectiveAmount : 0;
+                $recvPriceAmt = is_numeric($order->received_amount) ? (float) $order->received_amount : 0;
+                $calcDueAmt = max(0, $basePriceAmt + $extraPriceAmt - $recvPriceAmt);
             @endphp
-            @if(is_numeric($effectiveAmount) || $extraPriceAmt > 0)
-            £{{ $calcDueAmt }}
+            @if (is_numeric($effectiveAmount) || $extraPriceAmt > 0)
+                £{{ $calcDueAmt }}
             @else
-            <span class="badge badge-light-danger fs-7 fw-bold">N/A</span>
+                <span class="badge badge-light-danger fs-7 fw-bold">N/A</span>
             @endif
         </td>
 
         {{-- <td class="text-center">
-        @if($order->writer_name)
+        @if ($order->writer_name)
             {{ $order->writer_name }}<br>
         <span style="background-color: #f8f5ff;" class="badge badge-light-info fs-7 fw-bold">{{ \Carbon\Carbon::parse($order->writer_deadline)->format('d M Y') }}</span>
         @else
@@ -714,56 +830,71 @@
         @endif
         </td> --}}
         <td class="text-center">
-            @if($order->writer_name)
-            @php
-            // Is order ka current feedback aur writer total controller se preloaded hai
-            $currentFeedback = $order->current_writer_feedback_points;
-            $writerTotalPoints = (int) ($order->writer_total_points ?? 0);
+            @if ($order->writer_name)
+                @php
+                    // Is order ka current feedback aur writer total controller se preloaded hai
+                    $currentFeedback = $order->current_writer_feedback_points;
+                    $writerTotalPoints = (int) ($order->writer_total_points ?? 0);
 
-            $isGoodWriter = $writerTotalPoints >= 6;
-            @endphp
+                    $isGoodWriter = $writerTotalPoints >= 6;
+                @endphp
 
-            @if($isGoodWriter)
-            <div class="badge badge-light-success border border-success border-dashed fw-bolder fs-6 mb-1 p-2" title="Top Writer (Points: {{ $writerTotalPoints }})">
-                <i class="fa fa-medal text-success me-1"></i> {{ $order->writer_name }}
-            </div><br>
-            @else
-            <span class="text-dark fw-bold">{{ $order->writer_name }}</span><br>
-            @endif
-            <span style="background-color: #f8f5ff;" class="badge badge-light-info fs-7 fw-bold mb-2">
-                {{ \Carbon\Carbon::parse($order->writer_deadline)->format('d M Y') }}
-            </span><br>
+                @if ($isGoodWriter)
+                    <div class="badge badge-light-success border border-success border-dashed fw-bolder fs-6 mb-1 p-2"
+                        title="Top Writer (Points: {{ $writerTotalPoints }})">
+                        <i class="fa fa-medal text-success me-1"></i> {{ $order->writer_name }}
+                    </div><br>
+                @else
+                    <span class="text-dark fw-bold">{{ $order->writer_name }}</span><br>
+                @endif
+                <span style="background-color: #f8f5ff;" class="badge badge-light-info fs-7 fw-bold mb-2">
+                    {{ \Carbon\Carbon::parse($order->writer_deadline)->format('d M Y') }}
+                </span><br>
 
-            @if($order->writerstatus_date)
-                <br>
-                <span class="badge badge-light-warning fs-8 fw-bold mt-1">
-                    Writer Query: {{ \Carbon\Carbon::parse($order->writerstatus_date)->format('d M Y h:i A') }}
-                </span>
-            @endif
+                @if ($order->writerstatus_date)
+                    <br>
+                    <span class="badge badge-light-warning fs-8 fw-bold mt-1">
+                        Writer Query: {{ \Carbon\Carbon::parse($order->writerstatus_date)->format('d M Y h:i A') }}
+                    </span>
+                @endif
 
-            @php
-                $orderCode = $order->order_id ?: (string) $order->id;
-                $writeEmailUrl = route('emails.index', array_filter(['account_id' => crm_email_account_id('writer'), 'search' => $orderCode]));
-            @endphp
-            <div class="d-flex align-items-center justify-content-center gap-1 mt-1">
-                <button type="button" class="btn btn-sm btn-light-primary py-1 px-3 fs-8"
-                    onclick="openWriterFeedbackModal({{ $order->id }}, '{{ $currentFeedback ?? '' }}')">
-                    <i class="fa fa-star fs-8"></i> Rate Writer
-                </button>
-                <a href="{{ $writeEmailUrl }}" target="_blank" class="btn btn-icon btn-sm crm-btn-email" style="width: 26px !important; height: 26px !important;" title="Writer Email: {{ $orderCode ? 'Order ' . $orderCode : 'Open Writer Email Channel' }}">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 16 16">
-                        <path d="M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2zm2-1a1 1 0 0 0-1 1v.217l7 4.2 7-4.2V4a1 1 0 0 0-1-1zm13 2.383-4.708 2.825L15 11.105zm-.034 6.876-5.64-3.471L8 9.583l-1.326-.795-5.64 3.47A1 1 0 0 0 2 13h12a1 1 0 0 0 .966-.741M1 11.105l4.708-2.897L1 5.383z"/>
-                    </svg>
-                </a>
-            </div>
+                @php
+                    $orderCode = $order->order_id ?: (string) $order->id;
+                    $writerEmail = $order->writer?->email ?: ($order->subwriter?->email ?: null);
+                    $writerDisplayName = $order->writer_name ?: ($order->writer?->name ?: ($order->subwriter?->name ?: null));
+                    $writeEmailUrl = route('emails.index', array_filter([
+                        'account_id' => crm_email_account_id('writer'),
+                        'compose'    => 1,
+                        'to'         => $writerEmail,
+                        'to_name'    => $writerDisplayName,
+                        'subject'    => $orderCode ? ('Order ' . $orderCode . ' - Assignment Details') : null,
+                        'search'     => $orderCode,
+                    ]));
+                    $writerBtnTitle = $writerEmail
+                        ? "Email Writer: {$writerDisplayName} ({$writerEmail})"
+                        : ($orderCode ? "Writer Email for Order {$orderCode}" : 'Open Writer Email Channel');
+                @endphp
+                <div class="d-flex align-items-center justify-content-center gap-1 mt-1">
+                    <button type="button" class="btn btn-sm btn-light-primary py-1 px-3 fs-8"
+                        onclick="openWriterFeedbackModal({{ $order->id }}, '{{ $currentFeedback ?? '' }}')">
+                        <i class="fa fa-star fs-8"></i> Rate Writer
+                    </button>
+                    <a href="{{ $writeEmailUrl }}" target="_blank" class="btn btn-icon btn-sm crm-btn-email"
+                        style="width: 26px !important; height: 26px !important;"
+                        title="{{ $writerBtnTitle }}">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 16 16">
+                            <path
+                                d="M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2zm2-1a1 1 0 0 0-1 1v.217l7 4.2 7-4.2V4a1 1 0 0 0-1-1zm13 2.383-4.708 2.825L15 11.105zm-.034 6.876-5.64-3.471L8 9.583l-1.326-.795-5.64 3.47A1 1 0 0 0 2 13h12a1 1 0 0 0 .966-.741M1 11.105l4.708-2.897L1 5.383z" />
+                        </svg>
+                    </a>
+                </div>
 
-            {{-- @else
+                {{-- @else
             <span class="badge badge-light-danger fs-7 fw-bold">N/A</span>
             @endif --}}
-
             @else
                 <span class="badge badge-light-danger fs-7 fw-bold">N/A</span>
-                @if($order->writerstatus_date)
+                @if ($order->writerstatus_date)
                     <br>
                     <span class="badge badge-light-warning fs-8 fw-bold mt-1">
                         W Q: {{ \Carbon\Carbon::parse($order->writerstatus_date)->format('d M Y h:i A') }}
@@ -771,116 +902,136 @@
                 @endif
                 @php
                     $orderCode = $order->order_id ?: (string) $order->id;
-                    $writeEmailUrl = route('emails.index', array_filter(['account_id' => crm_email_account_id('writer'), 'search' => $orderCode]));
+                    $writerEmail = $order->writer?->email ?: ($order->subwriter?->email ?: null);
+                    $writerDisplayName = $order->writer_name ?: ($order->writer?->name ?: ($order->subwriter?->name ?: null));
+                    $writeEmailUrl = route('emails.index', array_filter([
+                        'account_id' => crm_email_account_id('writer'),
+                        'compose'    => 1,
+                        'to'         => $writerEmail,
+                        'to_name'    => $writerDisplayName,
+                        'subject'    => $orderCode ? ('Order ' . $orderCode . ' - Assignment Details') : null,
+                        'search'     => $orderCode,
+                    ]));
+                    $writerBtnTitle = $writerEmail
+                        ? "Email Writer: {$writerDisplayName} ({$writerEmail})"
+                        : ($orderCode ? "Writer Email for Order {$orderCode}" : 'Open Writer Email Channel');
                 @endphp
                 <div class="mt-1">
-                    <a href="{{ $writeEmailUrl }}" target="_blank" class="btn btn-icon btn-sm crm-btn-email" style="width: 26px !important; height: 26px !important;" title="Writer Email: {{ $orderCode ? 'Order ' . $orderCode : 'Open Writer Email Channel' }}">
+                    <a href="{{ $writeEmailUrl }}" target="_blank" class="btn btn-icon btn-sm crm-btn-email"
+                        style="width: 26px !important; height: 26px !important;"
+                        title="{{ $writerBtnTitle }}">
                         <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 16 16">
-                            <path d="M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2zm2-1a1 1 0 0 0-1 1v.217l7 4.2 7-4.2V4a1 1 0 0 0-1-1zm13 2.383-4.708 2.825L15 11.105zm-.034 6.876-5.64-3.471L8 9.583l-1.326-.795-5.64 3.47A1 1 0 0 0 2 13h12a1 1 0 0 0 .966-.741M1 11.105l4.708-2.897L1 5.383z"/>
+                            <path
+                                d="M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2zm2-1a1 1 0 0 0-1 1v.217l7 4.2 7-4.2V4a1 1 0 0 0-1-1zm13 2.383-4.708 2.825L15 11.105zm-.034 6.876-5.64-3.471L8 9.583l-1.326-.795-5.64 3.47A1 1 0 0 0 2 13h12a1 1 0 0 0 .966-.741M1 11.105l4.708-2.897L1 5.383z" />
                         </svg>
                     </a>
                 </div>
             @endif
         </td>
 
-       @if($roleId == 1)
-        <td style="min-width:220px;">
-            <div class="border rounded p-3 bg-light">
+        @if ($roleId == 1)
+            <td style="min-width:220px;">
+                <div class="border rounded p-3 bg-light">
 
-                @php
-                    // mk 5 10 26 - Prioritize preloaded_creator_name to eliminate N+1 User::find queries in loop
-                    $orderCreatorUser = null;
-                    if (!empty($order->preloaded_creator_name)) {
-                        $createdByName = $order->preloaded_creator_name;
-                    } elseif ($order->lead && $order->lead->creator) {
-                        $orderCreatorUser = $order->lead->creator;
-                    } elseif (!empty($order->created_by) && is_numeric($order->created_by)) {
-                        $orderCreatorUser = \App\Models\User::select('id', 'name')->find($order->created_by);
-                    } elseif ($order->lead && !empty($order->lead->created_by) && is_numeric($order->lead->created_by)) {
-                        $orderCreatorUser = \App\Models\User::select('id', 'name')->find($order->lead->created_by);
-                    }
+                    @php
+                        // mk 5 10 26 - Prioritize preloaded_creator_name to eliminate N+1 User::find queries in loop
+                        $orderCreatorUser = null;
+                        if (!empty($order->preloaded_creator_name)) {
+                            $createdByName = $order->preloaded_creator_name;
+                        } elseif ($order->lead && $order->lead->creator) {
+                            $orderCreatorUser = $order->lead->creator;
+                        } elseif (!empty($order->created_by) && is_numeric($order->created_by)) {
+                            $orderCreatorUser = \App\Models\User::select('id', 'name')->find($order->created_by);
+                        } elseif (
+                            $order->lead &&
+                            !empty($order->lead->created_by) &&
+                            is_numeric($order->lead->created_by)
+                        ) {
+                            $orderCreatorUser = \App\Models\User::select('id', 'name')->find($order->lead->created_by);
+                        }
 
-                    if (isset($createdByName)) {
-                        // already set
-                    } elseif ($orderCreatorUser) {
-                        $createdByName = $orderCreatorUser->name . ' (ID: ' . $orderCreatorUser->id . ')';
-                    } elseif (!empty($order->created_by) && !is_numeric($order->created_by)) {
-                        $createdByName = $order->created_by;
-                    } elseif (!empty($order->lead?->created_by) && !is_numeric($order->lead->created_by)) {
-                        $createdByName = $order->lead->created_by;
-                    } elseif ($order->frontendorder == 1 || ($order->lead && $order->lead->frontendorder == 1)) {
-                        $createdByName = 'Website / Frontend';
-                    } else {
-                        $createdByName = 'Website / System';
-                    }
-                @endphp
+                        if (isset($createdByName)) {
+                            // already set
+                        } elseif ($orderCreatorUser) {
+                            $createdByName = $orderCreatorUser->name . ' (ID: ' . $orderCreatorUser->id . ')';
+                        } elseif (!empty($order->created_by) && !is_numeric($order->created_by)) {
+                            $createdByName = $order->created_by;
+                        } elseif (!empty($order->lead?->created_by) && !is_numeric($order->lead->created_by)) {
+                            $createdByName = $order->lead->created_by;
+                        } elseif ($order->frontendorder == 1 || ($order->lead && $order->lead->frontendorder == 1)) {
+                            $createdByName = 'Website / Frontend';
+                        } else {
+                            $createdByName = 'Website / System';
+                        }
+                    @endphp
 
-                <div class="mb-2">
-                    <span class="fw-bold text-primary">Created By:</span>
-                    <span>{{ $createdByName }}</span>
+                    <div class="mb-2">
+                        <span class="fw-bold text-primary">Created By:</span>
+                        <span>{{ $createdByName }}</span>
+                    </div>
+
+                    <div class="mb-2">
+                        <span class="fw-bold text-success">Convert By:</span>
+                        <span>{{ $order->l_converted_by ?: 'N/A' }}</span>
+                    </div>
+
+                    <div>
+                        <span class="fw-bold text-danger">Failed By:</span>
+
+                        @if ($order->failed_by)
+                            <span>{{ $order->failed_by }}</span></br>
+                            <small class="text-muted">
+                                {{ date('d M Y h:i A', strtotime($order->failed_at)) }}
+                            </small>
+                        @else
+                            <span class="text-muted">N/A</span>
+                        @endif
+                    </div>
+
                 </div>
-
-                <div class="mb-2">
-                    <span class="fw-bold text-success">Convert By:</span>
-                    <span>{{ $order->l_converted_by ?: 'N/A' }}</span>
-                </div>
-
-                <div>
-                    <span class="fw-bold text-danger">Failed By:</span>
-
-                    @if($order->failed_by)
-                        <span>{{ $order->failed_by }}</span></br>
-                        <small class="text-muted">
-                            {{ date('d M Y h:i A', strtotime($order->failed_at)) }}
-                        </small>
-                    @else
-                        <span class="text-muted">N/A</span>
-                    @endif
-                </div>
-
-            </div>
-        </td>
+            </td>
         @endif
 
         <td class="text-center">
             @php
-            // 1. Latest comment preloaded feedback relation se nikalna
-            $latestComment = $order->feedback->first();
+                // 1. Latest comment preloaded feedback relation se nikalna
+                $latestComment = $order->feedback->first();
 
-            // 2. User ki ID se Name preloaded relation se
-            $commentUserName = $latestComment?->user?->name ?? 'Admin';
+                // 2. User ki ID se Name preloaded relation se
+                $commentUserName = $latestComment?->user?->name ?? 'Admin';
             @endphp
 
-            @if($latestComment && !empty($latestComment->comment))
-            <div style="background-color: #f5f8fa; border-radius: 8px; padding: 12px; margin-top: 5px; border: 1px solid #e4e6ef; text-align: left; min-width: 220px;">
+            @if ($latestComment && !empty($latestComment->comment))
+                <div
+                    style="background-color: #f5f8fa; border-radius: 8px; padding: 12px; margin-top: 5px; border: 1px solid #e4e6ef; text-align: left; min-width: 220px;">
 
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                    <span class="fw-bolder fs-6" style="color: #5e6278;">
-                        {{ $commentUserName }}
-                    </span>
-                    <span class="text-muted fs-8 fw-bold">
-                        @if(isset($latestComment->created_at))
-                        {{ \Carbon\Carbon::parse($latestComment->created_at)->diffForHumans() }}
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="fw-bolder fs-6" style="color: #5e6278;">
+                            {{ $commentUserName }}
+                        </span>
+                        <span class="text-muted fs-8 fw-bold">
+                            @if (isset($latestComment->created_at))
+                                {{ \Carbon\Carbon::parse($latestComment->created_at)->diffForHumans() }}
+                            @endif
+                        </span>
+                    </div>
+
+                    <div class="text-dark fs-7 mb-3" style="word-wrap: break-word; line-height: 1.4;">
+                        {{ $latestComment->comment }}
+                    </div>
+
+                    <div class="d-flex align-items-center fw-bolder fs-7" style="color: #3e5cb9;">
+                        <i class="fa fa-calendar-alt me-2" style="color: #8da4ef; font-size: 1.1rem;"></i>
+                        @if (isset($latestComment->created_at))
+                            {{ \Carbon\Carbon::parse($latestComment->created_at)->format('d M Y, h:i A') }}
+                        @else
+                            Date N/A
                         @endif
-                    </span>
-                </div>
+                    </div>
 
-                <div class="text-dark fs-7 mb-3" style="word-wrap: break-word; line-height: 1.4;">
-                    {{ $latestComment->comment }}
                 </div>
-
-                <div class="d-flex align-items-center fw-bolder fs-7" style="color: #3e5cb9;">
-                    <i class="fa fa-calendar-alt me-2" style="color: #8da4ef; font-size: 1.1rem;"></i>
-                    @if(isset($latestComment->created_at))
-                    {{ \Carbon\Carbon::parse($latestComment->created_at)->format('d M Y, h:i A') }}
-                    @else
-                    Date N/A
-                    @endif
-                </div>
-
-            </div>
             @else
-            <span class="badge badge-light-secondary text-muted fs-8">No Comments Found</span>
+                <span class="badge badge-light-secondary text-muted fs-8">No Comments Found</span>
             @endif
         </td>
     </tr>

@@ -16,36 +16,57 @@ class WhatsAppService
         $waSetting = \App\Models\WhatsappSetting::where('is_active', true)->first();
         $settings = $waSetting?->settings ?? [];
 
-        $this->url = !empty($settings['api_url']) ? $settings['api_url'] : env('AISENSY_API_URL');
+        $projectId = trim((string) ($settings['project_id'] ?? env('AISENSY_PROJECT_ID') ?? ''));
+        if (!empty($projectId)) {
+            $this->url = "https://apis.aisensy.com/project-apis/v1/project/{$projectId}/messages";
+        } elseif (!empty($settings['api_url'])) {
+            $this->url = $settings['api_url'];
+        } else {
+            $this->url = env('AISENSY_API_URL');
+        }
+
         $this->apiKey = !empty($settings['api_key']) ? $settings['api_key'] : env('AISENSY_API_KEY');
     }
 
     public function sendTextMessage($to, $message)
     {
+        $cleanTo = ltrim(preg_replace('/\D+/', '', (string) $to), '+');
+
         $response = Http::withHeaders([
             'Accept' => 'application/json',
             'Content-Type' => 'application/json',
             'X-AiSensy-Project-API-Pwd' => $this->apiKey,
         ])->post($this->url, [
-            'to' => $to,
+            'to' => $cleanTo,
             'type' => 'text',
             'recipient_type' => 'individual',
             'text' => [
-                'body' => $message
-            ]
+                'body' => $message,
+            ],
         ]);
-        
+
+        if (! $response->successful()) {
+            Log::warning('WhatsAppService::sendTextMessage failed', [
+                'to' => $cleanTo,
+                'status' => $response->status(),
+                'response' => $response->json() ?: $response->body(),
+            ]);
+        }
+
         return $response->json();
     }
-   public function sendMediaMessage($to, $mediaFile, $mediaType, $caption = '')
+
+    public function sendMediaMessage($to, $mediaFile, $mediaType, $caption = '')
     {
+        $cleanTo = ltrim(preg_replace('/\D+/', '', (string) $to), '+');
+
         // Upload media to a public path and get the public URL
         $storedPath = $mediaFile->store('uploads/whatsapp', 'public');
         $mediaUrl = asset('storage/' . $storedPath);
 
         // Prepare the base payload
         $payload = [
-            'to' => $to,
+            'to' => $cleanTo,
             'type' => $mediaType,
         ];
 
@@ -83,6 +104,15 @@ class WhatsAppService
             'Content-Type' => 'application/json',
             'X-AiSensy-Project-API-Pwd' => $this->apiKey,
         ])->post($this->url, $payload);
+
+        if (! $response->successful()) {
+            Log::warning('WhatsAppService::sendMediaMessage failed', [
+                'to' => $cleanTo,
+                'type' => $mediaType,
+                'status' => $response->status(),
+                'response' => $response->json() ?: $response->body(),
+            ]);
+        }
 
         return $response->json();
     }

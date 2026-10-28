@@ -2768,9 +2768,15 @@ class LeadsController extends Controller
             $templates = collect($response->json()['template'] ?? [])
                 ->where('status', 'APPROVED')
                 ->map(function ($t) {
+                    $langStr = $t['language'] ?? 'English (UK)';
+                    $langCode = (stripos($langStr, 'UK') !== false || stripos($langStr, 'GB') !== false)
+                        ? 'en_GB'
+                        : ((stripos($langStr, 'US') !== false) ? 'en_US' : ((strcasecmp(trim($langStr), 'English') === 0) ? 'en' : 'en_GB'));
+
                     return [
-                        'id' => $t['id'],
+                        'id' => $t['id'] ?? $t['name'],
                         'name' => $t['name'],
+                        'language' => $langCode,
                     ];
                 })
                 ->values();
@@ -2789,41 +2795,104 @@ class LeadsController extends Controller
             return redirect()->back()->with('error', 'User not found.');
         }
 
-        // 2. Build the full WhatsApp number
-        $whatsappNumber = preg_replace('/\D+/', '', (string) ($user->countrycode.$user->mobile_no));
+        // 2. Build the full WhatsApp number (prevent double country codes)
+        $cleanCc = preg_replace('/\D+/', '', (string) $user->countrycode);
+        $cleanMobile = preg_replace('/\D+/', '', (string) $user->mobile_no);
 
-        // 3. Prepare the payload
+        if (! empty($cleanCc)) {
+            $cleanMobile = ltrim($cleanMobile, '0');
+            if (str_starts_with($cleanMobile, $cleanCc)) {
+                $whatsappNumber = $cleanMobile;
+            } else {
+                $whatsappNumber = $cleanCc.$cleanMobile;
+            }
+        } else {
+            $whatsappNumber = $cleanMobile;
+        }
+
+        $templateName = $request->input('template_name');
+
+        // 3. Resolve active AiSensy config
+        $setting = WhatsappSetting::where('is_active', true)->first();
+        $config = $setting?->settings ?? [];
+        $projectId = $config['project_id'] ?? env('AISENSY_PROJECT_ID') ?: '64b7904a3702730b51b76dc1';
+        $apiKey = $config['api_key'] ?? env('AISENSY_API_KEY') ?: '798699e56bbe28cc0b669';
+
+        // 4. Resolve template language (detect from live template or default to en_GB)
+        $templateLang = $request->input('template_language');
+        if (empty($templateLang)) {
+            try {
+                $tplRes = Http::withHeaders([
+                    'Accept' => 'application/json',
+                    'X-AiSensy-Project-API-Pwd' => $apiKey,
+                ])->timeout(5)->get("https://apis.aisensy.com/project-apis/v1/project/{$projectId}/wa_template/");
+                if ($tplRes->successful()) {
+                    $matched = collect($tplRes->json()['template'] ?? [])->firstWhere('name', $templateName);
+                    if ($matched && ! empty($matched['language'])) {
+                        $langStr = $matched['language'];
+                        $templateLang = (stripos($langStr, 'UK') !== false || stripos($langStr, 'GB') !== false)
+                            ? 'en_GB'
+                            : ((stripos($langStr, 'US') !== false) ? 'en_US' : ((strcasecmp(trim($langStr), 'English') === 0) ? 'en' : 'en_GB'));
+                    }
+                }
+            } catch (\Throwable $e) {
+                // Ignore lookup errors
+            }
+        }
+        $templateLang = $templateLang ?: 'en_GB';
+
+        // 5. Prepare the payload
         $payload = [
             'to' => $whatsappNumber,
             'type' => 'template',
             'template' => [
                 'language' => [
                     'policy' => 'deterministic',
-                    'code' => 'en_GB',
+                    'code' => $templateLang,
                 ],
-                'name' => $request->input('template_name'),
+                'name' => $templateName,
             ],
         ];
 
-        // 4. Make the POST request to active AiSensy API
-        $setting = WhatsappSetting::where('is_active', true)->first();
-        $config = $setting?->settings ?? [];
-        $projectId = $config['project_id'] ?? env('AISENSY_PROJECT_ID') ?: '64b7904a3702730b51b76dc1';
-        $apiKey = $config['api_key'] ?? env('AISENSY_API_KEY') ?: '798699e56bbe28cc0b669';
-
+        // 6. Make the POST request to active AiSensy API
         $response = Http::withHeaders([
             'Accept' => 'application/json',
             'Content-Type' => 'application/json',
             'X-AiSensy-Project-API-Pwd' => $apiKey,
         ])->timeout(20)->post("https://apis.aisensy.com/project-apis/v1/project/{$projectId}/messages", $payload);
 
-        // 5. Handle the response and redirect
+        // 7. Handle the response and sync with WhatsappMessage table
         if ($response->successful()) {
+            $resData = $response->json();
+            $waMsgId = $resData['messages'][0]['id']
+                ?? $resData['messageId']
+                ?? $resData['id']
+                ?? ('tpl_'.(string) \Illuminate\Support\Str::uuid());
+
+            \App\Models\WhatsappMessage::create([
+                'phone' => '+'.$whatsappNumber,
+                'name' => $user->name ?: 'Customer',
+                'message' => 'Template: '.$templateName,
+                'direction' => 'outbound',
+                'status' => 'sent',
+                'wa_message_id' => $waMsgId,
+            ]);
+
             return redirect('/whatsapp/chat?phone='.$whatsappNumber)
-                ->with('success', 'WhatsApp message sent successfully!');
+                ->with('success', 'WhatsApp template message sent successfully!');
         } else {
+            \Illuminate\Support\Facades\Log::warning('LeadsController WhatsApp template send failed', [
+                'to' => $whatsappNumber,
+                'template' => $templateName,
+                'payload' => $payload,
+                'status' => $response->status(),
+                'response' => $response->json() ?: $response->body(),
+            ]);
+
+            $errMsg = $response->json('message') ?? $response->json('error.message') ?? $response->json('error') ?? 'Failed to send WhatsApp message.';
+
             return redirect()->back()
-                ->with('error', 'Failed to send message. '.($response->json('message') ?? 'Unknown error'));
+                ->with('error', 'WhatsApp error: '.$errMsg);
         }
     }
 
