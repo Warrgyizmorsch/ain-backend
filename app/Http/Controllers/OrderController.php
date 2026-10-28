@@ -249,7 +249,7 @@ class OrderController extends Controller
             ->groupBy('uid')
             ->pluck(DB::raw('COUNT(*)'), 'uid');
 
-        $unconvertedOrderCodes = Cache::remember('unconverted_order_codes_in_orders', 300, function () {
+        $unconvertedOrderCodes = Cache::remember('unconverted_order_codes_in_orders', 180, function () {
             return DB::table('orders')
                 ->join('leads', 'orders.order_id', '=', 'leads.order_id')
                 ->where('leads.is_converted', 0)
@@ -4097,8 +4097,8 @@ class OrderController extends Controller
               ->orWhereNotNull('orders.lead_id');
         });
 
-        // mk 5 10 26 - Cache unconverted order codes for 300s to avoid heavy 60,000 order join spikes
-        $unconvertedOrderCodes = Cache::remember('unconverted_order_codes_in_orders', 300, function () {
+        // mk 5 10 26 - Cache unconverted order codes for 180s (3 min) to avoid heavy 60,000 order join spikes
+        $unconvertedOrderCodes = Cache::remember('unconverted_order_codes_in_orders', 180, function () {
             return DB::table('orders')
                 ->join('leads', 'orders.order_id', '=', 'leads.order_id')
                 ->where('leads.is_converted', 0)
@@ -4583,8 +4583,8 @@ class OrderController extends Controller
             return $overdueQuery->count();
         });
 
-        // mk 5 10 26 - Cache order team counts for 180s using converted order criteria
-        $unconvertedOrderCodes = Cache::remember('unconverted_order_codes_in_orders', 300, function () {
+        // mk 5 10 26 - Cache order team counts for 180s (3 min) using converted order criteria
+        $unconvertedOrderCodes = Cache::remember('unconverted_order_codes_in_orders', 180, function () {
             return DB::table('orders')
                 ->join('leads', 'orders.order_id', '=', 'leads.order_id')
                 ->where('leads.is_converted', 0)
@@ -4867,7 +4867,7 @@ class OrderController extends Controller
             ])->render();
         }
 
-        $unconvertedOrderCodes = Cache::remember('unconverted_order_codes_in_orders', 300, function () {
+        $unconvertedOrderCodes = Cache::remember('unconverted_order_codes_in_orders', 180, function () {
             return DB::table('orders')
                 ->join('leads', 'orders.order_id', '=', 'leads.order_id')
                 ->where('leads.is_converted', 0)
@@ -7063,7 +7063,7 @@ public function myRevokePayments(Request $request)
 
             // 2. Query for peers (Person B) who placed an order with any of these module codes
             // Timeline: strictly 2 to 12 months historical window before Person A's order date
-            $unconvertedOrderCodes = Cache::remember('unconverted_order_codes_in_orders', 300, function () {
+            $unconvertedOrderCodes = Cache::remember('unconverted_order_codes_in_orders', 180, function () {
                 return DB::table('orders')
                     ->join('leads', 'orders.order_id', '=', 'leads.order_id')
                     ->where('leads.is_converted', 0)
