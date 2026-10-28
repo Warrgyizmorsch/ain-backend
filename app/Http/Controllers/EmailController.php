@@ -1081,8 +1081,21 @@ class EmailController extends Controller
         }
 
         // Determine recipient & subject
-        $to = $parent->from_email;
+        // If parent message was outbound (sent by us) or from company email, reply to the actual customer/writer!
+        $isOutbound = ($parent->direction === 'outbound')
+            || (function_exists('is_company_email') && is_company_email($parent->from_email));
+
+        $to = $isOutbound ? ($parent->to_email ?: $parent->from_email) : $parent->from_email;
         $subject = 'Re: '.preg_replace('/^(Re:\s*)+/i', '', $parent->subject ?? '(No Subject)');
+
+        // Fallback account resolution
+        $accountId = $parent->email_configuration_id ?: $request->input('account_id');
+        if (empty($accountId) && session()->has('active_email_account_id')) {
+            $accountId = session('active_email_account_id');
+        }
+        if (empty($accountId)) {
+            $accountId = function_exists('crm_email_account_id') ? crm_email_account_id('writer') : 2;
+        }
 
         try {
             $files = $request->file('attachments', $request->file('files', []));
@@ -1094,7 +1107,7 @@ class EmailController extends Controller
                 'body_html' => $bodyHtml,
                 'thread_id' => $parent->thread_id,
                 'in_reply_to' => $parent->message_id,
-                'account_id' => $parent->email_configuration_id,
+                'account_id' => $accountId,
                 'forwarded_attachment_ids' => $forwardedAttachmentIds,
             ];
 
@@ -1104,7 +1117,7 @@ class EmailController extends Controller
         } catch (\Exception $e) {
             \Log::error('Email reply failed.', ['error' => $e->getMessage()]);
 
-            return response()->json(['success' => false, 'message' => 'Reply delivery failed. Check the account connection.'], 500);
+            return response()->json(['success' => false, 'message' => 'Reply delivery failed: '.$e->getMessage()], 500);
         }
     }
 
@@ -2351,8 +2364,8 @@ class EmailController extends Controller
             })
             ->whereNotNull('email')
             ->where('email', '!=', '')
-            ->select('id', 'name', 'email', 'mobile_no')
-            ->limit(10)
+            ->select('id', 'name', 'email', 'mobile_no', 'role_id')
+            ->limit(15)
             ->get()
             ->each(function ($u) {
                 $u->is_lead = false;
@@ -2382,14 +2395,19 @@ class EmailController extends Controller
 
         $combined = $users->concat($leadEmails)
             ->unique(fn ($item) => strtolower(trim($item->email)))
-            ->take(10)
+            ->take(15)
             ->map(function ($item) use ($isSuperAdmin) {
                 $realEmail = $item->email;
-                $item->display_email = $isSuperAdmin ? $realEmail : mask_email_for_display($realEmail);
-                if (! $isSuperAdmin) {
+                // Writers and internal staff (roles 6, 7, 8, 10, 1) should NEVER be masked for staff
+                $isStaffOrWriter = ! ($item->is_lead ?? false) && isset($item->role_id) && in_array((int) $item->role_id, [1, 2, 4, 5, 6, 7, 8, 9, 10], true);
+                $shouldMask = ! $isSuperAdmin && ! $isStaffOrWriter;
+
+                $item->display_email = $shouldMask ? mask_email_for_display($realEmail) : $realEmail;
+                if ($shouldMask) {
                     $item->mobile_no = $item->mobile_no ? mask_mobile_only(null, $item->mobile_no) : '';
                 }
                 $item->email = $realEmail;
+                $item->is_writer = in_array((int) ($item->role_id ?? 0), [6, 7, 8, 10], true);
 
                 return $item;
             })

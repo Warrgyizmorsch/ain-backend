@@ -582,6 +582,7 @@
                         const option = document.createElement('option');
                         option.value = template.id;
                         option.text = template.name;
+                        option.dataset.language = template.language || 'en_GB';
                         dropdown.appendChild(option);
                     });
 
@@ -599,6 +600,10 @@
     document.getElementById('templateDropdown').addEventListener('change', function() {
         const selectedOption = this.options[this.selectedIndex];
         document.getElementById('templateName').value = selectedOption.text;
+        const langEl = document.getElementById('templateLanguage');
+        if (langEl) {
+            langEl.value = selectedOption.dataset.language || 'en_GB';
+        }
     });
 </script>
 <script>

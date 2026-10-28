@@ -45,6 +45,7 @@
                         <option value="">Select Template</option>
                     </select>
                     <input type="hidden" id="templateName" name="template_name">
+                    <input type="hidden" id="templateLanguage" name="template_language">
                 </div>
                 <div class="modal-footer">
                     @if(!empty($lead->user))
