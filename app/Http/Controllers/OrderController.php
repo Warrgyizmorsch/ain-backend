@@ -103,6 +103,8 @@ class OrderController extends Controller
 
         return [
             'user' => $userSelectCallback,
+            'writer:id,name,email',
+            'subwriter:id,name,email',
             'payment:id,order_id,paid_amount,is_revoked,payee_name,company_accounts',
             'team:id,team_name',
             'lead' => function ($q) use ($userSelectCallback) {

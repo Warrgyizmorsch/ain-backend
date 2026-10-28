@@ -78,7 +78,7 @@ class ChatController extends Controller
 
     public function send(Request $request, WhatsAppService $whatsapp)
     {
-        $phone = $request->input('phone'); // Example: 919664100138
+        $phone = ltrim(preg_replace('/\D+/', '', (string) $request->input('phone')), '+'); // Example: 919664100138
         $message = $request->input('message'); // Example: Testing By Prakash
         $mediaType = $request->input('media_type');
         $mediaFile = $request->file('media');
@@ -86,39 +86,45 @@ class ChatController extends Controller
         $auth = Auth::user();
 
         try {
-        if ($mediaFile && $mediaType) {
-            // Upload and send media
-            $response = $whatsapp->sendMediaMessage($phone, $mediaFile, $mediaType, $caption);
-        } else {
-            // Send text message
-            $response = $whatsapp->sendTextMessage($phone, $message);
+            if ($mediaFile && $mediaType) {
+                // Upload and send media
+                $response = $whatsapp->sendMediaMessage($phone, $mediaFile, $mediaType, $caption);
+            } else {
+                // Send text message
+                $response = $whatsapp->sendTextMessage($phone, $message);
+            }
+
+            $waMsgId = $response['messages'][0]['id']
+                ?? $response['messageId']
+                ?? $response['id']
+                ?? $response['data']['messageId']
+                ?? null;
+
+            if ($waMsgId) {
+                $messageData = WhatsappMessage::create([
+                    'phone' => $phone,
+                    'name' => $auth->name ?? 'Unknown',
+                    'message' => $caption ?? $message ?? '',
+                    'created_at' => now()->toISOString(),
+                    'direction' => 'outbound',
+                    'wa_message_id' => $waMsgId,
+                    'status' => 'sent',
+                ]);
+
+                event(new MessageSent($messageData));
+
+                return response()->json(['success' => true, 'message_id' => $messageData->wa_message_id]);
+            } else {
+                $error = $response['message'] ?? $response['error']['message'] ?? $response['error'] ?? 'Failed to send message.';
+                Log::warning('ChatController WhatsApp send failed', ['phone' => $phone, 'response' => $response]);
+                return response()->json(['success' => false, 'error' => $error], 400);
+            }
+
+        } catch (\Exception $e) {
+            Log::error('WhatsApp send failed', ['exception' => $e]);
+            return response()->json(['success' => false, 'error' => 'Something went wrong: ' . $e->getMessage()], 500);
         }
-
-        if (isset($response['messages'][0]['id'])) {
-            $messageData = WhatsappMessage::create([
-                'phone' => $phone,
-                'name' => $auth->name ?? 'Unknown',
-                'message' => $caption ?? $message ?? '',
-                'created_at' => now()->toISOString(),
-                'direction' => 'outbound',
-                'wa_message_id' => $response['messages'][0]['id'],
-                'status' => 'sent'
-            ]);
-
-            event(new MessageSent($messageData));
-
-            return response()->json(['success' => true, 'message_id' => $messageData->wa_message_id]);
-        } else {
-            $error = $response['error']['message'] ?? 'Unknown error.';
-            return response()->json(['success' => false, 'error' => $error], 400);
-        }
-
-    } catch (\Exception $e) {
-        Log::error('WhatsApp send failed', ['exception' => $e]);
-        return response()->json(['success' => false, 'error' => 'Something went wrong.'], 500);
     }
-
-}
 
     public function getChatUserByPhone($phone)
     {
