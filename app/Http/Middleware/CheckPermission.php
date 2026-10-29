@@ -29,7 +29,8 @@ class CheckPermission
             'orders.payment.form.store', 'orders.payment.form.update', 'urgent-orders',
             'prime-orders', 'smart-orders', 'prime-cancelled', 'smart-cancelled',
             'refund-orders', 'orders/looking-refund', 'orders/additional-save',
-            'orders/additional-history', 'revoke-payments', 'my-revoke-payments'
+            'orders/additional-history', 'revoke-payments', 'my-revoke-payments',
+            'appdialnumber', 'HangUp', 'HoldCall', 'unhold', 'softphone.call-url', 'softphone.whitelist-ip'
         ],
         'lead' => [
             'lead', 'leads', 'checklead', 'convertleads', 'convert-lead',
@@ -215,6 +216,12 @@ class CheckPermission
             'emails.campaigns.image',
             'export.orders',
             'order.export',
+            'appdialnumber',
+            'HangUp',
+            'HoldCall',
+            'unhold',
+            'softphone.call-url',
+            'softphone.whitelist-ip',
         ];
 
         if ($currentRoute && in_array($currentRoute, $bypassRoutes, true)) {
@@ -240,6 +247,11 @@ class CheckPermission
             'uploads/campaigns',
             'export',
             'order/export',
+            'appdialnumber',
+            'HangUp',
+            'HoldCall',
+            'unhold',
+            'softphone',
         ];
 
         foreach ($bypassPaths as $bp) {
