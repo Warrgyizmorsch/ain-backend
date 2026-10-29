@@ -47,6 +47,7 @@
 									<th>Words</th>
 									<!-- <th>Writer Team Leader</th> -->
 									<th>Writer</th>
+									<th class="min-w-60px">Writer Deadline</th>
 									<th class="min-w-50px text-center">Actions</th>
 
 								</tr>
@@ -163,6 +164,31 @@
 
 
 
+									<td>
+										@if(!empty($order->writer_deadline) && $order->writer_deadline != '0000-00-00')
+											{{ \Carbon\Carbon::parse($order->writer_deadline)->format('d M Y') }}
+											@if(!empty($order->writer_deadline_time) && $order->writer_deadline_time != '00:00:00')
+												<br><span class="badge badge-light-danger fs-7 fw-bold">{{ date('g:i A', strtotime($order->writer_deadline_time)) }}</span>
+											@endif
+										@else
+											<span class="text-muted">Not Set</span>
+										@endif
+										@if($order->draftrequired == 'Y')
+											<br>
+											<span class="badge badge-light-info fs-7 fw-bold">
+												Draft: 
+												@if(!empty($order->draft_date) && $order->draft_date != '0000-00-00')
+													{{ \Carbon\Carbon::parse($order->draft_date)->format('d M Y') }}
+												@endif
+												@if(!empty($order->draft_time) && $order->draft_time != '00:00:00')
+													{{ date('g:i A', strtotime($order->draft_time)) }}
+												@endif
+											</span>
+										@endif
+									</td>
+
+									
+
 									<td class="text-center">
 										<a href="edit.{{ $order->id }}" 
 											class="btn btn-icon btn-bg-light btn-active-color-primary btn-sm me-1"">
@@ -191,7 +217,30 @@
 												<div class="col-xl-12">
 													<div class="card-body" id="kt_drawer_chat_messenger_body">
 														
-															<div class="row g-9 mb-8 text-start">
+															<div class="mb-4 p-3 bg-light rounded text-start">
+																	<div class="text-muted fs-7 mb-1">Assignment Deadline:</div>
+																	<div class="d-flex align-items-center flex-wrap gap-2">
+																		<span class="fw-bolder fs-6 text-dark">
+																			@if(!empty($order->writer_deadline) && $order->writer_deadline != '0000-00-00')
+																				{{ \Carbon\Carbon::parse($order->writer_deadline)->format('d M Y') }}
+																				@if(!empty($order->writer_deadline_time) && $order->writer_deadline_time != '00:00:00')
+																					<span class="badge badge-light-danger fs-7 fw-bold ms-1">{{ date('g:i A', strtotime($order->writer_deadline_time)) }}</span>
+																				@endif
+																			@else
+																				<span class="text-muted">Not Set</span>
+																			@endif
+																		</span>
+																		@if($order->draftrequired == 'Y' && !empty($order->draft_date) && $order->draft_date != '0000-00-00')
+																			<span class="badge badge-light-info fs-7 fw-bold">
+																				Draft: {{ \Carbon\Carbon::parse($order->draft_date)->format('d M Y') }}
+																				@if(!empty($order->draft_time) && $order->draft_time != '00:00:00')
+																					{{ date('g:i A', strtotime($order->draft_time)) }}
+																				@endif
+																			</span>
+																		@endif
+																	</div>
+																</div>
+												<div class="row g-9 mb-8 text-start">
 																<div class="col-md-12 fv-row">
 																	<select name="subwriterSelect[]" id="subwriterSelect{{ $order->order_id }}" class="form-select form-select-solid" data-control="select2" data-close-on-select="false" data-placeholder="Select an option" data-allow-clear="true"  multiple="multiple">
 																			<option value="">Select Writer</option>
