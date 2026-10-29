@@ -2871,7 +2871,14 @@ class OrderController extends Controller
 
             $output .= '<td>';
             // Formatting writer deadline
-            $output .= ($order->writer_deadline != '0000-00-00') ? \Carbon\Carbon::parse($order->writer_deadline)->format('d M Y') : '';
+            if (!empty($order->writer_deadline) && $order->writer_deadline != '0000-00-00') {
+                $output .= \Carbon\Carbon::parse($order->writer_deadline)->format('d M Y');
+                if (!empty($order->writer_deadline_time) && $order->writer_deadline_time != '00:00:00') {
+                    $output .= '<br><span class="badge badge-light-danger fs-7 fw-bold">' . date('g:i A', strtotime($order->writer_deadline_time)) . '</span>';
+                }
+            } else {
+                $output .= '<span class="text-muted">Not Set</span>';
+            }
 
             // If draft required, include date and time within a span
             if ($order->draftrequired == 'Y') {
@@ -3115,6 +3122,27 @@ class OrderController extends Controller
                 $output .= '</td>';
             }
 
+
+            $output .= '<td>';
+            if (!empty($order->writer_deadline) && $order->writer_deadline != '0000-00-00') {
+                $output .= \Carbon\Carbon::parse($order->writer_deadline)->format('d M Y');
+                if (!empty($order->writer_deadline_time) && $order->writer_deadline_time != '00:00:00') {
+                    $output .= '<br><span class="badge badge-light-danger fs-7 fw-bold">' . date('g:i A', strtotime($order->writer_deadline_time)) . '</span>';
+                }
+            } else {
+                $output .= '<span class="text-muted">Not Set</span>';
+            }
+            if ($order->draftrequired == 'Y') {
+                $output .= '<br><span class="badge badge-light-info fs-7 fw-bold">Draft: ';
+                if (!empty($order->draft_date) && $order->draft_date != '0000-00-00') {
+                    $output .= \Carbon\Carbon::parse($order->draft_date)->format('d M Y') . ' ';
+                }
+                if (!empty($order->draft_time) && $order->draft_time != '00:00:00') {
+                    $output .= date('g:i A', strtotime($order->draft_time));
+                }
+                $output .= '</span>';
+            }
+            $output .= '</td>';
 
             $output .= '<td class="text-center">
                        <a href="/edit.' . $order->id . '"
