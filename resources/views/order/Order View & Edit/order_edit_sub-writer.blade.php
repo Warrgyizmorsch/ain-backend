@@ -26,6 +26,29 @@
 				<div class="col-xl-12">
 					<div class="card-body" id="kt_drawer_chat_messenger_body">
 						
+							<div class="mb-4 p-3 bg-light rounded text-start">
+								<div class="text-muted fs-7 mb-1">Assignment Deadline:</div>
+								<div class="d-flex align-items-center flex-wrap gap-2">
+									<span class="fw-bolder fs-6 text-dark">
+										@if(!empty($order->writer_deadline) && $order->writer_deadline != '0000-00-00')
+											{{ \Carbon\Carbon::parse($order->writer_deadline)->format('d M Y') }}
+											@if(!empty($order->writer_deadline_time) && $order->writer_deadline_time != '00:00:00')
+												<span class="badge badge-light-danger fs-7 fw-bold ms-1">{{ date('g:i A', strtotime($order->writer_deadline_time)) }}</span>
+											@endif
+										@else
+											<span class="text-muted">Not Set</span>
+										@endif
+									</span>
+									@if($order->draftrequired == 'Y' && !empty($order->draft_date) && $order->draft_date != '0000-00-00')
+										<span class="badge badge-light-info fs-7 fw-bold">
+											Draft: {{ \Carbon\Carbon::parse($order->draft_date)->format('d M Y') }}
+											@if(!empty($order->draft_time) && $order->draft_time != '00:00:00')
+												{{ date('g:i A', strtotime($order->draft_time)) }}
+											@endif
+										</span>
+									@endif
+								</div>
+							</div>
 							<div class="row g-9 mb-8 text-start">
 								
 								<div class="col-md-6 fv-row">

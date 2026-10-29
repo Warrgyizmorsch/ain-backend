@@ -185,7 +185,14 @@
 
 									</td>
 									<td>
-									    {{ \Carbon\Carbon::parse($order->writer_deadline)->format('d M Y') }}
+										@if(!empty($order->writer_deadline) && $order->writer_deadline != '0000-00-00')
+											{{ \Carbon\Carbon::parse($order->writer_deadline)->format('d M Y') }}
+											@if(!empty($order->writer_deadline_time) && $order->writer_deadline_time != '00:00:00')
+												<br><span class="badge badge-light-danger fs-7 fw-bold">{{ date('g:i A', strtotime($order->writer_deadline_time)) }}</span>
+											@endif
+										@else
+											<span class="text-muted">Not Set</span>
+										@endif
 									    @if($order->draftrequired == 'Y')
 											<br>
 											<span class="badge badge-light-info fs-7 fw-bold">
