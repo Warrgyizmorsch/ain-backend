@@ -657,10 +657,12 @@
                                 }
                             }
                         </script>
+                        @if(auth()->check() && (in_array((int) auth()->user()->role_id, [1, 9]) || in_array(strtolower(optional(auth()->user()->role)->role ?? ''), ['super admin', 'admin', 'sub admin'])))
                         <button type="button" onclick="exportOrdersDirect()" class="btn btn-sm btn-danger"
                             id="export-order-btn">
                             Export
                         </button>
+                        @endif
                         <div id="order-export-progress" class="order-export-progress" style="display:none;">
                             <div class="d-flex align-items-center gap-2">
                                 <div class="flex-grow-1">
