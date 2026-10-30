@@ -1741,19 +1741,6 @@ class OrderController extends Controller
         if (!$order) {
             abort(404, 'Order not found');
         }
-        if (auth()->user()->role_id == 7) {
-            abort(403, 'Sub-Writers are not authorized to access the order edit page.');
-        }
-        /* Sub-writers handled above */
-        if (false) {
-            $id = auth()->user()->id;
-            $data['orders'] = Order::with('user', 'payment', 'feedback')
-                ->where('swid', $id)
-                ->orderBy('order_id', 'desc')
-                ->paginate(10);
-
-            // echo '<pre>'; print_r($data['leds']) ; exit;
-        }
 
         $data['Team']         = Writer::all();
         $data['Status']       = Status::all();
@@ -7361,5 +7348,6 @@ public function myRevokePayments(Request $request)
         }
     }
 }
+
 
 
