@@ -1135,7 +1135,7 @@ if (!function_exists('is_dummy_customer_email')) {
             return true;
         }
         $email = strtolower(trim($email));
-        return (bool) preg_match('/^user\d{5,15}@gmail\.com$/i', $email);
+        return (bool) preg_match('/^(user\d{4,15}@gmail\.com|next_lead_.*)$/i', $email);
     }
 }
 

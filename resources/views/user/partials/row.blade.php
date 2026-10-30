@@ -70,6 +70,9 @@
 
         <div class="d-flex align-items-center mt-1">
             <span class="text-muted fw-bold text-muted fs-7 text-break">{{ mask_email_for_display($user->email) }}</span>
+            @if(function_exists('is_dummy_customer_email') && is_dummy_customer_email($user->email))
+                <span class="badge badge-light-danger fw-bold fs-9 ms-1" title="Dummy Email: Click to update real email" style="cursor:pointer;" data-bs-toggle="modal" data-bs-target="#kt_modal_create_app{{ $user->id }}">Dummy</span>
+            @endif
             @if($canCopyContact && !empty($copyEmail) && strtolower($copyEmail) !== 'n/a')
                 <button type="button" 
                         class="btn btn-icon btn-sm p-0 border-0 bg-transparent ms-2 copy-contact-btn" 
