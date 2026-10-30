@@ -21,7 +21,19 @@ class CheckPermission
             'postChangePasswordAdmin', 'updateUser'
         ],
         'orders' => [
-            'order', 'orders', 'edit', 'call', 'comment', 'orderpayments',
+            'order', 'orders', 'edit', 'edit.dot', 'call', 'comment', 'orderpayments',
+            'search', 'search-order', 'fetch-subwriters', 'search-writer',
+            'search-writerTl', 'orderedit', 'orders/change-team', 'orders/save-referral',
+            'update_status', 'update_date', 'status-details', 'order-writer', 'order-feedback',
+            'orders.index', 'orders.filter', 'orders.comment.drawer', 'orders.payment.form',
+            'orders.payment.form.store', 'orders.payment.form.update', 'urgent-orders',
+            'prime-orders', 'smart-orders', 'prime-cancelled', 'smart-cancelled',
+            'refund-orders', 'orders/looking-refund', 'orders/additional-save',
+            'orders/additional-history', 'revoke-payments', 'my-revoke-payments',
+            'appdialnumber', 'HangUp', 'HoldCall', 'unhold', 'softphone.call-url', 'softphone.whitelist-ip'
+        ],
+        'order' => [
+            'order', 'orders', 'edit', 'edit.dot', 'call', 'comment', 'orderpayments',
             'search', 'search-order', 'fetch-subwriters', 'search-writer',
             'search-writerTl', 'orderedit', 'orders/change-team', 'orders/save-referral',
             'update_status', 'update_date', 'status-details', 'order-writer', 'order-feedback',
@@ -317,6 +329,11 @@ class CheckPermission
             }
         }
         $allAllowedCandidates = array_unique($allAllowedCandidates);
+
+        // Strict restriction: Sub-Writer (Role 7) must NEVER have access to full order edit page
+        if ($roleId === 7) {
+            $allAllowedCandidates = array_values(array_diff($allAllowedCandidates, ['edit', 'edit.dot']));
+        }
 
         // 5. Check if current path or route name matches any allowed candidate
         foreach ($allAllowedCandidates as $cand) {

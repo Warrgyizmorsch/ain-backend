@@ -1742,6 +1742,10 @@ class OrderController extends Controller
             abort(404, 'Order not found');
         }
         if (auth()->user()->role_id == 7) {
+            abort(403, 'Sub-Writers are not authorized to access the order edit page.');
+        }
+        /* Sub-writers handled above */
+        if (false) {
             $id = auth()->user()->id;
             $data['orders'] = Order::with('user', 'payment', 'feedback')
                 ->where('swid', $id)
@@ -2893,7 +2897,7 @@ class OrderController extends Controller
             }
             $output .= '</td>
                        <td class="text-center">
-                       <a href="/edit.' . $order->id . '"
+                       <a href="/edit/' . $order->id . '"
                        target="_blank"
                            class="btn btn-icon btn-bg-light btn-active-color-primary btn-sm me-1"">
                                <span class=" svg-icon svg-icon-3">
@@ -3145,7 +3149,7 @@ class OrderController extends Controller
             $output .= '</td>';
 
             $output .= '<td class="text-center">
-                       <a href="/edit.' . $order->id . '"
+                       <a href="/edit/' . $order->id . '"
                        target="_blank"
                            class="btn btn-icon btn-bg-light btn-active-color-primary btn-sm me-1"">
                                <span class=" svg-icon svg-icon-3">

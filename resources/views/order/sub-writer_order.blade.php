@@ -178,8 +178,8 @@
 													<h5 class="modal-title" id="confirmationModalLabel">Update Order
 													</h5>
 
-													<a href="/edit.{{$order->id}}" class=""
-														style="margin-left: 10px;">({{ $order->order_id }})</a>
+													<span class="text-muted ms-2 fs-7"
+														style="margin-left: 10px;">({{ $order->order_id }})</span>
 													<button type="button" class="btn-close" data-bs-dismiss="modal"
 														aria-label="Close"></button>
 												</div>
