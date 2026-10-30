@@ -629,7 +629,7 @@ class OrderController extends Controller
         ];
 
         // Fetching orders
-        $data['orders'] = $orders->where('wid', $id)->orderBy('order_id', 'desc')->paginate(10);
+        $data['orders'] = $orders->where('wid', $id)->orderBy('order_id', 'desc')->paginate(25);
 
         return view('order.writer-tl_order', compact('data'));
     }
@@ -753,7 +753,7 @@ class OrderController extends Controller
                         });
                 })
                 ->orderBy('order_id', 'desc')
-                ->paginate(10);
+                ->paginate(25);
         }
         return view('order.sub-writer_order', compact('data'));
     }
@@ -788,7 +788,11 @@ class OrderController extends Controller
         if ($request->input('status') || $request->input('date_status') || $fromDate = $request->input('from_date') || $request->input('to_date') || $request->input('WriterTL') || $request->input('SubWriter') || $request->input('extra') || $request->input('startDate') || $request->input('endDate') || $request->input('startDate1') || $request->input('endDate1')) {
             $data['orders'] = $orders->where('admin_id', $id)->orderBy('order_id', 'desc')->get();
         } else {
-            $data['orders'] = $orders->with('writer', 'subwriter', 'mulsubwriter')->where('admin_id', $id)->orderBy('writer_deadline', 'desc')->paginate(10);
+            $data['orders'] = $orders->with('writer', 'subwriter', 'mulsubwriter')
+                ->where('admin_id', $id)
+                ->orderBy('writer_deadline', 'desc')
+                ->orderBy('id', 'desc')
+                ->paginate(25);
             // echo '<pre>'; print_r($data['orders']); exit;
 
         }
