@@ -8,7 +8,7 @@
 
         .user-tabs {
             display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
+            grid-template-columns: repeat(4, minmax(0, 1fr));
             gap: 14px;
         }
 
@@ -43,6 +43,12 @@
             border-color: #f1a208;
             background: linear-gradient(135deg, #ffc700, #e89600);
             box-shadow: 0 8px 22px rgba(255, 199, 0, .22);
+        }
+
+        .user-tab.dummy-email.active {
+            border-color: #7239ea;
+            background: linear-gradient(135deg, #7239ea, #5014d0);
+            box-shadow: 0 8px 22px rgba(114, 57, 234, .22);
         }
 
         .user-tab .tab-count {
@@ -400,8 +406,10 @@
                             </h3>
                             <div class="d-flex align-items-center gap-2">
 
+                                @if(auth()->check() && (in_array((int) auth()->user()->role_id, [1, 9]) || in_array(strtolower(optional(auth()->user()->role)->role ?? ''), ['super admin', 'admin', 'sub admin'])))
                                 <a onclick="exportUsers()" style="height: fit-content;"
                                     class="btn btn-sm btn-danger">Export</a>
+                                @endif
                             </div>
                         </div>
 
@@ -424,6 +432,12 @@
                                     <div class="tab-count">{{ number_format($countNotConfirmed ?? 0) }}</div>
                                     <div class="tab-label"><i class="fa fa-user-clock me-2"></i>Not Confirmed</div>
                                     <div class="tab-note">Lead created, but no order has been placed</div>
+                                </a>
+                                <a href="{{ request()->fullUrlWithQuery(['tab' => 'dummy_email', 'page' => null]) }}"
+                                    class="user-tab dummy-email text-decoration-none {{ $tab === 'dummy_email' ? 'active' : '' }}">
+                                    <div class="tab-count">{{ number_format($countDummyEmail ?? 0) }}</div>
+                                    <div class="tab-label"><i class="fa fa-envelope-open-text me-2"></i>Dummy Emails</div>
+                                    <div class="tab-note">Auto-generated emails requiring real email</div>
                                 </a>
                             </div>
                         </div>

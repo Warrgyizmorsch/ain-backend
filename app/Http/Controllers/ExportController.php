@@ -16,6 +16,10 @@ class ExportController extends Controller
 {
      public function export(Request $request)
     {
+        if (!auth()->check() || (!in_array((int) auth()->user()->role_id, [1, 9]) && !in_array(strtolower(optional(auth()->user()->role)->role ?? ''), ['super admin', 'admin', 'sub admin']))) {
+            abort(403, 'Unauthorized. Only admins can export orders.');
+        }
+
         // Retrieve filter parameters from the request supporting both camelCase and snake_case
         $searchTerm = trim((string)($request->input('search') ?: $request->input('searchTerm') ?: ''));
         $uid = $request->input('uid');
@@ -292,6 +296,10 @@ class ExportController extends Controller
 
     public function exportLeads(Request $request)
     {
+        if (!auth()->check() || (!in_array((int) auth()->user()->role_id, [1, 9]) && !in_array(strtolower(optional(auth()->user()->role)->role ?? ''), ['super admin', 'admin', 'sub admin']))) {
+            abort(403, 'Unauthorized. Only admins can export users.');
+        }
+
         // Retrieve filter parameters from the request
         $searchTerm = $request->input('additional_filter1');
         $userDetail = $request->input('additional_filter2');
@@ -473,6 +481,10 @@ class ExportController extends Controller
 
     public function exportUsers(Request $request)
     {
+        if (!auth()->check() || (!in_array((int) auth()->user()->role_id, [1, 9]) && !in_array(strtolower(optional(auth()->user()->role)->role ?? ''), ['super admin', 'admin', 'sub admin']))) {
+            abort(403, 'Unauthorized. Only admins can export users.');
+        }
+
         // Retrieve filter parameters from the request
         $searchUserId = $request->input('user_id') ?? $request->input('uid');
         $userText = trim((string) ($request->input('user') ?? $request->input('user_name') ?? $request->input('search') ?? ''));

@@ -157,7 +157,9 @@
                                 <span id="totalWords" class="text-muted fs-4 fw-bold my-1 ms-1"></span>
                             </span>
 						</h3>
+                        @if(auth()->check() && (in_array((int) auth()->user()->role_id, [1, 9]) || in_array(strtolower(optional(auth()->user()->role)->role ?? ''), ['super admin', 'admin', 'sub admin'])))
                         <a onclick="orderExport()" style="height: fit-content;" class="btn btn-sm btn-danger">Export</a>
+                        @endif
 					</div>
 					<div class="card-body py-3">
                         <div class="table-responsive">

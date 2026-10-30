@@ -384,6 +384,11 @@ class UserController extends Controller
             $tabFilteredQuery->whereHas('convertedOrders');
         } elseif ($tab === 'not_confirmed') {
             $tabFilteredQuery->whereHas('leads')->whereDoesntHave('convertedOrders');
+        } elseif ($tab === 'dummy_email') {
+            $tabFilteredQuery->where(function ($q) {
+                $q->where('email', 'like', 'user%@gmail.com')
+                  ->orWhere('email', 'like', 'next_lead_%');
+            });
         }
 
         $data['users'] = $tabFilteredQuery->orderBy('id', 'desc')->paginate($perPage);
@@ -416,6 +421,13 @@ class UserController extends Controller
             ->whereDoesntHave('convertedOrders')
             ->count();
 
+        $countDummyEmail = (clone $query)
+            ->where(function ($q) {
+                $q->where('email', 'like', 'user%@gmail.com')
+                  ->orWhere('email', 'like', 'next_lead_%');
+            })
+            ->count();
+
         // Do not load every user into the filter dropdown. The Select2 field
         // searches remotely and only the currently selected user is needed.
         $data['selected_user'] = $searchUserId
@@ -429,7 +441,7 @@ class UserController extends Controller
         $data['groups'] = GroupMaster::where('status', 1)->orderBy('name')->get(['id','name']);
 
         // Compacting tab variables for user_view
-        return view('user.user_view', compact('data', 'countAll', 'countConfirmed', 'countNotConfirmed', 'tab', 'codeToCountry'));
+        return view('user.user_view', compact('data', 'countAll', 'countConfirmed', 'countNotConfirmed', 'countDummyEmail', 'tab', 'codeToCountry'));
     }
 
     public function EditUser(Request $request, $id)
