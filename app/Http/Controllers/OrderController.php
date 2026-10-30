@@ -1741,15 +1741,6 @@ class OrderController extends Controller
         if (!$order) {
             abort(404, 'Order not found');
         }
-        if (auth()->user()->role_id == 7) {
-            $id = auth()->user()->id;
-            $data['orders'] = Order::with('user', 'payment', 'feedback')
-                ->where('swid', $id)
-                ->orderBy('order_id', 'desc')
-                ->paginate(10);
-
-            // echo '<pre>'; print_r($data['leds']) ; exit;
-        }
 
         $data['Team']         = Writer::all();
         $data['Status']       = Status::all();
@@ -2893,7 +2884,7 @@ class OrderController extends Controller
             }
             $output .= '</td>
                        <td class="text-center">
-                       <a href="/edit.' . $order->id . '"
+                       <a href="/edit/' . $order->id . '"
                        target="_blank"
                            class="btn btn-icon btn-bg-light btn-active-color-primary btn-sm me-1"">
                                <span class=" svg-icon svg-icon-3">
@@ -3145,7 +3136,7 @@ class OrderController extends Controller
             $output .= '</td>';
 
             $output .= '<td class="text-center">
-                       <a href="/edit.' . $order->id . '"
+                       <a href="/edit/' . $order->id . '"
                        target="_blank"
                            class="btn btn-icon btn-bg-light btn-active-color-primary btn-sm me-1"">
                                <span class=" svg-icon svg-icon-3">
@@ -7357,5 +7348,6 @@ public function myRevokePayments(Request $request)
         }
     }
 }
+
 
 
