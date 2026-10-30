@@ -212,7 +212,7 @@
 
 
 									<td class="text-center" target="_blank">
-										<a href="/edit.{{ $order->id }}" 
+										<a href="/edit/{{ $order->id }}" 
 											class="btn btn-icon btn-bg-light btn-active-color-primary btn-sm me-1">
 												<span class=" svg-icon svg-icon-3">
 											<li class="fa fa-edit"></li>
@@ -229,7 +229,7 @@
 													<h5 class="modal-title" id="confirmationModalLabel">Update Order
 													</h5>
 
-													<a href="/edit.{{$order->id}}" class=""
+													<a href="/edit/{{$order->id}}" class=""
 														style="margin-left: 10px;">({{ $order->order_id }})</a>
 													<button type="button" class="btn-close" data-bs-dismiss="modal"
 														aria-label="Close"></button>

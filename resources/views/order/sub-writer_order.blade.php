@@ -160,11 +160,17 @@
 
                                       
 										<td class="text-center">
-										<a href="#" id="{{ $order->order_id }}" data-bs-toggle="modal"
-											data-bs-target="#confirmationModal{{ $order->order_id }}"
-											class="btn btn-icon btn-bg-light btn-active-color-primary btn-sm me-1"">
+										<a href="/edit/{{ $order->id }}" target="_blank"
+											class="btn btn-icon btn-bg-light btn-active-color-primary btn-sm me-1" title="Edit Order">
 												<span class=" svg-icon svg-icon-3">
 											<li class="fa fa-edit"></li>
+											</span>
+										</a>
+										<a href="#" id="{{ $order->order_id }}" data-bs-toggle="modal"
+											data-bs-target="#confirmationModal{{ $order->order_id }}"
+											class="btn btn-icon btn-bg-light btn-active-color-primary btn-sm me-1" title="Quick Status Modal">
+												<span class=" svg-icon svg-icon-3">
+											<li class="fa fa-tasks"></li>
 											</span>
 										</a>
 									</td>
@@ -178,7 +184,7 @@
 													<h5 class="modal-title" id="confirmationModalLabel">Update Order
 													</h5>
 
-													<a href="/edit.{{$order->id}}" class=""
+													<a href="/edit/{{$order->id}}" target="_blank" class=""
 														style="margin-left: 10px;">({{ $order->order_id }})</a>
 													<button type="button" class="btn-close" data-bs-dismiss="modal"
 														aria-label="Close"></button>

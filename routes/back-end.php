@@ -295,6 +295,7 @@ Route::middleware(['auth', 'check.permission'])->group(function () {
     route::get('/search-writerTl', [OrderController::class, 'search_writerTl']);
     route::get('/filter', [OrderController::class, 'filter']);
     route::get('edit/{id}', [OrderController::class, 'orderEditPage'])->name('edit');
+    route::get('edit.{id}', [OrderController::class, 'orderEditPage'])->name('edit.dot');
     route::get('call/{id}', [OrderController::class, 'orderCallPage'])->name('call');
     Route::post('/softphone/call-url', [OrderController::class, 'softphoneCallUrl'])->name('softphone.call-url');
     Route::match(['get', 'post'], '/softphone/whitelist-ip', [OrderController::class, 'whitelistNext2CallIp'])->name('softphone.whitelist-ip');

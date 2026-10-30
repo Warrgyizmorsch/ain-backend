@@ -18,7 +18,7 @@
 				<div class="modal-header">
 					<h5 class="modal-title" id="confirmationModalLabel">Update Order
 					</h5>
-					<a href="/edit.{{$order->id}}" class=""
+					<a href="/edit/{{$order->id}}" class=""
 						style="margin-left: 10px;">({{ $order->order_id }})</a>
 				</div>
 				<form id="kt_modal_new_target_form" class="form" action="{{ route('orderedit.update', ['id' => $order->id]) }}" method="POST">
