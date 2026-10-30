@@ -242,6 +242,16 @@
                                     @endforeach
 								</tbody>
 							</table>
+							@if(method_exists($data['orders'], 'links'))
+								<div class="allData m-4 d-flex justify-content-between align-items-center flex-wrap">
+									<div class="text-muted fs-7">
+										Showing {{ $data['orders']->firstItem() ?? 0 }} to {{ $data['orders']->lastItem() ?? 0 }} of {{ $data['orders']->total() ?? 0 }} orders
+									</div>
+									<div>
+										{{ $data['orders']->links('pagination::bootstrap-4') }}
+									</div>
+								</div>
+							@endif
                             
 						</div>
 					</div>
