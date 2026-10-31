@@ -853,17 +853,27 @@
 
                 @if(in_array((int) auth()->user()->role_id, [1, 9]))
                     @php
-                        $targetWriterId = $order->swid ?: ($order->wid ?: ($order->writer?->id ?: null));
-                        if (!$targetWriterId && $order->relationLoaded('mulsubwriter') && $order->mulsubwriter && $order->mulsubwriter->isNotEmpty()) {
-                            $targetWriterId = $order->mulsubwriter->first()->user_id;
+                        $targetWriterIdent = $order->writer_name ?: ($order->swid ?: ($order->wid ?: ($order->writer?->id ?: null)));
+                        if (!$targetWriterIdent && $order->relationLoaded('mulsubwriter') && $order->mulsubwriter && $order->mulsubwriter->isNotEmpty()) {
+                            $targetWriterIdent = $order->mulsubwriter->first()->user_id;
                         }
-                        $wStats = $targetWriterId ? get_writer_monthly_quality_metrics($targetWriterId) : null;
+                        $wStats = $targetWriterIdent ? get_writer_monthly_quality_metrics($targetWriterIdent) : null;
                     @endphp
-                    @if($wStats && ($wStats['combined'] > 0 || $order->is_fail == 1 || $order->feedbackissue == 1 || !empty($order->feedback_ticket)))
+                    @if($wStats)
                         <div class="mt-1 d-inline-flex align-items-center gap-1 flex-wrap justify-content-center" title="Writer Monthly Quality ({{ $wStats['month_name'] }})">
-                            <span class="badge badge-light-primary fs-9 fw-bold" title="Monthly Tickets"><i class="fa fa-ticket-alt fs-9 text-primary me-1"></i>{{ $wStats['tickets'] }}</span>
-                            <span class="badge badge-light-danger fs-9 fw-bold" title="Monthly Failed"><i class="fa fa-times-circle fs-9 text-danger me-1"></i>{{ $wStats['failed'] }}</span>
+                            <span class="badge badge-light-primary fs-9 fw-bold" title="Tickets ({{ $wStats['month_name'] }})"><i class="fa fa-ticket-alt fs-9 text-primary me-1"></i>{{ $wStats['tickets'] }}</span>
+                            <span class="badge badge-light-danger fs-9 fw-bold" title="Failed ({{ $wStats['month_name'] }})"><i class="fa fa-times-circle fs-9 text-danger me-1"></i>{{ $wStats['failed'] }}</span>
                             <span class="badge {{ $wStats['combined'] > 0 ? 'badge-light-warning text-dark' : 'badge-light-success text-success' }} fs-9 fw-bolder" title="Total Issues"><i class="fa fa-exclamation-triangle fs-9 text-warning me-1"></i>{{ $wStats['combined'] }}</span>
+                        </div><br>
+                    @endif
+                    @if($order->is_fail == 1 || $order->feedbackissue == 1 || !empty($order->feedback_ticket))
+                        <div class="mt-1 d-inline-flex align-items-center gap-1 flex-wrap justify-content-center">
+                            @if(!empty($order->feedback_ticket) || $order->feedbackissue == 1)
+                                <span class="badge badge-danger fs-9 fw-bold" style="background-color: #d9214e; color: #fff;">{{ $order->feedback_ticket ?: 'Ticket' }}</span>
+                            @endif
+                            @if($order->is_fail == 1)
+                                <span class="badge badge-danger fs-9 fw-bold" style="background-color: #f1416c; color: #fff;">Failed Job</span>
+                            @endif
                         </div><br>
                     @endif
                 @endif
@@ -908,6 +918,19 @@
 
                 {{-- @else
             <span class="badge badge-light-danger fs-7 fw-bold">N/A</span>
+                @if(in_array((int) auth()->user()->role_id, [1, 9]))
+                    @if($order->is_fail == 1 || $order->feedbackissue == 1 || !empty($order->feedback_ticket))
+                        <br>
+                        <div class="mt-1 d-inline-flex align-items-center gap-1 flex-wrap justify-content-center">
+                            @if(!empty($order->feedback_ticket) || $order->feedbackissue == 1)
+                                <span class="badge badge-danger fs-9 fw-bold" style="background-color: #d9214e; color: #fff;">{{ $order->feedback_ticket ?: 'Ticket' }}</span>
+                            @endif
+                            @if($order->is_fail == 1)
+                                <span class="badge badge-danger fs-9 fw-bold" style="background-color: #f1416c; color: #fff;">Failed Job</span>
+                            @endif
+                        </div>
+                    @endif
+                @endif
             @endif --}}
             @else
                 <span class="badge badge-light-danger fs-7 fw-bold">N/A</span>

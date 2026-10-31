@@ -1208,11 +1208,11 @@ if (!function_exists('get_writer_monthly_quality_metrics')) {
      *
      * Cached statically per request to eliminate N+1 queries.
      */
-    function get_writer_monthly_quality_metrics($userId, $roleId = null, $month = null): array
+    function get_writer_monthly_quality_metrics($identifier, $roleId = null, $month = null): array
     {
         static $cache = [];
 
-        if (empty($userId)) {
+        if (empty($identifier)) {
             $c = \Carbon\Carbon::now();
             return [
                 'tickets' => 0,
@@ -1225,7 +1225,7 @@ if (!function_exists('get_writer_monthly_quality_metrics')) {
 
         $c = $month ? \Carbon\Carbon::parse($month) : \Carbon\Carbon::now();
         $monthKey = $c->format('Y-m');
-        $cacheKey = "{$userId}_{$roleId}_{$monthKey}";
+        $cacheKey = "{$identifier}_{$roleId}_{$monthKey}";
 
         if (isset($cache[$cacheKey])) {
             return $cache[$cacheKey];
@@ -1235,16 +1235,21 @@ if (!function_exists('get_writer_monthly_quality_metrics')) {
         $endOfMonth = $c->copy()->endOfMonth()->toDateTimeString();
         $roleId = (int) ($roleId ?? (Auth::check() ? Auth::user()->role_id : 0));
 
-        if ($roleId === 7) {
+        // If identifier is string (writer_name e.g. 'team 13')
+        if (!is_numeric($identifier)) {
+            $baseQuery = function () use ($identifier) {
+                return \Illuminate\Support\Facades\DB::table('orders')->where('writer_name', $identifier);
+            };
+        } elseif ($roleId === 7) {
             // Sub-Writer: orders where swid = user or assigned via multiple_wrtier
             $subOrderIds = \Illuminate\Support\Facades\DB::table('multiple_wrtier')
-                ->where('user_id', $userId)
+                ->where('user_id', $identifier)
                 ->pluck('order_id')
                 ->toArray();
 
-            $baseQuery = function () use ($userId, $subOrderIds) {
-                return \Illuminate\Support\Facades\DB::table('orders')->where(function ($q) use ($userId, $subOrderIds) {
-                    $q->where('swid', $userId);
+            $baseQuery = function () use ($identifier, $subOrderIds) {
+                return \Illuminate\Support\Facades\DB::table('orders')->where(function ($q) use ($identifier, $subOrderIds) {
+                    $q->where('swid', $identifier);
                     if (!empty($subOrderIds)) {
                         $q->orWhereIn('id', $subOrderIds);
                     }
@@ -1252,25 +1257,25 @@ if (!function_exists('get_writer_monthly_quality_metrics')) {
             };
         } elseif ($roleId === 6) {
             // Writer TL: orders where wid = user
-            $baseQuery = function () use ($userId) {
-                return \Illuminate\Support\Facades\DB::table('orders')->where('wid', $userId);
+            $baseQuery = function () use ($identifier) {
+                return \Illuminate\Support\Facades\DB::table('orders')->where('wid', $identifier);
             };
         } elseif ($roleId === 8) {
             // Writer Admin: orders where admin_id = user
-            $baseQuery = function () use ($userId) {
-                return \Illuminate\Support\Facades\DB::table('orders')->where('admin_id', $userId);
+            $baseQuery = function () use ($identifier) {
+                return \Illuminate\Support\Facades\DB::table('orders')->where('admin_id', $identifier);
             };
         } else {
             // Admin viewing a specific writer: check wid, swid, or multiple_wrtier
             $subOrderIds = \Illuminate\Support\Facades\DB::table('multiple_wrtier')
-                ->where('user_id', $userId)
+                ->where('user_id', $identifier)
                 ->pluck('order_id')
                 ->toArray();
 
-            $baseQuery = function () use ($userId, $subOrderIds) {
-                return \Illuminate\Support\Facades\DB::table('orders')->where(function ($q) use ($userId, $subOrderIds) {
-                    $q->where('wid', $userId)
-                      ->orWhere('swid', $userId);
+            $baseQuery = function () use ($identifier, $subOrderIds) {
+                return \Illuminate\Support\Facades\DB::table('orders')->where(function ($q) use ($identifier, $subOrderIds) {
+                    $q->where('wid', $identifier)
+                      ->orWhere('swid', $identifier);
                     if (!empty($subOrderIds)) {
                         $q->orWhereIn('id', $subOrderIds);
                     }
@@ -1380,5 +1385,60 @@ if (!function_exists('render_writer_monthly_quality_cell')) {
 
         $html .= '</div>';
         return $html;
+    }
+}
+
+if (!function_exists('get_system_monthly_quality_metrics')) {
+    /**
+     * Calculate system-wide monthly quality metrics across all orders:
+     * - Total tickets generated in the current month
+     * - Total failed orders in the current month
+     * - Combined total quality issues
+     */
+    function get_system_monthly_quality_metrics($month = null): array
+    {
+        static $cache = [];
+        $c = $month ? \Carbon\Carbon::parse($month) : \Carbon\Carbon::now();
+        $monthKey = $c->format('Y-m');
+
+        if (isset($cache[$monthKey])) {
+            return $cache[$monthKey];
+        }
+
+        $startOfMonth = $c->copy()->startOfMonth()->toDateTimeString();
+        $endOfMonth = $c->copy()->endOfMonth()->toDateTimeString();
+
+        $failedCount = \Illuminate\Support\Facades\DB::table('orders')->where('is_fail', 1)
+            ->where(function ($q) use ($startOfMonth, $endOfMonth, $monthKey) {
+                $q->whereBetween('failed_at', [$startOfMonth, $endOfMonth])
+                  ->orWhere(function ($sub) use ($monthKey) {
+                      $sub->whereNull('failed_at')->where('order_date', 'like', $monthKey . '%');
+                  });
+            })->count();
+
+        $ticketCount = \Illuminate\Support\Facades\DB::table('orders')
+            ->where(function ($q) {
+                $q->where('feedbackissue', 1)
+                  ->orWhere(function ($sub) {
+                      $sub->whereNotNull('feedback_ticket')->where('feedback_ticket', '!=', '');
+                  });
+            })
+            ->where(function ($q) use ($startOfMonth, $endOfMonth, $monthKey) {
+                $q->whereBetween('feedback_date', [$startOfMonth, $endOfMonth])
+                  ->orWhere(function ($sub) use ($monthKey) {
+                      $sub->whereNull('feedback_date')->where('order_date', 'like', $monthKey . '%');
+                  });
+            })->count();
+
+        $res = [
+            'tickets' => $ticketCount,
+            'failed' => $failedCount,
+            'combined' => $failedCount + $ticketCount,
+            'month_name' => $c->format('F Y'),
+            'month_key' => $monthKey,
+        ];
+
+        $cache[$monthKey] = $res;
+        return $res;
     }
 }

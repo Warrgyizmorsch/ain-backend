@@ -29,43 +29,37 @@
 				$writerMonthlyStats = $data['writerMonthlyStats'] ?? get_writer_monthly_quality_metrics(auth()->id(), 7);
 			@endphp
 			@if(can_view_writer_quality_metrics())
-			<div class="row g-3 mb-5 px-4">
+			<div class="row g-2 mb-3 px-4">
 				<div class="col-md-4">
-					<div class="card bg-light-primary border border-primary border-dashed p-4 shadow-sm" style="border-radius: 10px;">
-						<div class="d-flex align-items-center">
-							<div class="symbol symbol-45px me-3">
-								<span class="symbol-label bg-white text-primary shadow-sm"><i class="fa fa-ticket-alt fs-3 text-primary"></i></span>
-							</div>
-							<div>
-								<div class="fs-2 fw-bolder text-dark">{{ $writerMonthlyStats['tickets'] }}</div>
-								<div class="text-muted fw-bold fs-7">This Month's Tickets ({{ $writerMonthlyStats['month_name'] }})</div>
-							</div>
+					<div class="d-flex align-items-center px-3 py-2 rounded bg-light-primary border border-primary border-dashed shadow-xs" style="min-height: 38px;">
+						<div class="d-flex align-items-center justify-content-center bg-white rounded me-2 flex-shrink-0" style="width: 26px; height: 26px;">
+							<i class="fa fa-ticket-alt text-primary fs-7"></i>
+						</div>
+						<div class="d-flex align-items-baseline gap-2">
+							<span class="fs-4 fw-bolder text-dark">{{ $writerMonthlyStats['tickets'] }}</span>
+							<span class="text-gray-600 fw-bold fs-8">This Month's Tickets ({{ $writerMonthlyStats['month_name'] }})</span>
 						</div>
 					</div>
 				</div>
 				<div class="col-md-4">
-					<div class="card bg-light-danger border border-danger border-dashed p-4 shadow-sm" style="border-radius: 10px;">
-						<div class="d-flex align-items-center">
-							<div class="symbol symbol-45px me-3">
-								<span class="symbol-label bg-white text-danger shadow-sm"><i class="fa fa-times-circle fs-3 text-danger"></i></span>
-							</div>
-							<div>
-								<div class="fs-2 fw-bolder text-dark">{{ $writerMonthlyStats['failed'] }}</div>
-								<div class="text-muted fw-bold fs-7">This Month's Failed Orders</div>
-							</div>
+					<div class="d-flex align-items-center px-3 py-2 rounded bg-light-danger border border-danger border-dashed shadow-xs" style="min-height: 38px;">
+						<div class="d-flex align-items-center justify-content-center bg-white rounded me-2 flex-shrink-0" style="width: 26px; height: 26px;">
+							<i class="fa fa-times-circle text-danger fs-7"></i>
+						</div>
+						<div class="d-flex align-items-baseline gap-2">
+							<span class="fs-4 fw-bolder text-dark">{{ $writerMonthlyStats['failed'] }}</span>
+							<span class="text-gray-600 fw-bold fs-8">This Month's Failed Orders</span>
 						</div>
 					</div>
 				</div>
 				<div class="col-md-4">
-					<div class="card bg-light-warning border border-warning border-dashed p-4 shadow-sm" style="border-radius: 10px;">
-						<div class="d-flex align-items-center">
-							<div class="symbol symbol-45px me-3">
-								<span class="symbol-label bg-white text-warning shadow-sm"><i class="fa fa-exclamation-triangle fs-3 text-warning"></i></span>
-							</div>
-							<div>
-								<div class="fs-2 fw-bolder text-dark">{{ $writerMonthlyStats['combined'] }}</div>
-								<div class="text-muted fw-bold fs-7">Total Issues (Tickets + Failed)</div>
-							</div>
+					<div class="d-flex align-items-center px-3 py-2 rounded bg-light-warning border border-warning border-dashed shadow-xs" style="min-height: 38px;">
+						<div class="d-flex align-items-center justify-content-center bg-white rounded me-2 flex-shrink-0" style="width: 26px; height: 26px;">
+							<i class="fa fa-exclamation-triangle text-warning fs-7"></i>
+						</div>
+						<div class="d-flex align-items-baseline gap-2">
+							<span class="fs-4 fw-bolder text-dark">{{ $writerMonthlyStats['combined'] }}</span>
+							<span class="text-gray-600 fw-bold fs-8">Total Issues (Tickets + Failed)</span>
 						</div>
 					</div>
 				</div>
