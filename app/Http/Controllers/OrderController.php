@@ -629,6 +629,7 @@ class OrderController extends Controller
         ];
 
         // Fetching orders
+        $data['writerMonthlyStats'] = get_writer_monthly_quality_metrics($id, 6);
         $data['orders'] = $orders->where('wid', $id)->orderBy('order_id', 'desc')->paginate(25);
 
         return view('order.writer-tl_order', compact('data'));
@@ -744,6 +745,7 @@ class OrderController extends Controller
 
             $data['orders'] = $orders->where('swid', $id)->orderBy('order_id', 'desc')->get();
         } else {
+            $data['writerMonthlyStats'] = get_writer_monthly_quality_metrics($id, 7);
             $data['orders'] = $orders->with('mulsubwriter')
                 ->where(function ($query) {
                     $userId = auth()->user()->id;
@@ -788,6 +790,7 @@ class OrderController extends Controller
         if ($request->input('status') || $request->input('date_status') || $fromDate = $request->input('from_date') || $request->input('to_date') || $request->input('WriterTL') || $request->input('SubWriter') || $request->input('extra') || $request->input('startDate') || $request->input('endDate') || $request->input('startDate1') || $request->input('endDate1')) {
             $data['orders'] = $orders->where('admin_id', $id)->orderBy('order_id', 'desc')->get();
         } else {
+            $data['writerMonthlyStats'] = get_writer_monthly_quality_metrics($id, 8);
             $data['orders'] = $orders->with('writer', 'subwriter', 'mulsubwriter')
                 ->where('admin_id', $id)
                 ->orderBy('writer_deadline', 'desc')
@@ -2886,8 +2889,12 @@ class OrderController extends Controller
                 }
                 $output .= ')</span>';
             }
-            $output .= '</td>
-                       <td class="text-center">
+            $output .= '</td>';
+            if (can_view_writer_quality_metrics()) {
+                $userQualityStats = get_writer_monthly_quality_metrics(auth()->id(), auth()->user()->role_id);
+                $output .= '<td class="text-center">' . render_writer_monthly_quality_cell($userQualityStats, $order) . '</td>';
+            }
+            $output .= '<td class="text-center">
                        <a href="/edit/' . $order->id . '"
                        target="_blank"
                            class="btn btn-icon btn-bg-light btn-active-color-primary btn-sm me-1"">
@@ -3138,7 +3145,10 @@ class OrderController extends Controller
                 $output .= '</span>';
             }
             $output .= '</td>';
-
+            if (can_view_writer_quality_metrics()) {
+                $userQualityStats = get_writer_monthly_quality_metrics(auth()->id(), auth()->user()->role_id);
+                $output .= '<td class="text-center">' . render_writer_monthly_quality_cell($userQualityStats, $order) . '</td>';
+            }
             $output .= '<td class="text-center">
                        <a href="/edit/' . $order->id . '"
                        target="_blank"

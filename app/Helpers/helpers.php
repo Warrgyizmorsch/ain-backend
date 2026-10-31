@@ -1176,3 +1176,209 @@ if (!function_exists('remove_converted_order_from_cache')) {
         }
     }
 }
+
+
+if (!function_exists('can_view_writer_quality_metrics')) {
+    /**
+     * Check if the authenticated user has permission to view writer quality metrics.
+     * Allowed:
+     * - Role 1: Super Admin (all writers)
+     * - Role 9: Sub Admin (all writers)
+     * - Role 6: Writer Team Leader (own / team metrics)
+     * - Role 7: Writer Team / Sub Writer (own metrics)
+     * - Role 8: Writer Admin (team metrics)
+     * Disallowed: Roles 2 (User), 3 (Feedback Team), 4 (Marketing), 5 (Project Team), etc.
+     */
+    function can_view_writer_quality_metrics(?int $roleId = null): bool
+    {
+        $role = $roleId ?? (Auth::check() ? (int) Auth::user()->role_id : null);
+        if ($role === null) {
+            return false;
+        }
+        return in_array($role, [1, 9, 6, 7, 8], true);
+    }
+}
+
+if (!function_exists('get_writer_monthly_quality_metrics')) {
+    /**
+     * Calculate monthly quality metrics for a writer:
+     * - Tickets count (feedbackissue = 1 or feedback_ticket generated)
+     * - Failed orders count (is_fail = 1)
+     * - Combined issues count (failed + tickets)
+     *
+     * Cached statically per request to eliminate N+1 queries.
+     */
+    function get_writer_monthly_quality_metrics($userId, $roleId = null, $month = null): array
+    {
+        static $cache = [];
+
+        if (empty($userId)) {
+            $c = \Carbon\Carbon::now();
+            return [
+                'tickets' => 0,
+                'failed' => 0,
+                'combined' => 0,
+                'month_name' => $c->format('F Y'),
+                'month_key' => $c->format('Y-m'),
+            ];
+        }
+
+        $c = $month ? \Carbon\Carbon::parse($month) : \Carbon\Carbon::now();
+        $monthKey = $c->format('Y-m');
+        $cacheKey = "{$userId}_{$roleId}_{$monthKey}";
+
+        if (isset($cache[$cacheKey])) {
+            return $cache[$cacheKey];
+        }
+
+        $startOfMonth = $c->copy()->startOfMonth()->toDateTimeString();
+        $endOfMonth = $c->copy()->endOfMonth()->toDateTimeString();
+        $roleId = (int) ($roleId ?? (Auth::check() ? Auth::user()->role_id : 0));
+
+        if ($roleId === 7) {
+            // Sub-Writer: orders where swid = user or assigned via multiple_wrtier
+            $subOrderIds = \Illuminate\Support\Facades\DB::table('multiple_wrtier')
+                ->where('user_id', $userId)
+                ->pluck('order_id')
+                ->toArray();
+
+            $baseQuery = function () use ($userId, $subOrderIds) {
+                return \Illuminate\Support\Facades\DB::table('orders')->where(function ($q) use ($userId, $subOrderIds) {
+                    $q->where('swid', $userId);
+                    if (!empty($subOrderIds)) {
+                        $q->orWhereIn('id', $subOrderIds);
+                    }
+                });
+            };
+        } elseif ($roleId === 6) {
+            // Writer TL: orders where wid = user
+            $baseQuery = function () use ($userId) {
+                return \Illuminate\Support\Facades\DB::table('orders')->where('wid', $userId);
+            };
+        } elseif ($roleId === 8) {
+            // Writer Admin: orders where admin_id = user
+            $baseQuery = function () use ($userId) {
+                return \Illuminate\Support\Facades\DB::table('orders')->where('admin_id', $userId);
+            };
+        } else {
+            // Admin viewing a specific writer: check wid, swid, or multiple_wrtier
+            $subOrderIds = \Illuminate\Support\Facades\DB::table('multiple_wrtier')
+                ->where('user_id', $userId)
+                ->pluck('order_id')
+                ->toArray();
+
+            $baseQuery = function () use ($userId, $subOrderIds) {
+                return \Illuminate\Support\Facades\DB::table('orders')->where(function ($q) use ($userId, $subOrderIds) {
+                    $q->where('wid', $userId)
+                      ->orWhere('swid', $userId);
+                    if (!empty($subOrderIds)) {
+                        $q->orWhereIn('id', $subOrderIds);
+                    }
+                });
+            };
+        }
+
+        // 1. Failed orders count in the month
+        $failedCount = $baseQuery()
+            ->where('is_fail', 1)
+            ->where(function ($q) use ($startOfMonth, $endOfMonth, $monthKey) {
+                $q->where(function ($sub) use ($startOfMonth, $endOfMonth) {
+                    $sub->whereNotNull('failed_at')
+                        ->whereBetween('failed_at', [$startOfMonth, $endOfMonth]);
+                })->orWhere(function ($sub) use ($monthKey) {
+                    $sub->whereNull('failed_at')
+                        ->where('order_date', 'like', $monthKey . '%');
+                });
+            })
+            ->count();
+
+        // 2. Ticket orders count in the month
+        $ticketCount = $baseQuery()
+            ->where(function ($q) {
+                $q->where('feedbackissue', 1)
+                  ->orWhere(function ($sub) {
+                      $sub->whereNotNull('feedback_ticket')->where('feedback_ticket', '!=', '');
+                  });
+            })
+            ->where(function ($q) use ($startOfMonth, $endOfMonth, $monthKey) {
+                $q->where(function ($sub) use ($startOfMonth, $endOfMonth) {
+                    $sub->whereNotNull('feedback_date')
+                        ->whereBetween('feedback_date', [$startOfMonth, $endOfMonth]);
+                })->orWhere(function ($sub) use ($monthKey) {
+                    $sub->whereNull('feedback_date')
+                        ->where('order_date', 'like', $monthKey . '%');
+                });
+            })
+            ->count();
+
+        $metrics = [
+            'tickets' => $ticketCount,
+            'failed' => $failedCount,
+            'combined' => $failedCount + $ticketCount,
+            'month_name' => $c->format('F Y'),
+            'month_key' => $monthKey,
+        ];
+
+        $cache[$cacheKey] = $metrics;
+        return $metrics;
+    }
+}
+
+if (!function_exists('render_writer_monthly_quality_cell')) {
+    /**
+     * Render the table cell content for Writer Monthly Quality metrics.
+     */
+    function render_writer_monthly_quality_cell(array $stats, $order = null): string
+    {
+        $tickets = (int) ($stats['tickets'] ?? 0);
+        $failed = (int) ($stats['failed'] ?? 0);
+        $combined = (int) ($stats['combined'] ?? ($tickets + $failed));
+        $monthName = htmlspecialchars($stats['month_name'] ?? 'Current Month');
+
+        $html = '<div class="d-flex flex-column align-items-center justify-content-center gap-1 text-center" style="min-width: 130px;">';
+        
+        // Month pill
+        $html .= '<span class="badge badge-light fw-bold text-gray-600 fs-9 mb-1" style="font-size: 10px !important;">' . $monthName . '</span>';
+        
+        // Row with Ticket and Failed badges
+        $html .= '<div class="d-flex align-items-center justify-content-center gap-1 flex-wrap">';
+        $html .= '<span class="badge badge-light-primary fw-bold fs-8" title="Tickets generated this month" style="cursor: default;">';
+        $html .= '<i class="fa fa-ticket-alt text-primary fs-9 me-1"></i> ' . $tickets;
+        $html .= '</span>';
+        $html .= '<span class="badge badge-light-danger fw-bold fs-8" title="Failed orders this month" style="cursor: default;">';
+        $html .= '<i class="fa fa-times-circle text-danger fs-9 me-1"></i> ' . $failed;
+        $html .= '</span>';
+        $html .= '</div>';
+
+        // Combined Total badge
+        $totalClass = $combined > 0 ? 'badge-light-warning text-dark' : 'badge-light-success text-success';
+        $html .= '<span class="badge ' . $totalClass . ' fw-bolder fs-8 mt-1" title="Combined quality issues (Tickets + Failed)" style="cursor: default;">';
+        $html .= 'Total: ' . $combined;
+        $html .= '</span>';
+
+        // Order-specific indicators if provided
+        if ($order) {
+            $hasTicket = !empty($order->feedback_ticket) || (isset($order->feedbackissue) && (int) $order->feedbackissue === 1);
+            $isFail = isset($order->is_fail) && (int) $order->is_fail === 1;
+
+            if ($hasTicket || $isFail) {
+                $html .= '<div class="border-top border-gray-300 w-100 mt-1 pt-1 d-flex flex-column gap-1 align-items-center">';
+                if ($hasTicket) {
+                    $tckText = !empty($order->feedback_ticket) ? htmlspecialchars($order->feedback_ticket) : 'Ticket';
+                    $html .= '<span class="badge badge-danger fw-bold fs-8" style="background-color: #d9214e; color: #fff;" title="Ticket raised on this order">';
+                    $html .= '<i class="fa fa-exclamation-circle me-1 text-white"></i>' . $tckText;
+                    $html .= '</span>';
+                }
+                if ($isFail) {
+                    $html .= '<span class="badge badge-danger fw-bold fs-8" style="background-color: #f1416c; color: #fff;" title="This order is marked Failed">';
+                    $html .= '<i class="fa fa-times-circle me-1 text-white"></i>Failed Job';
+                    $html .= '</span>';
+                }
+                $html .= '</div>';
+            }
+        }
+
+        $html .= '</div>';
+        return $html;
+    }
+}

@@ -25,6 +25,52 @@
 				@include('order.filter.subwriter_filter')
 			</div>
             
+						@php
+				$writerMonthlyStats = $data['writerMonthlyStats'] ?? get_writer_monthly_quality_metrics(auth()->id(), 7);
+			@endphp
+			@if(can_view_writer_quality_metrics())
+			<div class="row g-3 mb-5 px-4">
+				<div class="col-md-4">
+					<div class="card bg-light-primary border border-primary border-dashed p-4 shadow-sm" style="border-radius: 10px;">
+						<div class="d-flex align-items-center">
+							<div class="symbol symbol-45px me-3">
+								<span class="symbol-label bg-white text-primary shadow-sm"><i class="fa fa-ticket-alt fs-3 text-primary"></i></span>
+							</div>
+							<div>
+								<div class="fs-2 fw-bolder text-dark">{{ $writerMonthlyStats['tickets'] }}</div>
+								<div class="text-muted fw-bold fs-7">This Month's Tickets ({{ $writerMonthlyStats['month_name'] }})</div>
+							</div>
+						</div>
+					</div>
+				</div>
+				<div class="col-md-4">
+					<div class="card bg-light-danger border border-danger border-dashed p-4 shadow-sm" style="border-radius: 10px;">
+						<div class="d-flex align-items-center">
+							<div class="symbol symbol-45px me-3">
+								<span class="symbol-label bg-white text-danger shadow-sm"><i class="fa fa-times-circle fs-3 text-danger"></i></span>
+							</div>
+							<div>
+								<div class="fs-2 fw-bolder text-dark">{{ $writerMonthlyStats['failed'] }}</div>
+								<div class="text-muted fw-bold fs-7">This Month's Failed Orders</div>
+							</div>
+						</div>
+					</div>
+				</div>
+				<div class="col-md-4">
+					<div class="card bg-light-warning border border-warning border-dashed p-4 shadow-sm" style="border-radius: 10px;">
+						<div class="d-flex align-items-center">
+							<div class="symbol symbol-45px me-3">
+								<span class="symbol-label bg-white text-warning shadow-sm"><i class="fa fa-exclamation-triangle fs-3 text-warning"></i></span>
+							</div>
+							<div>
+								<div class="fs-2 fw-bolder text-dark">{{ $writerMonthlyStats['combined'] }}</div>
+								<div class="text-muted fw-bold fs-7">Total Issues (Tickets + Failed)</div>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+			@endif
 			<div class="card card-xl-stretch  mb-xl-">
 				
 				<div class="card-body py-3">
@@ -45,7 +91,10 @@
 										<th>Words</th>
 										<th class="min-w-60px">Writer Deadline</th>
 										
-										<th class="min-w-100px text-center" >Actions</th>
+										@if(can_view_writer_quality_metrics())
+										<th class="min-w-140px text-center">Monthly Quality (Tickets / Fail)</th>
+									@endif
+									<th class="min-w-100px text-center" >Actions</th>
 									</tr>
 								</thead>
 								<tbody style="display:none" id="content" class="searchData">
@@ -159,7 +208,10 @@
 										</td>
 
                                       
-										<td class="text-center">
+										@if(can_view_writer_quality_metrics())
+										<td class="text-center">{!! render_writer_monthly_quality_cell($writerMonthlyStats, $order) !!}</td>
+									@endif
+									<td class="text-center">
 										<a href="/edit/{{ $order->id }}" target="_blank"
 											class="btn btn-icon btn-bg-light btn-active-color-primary btn-sm me-1" title="Edit Order">
 												<span class=" svg-icon svg-icon-3">
