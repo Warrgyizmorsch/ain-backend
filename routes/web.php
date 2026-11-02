@@ -71,11 +71,6 @@ Route::get('/fix-parent-id', function () {
     }
 });
 
-
-
-
-
-
 Route::post('/takeover-confirm', [AuthenticatedSessionController::class, 'doTakeover'])->name('do-takeover');
 
 Route::get('/click2call', function () {
@@ -160,6 +155,25 @@ Route::get('/email/track/click/{token}', [\App\Http\Controllers\EmailCampaignCon
 Route::get('/uploads/campaigns/{filename}', [\App\Http\Controllers\EmailCampaignController::class, 'serveImage'])
     ->where('filename', '[A-Za-z0-9_\-\.]+')
     ->name('emails.campaigns.image');
+
+// Prime Blogs Image Direct Fallback (Serves image if web server rewrite passes request to Laravel)
+Route::get('/assets/media/prime/blogs/{filename}', function ($filename) {
+    $paths = [
+        base_path('assets/media/prime/blogs/' . $filename),
+        public_path('assets/media/prime/blogs/' . $filename),
+        rtrim(dirname(base_path()), '/\\') . '/public_html/assets/media/prime/blogs/' . $filename,
+    ];
+
+    foreach ($paths as $path) {
+        if (file_exists($path) && is_file($path)) {
+            $mime = @mime_content_type($path) ?: 'image/jpeg';
+            return response()->file($path, ['Content-Type' => $mime]);
+        }
+    }
+
+    return abort(404);
+})->where('filename', '[A-Za-z0-9_\-\.]+');
+
 Route::post('/webhook/emails/inbound', [\App\Http\Controllers\EmailController::class, 'webhook'])
     ->middleware('throttle:60,1')
     ->name('emails.webhook');

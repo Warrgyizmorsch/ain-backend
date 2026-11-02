@@ -83,9 +83,7 @@ class PrimeBlogController extends Controller
         $data = $this->validated($request, $primeBlog);
 
         if ($request->hasFile('image_file')) {
-            if ($primeBlog->image && file_exists(public_path($primeBlog->image))) {
-                @unlink(public_path($primeBlog->image));
-            }
+            $this->deleteFileFromAllPaths($primeBlog->image);
             $data['image'] = $this->uploadImage($request->file('image_file'), $data['slug']);
         }
 
@@ -96,9 +94,7 @@ class PrimeBlogController extends Controller
 
     public function destroy(PrimeBlog $primeBlog)
     {
-        if ($primeBlog->image && file_exists(public_path($primeBlog->image))) {
-            @unlink(public_path($primeBlog->image));
-        }
+        $this->deleteFileFromAllPaths($primeBlog->image);
 
         $primeBlog->delete();
 
@@ -166,16 +162,62 @@ class PrimeBlogController extends Controller
 
     private function uploadImage($file, string $slug): string
     {
-        $dir = public_path('assets/media/prime/blogs');
-        if (!file_exists($dir)) {
-            @mkdir($dir, 0755, true);
-        }
-
+        $cleanSlug = Str::slug(substr(preg_replace('/[^a-zA-Z0-9_-]/', '', $slug), 0, 50)) ?: 'prime-blog';
         $ext = $file->getClientOriginalExtension() ?: 'png';
-        $filename = $slug . '-' . time() . '.' . strtolower($ext);
-        $file->move($dir, $filename);
+        $filename = $cleanSlug . '-' . time() . '.' . strtolower($ext);
+
+        $this->saveUploadedFileToAllPaths($file, 'assets/media/prime/blogs', $filename);
 
         return 'assets/media/prime/blogs/' . $filename;
     }
-}
 
+    private function saveUploadedFileToAllPaths($uploadedFile, string $subPath, string $fileName): void
+    {
+        $cleanSubPath = trim($subPath, '/\\');
+        $targetDirs = array_unique([
+            base_path($cleanSubPath),
+            public_path($cleanSubPath),
+            rtrim(dirname(base_path()), '/\\') . '/public_html/' . $cleanSubPath,
+        ]);
+
+        $savedPath = null;
+        foreach ($targetDirs as $dir) {
+            if (!file_exists($dir)) {
+                @mkdir($dir, 0755, true);
+            }
+            if (is_dir($dir)) {
+                $targetFile = rtrim($dir, '/\\') . '/' . $fileName;
+                if (!$savedPath) {
+                    $uploadedFile->move($dir, $fileName);
+                    $savedPath = $targetFile;
+                } else {
+                    @copy($savedPath, $targetFile);
+                }
+            }
+        }
+    }
+
+    private function deleteFileFromAllPaths(?string $relativeFilePath): void
+    {
+        if (empty($relativeFilePath)) {
+            return;
+        }
+
+        $cleanPath = ltrim($relativeFilePath, '/\\');
+        $subPath = dirname($cleanPath);
+        $fileName = basename($cleanPath);
+
+        $targetDirs = array_unique([
+            base_path($subPath),
+            public_path($subPath),
+            rtrim(dirname(base_path()), '/\\') . '/public_html/' . $subPath,
+        ]);
+
+        foreach ($targetDirs as $dir) {
+            $targetFile = rtrim($dir, '/\\') . '/' . $fileName;
+            if (file_exists($targetFile)) {
+                @unlink($targetFile);
+            }
+        }
+    }
+}
