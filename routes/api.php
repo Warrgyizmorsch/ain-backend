@@ -111,18 +111,27 @@ Route::middleware('api.key')->group(function () {
     Route::prefix('prime')->group(function () {
         Route::get('/subjects', [PrimeServicePageApiController::class, 'subjects']);
         Route::get('/service-pages', [PrimeServicePageApiController::class, 'index']);
+        Route::get('/service_pages', [PrimeServicePageApiController::class, 'index']);
         Route::get('/service-pages/prefix/{prefix}', [PrimeServicePageApiController::class, 'getByPrefix'])->where('prefix', '.*');
+        Route::get('/service_pages/prefix/{prefix}', [PrimeServicePageApiController::class, 'getByPrefix'])->where('prefix', '.*');
         Route::get('/service-pages/{slug}', [PrimeServicePageApiController::class, 'show'])->where('slug', '.*');
+        Route::get('/service_pages/{slug}', [PrimeServicePageApiController::class, 'show'])->where('slug', '.*');
 
         // Prime Blogs
         Route::get('/blogs', [PrimeBlogApiController::class, 'index']);
+        Route::get('/blog', [PrimeBlogApiController::class, 'index']);
         Route::get('/blogs/categories', [PrimeBlogApiController::class, 'categories']);
+        Route::get('/blog-categories', [PrimeBlogApiController::class, 'categories']);
         Route::get('/blogs/{slug}', [PrimeBlogApiController::class, 'show'])->where('slug', '.*');
+        Route::get('/blog/{slug}', [PrimeBlogApiController::class, 'show'])->where('slug', '.*');
 
         // Prime Samples
         Route::get('/samples', [PrimeSampleApiController::class, 'index']);
+        Route::get('/sample', [PrimeSampleApiController::class, 'index']);
         Route::get('/samples/categories', [PrimeSampleApiController::class, 'categories']);
+        Route::get('/sample-categories', [PrimeSampleApiController::class, 'categories']);
         Route::get('/samples/{slug}', [PrimeSampleApiController::class, 'show'])->where('slug', '.*');
+        Route::get('/sample/{slug}', [PrimeSampleApiController::class, 'show'])->where('slug', '.*');
     });
 });
 

@@ -78,6 +78,13 @@ class PrimeAssignmentSetupService
         } else {
             try {
                 DB::statement('ALTER TABLE `prime_service_pages` MODIFY `prime_subject_id` BIGINT UNSIGNED NULL');
+                DB::table('prime_service_pages')->where('is_published', 0)->update(['is_published' => 1]);
+                if (Schema::hasTable('prime_blogs')) {
+                    DB::table('prime_blogs')->where('is_published', 0)->update(['is_published' => 1]);
+                }
+                if (Schema::hasTable('prime_samples')) {
+                    DB::table('prime_samples')->where('is_published', 0)->update(['is_published' => 1]);
+                }
             } catch (\Throwable $e) {
                 // Ignore if already nullable or driver doesn't support modify
             }

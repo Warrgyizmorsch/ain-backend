@@ -18,7 +18,11 @@ class BlogApiController extends Controller
         // Clamp limit between 1 and 50 to prevent memory exhaustion attacks
         $limit = max(1, min(50, $limit));
 
-        $query = Blog::where('is_published', true)->latest();
+        $query = Blog::query();
+        if (\Illuminate\Support\Facades\Schema::hasColumn('blog', 'is_published')) {
+            $query->where('is_published', true);
+        }
+        $query->latest('id');
 
         // Optional search filtering by title
         if ($request->has('search')) {
@@ -61,7 +65,7 @@ class BlogApiController extends Controller
 
         $blog = Blog::where('slug', $slug)->first();
 
-        if (!$blog || !$blog->is_published) {
+        if (!$blog || (\Illuminate\Support\Facades\Schema::hasColumn('blog', 'is_published') && !$blog->is_published)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Blog not found'
