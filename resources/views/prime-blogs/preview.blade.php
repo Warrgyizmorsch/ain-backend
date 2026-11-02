@@ -58,7 +58,7 @@
 
             @if($blog->image)
                 <div class="featured-img-wrap">
-                    <img src="{{ $blog->image_url }}" alt="{{ $blog->title }}" class="featured-img">
+                    <img src="{{ $blog->image_url }}" alt="{{ $blog->title }}" class="featured-img" onerror="this.onerror=null; this.src='/{{ ltrim($blog->image ?: 'assets/media/avatars/demo.png', '/') }}';">
                 </div>
             @endif
 
@@ -89,4 +89,3 @@
     </div>
 </body>
 </html>
-
