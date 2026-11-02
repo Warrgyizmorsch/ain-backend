@@ -262,24 +262,43 @@ class PrimeAssignmentSetupService
     public static function syncPrimeBlogImages(): void
     {
         $cleanSubPath = 'assets/media/prime/blogs';
-        $targetDirs = array_unique([
+        $parent = dirname(base_path());
+
+        $targetDirs = [
             base_path($cleanSubPath),
             public_path($cleanSubPath),
-            rtrim(dirname(base_path()), '/\\') . '/public_html/' . $cleanSubPath,
-        ]);
+        ];
+
+        if (!empty($_SERVER['DOCUMENT_ROOT'])) {
+            $targetDirs[] = rtrim($_SERVER['DOCUMENT_ROOT'], '/\\') . '/' . $cleanSubPath;
+        }
+
+        $targetDirs[] = rtrim($parent, '/\\') . '/public_html/' . $cleanSubPath;
+        $targetDirs[] = rtrim($parent, '/\\') . '/ain.warrgyizmorsch.com/' . $cleanSubPath;
+        $targetDirs = array_values(array_unique(array_filter($targetDirs)));
 
         foreach ($targetDirs as $dir) {
             if (!file_exists($dir)) {
-                @mkdir($dir, 0755, true);
+                @mkdir($dir, 0777, true);
+                @chmod($dir, 0777);
             }
         }
 
+        // Also check blogthumbnail directory for existing files
+        $sourceDirs = $targetDirs;
+        $sourceDirs[] = base_path('assets/media/blogthumbnail');
+        $sourceDirs[] = public_path('assets/media/blogthumbnail');
+        if (!empty($_SERVER['DOCUMENT_ROOT'])) {
+            $sourceDirs[] = rtrim($_SERVER['DOCUMENT_ROOT'], '/\\') . '/assets/media/blogthumbnail';
+        }
+        $sourceDirs = array_values(array_unique(array_filter($sourceDirs)));
+
         $allFiles = [];
-        foreach ($targetDirs as $dir) {
+        foreach ($sourceDirs as $dir) {
             if (is_dir($dir)) {
                 $files = @scandir($dir) ?: [];
                 foreach ($files as $file) {
-                    if ($file === '.' || $file === '..') {
+                    if ($file === '.' || $file === '..' || $file === '.gitkeep') {
                         continue;
                     }
                     $fullPath = rtrim($dir, '/\\') . '/' . $file;
@@ -298,6 +317,7 @@ class PrimeAssignmentSetupService
                     $destPath = rtrim($dir, '/\\') . '/' . $file;
                     if (!file_exists($destPath) || filesize($destPath) === 0) {
                         @copy($sourcePath, $destPath);
+                        @chmod($destPath, 0644);
                     }
                 }
             }
