@@ -454,7 +454,7 @@
                     <div class="wab-date-badge" data-date-key="{{ $messageDate }}">{{ $messageDateLabel }}</div>
                     @php $lastRenderedDate = $messageDate; @endphp
                 @endif
-                <div class="wab-msg-row {{ $message->direction === 'inbound' ? 'wab-incoming' : 'wab-outgoing' }}" data-message-id="{{ $message->id }}">
+                <div class="wab-msg-row {{ $message->direction === 'inbound' ? 'wab-incoming' : 'wab-outgoing' }}" data-message-id="{{ $message->id }}" data-wa-message-id="{{ $message->wa_message_id }}">
                     <div class="wab-msg-bubble {{ $messageMediaType ? 'wab-bubble--media wab-bubble--' . $messageMediaType : '' }}" data-copy-text="{{ mask_chat_text($message->message) ?: ($message->media_name ?: $message->media_url) }}">
                         <button type="button" class="wab-copy-msg-btn" title="Copy message" aria-label="Copy message" data-copy-text="{{ mask_chat_text($message->message) ?: ($message->media_name ?: $message->media_url) }}">
                             <svg class="wab-copy-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

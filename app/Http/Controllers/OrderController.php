@@ -4543,6 +4543,22 @@ class OrderController extends Controller
                 });
         }
 
+                // Lapsed / Inactive Customers Filter: Customers who ordered in this month but have 0 orders after this month
+        if ($request->filled('month')) {
+            try {
+                $startOfMonth = Carbon::parse($request->month . '-01')->startOfMonth()->toDateString();
+                $endOfMonth   = Carbon::parse($request->month . '-01')->endOfMonth()->toDateString();
+
+                $query->whereBetween('orders.order_date', [$startOfMonth, $endOfMonth])
+                      ->whereNotExists(function ($sub) use ($endOfMonth) {
+                          $sub->select(DB::raw(1))
+                              ->from('orders as o_later')
+                              ->whereColumn('o_later.uid', 'orders.uid')
+                              ->where('o_later.order_date', '>', $endOfMonth);
+                      });
+            } catch (\Throwable $e) {}
+        }
+
         return $query;
     }
 
