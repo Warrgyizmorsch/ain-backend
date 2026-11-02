@@ -9,15 +9,20 @@ use Illuminate\Http\Request;
 
 class PrimeSampleApiController extends Controller
 {
+    public function __construct()
+    {
+        \App\Services\PrimeAssignmentSetupService::ensureSetup();
+    }
+
     /**
-     * Get paginated list of published prime samples.
+     * Get paginated list of Prime Samples only (Strictly isolated).
      */
     public function index(Request $request)
     {
         $limit = intval($request->query('limit', 10));
         $limit = max(1, min(50, $limit));
 
-        $query = PrimeSample::with('category')->where('is_published', true)->latest('id');
+        $query = PrimeSample::with('category')->latest('id');
 
         // Optional search filtering by title
         if ($request->filled('search')) {
@@ -47,12 +52,15 @@ class PrimeSampleApiController extends Controller
         ]);
 
         $samples->through(function ($sample) {
+            $catName = $sample->category?->name ?? 'General';
             return [
                 'id'            => $sample->id,
                 'title'         => $sample->title,
                 'slug'          => $sample->slug,
                 'category_id'   => $sample->category_id,
-                'category_name' => $sample->category?->name ?? 'General',
+                'category'      => $sample->category_id,
+                'category_name' => $catName,
+                'type_name'     => $catName,
                 'pages_count'   => $sample->pages_count,
                 'words_count'   => $sample->words_count,
                 'meta_title'    => $sample->meta_title,
@@ -68,25 +76,41 @@ class PrimeSampleApiController extends Controller
     }
 
     /**
-     * Get prime sample details by slug.
+     * Get prime sample details by slug (Strictly Prime Samples table).
      */
     public function show($slug)
     {
         $slug = urldecode($slug);
+        $cleanSlug = trim($slug, '/');
 
         $sample = PrimeSample::with('category')
-            ->where('slug', $slug)
-            ->where('is_published', true)
+            ->where(function ($query) use ($slug, $cleanSlug) {
+                $query->where('slug', $cleanSlug)
+                      ->orWhere('slug', '/' . $cleanSlug)
+                      ->orWhere('slug', $slug)
+                      ->orWhere('slug', 'like', '%/' . $cleanSlug)
+                      ->orWhere('slug', 'like', '%' . $cleanSlug . '%');
+                if (is_numeric($cleanSlug)) {
+                    $query->orWhere('id', (int) $cleanSlug);
+                }
+            })
             ->first();
+
+        if (!$sample) {
+            $sample = PrimeSample::with('category')
+                ->where('title', 'like', '%' . $cleanSlug . '%')
+                ->first();
+        }
 
         if (!$sample) {
             return response()->json([
                 'success' => false,
-                'message' => 'Prime sample not found',
+                'message' => "Prime sample not found for '{$slug}'",
             ], 404);
         }
 
         $sample->category_name = $sample->category?->name ?? 'General';
+        $sample->type_name     = $sample->category_name;
 
         return response()->json([
             'success' => true,
@@ -99,19 +123,17 @@ class PrimeSampleApiController extends Controller
      */
     public function categories()
     {
-        $categories = PrimeSampleCategory::withCount([
-            'samples' => fn($q) => $q->where('is_published', true)
-        ])
-        ->orderBy('name', 'asc')
-        ->get()
-        ->map(function ($cat) {
-            return [
-                'id'           => $cat->id,
-                'name'         => $cat->name,
-                'slug'         => $cat->slug,
-                'sample_count' => $cat->samples_count,
-            ];
-        });
+        $categories = PrimeSampleCategory::withCount('samples')
+            ->orderBy('name', 'asc')
+            ->get()
+            ->map(function ($cat) {
+                return [
+                    'id'           => $cat->id,
+                    'name'         => $cat->name,
+                    'slug'         => $cat->slug,
+                    'sample_count' => $cat->samples_count,
+                ];
+            });
 
         return response()->json([
             'success' => true,
@@ -119,4 +141,3 @@ class PrimeSampleApiController extends Controller
         ]);
     }
 }
-

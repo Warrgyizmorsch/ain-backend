@@ -165,7 +165,7 @@ class PrimeServicePageController extends Controller
             $data['why_items'] ?? [],
             fn($item) => filled($item['heading'] ?? null) && filled($item['content'] ?? null)
         ));
-        $data['is_published'] = $request->boolean('is_published');
+        $data['is_published'] = $request->boolean('is_published', true);
 
         return $data;
     }

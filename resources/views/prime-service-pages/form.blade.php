@@ -193,7 +193,7 @@
     <div class="card-body d-flex justify-content-between align-items-center">
         <label class="form-check form-switch form-check-custom form-check-solid">
             <input type="hidden" name="is_published" value="0">
-            <input class="form-check-input" type="checkbox" name="is_published" value="1" @checked(old('is_published', $page->is_published))>
+            <input class="form-check-input" type="checkbox" name="is_published" value="1" @checked(old('is_published', $page->exists ? $page->is_published : true))>
             <span class="form-check-label fw-bold">Publish on frontend</span>
         </label>
         <button class="btn btn-primary px-10">Save Page</button>
