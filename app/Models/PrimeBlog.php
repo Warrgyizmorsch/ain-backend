@@ -34,14 +34,38 @@ class PrimeBlog extends Model
     public function getImageUrlAttribute(): string
     {
         if (empty($this->image)) {
-            return asset('assets/media/avatars/demo.png');
+            $default = 'assets/media/avatars/demo.png';
+            return self::makeHttpsUrl(asset($default));
         }
 
-        if (str_starts_with($this->image, 'http://') || str_starts_with($this->image, 'https://')) {
-            return $this->image;
+        $imagePath = trim($this->image);
+
+        if (str_starts_with($imagePath, 'http://') || str_starts_with($imagePath, 'https://')) {
+            return self::makeHttpsUrl($imagePath);
         }
 
-        return url($this->image);
+        $cleanPath = ltrim($imagePath, '/\\');
+        return self::makeHttpsUrl(asset($cleanPath));
+    }
+
+    protected static function makeHttpsUrl(string $url): string
+    {
+        $isHttps = false;
+        try {
+            if (function_exists('request') && request()) {
+                $isHttps = request()->isSecure()
+                    || str_contains(request()->header('x-forwarded-proto', ''), 'https')
+                    || (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on')
+                    || str_contains(url()->current(), 'https://');
+            }
+        } catch (\Throwable $e) {
+            $isHttps = false;
+        }
+
+        if ($isHttps && str_starts_with($url, 'http://')) {
+            return 'https://' . substr($url, 7);
+        }
+
+        return $url;
     }
 }
-

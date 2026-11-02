@@ -11,7 +11,7 @@ class PrimeAssignmentSetupService
     protected static bool $initialized = false;
 
     /**
-     * Ensure database tables and sidebar menus exist for Prime Assignment dynamic pages, blogs, and samples.
+     * Ensure database tables, sidebar menus, and asset directories exist for Prime Assignment.
      */
     public static function ensureSetup(): void
     {
@@ -24,6 +24,7 @@ class PrimeAssignmentSetupService
         try {
             self::ensureTables();
             self::ensureMenus();
+            self::syncPrimeBlogImages();
         } catch (\Throwable $e) {
             \Log::warning('PrimeAssignmentSetupService failed: ' . $e->getMessage());
         }
@@ -248,6 +249,55 @@ class PrimeAssignmentSetupService
                             ->update([
                                 'submenu_id' => json_encode(array_values(array_unique($submenuIdsStr))),
                             ]);
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Ensure existing prime blog images are replicated across base_path, public_path, and public_html
+     * so they load on live cPanel/Apache setups regardless of docroot configuration.
+     */
+    public static function syncPrimeBlogImages(): void
+    {
+        $cleanSubPath = 'assets/media/prime/blogs';
+        $targetDirs = array_unique([
+            base_path($cleanSubPath),
+            public_path($cleanSubPath),
+            rtrim(dirname(base_path()), '/\\') . '/public_html/' . $cleanSubPath,
+        ]);
+
+        foreach ($targetDirs as $dir) {
+            if (!file_exists($dir)) {
+                @mkdir($dir, 0755, true);
+            }
+        }
+
+        $allFiles = [];
+        foreach ($targetDirs as $dir) {
+            if (is_dir($dir)) {
+                $files = @scandir($dir) ?: [];
+                foreach ($files as $file) {
+                    if ($file === '.' || $file === '..') {
+                        continue;
+                    }
+                    $fullPath = rtrim($dir, '/\\') . '/' . $file;
+                    if (is_file($fullPath) && filesize($fullPath) > 0) {
+                        if (!isset($allFiles[$file])) {
+                            $allFiles[$file] = $fullPath;
+                        }
+                    }
+                }
+            }
+        }
+
+        foreach ($allFiles as $file => $sourcePath) {
+            foreach ($targetDirs as $dir) {
+                if (is_dir($dir)) {
+                    $destPath = rtrim($dir, '/\\') . '/' . $file;
+                    if (!file_exists($destPath) || filesize($destPath) === 0) {
+                        @copy($sourcePath, $destPath);
                     }
                 }
             }
