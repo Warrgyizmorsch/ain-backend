@@ -73,6 +73,47 @@
 <div style="margin-top: -20px;" id="kt_content">
     @include('back-end.order.partials.fail')
     @include('back-end.order.partials.filter',['overdueCount' => $overdueCount])
+
+    @if(in_array((int) auth()->user()->role_id, [1, 9]))
+        @php
+            $adminMonthStats = get_system_monthly_quality_metrics();
+        @endphp
+        <div class="row g-2 mb-3">
+            <div class="col-md-4">
+                <div class="d-flex align-items-center px-3 py-2 rounded bg-light-primary border border-primary border-dashed shadow-xs" style="min-height: 38px;">
+                    <div class="d-flex align-items-center justify-content-center bg-white rounded me-2 flex-shrink-0" style="width: 26px; height: 26px;">
+                        <i class="fa fa-ticket-alt text-primary fs-7"></i>
+                    </div>
+                    <div class="d-flex align-items-baseline gap-2">
+                        <span class="fs-4 fw-bolder text-dark">{{ $adminMonthStats['tickets'] }}</span>
+                        <span class="text-gray-600 fw-bold fs-8">This Month's Tickets ({{ $adminMonthStats['month_name'] }})</span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="d-flex align-items-center px-3 py-2 rounded bg-light-danger border border-danger border-dashed shadow-xs" style="min-height: 38px;">
+                    <div class="d-flex align-items-center justify-content-center bg-white rounded me-2 flex-shrink-0" style="width: 26px; height: 26px;">
+                        <i class="fa fa-times-circle text-danger fs-7"></i>
+                    </div>
+                    <div class="d-flex align-items-baseline gap-2">
+                        <span class="fs-4 fw-bolder text-dark">{{ $adminMonthStats['failed'] }}</span>
+                        <span class="text-gray-600 fw-bold fs-8">This Month's Failed Orders</span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="d-flex align-items-center px-3 py-2 rounded bg-light-warning border border-warning border-dashed shadow-xs" style="min-height: 38px;">
+                    <div class="d-flex align-items-center justify-content-center bg-white rounded me-2 flex-shrink-0" style="width: 26px; height: 26px;">
+                        <i class="fa fa-exclamation-triangle text-warning fs-7"></i>
+                    </div>
+                    <div class="d-flex align-items-baseline gap-2">
+                        <span class="fs-4 fw-bolder text-dark">{{ $adminMonthStats['combined'] }}</span>
+                        <span class="text-gray-600 fw-bold fs-8">Total Issues (Tickets + Failed)</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endif
     <!-- Leads Table -->
     <div class="card card-xl-stretch mb-5">
         <div class="card-body py-3">
