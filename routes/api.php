@@ -20,6 +20,9 @@ use App\Http\Controllers\Api\ExpertApiController;
 use App\Http\Controllers\Api\SubjectApiController;
 use App\Http\Controllers\Api\SubjectPageApiController;
 use App\Http\Controllers\Api\CityPageApiController;
+use App\Http\Controllers\Api\PrimeServicePageApiController;
+use App\Http\Controllers\Api\PrimeBlogApiController;
+use App\Http\Controllers\Api\PrimeSampleApiController;
 use App\Http\Controllers\Api\EnquiryApiController;
 use App\Http\Controllers\PluginController;
 
@@ -103,6 +106,24 @@ Route::middleware('api.key')->group(function () {
     Route::get('/city-pages', [CityPageApiController::class, 'index']);
     Route::get('/city-pages/prefix/{prefix}', [CityPageApiController::class, 'getByPrefix'])->where('prefix', '.*');
     Route::get('/city-pages/{slug}', [CityPageApiController::class, 'show'])->where('slug', '.*');
+
+    // Prime Assignment Dynamic Pages APIs for Next.js Website
+    Route::prefix('prime')->group(function () {
+        Route::get('/subjects', [PrimeServicePageApiController::class, 'subjects']);
+        Route::get('/service-pages', [PrimeServicePageApiController::class, 'index']);
+        Route::get('/service-pages/prefix/{prefix}', [PrimeServicePageApiController::class, 'getByPrefix'])->where('prefix', '.*');
+        Route::get('/service-pages/{slug}', [PrimeServicePageApiController::class, 'show'])->where('slug', '.*');
+
+        // Prime Blogs
+        Route::get('/blogs', [PrimeBlogApiController::class, 'index']);
+        Route::get('/blogs/categories', [PrimeBlogApiController::class, 'categories']);
+        Route::get('/blogs/{slug}', [PrimeBlogApiController::class, 'show'])->where('slug', '.*');
+
+        // Prime Samples
+        Route::get('/samples', [PrimeSampleApiController::class, 'index']);
+        Route::get('/samples/categories', [PrimeSampleApiController::class, 'categories']);
+        Route::get('/samples/{slug}', [PrimeSampleApiController::class, 'show'])->where('slug', '.*');
+    });
 });
 
 Route::prefix('app')->group(function () {
