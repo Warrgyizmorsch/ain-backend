@@ -34,6 +34,7 @@
                 id="#kt_aside_menu" data-kt-menu="true">
 
                 @php
+                    \App\Services\PrimeAssignmentSetupService::ensureSetup();
                     $menuIds = [];
                     $submenuIds = [];
                     $menus =

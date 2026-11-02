@@ -15,6 +15,33 @@ Route::get('/', function () {
     return redirect('/login');
 });
 
+Route::get('/setup-prime-pages', function () {
+    try {
+        \App\Services\PrimeAssignmentSetupService::ensureSetup();
+        try {
+            \Illuminate\Support\Facades\DB::statement('ALTER TABLE `prime_service_pages` MODIFY `prime_subject_id` BIGINT UNSIGNED NULL');
+        } catch (\Throwable $e) {}
+        $primeMenu = \Illuminate\Support\Facades\DB::table('menu')->where('menu_name', 'like', '%Prime Assignment%')->orWhere('routes', 'prime')->first();
+        $submenus = $primeMenu ? \Illuminate\Support\Facades\DB::table('submenus')->where('menus_id', $primeMenu->id)->get() : [];
+        $hasSubjectsTable = \Illuminate\Support\Facades\Schema::hasTable('prime_subjects');
+        $hasPagesTable = \Illuminate\Support\Facades\Schema::hasTable('prime_service_pages');
+        return response()->json([
+            'status' => 'success',
+            'prime_menu' => $primeMenu,
+            'submenus' => $submenus,
+            'tables' => [
+                'prime_subjects' => $hasSubjectsTable,
+                'prime_service_pages' => $hasPagesTable,
+            ]
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'status' => 'error',
+            'message' => $e->getMessage()
+        ], 500);
+    }
+});
+
 Route::get('/debug-db', function () {
     try {
         $menus = \Illuminate\Support\Facades\DB::table('menu')->get();
