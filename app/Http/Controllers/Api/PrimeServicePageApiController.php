@@ -9,15 +9,19 @@ use Illuminate\Http\Request;
 
 class PrimeServicePageApiController extends Controller
 {
+    public function __construct()
+    {
+        \App\Services\PrimeAssignmentSetupService::ensureSetup();
+    }
+
     /**
-     * Get list of all published prime dynamic service pages.
+     * Get list of Prime dynamic service pages (Strictly isolated).
      */
     public function index(Request $request)
     {
-        $query = PrimeServicePage::with('primeSubject')
-            ->where('is_published', true);
+        $query = PrimeServicePage::with('primeSubject');
 
-        // Filter by prefix query parameter if provided
+        // Optional prefix filter
         if ($request->has('prefix')) {
             $prefix = $request->query('prefix');
             $query->where(function ($q) use ($prefix) {
@@ -25,6 +29,7 @@ class PrimeServicePageApiController extends Controller
                     $sq->where('slug', $prefix)
                        ->orWhere('name', 'like', '%' . $prefix . '%');
                 })->orWhere('slug', 'like', $prefix . '/%')
+                  ->orWhere('slug', 'like', '%/' . $prefix)
                   ->orWhere('slug', $prefix);
             });
 
@@ -32,8 +37,10 @@ class PrimeServicePageApiController extends Controller
             $formatted = $this->formatPages($pages);
 
             return response()->json([
-                'status' => 'success',
-                'data'   => $formatted,
+                'status'    => 'success',
+                'success'   => true,
+                'data'      => $formatted,
+                'all_pages' => $pages,
             ]);
         }
 
@@ -67,14 +74,18 @@ class PrimeServicePageApiController extends Controller
         }
 
         return response()->json([
-            'status' => 'success',
-            'data'   => $this->formatPages($servicePages),
-            'city'   => $this->formatPages($cityPages),
+            'status'    => 'success',
+            'success'   => true,
+            'data'      => $this->formatPages($servicePages),
+            'city'      => $this->formatPages($cityPages),
+            'all_pages' => $pages,
+            'pages'     => $pages,
         ]);
     }
 
     /**
      * Helper to format pages into parent-child structure.
+     * Supports 1-segment, 2-segment, and 3-segment slugs.
      */
     private function formatPages($pages)
     {
@@ -85,28 +96,42 @@ class PrimeServicePageApiController extends Controller
             $slug = trim($page->slug, '/');
             $segments = explode('/', $slug);
 
-            if (count($segments) === 2) {
-                $parentId = $segments[1];
+            if (count($segments) === 1) {
+                // Top-level custom slug e.g. /testing or /assignment-help
+                $parentId = $segments[0];
                 $parents[$parentId] = [
                     'id'         => $page->id,
-                    'title'      => $page->hero_heading,
+                    'title'      => $page->hero_heading ?: ucwords(str_replace('-', ' ', $parentId)),
                     'slug'       => $page->slug,
                     'hasSubmenu' => false,
                     'children'   => [],
                     'order'      => $page->id,
                 ];
-            } elseif (count($segments) === 3) {
+            } elseif (count($segments) === 2) {
+                // Prefix + slug e.g. /service/accounting-help
+                $parentId = $segments[1];
+                $parents[$parentId] = [
+                    'id'         => $page->id,
+                    'title'      => $page->hero_heading ?: ucwords(str_replace('-', ' ', $parentId)),
+                    'slug'       => $page->slug,
+                    'hasSubmenu' => false,
+                    'children'   => [],
+                    'order'      => $page->id,
+                ];
+            } elseif (count($segments) >= 3) {
+                // Sub-page e.g. /service/dissertation/uk
                 $parentId = $segments[1];
 
                 $childrenByParent[$parentId][] = [
                     'id'    => $page->id,
-                    'title' => $page->hero_heading,
+                    'title' => $page->hero_heading ?: ucwords(str_replace('-', ' ', $segments[2])),
                     'slug'  => $page->slug,
                     'order' => $page->id,
                 ];
             }
         }
 
+        // Auto-create parents for children that do not have an explicit parent page in DB
         foreach ($childrenByParent as $parentId => $children) {
             if (!isset($parents[$parentId])) {
                 $parents[$parentId] = [
@@ -143,26 +168,26 @@ class PrimeServicePageApiController extends Controller
             return $a['order'] <=> $b['order'];
         });
 
-        return array_map(function ($parent) {
+        return array_values(array_map(function ($parent) {
             unset($parent['order']);
             return $parent;
-        }, $parents);
+        }, $parents));
     }
 
     /**
-     * Get list of published prime dynamic service pages by prefix slug or name.
+     * Get list of prime dynamic service pages by prefix slug or name.
      */
     public function getByPrefix($prefix)
     {
         $prefix = urldecode($prefix);
 
         $pages = PrimeServicePage::with('primeSubject')
-            ->where('is_published', true)
             ->where(function ($query) use ($prefix) {
                 $query->whereHas('primeSubject', function ($q) use ($prefix) {
                     $q->where('slug', $prefix)
                       ->orWhere('name', $prefix);
                 })->orWhere('slug', 'like', $prefix . '/%')
+                  ->orWhere('slug', 'like', '%/' . $prefix)
                   ->orWhere('slug', $prefix);
             })
             ->latest('id')
@@ -175,24 +200,82 @@ class PrimeServicePageApiController extends Controller
     }
 
     /**
-     * Get details of a specific prime dynamic service page by slug.
+     * Get details of a specific prime dynamic service page by slug, title, or prefix.
      */
     public function show($slug)
     {
         $slug = urldecode($slug);
+        $cleanSlug = trim($slug, '/');
 
+        // 1. Check in PrimeServicePage by slug
         $page = PrimeServicePage::with('primeSubject')
-            ->where(function ($query) use ($slug) {
-                $query->where('slug', $slug)
-                      ->orWhere('slug', 'like', '%/' . $slug);
+            ->where(function ($query) use ($slug, $cleanSlug) {
+                $query->where('slug', $cleanSlug)
+                      ->orWhere('slug', '/' . $cleanSlug)
+                      ->orWhere('slug', $slug)
+                      ->orWhere('slug', 'like', '%/' . $cleanSlug)
+                      ->orWhere('slug', 'like', $cleanSlug . '/%')
+                      ->orWhere('slug', 'like', '%' . $cleanSlug . '%');
+                if (is_numeric($cleanSlug)) {
+                    $query->orWhere('id', (int) $cleanSlug);
+                }
             })
-            ->where('is_published', true)
             ->first();
+
+        // 2. If no slug match, try matching by page title / hero_heading
+        if (!$page) {
+            $page = PrimeServicePage::with('primeSubject')
+                ->where(function ($query) use ($cleanSlug) {
+                    $query->where('hero_heading', 'like', '%' . $cleanSlug . '%')
+                          ->orWhere('meta_title', 'like', '%' . $cleanSlug . '%');
+                })
+                ->first();
+        }
+
+        // 3. If still no page, check if $slug is a Prefix (PrimeSubject)
+        if (!$page) {
+            $subject = PrimeSubject::where('slug', $cleanSlug)
+                ->orWhere('name', 'like', '%' . $cleanSlug . '%')
+                ->first();
+
+            if ($subject) {
+                // Find first page with this prefix
+                $page = PrimeServicePage::with('primeSubject')
+                    ->where('prime_subject_id', $subject->id)
+                    ->orWhere('slug', 'like', $subject->slug . '/%')
+                    ->first();
+
+                if ($page) {
+                    return response()->json([
+                        'success' => true,
+                        'matched' => 'prefix_page',
+                        'prefix'  => $subject->slug,
+                        'data'    => [
+                            'page'    => $page,
+                            'experts' => $page->selectedExperts(),
+                            'reviews' => $page->selectedReviews(),
+                        ],
+                    ]);
+                }
+
+                $prefixPages = PrimeServicePage::with('primeSubject')
+                    ->where('prime_subject_id', $subject->id)
+                    ->orWhere('slug', 'like', $subject->slug . '/%')
+                    ->get();
+
+                return response()->json([
+                    'success' => true,
+                    'matched' => 'prefix',
+                    'prefix'  => $subject->slug,
+                    'data'    => $prefixPages,
+                ]);
+            }
+        }
 
         if (!$page) {
             return response()->json([
                 'success' => false,
-                'message' => 'Prime service page not found',
+                'message' => "Prime service page not found for slug '{$slug}'",
             ], 404);
         }
 
@@ -210,7 +293,7 @@ class PrimeServicePageApiController extends Controller
     }
 
     /**
-     * Get active prefixes for Prime Assignment.
+     * Get active prefixes for Prime Assignment only.
      */
     public function subjects()
     {
@@ -224,4 +307,3 @@ class PrimeServicePageApiController extends Controller
         ]);
     }
 }
-
