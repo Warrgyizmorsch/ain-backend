@@ -32,7 +32,7 @@ class WhatsAppService
     {
         $cleanTo = ltrim(preg_replace('/\D+/', '', (string) $to), '+');
 
-        $response = Http::withHeaders([
+        $response = Http::withoutVerifying()->withHeaders([
             'Accept' => 'application/json',
             'Content-Type' => 'application/json',
             'X-AiSensy-Project-API-Pwd' => $this->apiKey,
@@ -99,7 +99,7 @@ class WhatsAppService
         }
 
         // Send the request
-        $response = Http::withHeaders([
+        $response = Http::withoutVerifying()->withHeaders([
             'Accept' => 'application/json',
             'Content-Type' => 'application/json',
             'X-AiSensy-Project-API-Pwd' => $this->apiKey,

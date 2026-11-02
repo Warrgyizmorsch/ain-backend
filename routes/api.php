@@ -46,7 +46,7 @@ Route::match(['GET', 'POST'], '/twilio/voice', [PluginController::class, 'handle
 Route::match(['GET', 'POST'], '/twilio/status-callback', [PluginController::class, 'statusCallback'])->name('api.twilio.status.callback');
 Route::match(['GET', 'POST'], '/twilio/recording-callback', [PluginController::class, 'statusCallback'])->name('api.twilio.recording.callback');
 
-// Route::get('/webhooks/whatsapp', [WhatsAppWebhookController::class, 'verify']);
+Route::get('/webhooks/whatsapp', [WhatsAppWebhookController::class, 'verify']);
 Route::post('/webhooks/whatsapp', [WhatsAppWebhookController::class, 'receive']);
 Route::post('/career-applications', [CareerApplicationController::class, 'store']);
 
