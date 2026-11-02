@@ -538,12 +538,23 @@
                         <option value="empty">Empty Payee Name</option>
                     </select>
                 </div>
-                @if (auth()->user()->role_id == 1 || auth()->user()->role_id == 4 || auth()->user()->role_id == 9)
-                    <div class="col-md-3 fv-row mb-3">
-                        <input type="month" name="month" id="month" class="form-control form-control-solid"
-                            placeholder="Search By Month">
+                                <div class="col-md-3 fv-row mb-3">
+                    <div class="d-flex align-items-center justify-content-between mb-1">
+                        <label class="form-label fs-8 fw-bolder text-dark mb-0">
+                            <i class="fa fa-user-clock text-warning me-1"></i> Inactive Customers (Month)
+                        </label>
+                        <span class="badge badge-light-warning py-0 px-2 fs-9" title="Customers who ordered in this month, but placed 0 orders afterwards">Lapsed</span>
                     </div>
-                @endif
+                    <div class="input-group">
+                        <input type="month" name="month" id="month" class="form-control form-control-solid"
+                            value="{{ request('month') }}"
+                            title="Filter customers whose last order was in this month (no orders after this month)">
+                        <button type="button" class="btn btn-sm btn-light-danger px-3" onclick="$('#month').val('').trigger('change')" title="Clear Month Filter">
+                            <i class="fa fa-times"></i>
+                        </button>
+                    </div>
+                    <div class="fs-9 text-muted mt-1">E.g. Jan 2026 (Customers with 0 orders after this month)</div>
+                </div>
             </div>
 
 

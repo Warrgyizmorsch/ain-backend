@@ -193,8 +193,23 @@ class ExportController extends Controller
         if ($yesterday_deadline_filter) {
             $orders->whereDate('delivery_date', Carbon::yesterday());
         }
-        if ($today_writer_deadline_filter) {
+                if ($today_writer_deadline_filter) {
             $orders->whereDate('writer_deadline', Carbon::today());
+        }
+
+        if (!empty($month)) {
+            try {
+                $startOfMonth = Carbon::parse($month . '-01')->startOfMonth()->toDateString();
+                $endOfMonth   = Carbon::parse($month . '-01')->endOfMonth()->toDateString();
+
+                $orders->whereBetween('orders.order_date', [$startOfMonth, $endOfMonth])
+                       ->whereNotExists(function ($sub) use ($endOfMonth) {
+                           $sub->select(DB::raw(1))
+                               ->from('orders as o_later')
+                               ->whereColumn('o_later.uid', 'orders.uid')
+                               ->where('o_later.order_date', '>', $endOfMonth);
+                       });
+            } catch (\Throwable $e) {}
         }
 
         if ($extra) {
