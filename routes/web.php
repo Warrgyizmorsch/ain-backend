@@ -25,13 +25,44 @@ Route::get('/setup-prime-pages', function () {
         $submenus = $primeMenu ? \Illuminate\Support\Facades\DB::table('submenus')->where('menus_id', $primeMenu->id)->get() : [];
         $hasSubjectsTable = \Illuminate\Support\Facades\Schema::hasTable('prime_subjects');
         $hasPagesTable = \Illuminate\Support\Facades\Schema::hasTable('prime_service_pages');
+        $hasBlogsTable = \Illuminate\Support\Facades\Schema::hasTable('prime_blogs');
+
+        $blogs = $hasBlogsTable ? \Illuminate\Support\Facades\DB::table('prime_blogs')->select(['id', 'title', 'slug', 'image'])->get() : [];
+
+        $parent = dirname(base_path());
+        $primeDirs = [
+            'base' => base_path('assets/media/prime/blogs'),
+            'public' => public_path('assets/media/prime/blogs'),
+            'doc_root' => !empty($_SERVER['DOCUMENT_ROOT']) ? rtrim($_SERVER['DOCUMENT_ROOT'], '/\\') . '/assets/media/prime/blogs' : null,
+            'public_html' => rtrim($parent, '/\\') . '/public_html/assets/media/prime/blogs',
+            'subdomain' => rtrim($parent, '/\\') . '/ain.warrgyizmorsch.com/assets/media/prime/blogs',
+        ];
+
+        $dirStatus = [];
+        foreach ($primeDirs as $key => $dir) {
+            if (!$dir) continue;
+            $dirStatus[$key] = [
+                'path' => $dir,
+                'exists' => file_exists($dir),
+                'is_dir' => is_dir($dir),
+                'is_writable' => is_writable($dir),
+                'files' => (is_dir($dir) ? array_values(array_diff(@scandir($dir) ?: [], ['.', '..'])) : []),
+            ];
+        }
+
         return response()->json([
             'status' => 'success',
-            'prime_menu' => $primeMenu,
-            'submenus' => $submenus,
+            'server_info' => [
+                'doc_root' => $_SERVER['DOCUMENT_ROOT'] ?? null,
+                'base_path' => base_path(),
+                'public_path' => public_path(),
+            ],
+            'dir_status' => $dirStatus,
+            'blogs' => $blogs,
             'tables' => [
                 'prime_subjects' => $hasSubjectsTable,
                 'prime_service_pages' => $hasPagesTable,
+                'prime_blogs' => $hasBlogsTable,
             ]
         ]);
     } catch (\Exception $e) {
@@ -158,17 +189,79 @@ Route::get('/uploads/campaigns/{filename}', [\App\Http\Controllers\EmailCampaign
 
 // Prime Blogs Image Direct Fallback (Serves image if web server rewrite passes request to Laravel)
 Route::get('/assets/media/prime/blogs/{filename}', function ($filename) {
-    $paths = [
-        base_path('assets/media/prime/blogs/' . $filename),
-        public_path('assets/media/prime/blogs/' . $filename),
-        rtrim(dirname(base_path()), '/\\') . '/public_html/assets/media/prime/blogs/' . $filename,
-    ];
+    $filename = basename($filename);
+    $parent = dirname(base_path());
 
-    foreach ($paths as $path) {
-        if (file_exists($path) && is_file($path)) {
+    $candidateDirs = [
+        base_path('assets/media/prime/blogs'),
+        public_path('assets/media/prime/blogs'),
+    ];
+    if (!empty($_SERVER['DOCUMENT_ROOT'])) {
+        $candidateDirs[] = rtrim($_SERVER['DOCUMENT_ROOT'], '/\\') . '/assets/media/prime/blogs';
+    }
+    $candidateDirs[] = rtrim($parent, '/\\') . '/public_html/assets/media/prime/blogs';
+    $candidateDirs[] = rtrim($parent, '/\\') . '/ain.warrgyizmorsch.com/assets/media/prime/blogs';
+    $candidateDirs[] = base_path('assets/media/blogthumbnail');
+    $candidateDirs[] = public_path('assets/media/blogthumbnail');
+    if (!empty($_SERVER['DOCUMENT_ROOT'])) {
+        $candidateDirs[] = rtrim($_SERVER['DOCUMENT_ROOT'], '/\\') . '/assets/media/blogthumbnail';
+    }
+    $candidateDirs = array_values(array_unique(array_filter($candidateDirs)));
+
+    // 1. Direct check in candidate directories
+    foreach ($candidateDirs as $dir) {
+        $path = rtrim($dir, '/\\') . '/' . $filename;
+        if (file_exists($path) && is_file($path) && filesize($path) > 0) {
             $mime = @mime_content_type($path) ?: 'image/jpeg';
-            return response()->file($path, ['Content-Type' => $mime]);
+            return response()->file($path, [
+                'Content-Type'  => $mime,
+                'Cache-Control' => 'public, max-age=86400',
+            ]);
         }
+    }
+
+    // 2. Fuzzy / recursive search across assets & storage
+    $searchRoots = array_unique(array_filter([
+        base_path('assets'),
+        public_path('assets'),
+        !empty($_SERVER['DOCUMENT_ROOT']) ? $_SERVER['DOCUMENT_ROOT'] . '/assets' : null,
+        storage_path('app'),
+    ]));
+
+    foreach ($searchRoots as $root) {
+        if (is_dir($root)) {
+            try {
+                $iterator = new \RecursiveIteratorIterator(
+                    new \RecursiveDirectoryIterator($root, \FilesystemIterator::SKIP_DOTS),
+                    \RecursiveIteratorIterator::SELF_FIRST
+                );
+                foreach ($iterator as $item) {
+                    if ($item->isFile() && $item->getFilename() === $filename) {
+                        $found = $item->getPathname();
+                        // Copy to primary dir for future direct hits
+                        $primary = base_path('assets/media/prime/blogs/' . $filename);
+                        if (!file_exists($primary)) {
+                            @mkdir(dirname($primary), 0777, true);
+                            @copy($found, $primary);
+                        }
+                        $mime = @mime_content_type($found) ?: 'image/jpeg';
+                        return response()->file($found, [
+                            'Content-Type'  => $mime,
+                            'Cache-Control' => 'public, max-age=86400',
+                        ]);
+                    }
+                }
+            } catch (\Throwable $e) {}
+        }
+    }
+
+    // 3. Fallback: stream demo avatar so the UI never displays a broken icon
+    $fallbackAvatar = base_path('assets/media/avatars/demo.png');
+    if (file_exists($fallbackAvatar)) {
+        return response()->file($fallbackAvatar, [
+            'Content-Type'  => 'image/png',
+            'Cache-Control' => 'no-cache',
+        ]);
     }
 
     return abort(404);

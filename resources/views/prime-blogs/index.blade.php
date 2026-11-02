@@ -66,7 +66,7 @@
                     @forelse($blogs as $blog)
                         <tr>
                             <td>
-                                <img src="{{ $blog->image_url }}" alt="" class="rounded" style="width: 50px; height: 50px; object-fit: cover;" onerror="this.onerror=null; this.src='/{{ ltrim($blog->image ?: 'assets/media/avatars/demo.png', '/') }}';">
+                                <img src="{{ $blog->image_url }}" alt="" class="rounded" style="width: 50px; height: 50px; object-fit: cover;" onerror="this.onerror=null; this.src='{{ asset('assets/media/avatars/demo.png') }}';">
                             </td>
                             <td>
                                 <strong>{{ $blog->title }}</strong>
