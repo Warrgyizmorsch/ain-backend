@@ -171,19 +171,42 @@ class PrimeBlogController extends Controller
         return 'assets/media/prime/blogs/' . $filename;
     }
 
-    private function saveUploadedFileToAllPaths($uploadedFile, string $subPath, string $fileName): void
+    private function getTargetDirectories(string $subPath): array
     {
         $cleanSubPath = trim($subPath, '/\\');
-        $targetDirs = array_unique([
+        $parent = dirname(base_path());
+
+        $dirs = [
             base_path($cleanSubPath),
             public_path($cleanSubPath),
-            rtrim(dirname(base_path()), '/\\') . '/public_html/' . $cleanSubPath,
-        ]);
+        ];
+
+        if (!empty($_SERVER['DOCUMENT_ROOT'])) {
+            $dirs[] = rtrim($_SERVER['DOCUMENT_ROOT'], '/\\') . '/' . $cleanSubPath;
+        }
+
+        $dirs[] = rtrim($parent, '/\\') . '/public_html/' . $cleanSubPath;
+        $dirs[] = rtrim($parent, '/\\') . '/ain.warrgyizmorsch.com/' . $cleanSubPath;
+
+        return array_values(array_unique(array_filter($dirs)));
+    }
+
+    private function saveUploadedFileToAllPaths($uploadedFile, string $subPath, string $fileName): void
+    {
+        $targetDirs = $this->getTargetDirectories($subPath);
+        $cleanSubPath = trim($subPath, '/\\');
+
+        // Mirror to blogthumbnail as well for maximum server compatibility
+        if ($cleanSubPath !== 'assets/media/blogthumbnail') {
+            $extraDirs = $this->getTargetDirectories('assets/media/blogthumbnail');
+            $targetDirs = array_values(array_unique(array_merge($targetDirs, $extraDirs)));
+        }
 
         $savedPath = null;
         foreach ($targetDirs as $dir) {
             if (!file_exists($dir)) {
-                @mkdir($dir, 0755, true);
+                @mkdir($dir, 0777, true);
+                @chmod($dir, 0777);
             }
             if (is_dir($dir)) {
                 $targetFile = rtrim($dir, '/\\') . '/' . $fileName;
@@ -193,6 +216,7 @@ class PrimeBlogController extends Controller
                 } else {
                     @copy($savedPath, $targetFile);
                 }
+                @chmod($targetFile, 0644);
             }
         }
     }
@@ -207,11 +231,9 @@ class PrimeBlogController extends Controller
         $subPath = dirname($cleanPath);
         $fileName = basename($cleanPath);
 
-        $targetDirs = array_unique([
-            base_path($subPath),
-            public_path($subPath),
-            rtrim(dirname(base_path()), '/\\') . '/public_html/' . $subPath,
-        ]);
+        $targetDirs = $this->getTargetDirectories($subPath);
+        $extraDirs = $this->getTargetDirectories('assets/media/blogthumbnail');
+        $targetDirs = array_values(array_unique(array_merge($targetDirs, $extraDirs)));
 
         foreach ($targetDirs as $dir) {
             $targetFile = rtrim($dir, '/\\') . '/' . $fileName;

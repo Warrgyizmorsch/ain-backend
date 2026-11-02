@@ -84,7 +84,7 @@
 
                 @if($blog->image)
                     <div class="mt-3 d-flex align-items-center gap-3">
-                        <img src="{{ $blog->image_url }}" alt="" class="rounded border" style="width: 100px; height: 60px; object-fit: cover;" onerror="this.onerror=null; this.src='/{{ ltrim($blog->image ?: 'assets/media/avatars/demo.png', '/') }}';">
+                        <img src="{{ $blog->image_url }}" alt="" class="rounded border" style="width: 100px; height: 60px; object-fit: cover;" onerror="this.onerror=null; this.src='{{ asset('assets/media/avatars/demo.png') }}';">
                         <span class="fs-8 text-muted">Current image file</span>
                     </div>
                 @endif
