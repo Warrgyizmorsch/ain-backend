@@ -29,6 +29,10 @@ use App\Http\Controllers\WhatsappController;
 use App\Http\Controllers\SubjectController;
 use App\Http\Controllers\ServicePageController;
 use App\Http\Controllers\SubjectPageController;
+use App\Http\Controllers\PrimeSubjectController;
+use App\Http\Controllers\PrimeServicePageController;
+use App\Http\Controllers\PrimeBlogController;
+use App\Http\Controllers\PrimeSampleController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\EnquiryController;
 use App\Http\Controllers\ChatbotController;
@@ -59,6 +63,15 @@ Route::middleware(['auth'])->group(function () {
     Route::resource('service-pages', ServicePageController::class)->except(['show']);
     Route::get('subject-pages/{subjectPage}/preview', [SubjectPageController::class, 'preview'])->name('subject-pages.preview');
     Route::resource('subject-pages', SubjectPageController::class)->except(['show']);
+
+    // Prime Assignment Prefix & Dynamic Pages (Isolated, separate tables & controllers)
+    Route::resource('prime-subjects', PrimeSubjectController::class)->only(['index', 'store', 'update', 'destroy']);
+    Route::get('prime-service-pages/{primeServicePage}/preview', [PrimeServicePageController::class, 'preview'])->name('prime-service-pages.preview');
+    Route::resource('prime-service-pages', PrimeServicePageController::class)->except(['show']);
+    Route::get('prime-blogs/{primeBlog}/preview', [PrimeBlogController::class, 'preview'])->name('prime-blogs.preview');
+    Route::resource('prime-blogs', PrimeBlogController::class)->except(['show']);
+    Route::get('prime-samples/{primeSample}/preview', [PrimeSampleController::class, 'preview'])->name('prime-samples.preview');
+    Route::resource('prime-samples', PrimeSampleController::class)->except(['show']);
 });
 Route::get('/lead/export/status', [LeadsController::class, 'exportStatus']);
 Route::any('/order/export', [ExportController::class, 'export'])->name('order.export');
