@@ -20,11 +20,14 @@ use Illuminate\Support\Facades\DB;
 
 class AuthController extends Controller
 {
-    protected $firebaseAuth;
+    protected $firebaseAuth = null;
 
-    public function __construct(FirebaseAuth $firebaseAuth)
+    protected function getFirebaseAuth(): FirebaseAuth
     {
-        $this->firebaseAuth = $firebaseAuth;
+        if ($this->firebaseAuth === null) {
+            $this->firebaseAuth = app(FirebaseAuth::class);
+        }
+        return $this->firebaseAuth;
     }
     
     // REGISTER API
@@ -495,8 +498,9 @@ class AuthController extends Controller
     private function verifiedSocialIdentity(string $idToken): array
     {
         try {
-            $verified = $this->firebaseAuth->verifyIdToken($idToken);
-            $firebaseUser = $this->firebaseAuth->getUser($verified->claims()->get('sub'));
+            $auth = $this->getFirebaseAuth();
+            $verified = $auth->verifyIdToken($idToken);
+            $firebaseUser = $auth->getUser($verified->claims()->get('sub'));
 
             if (!$firebaseUser->email) {
                 throw new \RuntimeException('Google account email is unavailable.');

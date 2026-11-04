@@ -94,6 +94,7 @@ Route::middleware('api.key')->group(function () {
 
     // Order Dropdown APIs for Web
     Route::get('/services', [AppDropdownController::class, 'services']);
+    Route::get('/work-types', [AppDropdownController::class, 'workTypes']);
     Route::get('/subjects', [AppDropdownController::class, 'subjects']);
     Route::get('/urgencies', [AppDropdownController::class, 'urgencies']);
     Route::get('/word-count', [AppDropdownController::class, 'wordCount']);
@@ -138,6 +139,7 @@ Route::middleware('api.key')->group(function () {
 Route::prefix('app')->group(function () {
     Route::get('/countries', [AppDropdownController::class, 'countries']);
     Route::get('/services', [AppDropdownController::class, 'services']);
+    Route::get('/work-types', [AppDropdownController::class, 'workTypes']);
     Route::get('/subjects', [AppDropdownController::class, 'subjects']);
     Route::get('/urgencies', [AppDropdownController::class, 'urgencies']);
     Route::get('/word-count', [AppDropdownController::class, 'wordCount']);
