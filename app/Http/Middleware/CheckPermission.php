@@ -145,6 +145,9 @@ class CheckPermission
         'experts' => [
             'experts', 'expert', 'create-expert', 'new-expert'
         ],
+        'customer-due-report' => [
+            'customer-due-report', 'customer-due-orders', 'reports.customer-due', 'reports.customer-due.orders'
+        ],
     ];
 
     /**
@@ -174,6 +177,7 @@ class CheckPermission
         'sample' => ['samples', 'sample_list'], // mk 14 10 26 - sample aliases
         'samples' => ['sample', 'sample_list'],
         'sample_list' => ['sample', 'samples'],
+        'customer-due-report' => ['customer-due-orders'],
     ];
 
     public function handle($request, Closure $next)
@@ -234,8 +238,6 @@ class CheckPermission
             'unhold',
             'softphone.call-url',
             'softphone.whitelist-ip',
-            'reports.customer-due',
-            'reports.customer-due.orders',
         ];
 
         if ($currentRoute && in_array($currentRoute, $bypassRoutes, true)) {
