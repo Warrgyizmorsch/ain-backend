@@ -221,12 +221,18 @@ public function sourceLeadReport(Request $request)
         }
 
         // Base query: Only role_id 2 (clients/customers), active flag, non-cancelled orders with pending due
+        $year = (int) $request->input('year', 2026);
+
         $query = DB::table('users')
             ->join('orders', 'orders.uid', '=', 'users.id')
             ->where('users.role_id', 2)
             ->where('users.flag', 0)
             ->whereNotIn('orders.projectstatus', ['Cancelled'])
             ->whereRaw('(orders.amount - orders.received_amount) > 0');
+
+        if ($year > 0) {
+            $query->whereYear('orders.order_date', $year);
+        }
 
         // Filter by Customer UID (from autocomplete dropdown selection)
         if ($request->filled('uid') && is_numeric($request->uid)) {
@@ -297,14 +303,20 @@ public function sourceLeadReport(Request $request)
         }
 
         // Summary KPI Metrics (cached for 60s for high performance)
-        $summary = \Illuminate\Support\Facades\Cache::remember('customer_due_summary_kpi', 60, function () {
-            $agg = DB::table('orders')
+        $cacheKey = 'customer_due_summary_kpi_' . $year;
+        $summary = \Illuminate\Support\Facades\Cache::remember($cacheKey, 60, function () use ($year) {
+            $aggQuery = DB::table('orders')
                 ->join('users', 'users.id', '=', 'orders.uid')
                 ->where('users.role_id', 2)
                 ->where('users.flag', 0)
                 ->whereNotIn('orders.projectstatus', ['Cancelled'])
-                ->whereRaw('(orders.amount - orders.received_amount) > 0')
-                ->selectRaw('
+                ->whereRaw('(orders.amount - orders.received_amount) > 0');
+
+            if ($year > 0) {
+                $aggQuery->whereYear('orders.order_date', $year);
+            }
+
+            $agg = $aggQuery->selectRaw('
                     COUNT(DISTINCT users.id) as total_customers,
                     COUNT(orders.id) as total_due_orders,
                     SUM(orders.amount - orders.received_amount) as total_due_amount
@@ -341,6 +353,8 @@ public function sourceLeadReport(Request $request)
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
         }
 
+        $year = (int) $request->input('year', 2026);
+
         $user = DB::table('users')
             ->select('id', 'name', 'email', 'countrycode', 'mobile_no')
             ->where('id', $userId)
@@ -350,11 +364,16 @@ public function sourceLeadReport(Request $request)
             return response()->json(['success' => false, 'message' => 'Customer not found.'], 404);
         }
 
-        $orders = DB::table('orders')
+        $ordersQuery = DB::table('orders')
             ->where('uid', $userId)
             ->whereNotIn('projectstatus', ['Cancelled'])
-            ->whereRaw('(amount - received_amount) > 0')
-            ->select(
+            ->whereRaw('(amount - received_amount) > 0');
+
+        if ($year > 0) {
+            $ordersQuery->whereYear('order_date', $year);
+        }
+
+        $orders = $ordersQuery->select(
                 'id',
                 'order_id',
                 'title',
@@ -366,12 +385,14 @@ public function sourceLeadReport(Request $request)
                 'received_amount',
                 DB::raw('(amount - received_amount) as due_amount')
             )
+            ->orderByDesc('delivery_date')
             ->orderByDesc('due_amount')
             ->get();
 
         return response()->json([
             'success' => true,
             'user' => $user,
+            'year' => $year,
             'total_due' => round($orders->sum('due_amount'), 2),
             'orders_count' => $orders->count(),
             'orders' => $orders
