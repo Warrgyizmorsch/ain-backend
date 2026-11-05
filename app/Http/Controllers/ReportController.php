@@ -212,12 +212,12 @@ public function sourceLeadReport(Request $request)
 
     /**
      * Customer Due Payment Report
-     * Accessible strictly to Super Admin (1), Admin (4), and Sub Admin (9).
+     * Access controlled dynamically via User Right (/userright).
      */
     public function customerDueReport(Request $request)
     {
-        if (!auth()->check() || !in_array((int) auth()->user()->role_id, [1, 3, 4, 9])) {
-            abort(403, 'Unauthorized access.');
+        if (!$this->canAccessCustomerDue()) {
+            abort(403, 'You do not have user rights to access this page.');
         }
 
         $year = (int) $request->input('year', 2026);
@@ -364,7 +364,7 @@ public function sourceLeadReport(Request $request)
      */
     public function customerDueOrders(Request $request, $userId)
     {
-        if (!auth()->check() || !in_array((int) auth()->user()->role_id, [1, 3, 4, 9])) {
+        if (!$this->canAccessCustomerDue()) {
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
         }
 
@@ -494,5 +494,34 @@ public function sourceLeadReport(Request $request)
         };
 
         return response()->stream($callback, 200, $headers);
+    }
+
+    /**
+     * Determine if current authenticated user has permission to access Customer Due Report.
+     * Controlled dynamically via User Right (/userright) role permissions.
+     */
+    protected function canAccessCustomerDue(): bool
+    {
+        if (!auth()->check()) {
+            return false;
+        }
+
+        $roleId = (int) auth()->user()->role_id;
+        if ($roleId === 1) {
+            return true;
+        }
+
+        $perm = DB::table('permission')->where('role_id', $roleId)->first();
+        if ($perm) {
+            $allowedSubmenus = json_decode($perm->submenu_id, true) ?? [];
+            $allowedSubmenuStrs = array_map('strval', is_array($allowedSubmenus) ? $allowedSubmenus : [$allowedSubmenus]);
+
+            $sub = DB::table('submenus')->where('routes', 'customer-due-report')->first();
+            if ($sub && in_array((string) $sub->id, $allowedSubmenuStrs, true)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

@@ -222,7 +222,7 @@
 
                             @if (
                                 $visibleSubmenus->isNotEmpty() ||
-                                    (strtolower($menu['menu_name']) == 'reports' && auth()->check() && in_array((int) auth()->user()->role_id, [1, 3, 4, 9])))
+                                    (strtolower($menu['menu_name']) == 'reports' && auth()->check() && (int) auth()->user()->role_id === 1))
                                 <div data-kt-menu-trigger="click"
                                     class="menu-item menu-accordion {{ $isParentActive ? 'here show' : '' }}">
                                     <span class="menu-link {{ $isParentActive ? 'active' : '' }}">
@@ -263,7 +263,7 @@
                                                 </a>
                                             </div>
                                         @endforeach
-                                        @if (strtolower($menu['menu_name']) == 'reports' && auth()->check() && in_array((int) auth()->user()->role_id, [1, 3, 4, 9]))
+                                        @if (strtolower($menu['menu_name']) == 'reports' && auth()->check() && (int) auth()->user()->role_id === 1)
                                             <div class="menu-item">
                                                 <a class="menu-link {{ $isReportsPayeeActive ? 'active' : '' }}"
                                                     href="{{ url('payee-report') }}">
@@ -271,17 +271,6 @@
                                                         <span class="bullet bullet-dot"></span>
                                                     </span>
                                                     <span class="menu-title">Payment Report</span>
-                                                </a>
-                                            </div>
-                                        @endif
-                                        @if (strtolower($menu['menu_name']) == 'reports' && auth()->check() && in_array((int) auth()->user()->role_id, [1, 3, 4, 9]))
-                                            <div class="menu-item">
-                                                <a class="menu-link {{ request()->is('customer-due-report*') ? 'active' : '' }}"
-                                                    href="{{ url('customer-due-report') }}">
-                                                    <span class="menu-bullet">
-                                                        <span class="bullet bullet-dot"></span>
-                                                    </span>
-                                                    <span class="menu-title">Customer Due Report</span>
                                                 </a>
                                             </div>
                                         @endif
