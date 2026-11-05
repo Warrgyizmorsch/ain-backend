@@ -297,6 +297,9 @@ Route::middleware(['auth', 'check.permission'])->group(function () {
     Route::put('/fail/{orderId}', [OrderController::class, 'fail'])->name('update.order');
     Route::put('/update-status/{id}', [OrderController::class, 'updateOrderStatus'])->name('order.update-status');
     route::put('/payment/{id}', [OrderController::class, 'payment'])->name('payment.update');
+    Route::get('/payment/{id}', function ($id) {
+        return redirect()->to('/orders/payment/' . $id);
+    });
     route::get('/search', [OrderController::class, 'search']);
     route::get('/suggestions', [UserController::class, 'search'])->name('suggestions');
     Route::get('/fetch-subwriters', [OrderController::class, 'fetchSubWriters'])->name('fetch-subwriters');
@@ -652,4 +655,10 @@ Route::middleware(['auth', 'check.permission'])->group(function () {
 
         Route::get('/payee-report', [OrderController::class, 'payeeReport'])
             ->name('reports.payee');
+
+        Route::get('/customer-due-report', [ReportController::class, 'customerDueReport'])
+            ->name('reports.customer-due');
+
+        Route::get('/customer-due-orders/{userId}', [ReportController::class, 'customerDueOrders'])
+            ->name('reports.customer-due.orders');
     });
