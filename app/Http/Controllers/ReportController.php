@@ -216,13 +216,28 @@ public function sourceLeadReport(Request $request)
      */
     public function customerDueReport(Request $request)
     {
-        if (!auth()->check() || !in_array((int) auth()->user()->role_id, [1, 4, 9])) {
+        if (!auth()->check() || !in_array((int) auth()->user()->role_id, [1, 3, 4, 9])) {
             abort(403, 'Unauthorized access.');
         }
 
-        // Base query: Only role_id 2 (clients/customers), active flag, non-cancelled orders with pending due
         $year = (int) $request->input('year', 2026);
 
+        // Auto-sync any orders where received_amount lagged behind payment_details
+        if ($year > 0) {
+            DB::update("
+                UPDATE orders o
+                INNER JOIN (
+                    SELECT order_id, SUM(paid_amount) as total_paid
+                    FROM payment_details
+                    WHERE is_revoked = 0 OR is_revoked IS NULL
+                    GROUP BY order_id
+                ) p ON p.order_id = o.id
+                SET o.received_amount = p.total_paid
+                WHERE YEAR(o.order_date) = ? AND o.received_amount != p.total_paid
+            ", [$year]);
+        }
+
+        // Base query: Only role_id 2 (clients/customers), active flag, non-cancelled orders with pending due
         $query = DB::table('users')
             ->join('orders', 'orders.uid', '=', 'users.id')
             ->where('users.role_id', 2)
@@ -349,7 +364,7 @@ public function sourceLeadReport(Request $request)
      */
     public function customerDueOrders(Request $request, $userId)
     {
-        if (!auth()->check() || !in_array((int) auth()->user()->role_id, [1, 4, 9])) {
+        if (!auth()->check() || !in_array((int) auth()->user()->role_id, [1, 3, 4, 9])) {
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
         }
 
@@ -365,29 +380,57 @@ public function sourceLeadReport(Request $request)
         }
 
         $ordersQuery = DB::table('orders')
-            ->where('uid', $userId)
-            ->whereNotIn('projectstatus', ['Cancelled'])
-            ->whereRaw('(amount - received_amount) > 0');
+            ->leftJoin('payment_details', function ($join) {
+                $join->on('payment_details.order_id', '=', 'orders.id')
+                     ->where(function ($q) {
+                         $q->where('payment_details.is_revoked', 0)
+                           ->orWhereNull('payment_details.is_revoked');
+                     });
+            })
+            ->where('orders.uid', $userId)
+            ->whereNotIn('orders.projectstatus', ['Cancelled']);
 
         if ($year > 0) {
-            $ordersQuery->whereYear('order_date', $year);
+            $ordersQuery->whereYear('orders.order_date', $year);
         }
 
         $orders = $ordersQuery->select(
-                'id',
-                'order_id',
-                'title',
-                'projectstatus',
-                'order_date',
-                'delivery_date',
-                'delivery_time',
-                'amount',
-                'received_amount',
-                DB::raw('(amount - received_amount) as due_amount')
+                'orders.id',
+                'orders.order_id',
+                'orders.title',
+                'orders.projectstatus',
+                'orders.order_date',
+                'orders.delivery_date',
+                'orders.delivery_time',
+                'orders.amount',
+                DB::raw('GREATEST(COALESCE(orders.received_amount, 0), COALESCE(SUM(payment_details.paid_amount), 0)) as received_amount'),
+                DB::raw('GREATEST(0, orders.amount - GREATEST(COALESCE(orders.received_amount, 0), COALESCE(SUM(payment_details.paid_amount), 0))) as due_amount')
             )
-            ->orderByDesc('delivery_date')
+            ->groupBy(
+                'orders.id',
+                'orders.order_id',
+                'orders.title',
+                'orders.projectstatus',
+                'orders.order_date',
+                'orders.delivery_date',
+                'orders.delivery_time',
+                'orders.amount',
+                'orders.received_amount'
+            )
+            ->havingRaw('due_amount > 0')
+            ->orderByDesc('orders.delivery_date')
             ->orderByDesc('due_amount')
             ->get();
+
+        // Auto-sync any stale received_amount in orders table
+        foreach ($orders as $o) {
+            if ((float) $o->received_amount > 0) {
+                DB::table('orders')
+                    ->where('id', $o->id)
+                    ->where('received_amount', '!=', $o->received_amount)
+                    ->update(['received_amount' => $o->received_amount]);
+            }
+        }
 
         return response()->json([
             'success' => true,

@@ -234,6 +234,8 @@ class CheckPermission
             'unhold',
             'softphone.call-url',
             'softphone.whitelist-ip',
+            'reports.customer-due',
+            'reports.customer-due.orders',
         ];
 
         if ($currentRoute && in_array($currentRoute, $bypassRoutes, true)) {
