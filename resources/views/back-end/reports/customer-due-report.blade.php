@@ -6,6 +6,7 @@
 
             @php
                 $currentReportYear = (int) request('year', 2026);
+                $canSeeFullContact = $canSeeFullContact ?? (auth()->check() && in_array((int) auth()->user()->role_id, [1, 3, 9]));
             @endphp
 
             <!-- Page Header -->
@@ -235,7 +236,7 @@
                                                     <span class="text-gray-800 fw-bolder fs-7 text-hover-primary">
                                                         {{ $u->name ?? 'Customer' }}
                                                     </span>
-                                                    <span class="text-muted fs-8">{{ $u->email ?? 'No email' }}</span>
+                                                    <span class="text-muted fs-8">{{ $canSeeFullContact ? ($u->email ?? 'No email') : \App\Http\Controllers\ReportController::maskCustomerEmail($u->email) }}</span>
                                                     <span
                                                         class="badge badge-light-secondary fs-9 py-0 px-1 w-fit-content mt-0.5">ID:
                                                         #{{ $u->id }}</span>
@@ -248,7 +249,7 @@
                                             @if (!empty($u->mobile_no))
                                                 <div class="d-flex align-items-center gap-1">
                                                     <span class="badge badge-light fw-bold text-dark fs-8">
-                                                        {{ $u->countrycode ? '+' . ltrim($u->countrycode, '+') . ' ' : '' }}{{ $u->mobile_no }}
+                                                        {{ $canSeeFullContact ? (($u->countrycode ? '+' . ltrim($u->countrycode, '+') . ' ' : '') . $u->mobile_no) : \App\Http\Controllers\ReportController::maskCustomerPhone($u->countrycode, $u->mobile_no) }}
                                                     </span>
                                                 </div>
                                             @else
@@ -298,19 +299,22 @@
                                         <!-- Actions / CTAs -->
                                         <td class="text-center pe-3">
                                             <div class="d-inline-flex align-items-center gap-1">
-                                                <!-- WhatsApp Reminder CTA -->
+                                                <!-- WhatsApp Reminder CTA (POST to hide phone from URL) -->
                                                 @if (!empty($cleanPhone))
-                                                    <a href="{{ route('whatsapp.chat', ['phone' => $cleanPhone]) }}"
-                                                        target="_blank" class="btn btn-icon btn-sm btn-light-success"
-                                                        style="width: 32px; height: 32px;"
-                                                        title="Send WhatsApp Payment Reminder">
-                                                        <i class="fab fa-whatsapp fs-5"></i>
-                                                    </a>
+                                                    <form method="POST" action="{{ route('whatsapp.chat.open-order') }}" target="_blank" class="d-inline-flex m-0">
+                                                        @csrf
+                                                        <input type="hidden" name="phone" value="{{ $cleanPhone }}">
+                                                        <button type="submit" class="btn btn-icon btn-sm btn-light-success"
+                                                            style="width: 32px; height: 32px;"
+                                                            title="Send WhatsApp Payment Reminder">
+                                                            <i class="fab fa-whatsapp fs-5"></i>
+                                                        </button>
+                                                    </form>
 
                                                     <!-- Call Customer CTA -->
                                                     <button type="button" class="btn btn-icon btn-sm btn-light-primary"
                                                         style="width: 32px; height: 32px;"
-                                                        onclick="callCustomer('{{ $cleanPhone }}', '{{ addslashes($u->name ?? 'Customer') }}')"
+                                                        onclick="callCustomer('{{ $canSeeFullContact ? $cleanPhone : '' }}', '{{ addslashes($u->name ?? 'Customer') }}')"
                                                         title="Call Customer">
                                                         <i class="fa fa-phone fs-6"></i>
                                                     </button>
@@ -325,7 +329,7 @@
                                                 </button>
 
                                                 <!-- Customer All Orders Link -->
-                                                <a href="{{ route('orders.index', ['user' => $u->mobile_no ?: $u->email]) }}"
+                                                <a href="{{ route('orders.index', ['user' => $canSeeFullContact ? ($u->mobile_no ?: $u->email) : $u->id]) }}"
                                                     target="_blank" class="btn btn-icon btn-sm btn-light-dark"
                                                     style="width: 32px; height: 32px;"
                                                     title="View All Orders in Orders Screen">
@@ -661,6 +665,22 @@
                                 ).show();
 
                                 searchTimeout = setTimeout(function() {
+                                    var canSeeFullContact = {{ $canSeeFullContact ? 'true' : 'false' }};
+                                    function maskContactPhone(p) {
+                                        if (!p) return '';
+                                        var d = p.replace(/\D+/g, '');
+                                        if (d.length <= 4) return '******';
+                                        var prefix = p.indexOf('+') === 0 ? '+' : '';
+                                        return prefix + '******' + d.slice(-4);
+                                    }
+                                    function maskContactEmail(em) {
+                                        if (!em || em.indexOf('@') === -1) return '';
+                                        var p = em.split('@');
+                                        var n = p[0], d = p[1];
+                                        var m = (n.length <= 2) ? (n.charAt(0) + '******') : (n.charAt(0) + '******' + n.charAt(n.length - 1));
+                                        return m + '@' + d;
+                                    }
+
                                     $.ajax({
                                         url: "{{ route('search-order') }}",
                                         type: "GET",
@@ -671,20 +691,20 @@
                                             var resultsHtml = '';
                                             if (response && response.length > 0) {
                                                 $.each(response, function(key, value) {
-                                                    var mobileStr = value.mobile_no ?
-                                                        ' | 📞 ' + value.mobile_no : '';
-                                                    var emailStr = value.email ? value
-                                                        .email : '';
+                                                    var dispMobile = canSeeFullContact ? value.mobile_no : maskContactPhone(value.mobile_no);
+                                                    var dispEmail = canSeeFullContact ? value.email : maskContactEmail(value.email);
+                                                    var mobileStr = dispMobile ?
+                                                        ' | 📞 ' + dispMobile : '';
+                                                    var emailStr = dispEmail ? dispEmail : '';
                                                     var idBadge = value.id ?
                                                         '<span class="badge badge-light-primary fw-bolder fs-9 ms-2 px-2 py-0.5" style="border: 1px solid #bfdbfe;">ID: #' +
                                                         value.id + '</span>' : '';
                                                     resultsHtml +=
                                                         '<a href="javascript:void(0)" class="dropdown-item user-select-item p-3 border-bottom text-wrap" ' +
                                                         'data-id="' + value.id +
-                                                        '" data-email="' + emailStr +
+                                                        '" data-email="' + (canSeeFullContact ? (value.email || '') : dispEmail) +
                                                         '" data-name="' + (value.name ||
-                                                        '') + '" data-mobile="' + (value
-                                                            .mobile_no || '') + '">' +
+                                                        '') + '" data-mobile="' + (canSeeFullContact ? (value.mobile_no || '') : dispMobile) + '">' +
                                                         '<div class="d-flex align-items-center justify-content-between">' +
                                                         '<span class="fw-bolder text-dark fs-7">' +
                                                         (value.name || 'User') + '</span>' +
