@@ -356,7 +356,9 @@ public function sourceLeadReport(Request $request)
 
         $users = $selectQuery->paginate($perPage)->withQueryString();
 
-        return view('back-end.reports.customer-due-report', compact('users', 'summary'));
+        $canSeeFullContact = auth()->check() && in_array((int) auth()->user()->role_id, [1, 3, 9]);
+
+        return view('back-end.reports.customer-due-report', compact('users', 'summary', 'canSeeFullContact'));
     }
 
     /**
@@ -377,6 +379,13 @@ public function sourceLeadReport(Request $request)
 
         if (!$user) {
             return response()->json(['success' => false, 'message' => 'Customer not found.'], 404);
+        }
+
+        $canSeeFullContact = auth()->check() && in_array((int) auth()->user()->role_id, [1, 3, 9]);
+        if (!$canSeeFullContact && $user) {
+            $user->mobile_no = self::maskCustomerPhone($user->countrycode, $user->mobile_no);
+            $user->countrycode = '';
+            $user->email = self::maskCustomerEmail($user->email);
         }
 
         $ordersQuery = DB::table('orders')
@@ -457,6 +466,7 @@ public function sourceLeadReport(Request $request)
         ];
 
         $callback = function () use ($records) {
+            $canSeeFullContact = auth()->check() && in_array((int) auth()->user()->role_id, [1, 3, 9]);
             $file = fopen('php://output', 'w');
             fputs($file, "\xEF\xBB\xBF"); // UTF-8 BOM for Excel compatibility
             fputcsv($file, [
@@ -479,9 +489,9 @@ public function sourceLeadReport(Request $request)
                     $index + 1,
                     $row->id,
                     $row->name ?? 'N/A',
-                    $row->email ?? 'N/A',
-                    $row->countrycode ? '+' . ltrim($row->countrycode, '+') : '',
-                    $row->mobile_no ?? '',
+                    $canSeeFullContact ? ($row->email ?? 'N/A') : self::maskCustomerEmail($row->email),
+                    $canSeeFullContact ? ($row->countrycode ? '+' . ltrim($row->countrycode, '+') : '') : '',
+                    $canSeeFullContact ? ($row->mobile_no ?? '') : self::maskCustomerPhone($row->countrycode, $row->mobile_no),
                     $row->due_orders_count,
                     number_format((float) $row->total_order_amount, 2, '.', ''),
                     number_format((float) $row->total_received_amount, 2, '.', ''),
@@ -523,5 +533,55 @@ public function sourceLeadReport(Request $request)
         }
 
         return false;
+    }
+
+    /**
+     * Mask customer phone for non-admin roles (e.g. +22******2299)
+     */
+    public static function maskCustomerPhone(?string $countryCode, ?string $mobile): string
+    {
+        $mobile = trim((string) $mobile);
+        if ($mobile === '') {
+            return '';
+        }
+        $digits = preg_replace('/\D+/', '', $mobile);
+        $cleanCC = preg_replace('/\D+/', '', (string) $countryCode);
+
+        if (!empty($cleanCC) && str_starts_with($digits, $cleanCC) && strlen($digits) > strlen($cleanCC) + 4) {
+            $digits = substr($digits, strlen($cleanCC));
+        }
+
+        $last4 = strlen($digits) >= 4 ? substr($digits, -4) : str_pad($digits, 4, '*', STR_PAD_LEFT);
+        $ccPrefix = !empty($cleanCC) ? ('+' . $cleanCC) : (strlen($digits) > 10 ? ('+' . substr($digits, 0, 2)) : '+');
+
+        return $ccPrefix . '******' . $last4;
+    }
+
+    /**
+     * Mask customer email for non-admin roles (e.g. u******9@gmail.com)
+     */
+    public static function maskCustomerEmail(?string $email): string
+    {
+        $email = trim((string) $email);
+        if ($email === '') {
+            return 'N/A';
+        }
+        $parts = explode('@', $email, 2);
+        if (count($parts) !== 2) {
+            $len = strlen($email);
+            if ($len <= 2) {
+                return $email ? substr($email, 0, 1) . '******' : 'N/A';
+            }
+            return substr($email, 0, 1) . '******' . substr($email, -1);
+        }
+        $name = $parts[0];
+        $domain = $parts[1];
+        $len = strlen($name);
+        if ($len <= 2) {
+            $maskedName = substr($name, 0, 1) . '******';
+        } else {
+            $maskedName = substr($name, 0, 1) . '******' . substr($name, -1);
+        }
+        return $maskedName . '@' . $domain;
     }
 }
