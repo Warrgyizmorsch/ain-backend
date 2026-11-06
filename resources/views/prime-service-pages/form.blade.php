@@ -31,7 +31,16 @@
             </div>
         @endif
         <div class="row g-5">
-            <div class="col-md-6">
+            <div class="col-md-4">
+                <label class="form-label required">Page Type</label>
+                <select name="type" id="page_type" class="form-select" required>
+                    <option value="service" @selected(old('type', $page->type ?? 'service') === 'service')>Service Page</option>
+                    <option value="subject" @selected(old('type', $page->type ?? 'service') === 'subject')>Subject Page</option>
+                    <option value="city" @selected(old('type', $page->type ?? 'service') === 'city')>City Page</option>
+                </select>
+                <div class="form-text fs-8 text-muted">Select type: Service, Subject, or City.</div>
+            </div>
+            <div class="col-md-4">
                 <label class="form-label">Prefix (Optional)</label>
                 <select name="prime_subject_id" id="prime_subject_id" class="form-select">
                     <option value="">None / Manual Prefix</option>
@@ -41,13 +50,13 @@
                 </select>
                 <div class="form-text fs-8 text-muted">Optional: select prefix or enter your slug manually below.</div>
             </div>
-            <div class="col-md-6">
+            <div class="col-md-4">
                 <label class="form-label required">SEO Slug</label>
                 <div class="input-group">
                     <span class="input-group-text">/</span>
-                    <input name="slug" id="slug" class="form-control" value="{{ old('slug', $page->slug) }}" placeholder="service/accounting-help or accounting-help" required>
+                    <input name="slug" id="slug" class="form-control" value="{{ old('slug', $page->slug) }}" placeholder="math-assignment-help or service/accounting-help" required>
                 </div>
-                <div class="form-text fs-8 text-muted">Type full manual slug e.g. <code>service/assignment-help</code> or <code>dissertation-help</code>.</div>
+                <div class="form-text fs-8 text-muted">Type full manual slug e.g. <code>math-assignment-help</code> or <code>service/assignment-help</code>.</div>
             </div>
             <div class="col-md-6">
                 <label class="form-label required">Meta Title</label>

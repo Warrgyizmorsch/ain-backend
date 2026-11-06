@@ -24,7 +24,7 @@ class PrimeAssignmentSetupService
         try {
             self::ensureTables();
             self::ensureMenus();
-            self::syncPrimeBlogImages();
+            self::cleanUnusedPrimeImages();
         } catch (\Throwable $e) {
             \Log::warning('PrimeAssignmentSetupService failed: ' . $e->getMessage());
         }
@@ -51,11 +51,16 @@ class PrimeAssignmentSetupService
             Schema::create('prime_service_pages', function (Blueprint $table) {
                 $table->id();
                 $table->foreignId('prime_subject_id')->nullable()->constrained('prime_subjects')->nullOnDelete();
+                $table->string('type', 50)->default('service')->index();
                 $table->string('slug', 191)->unique();
                 $table->string('meta_title', 255);
                 $table->text('meta_description');
                 $table->string('hero_heading', 255);
                 $table->string('hero_highlight', 255)->nullable();
+                $table->string('brand', 50)->nullable();
+                $table->string('brand_soft', 50)->nullable();
+                $table->json('stats')->nullable();
+                $table->json('pricing')->nullable();
                 $table->text('hero_content');
                 $table->string('section_two_heading', 255)->nullable();
                 $table->text('section_two_content')->nullable();
@@ -71,14 +76,48 @@ class PrimeAssignmentSetupService
                 $table->json('expert_ids')->nullable();
                 $table->json('review_ids')->nullable();
                 $table->json('faqs')->nullable();
-                $table->boolean('is_published')->default(false)->index();
+                $table->json('topics')->nullable();
+                $table->boolean('is_published')->default(true)->index();
                 $table->timestamps();
 
                 $table->index(['prime_subject_id', 'is_published']);
+                $table->index(['type', 'is_published']);
             });
         } else {
             try {
                 DB::statement('ALTER TABLE `prime_service_pages` MODIFY `prime_subject_id` BIGINT UNSIGNED NULL');
+                
+                // Add type column if missing
+                if (!Schema::hasColumn('prime_service_pages', 'type')) {
+                    Schema::table('prime_service_pages', function (Blueprint $table) {
+                        $table->string('type', 50)->default('service')->after('prime_subject_id')->index();
+                    });
+                }
+                
+                // Add extended response columns if missing
+                if (!Schema::hasColumn('prime_service_pages', 'topics')) {
+                    Schema::table('prime_service_pages', function (Blueprint $table) {
+                        $table->json('topics')->nullable()->after('faqs');
+                    });
+                }
+                if (!Schema::hasColumn('prime_service_pages', 'brand')) {
+                    Schema::table('prime_service_pages', function (Blueprint $table) {
+                        $table->string('brand', 50)->nullable()->after('hero_highlight');
+                        $table->string('brand_soft', 50)->nullable()->after('brand');
+                    });
+                }
+                if (!Schema::hasColumn('prime_service_pages', 'stats')) {
+                    Schema::table('prime_service_pages', function (Blueprint $table) {
+                        $table->json('stats')->nullable()->after('brand_soft');
+                    });
+                }
+                if (!Schema::hasColumn('prime_service_pages', 'pricing')) {
+                    Schema::table('prime_service_pages', function (Blueprint $table) {
+                        $table->json('pricing')->nullable()->after('stats');
+                    });
+                }
+
+                DB::table('prime_service_pages')->whereNull('type')->update(['type' => 'service']);
                 DB::table('prime_service_pages')->where('is_published', 0)->update(['is_published' => 1]);
                 if (Schema::hasTable('prime_blogs')) {
                     DB::table('prime_blogs')->where('is_published', 0)->update(['is_published' => 1]);
@@ -256,10 +295,10 @@ class PrimeAssignmentSetupService
     }
 
     /**
-     * Ensure existing prime blog images are replicated across base_path, public_path, and public_html
-     * so they load on live cPanel/Apache setups regardless of docroot configuration.
+     * Clean up any legacy or unwanted images from prime blogs folders,
+     * keeping ONLY the legitimate images that are actually registered in prime_blogs.
      */
-    public static function syncPrimeBlogImages(): void
+    public static function cleanUnusedPrimeImages(): array
     {
         $cleanSubPath = 'assets/media/prime/blogs';
         $parent = dirname(base_path());
@@ -267,6 +306,7 @@ class PrimeAssignmentSetupService
         $targetDirs = [
             base_path($cleanSubPath),
             public_path($cleanSubPath),
+            base_path('public/' . $cleanSubPath),
         ];
 
         if (!empty($_SERVER['DOCUMENT_ROOT'])) {
@@ -277,50 +317,54 @@ class PrimeAssignmentSetupService
         $targetDirs[] = rtrim($parent, '/\\') . '/ain.warrgyizmorsch.com/' . $cleanSubPath;
         $targetDirs = array_values(array_unique(array_filter($targetDirs)));
 
+        // Ensure directories exist with .gitkeep
         foreach ($targetDirs as $dir) {
             if (!file_exists($dir)) {
                 @mkdir($dir, 0777, true);
                 @chmod($dir, 0777);
             }
+            $gitkeep = rtrim($dir, '/\\') . '/.gitkeep';
+            if (!file_exists($gitkeep)) {
+                @touch($gitkeep);
+            }
         }
 
-        // Also check blogthumbnail directory for existing files
-        $sourceDirs = $targetDirs;
-        $sourceDirs[] = base_path('assets/media/blogthumbnail');
-        $sourceDirs[] = public_path('assets/media/blogthumbnail');
-        if (!empty($_SERVER['DOCUMENT_ROOT'])) {
-            $sourceDirs[] = rtrim($_SERVER['DOCUMENT_ROOT'], '/\\') . '/assets/media/blogthumbnail';
-        }
-        $sourceDirs = array_values(array_unique(array_filter($sourceDirs)));
+        // Legitimate images registered in prime_blogs
+        $allowedFiles = ['.gitkeep'];
+        if (Schema::hasTable('prime_blogs')) {
+            $primeImages = DB::table('prime_blogs')
+                ->whereNotNull('image')
+                ->where('image', '!=', '')
+                ->pluck('image');
 
-        $allFiles = [];
-        foreach ($sourceDirs as $dir) {
+            foreach ($primeImages as $imagePath) {
+                $fileName = basename($imagePath);
+                if (!empty($fileName) && $fileName !== '.' && $fileName !== '..') {
+                    $allowedFiles[] = $fileName;
+                }
+            }
+        }
+
+        $deleted = [];
+        foreach ($targetDirs as $dir) {
             if (is_dir($dir)) {
                 $files = @scandir($dir) ?: [];
                 foreach ($files as $file) {
-                    if ($file === '.' || $file === '..' || $file === '.gitkeep') {
+                    if ($file === '.' || $file === '..') {
                         continue;
                     }
-                    $fullPath = rtrim($dir, '/\\') . '/' . $file;
-                    if (is_file($fullPath) && filesize($fullPath) > 0) {
-                        if (!isset($allFiles[$file])) {
-                            $allFiles[$file] = $fullPath;
+                    if (!in_array($file, $allowedFiles, true)) {
+                        $full = rtrim($dir, '/\\') . '/' . $file;
+                        if (is_file($full)) {
+                            if (@unlink($full)) {
+                                $deleted[] = $file;
+                            }
                         }
                     }
                 }
             }
         }
 
-        foreach ($allFiles as $file => $sourcePath) {
-            foreach ($targetDirs as $dir) {
-                if (is_dir($dir)) {
-                    $destPath = rtrim($dir, '/\\') . '/' . $file;
-                    if (!file_exists($destPath) || filesize($destPath) === 0) {
-                        @copy($sourcePath, $destPath);
-                        @chmod($destPath, 0644);
-                    }
-                }
-            }
-        }
+        return array_values(array_unique($deleted));
     }
 }

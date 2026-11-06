@@ -15,6 +15,16 @@ Route::get('/', function () {
     return redirect('/login');
 });
 
+Route::get('/clean-prime-images', function () {
+    $deleted = \App\Services\PrimeAssignmentSetupService::cleanUnusedPrimeImages();
+    return response()->json([
+        'status' => 'success',
+        'message' => 'Unused prime blog images cleaned successfully.',
+        'deleted_count' => count($deleted),
+        'deleted_files' => $deleted,
+    ]);
+});
+
 Route::get('/setup-prime-pages', function () {
     try {
         \App\Services\PrimeAssignmentSetupService::ensureSetup();
