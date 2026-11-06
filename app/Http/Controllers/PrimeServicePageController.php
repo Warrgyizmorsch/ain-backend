@@ -25,7 +25,7 @@ class PrimeServicePageController extends Controller
     public function index(Request $request)
     {
         $query = PrimeServicePage::query()
-            ->select(['id', 'prime_subject_id', 'hero_heading', 'slug', 'is_published', 'created_at'])
+            ->select(['id', 'prime_subject_id', 'type', 'hero_heading', 'slug', 'is_published', 'created_at'])
             ->with(['primeSubject' => function ($q) {
                 $q->select('id', 'name', 'slug');
             }]);
@@ -37,6 +37,11 @@ class PrimeServicePageController extends Controller
                 $q->where('hero_heading', 'like', "%{$keyword}%")
                   ->orWhere('slug', 'like', "%{$keyword}%");
             });
+        }
+
+        // Type filter (service, subject, city)
+        if ($request->filled('type')) {
+            $query->where('type', $request->input('type'));
         }
 
         // Prefix filter
@@ -120,6 +125,7 @@ class PrimeServicePageController extends Controller
 
         $data = $request->validate([
             'prime_subject_id'      => ['nullable', 'exists:prime_subjects,id'],
+            'type'                  => ['nullable', 'string', 'in:service,subject,city'],
             'slug'                  => ['required', 'string', 'max:180', $slugRule],
             'meta_title'            => ['required', 'string', 'max:255'],
             'meta_description'      => ['required', 'string', 'max:1000'],
@@ -150,6 +156,7 @@ class PrimeServicePageController extends Controller
         ]);
 
         $data['prime_subject_id'] = filled($data['prime_subject_id'] ?? null) ? (int) $data['prime_subject_id'] : null;
+        $data['type'] = in_array($data['type'] ?? '', ['service', 'subject', 'city']) ? $data['type'] : 'service';
 
         $parts = explode('/', trim($data['slug'], '/'));
         $parts = array_filter(array_map(fn($part) => Str::slug($part), $parts));
