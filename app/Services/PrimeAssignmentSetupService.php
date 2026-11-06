@@ -117,7 +117,9 @@ class PrimeAssignmentSetupService
                     });
                 }
 
-                DB::table('prime_service_pages')->whereNull('type')->update(['type' => 'service']);
+                DB::table('prime_service_pages')->whereNull('type')->orWhere('type', '')->update(['type' => 'service']);
+                DB::table('prime_service_pages')->where('slug', 'like', '%law%')->where('type', '!=', 'city')->update(['type' => 'service']);
+                DB::table('prime_service_pages')->where('slug', 'like', '%math%')->update(['type' => 'subject']);
                 DB::table('prime_service_pages')->where('is_published', 0)->update(['is_published' => 1]);
                 if (Schema::hasTable('prime_blogs')) {
                     DB::table('prime_blogs')->where('is_published', 0)->update(['is_published' => 1]);

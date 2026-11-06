@@ -316,21 +316,45 @@ class PrimeServicePageApiController extends Controller
      */
     public function transformPage(PrimeServicePage $page): array
     {
-        $subjectName = $page->primeSubject?->name ?: $this->extractSubjectName($page);
-        $pageType = $page->type ?: 'subject';
+        $name = $page->primeSubject?->name ?: $this->extractSubjectName($page);
+
+        // Resolve pageType:
+        // Priority 1: Explicit DB type if set ('service', 'subject', 'city')
+        // Priority 2: Inferred from request path
+        // Priority 3: Inferred from slug
+        // Priority 4: Default to 'service'
+        $dbType = strtolower(trim((string) ($page->type ?? '')));
+        if (in_array($dbType, ['service', 'subject', 'city'])) {
+            $pageType = $dbType;
+        } elseif (request()->is('*city*')) {
+            $pageType = 'city';
+        } elseif (request()->is('*subject*')) {
+            $pageType = 'subject';
+        } elseif (request()->is('*service*')) {
+            $pageType = 'service';
+        } else {
+            $slugLower = strtolower(trim($page->slug ?? '', '/'));
+            if (str_starts_with($slugLower, 'city/') || str_contains($slugLower, '/city/')) {
+                $pageType = 'city';
+            } elseif (str_starts_with($slugLower, 'subject/') || str_contains($slugLower, '/subject/')) {
+                $pageType = 'subject';
+            } else {
+                $pageType = 'service';
+            }
+        }
 
         // 1. Topics: custom in DB > extracted from HTML table > subject-aware default
         $topics = $page->topics;
         if (empty($topics) || !is_array($topics)) {
-            $topics = $this->getDefaultTopics($page, $subjectName);
+            $topics = $this->getDefaultTopics($page, $name);
         }
 
         // 2. Why Choose Us Heading
         $whyTitle = $page->why_heading ?: 'Why Students Choose';
-        $whyHighlight = $page->why_subheading ?: "Our {$subjectName} Help";
+        $whyHighlight = $page->why_subheading ?: "Our {$name} Help";
         if (empty($page->why_heading) || $whyTitle === $whyHighlight || str_contains(strtolower($whyTitle), 'assignment help')) {
             $whyTitle = 'Why Students Choose';
-            $whyHighlight = "Our {$subjectName} Help";
+            $whyHighlight = "Our {$name} Help";
         }
         $whyChooseUsHeading = [
             'title'         => $whyTitle,
@@ -357,7 +381,7 @@ class PrimeServicePageApiController extends Controller
                 ],
                 [
                     't' => 'Qualified subject specialists',
-                    'd' => "All briefs are solved by postgraduate and doctoral {$subjectName} specialists with proven UK university experience.",
+                    'd' => "All briefs are solved by postgraduate and doctoral {$name} specialists with proven UK university experience.",
                 ],
                 [
                     't' => 'Double error-checked',
@@ -381,8 +405,8 @@ class PrimeServicePageApiController extends Controller
             foreach ($selectedExperts as $exp) {
                 $expertsList[] = [
                     'name'   => $exp->name ?: 'Academic Specialist',
-                    'degree' => $exp->subject ? "Specialist in {$exp->subject}" : "Postgraduate {$subjectName} Specialist",
-                    'desc'   => $exp->content ?: ($exp->meta_description ?: "Experienced {$subjectName} specialist with 10+ years academic tutoring."),
+                    'degree' => $exp->subject ? "Specialist in {$exp->subject}" : "Postgraduate {$name} Specialist",
+                    'desc'   => $exp->content ?: ($exp->meta_description ?: "Experienced {$name} specialist with 10+ years academic tutoring."),
                     'rating' => '4.98',
                     'orders' => ($exp->finish_order ?: 1200) . '+',
                     'image'  => $exp->image ? url($exp->image) : '/images/home/why-choose/expert-1.webp',
@@ -390,7 +414,7 @@ class PrimeServicePageApiController extends Controller
             }
         }
         if (empty($expertsList)) {
-            $isLaw = str_contains(strtolower($subjectName), 'law') || str_contains(strtolower($page->slug), 'law');
+            $isLaw = str_contains(strtolower($name), 'law') || str_contains(strtolower($page->slug), 'law');
             if ($isLaw) {
                 $expertsList = [
                     [
@@ -422,15 +446,15 @@ class PrimeServicePageApiController extends Controller
                 $expertsList = [
                     [
                         'name'   => 'Dr. Alistair Finch',
-                        'degree' => "Ph.D. in {$subjectName} (Warwick)",
-                        'desc'   => "Academic specialist in advanced {$subjectName} coursework and research methodology with 12+ years tutoring.",
+                        'degree' => "Ph.D. in {$name} (Warwick)",
+                        'desc'   => "Academic specialist in advanced {$name} coursework and research methodology with 12+ years tutoring.",
                         'rating' => '4.98',
                         'orders' => '1,420+',
                         'image'  => '/images/home/why-choose/expert-1.webp',
                     ],
                     [
                         'name'   => 'Dr. Rebecca Thornton',
-                        'degree' => "Ph.D. in Applied {$subjectName} (Imperial)",
+                        'degree' => "Ph.D. in Applied {$name} (Imperial)",
                         'desc'   => "Modelling, empirical analysis, and dissertation specialist for UK postgraduate courses.",
                         'rating' => '4.95',
                         'orders' => '1,180+',
@@ -438,7 +462,7 @@ class PrimeServicePageApiController extends Controller
                     ],
                     [
                         'name'   => 'David Sterling, M.Sc.',
-                        'degree' => "M.Sc. in {$subjectName} (Oxford)",
+                        'degree' => "M.Sc. in {$name} (Oxford)",
                         'desc'   => "Specialist in UK university curriculum standards, data models and coursework problem solutions.",
                         'rating' => '4.96',
                         'orders' => '980+',
@@ -454,7 +478,7 @@ class PrimeServicePageApiController extends Controller
         if ($selectedReviews->isNotEmpty()) {
             foreach ($selectedReviews as $rev) {
                 $reviewsList[] = [
-                    'category' => $rev->services_type ?: $subjectName,
+                    'category' => $rev->services_type ?: $name,
                     'text'     => $rev->description ?: 'Clear step-by-step guidance provided. Highly recommended!',
                     'student'  => $rev->name ?: 'Student',
                     'course'   => $rev->location ?: 'UK University',
@@ -464,25 +488,25 @@ class PrimeServicePageApiController extends Controller
             }
         }
         if (empty($reviewsList)) {
-            $isLaw = str_contains(strtolower($subjectName), 'law') || str_contains(strtolower($page->slug), 'law');
+            $isLaw = str_contains(strtolower($name), 'law') || str_contains(strtolower($page->slug), 'law');
             $reviewsList = [
                 [
-                    'category' => $subjectName,
+                    'category' => $name,
                     'text'     => $isLaw
                         ? 'I was stuck on difficult problem questions involving director duties and wrongful trading. The model answer applied Companies Act sections and OSCOLA citations with great precision. Scored 84% on my coursework!'
-                        : "I was stuck on difficult {$subjectName} coursework problems. The solution had every single step and calculation written out clearly. Scored 84% on my coursework!",
+                        : "I was stuck on difficult {$name} coursework problems. The solution had every single step and calculation written out clearly. Scored 84% on my coursework!",
                     'student'  => 'Oliver B.',
-                    'course'   => $isLaw ? 'LL.B. Law, University of Manchester' : "B.Sc. {$subjectName}, University of Manchester",
+                    'course'   => $isLaw ? 'LL.B. Law, University of Manchester' : "B.Sc. {$name}, University of Manchester",
                     'grade'    => 'First Class',
                     'rating'   => 5,
                 ],
                 [
-                    'category' => $subjectName,
+                    'category' => $name,
                     'text'     => $isLaw
                         ? 'The statutory analysis and case law evaluations were delivered 2 days ahead of my deadline. Perfectly cited cases and clear arguments throughout.'
                         : "Delivered 2 days ahead of my deadline. Perfectly commented work and clear explanations throughout.",
                     'student'  => 'Charlotte W.',
-                    'course'   => $isLaw ? 'LL.M. Corporate Law, University of Leeds' : "M.Sc. {$subjectName}, University of Leeds",
+                    'course'   => $isLaw ? 'LL.M. Corporate Law, University of Leeds' : "M.Sc. {$name}, University of Leeds",
                     'grade'    => 'Distinction',
                     'rating'   => 5,
                 ],
@@ -497,7 +521,7 @@ class PrimeServicePageApiController extends Controller
                 foreach ($samples as $sample) {
                     $samplesList[] = [
                         't'    => $sample->title,
-                        'type' => $sample->category?->name ?: $subjectName,
+                        'type' => $sample->category?->name ?: $name,
                         'w'    => number_format($sample->words_count ?: 3000),
                         'd'    => number_format((int) (($sample->words_count ?: 3000) * 0.75)),
                     ];
@@ -506,7 +530,7 @@ class PrimeServicePageApiController extends Controller
         } catch (\Throwable $e) {}
 
         if (empty($samplesList)) {
-            $isLaw = str_contains(strtolower($subjectName), 'law') || str_contains(strtolower($page->slug), 'law');
+            $isLaw = str_contains(strtolower($name), 'law') || str_contains(strtolower($page->slug), 'law');
             if ($isLaw) {
                 $samplesList = [
                     [
@@ -531,20 +555,20 @@ class PrimeServicePageApiController extends Controller
             } else {
                 $samplesList = [
                     [
-                        't'    => "Comprehensive Analysis of {$subjectName} Principles & Worked Solutions",
-                        'type' => $subjectName,
+                        't'    => "Comprehensive Analysis of {$name} Principles & Worked Solutions",
+                        'type' => $name,
                         'w'    => '3,200',
                         'd'    => '2,450',
                     ],
                     [
-                        't'    => "Critical Literature Review & Empirical Methodology in {$subjectName}",
-                        'type' => $subjectName,
+                        't'    => "Critical Literature Review & Empirical Methodology in {$name}",
+                        'type' => $name,
                         'w'    => '4,100',
                         'd'    => '3,120',
                     ],
                     [
-                        't'    => "Case Study & Theoretical Framework Applications in {$subjectName}",
-                        'type' => $subjectName,
+                        't'    => "Case Study & Theoretical Framework Applications in {$name}",
+                        'type' => $name,
                         'w'    => '2,800',
                         'd'    => '1,890',
                     ],
@@ -564,7 +588,7 @@ class PrimeServicePageApiController extends Controller
             }
         }
         if (empty($faqsList)) {
-            $lowerSub = strtolower($subjectName);
+            $lowerSub = strtolower($name);
             $faqsList = [
                 [
                     'q' => "Can I get online {$lowerSub} assignment help for urgent deadlines?",
@@ -584,11 +608,11 @@ class PrimeServicePageApiController extends Controller
         // 8. SEO
         $seoKeywords = [
             $page->hero_heading,
-            "{$subjectName} Assignment Help",
-            "{$subjectName} Assignment Help UK",
-            "{$subjectName} Coursework Help",
-            "UK {$subjectName} Specialists",
-            "{$subjectName} Case Law Help",
+            "{$name} Assignment Help",
+            "{$name} Assignment Help UK",
+            "{$name} Coursework Help",
+            "UK {$name} Specialists",
+            "{$name} Case Law Help",
         ];
         $seo = [
             'title'       => $page->meta_title ?: $page->hero_heading,
@@ -623,38 +647,48 @@ class PrimeServicePageApiController extends Controller
             }
         }
 
-        return [
-            'slug'               => trim($page->slug, '/'),
-            'pageType'           => $pageType,
-            'subjectName'        => $subjectName,
-            'title'              => $page->meta_title ?: $page->hero_heading,
-            'h1'                 => $page->hero_heading,
-            'h1Highlight'        => $page->hero_highlight ?: '',
-            'sub'                => $page->hero_content,
-            'brand'              => $page->brand ?: '#1E50E6',
-            'brandSoft'          => $page->brand_soft ?: '#EBF0FD',
-            'rating'             => '4.9',
-            'ratingCount'        => '12,450+',
-            'experienceYears'    => '10+',
-            'discountPercentage' => '45%',
-            'startingPrice'      => '£4.00',
-            'originalPrice'      => '£9.00',
-            'stats'              => $page->stats ?: [
-                'delivered' => '4,800+',
-                'experts'   => '120+',
-                'rating'    => '4.9/5',
-                'onTime'    => '96%',
-            ],
-            'topics'             => $topics,
-            'whyChooseUsHeading' => $whyChooseUsHeading,
-            'whyChooseUs'        => $whyChooseUs,
-            'experts'            => $expertsList,
-            'reviews'            => $reviewsList,
-            'samples'            => $samplesList,
-            'faqs'               => $faqsList,
-            'seo'                => $seo,
-            'contentHtml'        => $contentHtml,
+        $data = [
+            'slug'     => trim($page->slug, '/'),
+            'pageType' => $pageType,
         ];
+
+        if ($pageType === 'service') {
+            $data['serviceName'] = $name;
+        } elseif ($pageType === 'city') {
+            $data['cityName'] = $name;
+        } else {
+            $data['subjectName'] = $name;
+        }
+
+        $data['title']              = $page->meta_title ?: $page->hero_heading;
+        $data['h1']                 = $page->hero_heading;
+        $data['h1Highlight']        = $page->hero_highlight ?: '';
+        $data['sub']                = $page->hero_content;
+        $data['brand']              = $page->brand ?: '#1E50E6';
+        $data['brandSoft']          = $page->brand_soft ?: '#EBF0FD';
+        $data['rating']             = '4.9';
+        $data['ratingCount']        = '12,450+';
+        $data['experienceYears']    = '10+';
+        $data['discountPercentage'] = '45%';
+        $data['startingPrice']      = '£4.00';
+        $data['originalPrice']      = '£9.00';
+        $data['stats']              = $page->stats ?: [
+            'delivered' => '4,800+',
+            'experts'   => '120+',
+            'rating'    => '4.9/5',
+            'onTime'    => '96%',
+        ];
+        $data['topics']             = $topics;
+        $data['whyChooseUsHeading'] = $whyChooseUsHeading;
+        $data['whyChooseUs']        = $whyChooseUs;
+        $data['experts']            = $expertsList;
+        $data['reviews']            = $reviewsList;
+        $data['samples']            = $samplesList;
+        $data['faqs']               = $faqsList;
+        $data['seo']                = $seo;
+        $data['contentHtml']        = $contentHtml;
+
+        return $data;
     }
 
     private function extractSubjectName(PrimeServicePage $page): string
