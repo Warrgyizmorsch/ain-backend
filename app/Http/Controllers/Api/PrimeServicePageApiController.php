@@ -319,16 +319,22 @@ class PrimeServicePageApiController extends Controller
         $subjectName = $page->primeSubject?->name ?: $this->extractSubjectName($page);
         $pageType = $page->type ?: 'subject';
 
-        // 1. Topics
+        // 1. Topics: custom in DB > extracted from HTML table > subject-aware default
         $topics = $page->topics;
         if (empty($topics) || !is_array($topics)) {
             $topics = $this->getDefaultTopics($page, $subjectName);
         }
 
         // 2. Why Choose Us Heading
+        $whyTitle = $page->why_heading ?: 'Why Students Choose';
+        $whyHighlight = $page->why_subheading ?: "Our {$subjectName} Help";
+        if (empty($page->why_heading) || $whyTitle === $whyHighlight || str_contains(strtolower($whyTitle), 'assignment help')) {
+            $whyTitle = 'Why Students Choose';
+            $whyHighlight = "Our {$subjectName} Help";
+        }
         $whyChooseUsHeading = [
-            'title'         => $page->why_heading ?: 'Why Students Choose',
-            'highlightWord' => $page->why_subheading ?: "Our {$subjectName} Help",
+            'title'         => $whyTitle,
+            'highlightWord' => $whyHighlight,
         ];
 
         // 3. Why Choose Us Items
@@ -347,19 +353,19 @@ class PrimeServicePageApiController extends Controller
             $whyChooseUs = [
                 [
                     't' => 'Step-by-step reasoning',
-                    'd' => 'Every formula, rule, and substitution is clearly written out so you can understand the exact method.',
+                    'd' => "Every formula, rule, statutory provision and case authority is clearly written out so you can understand the exact method.",
                 ],
                 [
-                    't' => 'IMA-affiliated specialists',
-                    'd' => 'All briefs are solved by postgraduate and doctoral specialists with proven UK university experience.',
+                    't' => 'Qualified subject specialists',
+                    'd' => "All briefs are solved by postgraduate and doctoral {$subjectName} specialists with proven UK university experience.",
                 ],
                 [
                     't' => 'Double error-checked',
-                    'd' => 'Every derivation, equation, and calculation is independently reviewed by a second specialist.',
+                    'd' => 'Every derivation, equation, argument and citation is independently reviewed by a second specialist.',
                 ],
                 [
-                    't' => 'LaTeX & MATLAB ready',
-                    'd' => 'Delivered in professional LaTeX PDF, MATLAB script, Python notebook, or handwritten digital scan.',
+                    't' => 'Accredited format & citation',
+                    'd' => 'Delivered in professional format fully compliant with your university referencing style (OSCOLA, Harvard, APA, or LaTeX).',
                 ],
                 [
                     't' => 'Student-friendly pricing',
@@ -375,8 +381,8 @@ class PrimeServicePageApiController extends Controller
             foreach ($selectedExperts as $exp) {
                 $expertsList[] = [
                     'name'   => $exp->name ?: 'Academic Specialist',
-                    'degree' => $exp->subject ? "Ph.D. / Specialist in {$exp->subject}" : 'Postgraduate Specialist',
-                    'desc'   => $exp->content ?: ($exp->meta_description ?: 'Experienced academic specialist with 10+ years tutoring.'),
+                    'degree' => $exp->subject ? "Specialist in {$exp->subject}" : "Postgraduate {$subjectName} Specialist",
+                    'desc'   => $exp->content ?: ($exp->meta_description ?: "Experienced {$subjectName} specialist with 10+ years academic tutoring."),
                     'rating' => '4.98',
                     'orders' => ($exp->finish_order ?: 1200) . '+',
                     'image'  => $exp->image ? url($exp->image) : '/images/home/why-choose/expert-1.webp',
@@ -384,32 +390,62 @@ class PrimeServicePageApiController extends Controller
             }
         }
         if (empty($expertsList)) {
-            $expertsList = [
-                [
-                    'name'   => 'Dr. Alistair Finch',
-                    'degree' => 'Ph.D. in Pure Mathematics (Warwick)',
-                    'desc'   => 'IMA Member, specializes in Real Analysis, Differential Equations & Topology with 12+ years academic tutoring.',
-                    'rating' => '4.98',
-                    'orders' => '1,420+',
-                    'image'  => '/images/home/why-choose/expert-1.webp',
-                ],
-                [
-                    'name'   => 'Dr. Rebecca Thornton',
-                    'degree' => 'Ph.D. in Applied Mathematics (Imperial)',
-                    'desc'   => 'Fluid dynamics, numerical analysis, MATLAB & Python mathematical modelling specialist.',
-                    'rating' => '4.95',
-                    'orders' => '1,180+',
-                    'image'  => '/images/home/why-choose/expert-2.webp',
-                ],
-                [
-                    'name'   => 'David Sterling, M.Sc.',
-                    'degree' => 'M.Sc. in Mathematical Statistics (Oxford)',
-                    'desc'   => 'Probability distributions, regression models, SPSS, R syntax & stochastic processes specialist.',
-                    'rating' => '4.96',
-                    'orders' => '980+',
-                    'image'  => '/images/home/why-choose/expert-3.webp',
-                ],
-            ];
+            $isLaw = str_contains(strtolower($subjectName), 'law') || str_contains(strtolower($page->slug), 'law');
+            if ($isLaw) {
+                $expertsList = [
+                    [
+                        'name'   => 'Eleanor Vance, LL.M.',
+                        'degree' => 'LL.M. in Corporate & Commercial Law (LSE)',
+                        'desc'   => 'Specialist in Companies Act 2006, Director Duties, Shareholder Remedies & Corporate Insolvency with 10+ years tutoring.',
+                        'rating' => '4.98',
+                        'orders' => '1,420+',
+                        'image'  => '/images/home/why-choose/expert-1.webp',
+                    ],
+                    [
+                        'name'   => 'Marcus Sterling, BCL',
+                        'degree' => 'BCL in Commercial Law (Oxford)',
+                        'desc'   => 'Corporate governance, veil piercing, cross-border M&A and regulatory compliance specialist.',
+                        'rating' => '4.95',
+                        'orders' => '1,180+',
+                        'image'  => '/images/home/why-choose/expert-2.webp',
+                    ],
+                    [
+                        'name'   => 'Rachel Thornton, LL.B. (Hons)',
+                        'degree' => 'Postgraduate Diploma in Legal Practice (BPP London)',
+                        'desc'   => 'Commercial contracts, corporate criminal liability, OSCOLA citation & partnership law specialist.',
+                        'rating' => '4.96',
+                        'orders' => '980+',
+                        'image'  => '/images/home/why-choose/expert-3.webp',
+                    ],
+                ];
+            } else {
+                $expertsList = [
+                    [
+                        'name'   => 'Dr. Alistair Finch',
+                        'degree' => "Ph.D. in {$subjectName} (Warwick)",
+                        'desc'   => "Academic specialist in advanced {$subjectName} coursework and research methodology with 12+ years tutoring.",
+                        'rating' => '4.98',
+                        'orders' => '1,420+',
+                        'image'  => '/images/home/why-choose/expert-1.webp',
+                    ],
+                    [
+                        'name'   => 'Dr. Rebecca Thornton',
+                        'degree' => "Ph.D. in Applied {$subjectName} (Imperial)",
+                        'desc'   => "Modelling, empirical analysis, and dissertation specialist for UK postgraduate courses.",
+                        'rating' => '4.95',
+                        'orders' => '1,180+',
+                        'image'  => '/images/home/why-choose/expert-2.webp',
+                    ],
+                    [
+                        'name'   => 'David Sterling, M.Sc.',
+                        'degree' => "M.Sc. in {$subjectName} (Oxford)",
+                        'desc'   => "Specialist in UK university curriculum standards, data models and coursework problem solutions.",
+                        'rating' => '4.96',
+                        'orders' => '980+',
+                        'image'  => '/images/home/why-choose/expert-3.webp',
+                    ],
+                ];
+            }
         }
 
         // 5. Reviews
@@ -428,20 +464,25 @@ class PrimeServicePageApiController extends Controller
             }
         }
         if (empty($reviewsList)) {
+            $isLaw = str_contains(strtolower($subjectName), 'law') || str_contains(strtolower($page->slug), 'law');
             $reviewsList = [
                 [
-                    'category' => $subjectName ?: 'Mathematics',
-                    'text'     => "I was stuck on difficult coursework problems. The solution had every single intermediate step written out clearly in LaTeX. Scored 84% on my coursework!",
+                    'category' => $subjectName,
+                    'text'     => $isLaw
+                        ? 'I was stuck on difficult problem questions involving director duties and wrongful trading. The model answer applied Companies Act sections and OSCOLA citations with great precision. Scored 84% on my coursework!'
+                        : "I was stuck on difficult {$subjectName} coursework problems. The solution had every single step and calculation written out clearly. Scored 84% on my coursework!",
                     'student'  => 'Oliver B.',
-                    'course'   => 'B.Sc. Mathematics, University of Manchester',
+                    'course'   => $isLaw ? 'LL.B. Law, University of Manchester' : "B.Sc. {$subjectName}, University of Manchester",
                     'grade'    => 'First Class',
                     'rating'   => 5,
                 ],
                 [
-                    'category' => $subjectName ?: 'Mathematics',
-                    'text'     => 'The Python scripts and plots were delivered 2 days ahead of my deadline. Perfectly commented code and clear explanations.',
+                    'category' => $subjectName,
+                    'text'     => $isLaw
+                        ? 'The statutory analysis and case law evaluations were delivered 2 days ahead of my deadline. Perfectly cited cases and clear arguments throughout.'
+                        : "Delivered 2 days ahead of my deadline. Perfectly commented work and clear explanations throughout.",
                     'student'  => 'Charlotte W.',
-                    'course'   => 'M.Eng. Mechanical Engineering, University of Leeds',
+                    'course'   => $isLaw ? 'LL.M. Corporate Law, University of Leeds' : "M.Sc. {$subjectName}, University of Leeds",
                     'grade'    => 'Distinction',
                     'rating'   => 5,
                 ],
@@ -465,26 +506,50 @@ class PrimeServicePageApiController extends Controller
         } catch (\Throwable $e) {}
 
         if (empty($samplesList)) {
-            $samplesList = [
-                [
-                    't'    => 'Second-Order Linear Non-Homogeneous Differential Equations Worked Solutions',
-                    'type' => 'Calculus',
-                    'w'    => '3,200',
-                    'd'    => '2,450',
-                ],
-                [
-                    't'    => 'Multivariate Regression & Residual Diagnostics in Python',
-                    'type' => 'Statistics',
-                    'w'    => '4,100',
-                    'd'    => '3,120',
-                ],
-                [
-                    't'    => 'Abstract Algebra: Sylow Theorems and Finite Group Classifications',
-                    'type' => 'Pure Maths',
-                    'w'    => '2,800',
-                    'd'    => '1,890',
-                ],
-            ];
+            $isLaw = str_contains(strtolower($subjectName), 'law') || str_contains(strtolower($page->slug), 'law');
+            if ($isLaw) {
+                $samplesList = [
+                    [
+                        't'    => 'Director Duties Under Section 172 and Creditor Interests: Sequana Case Analysis',
+                        'type' => 'Corporate Law',
+                        'w'    => '3,200',
+                        'd'    => '2,450',
+                    ],
+                    [
+                        't'    => 'Piercing the Corporate Veil Post-Prest v Petrodel: Evasion vs Concealment',
+                        'type' => 'Company Law',
+                        'w'    => '4,100',
+                        'd'    => '3,120',
+                    ],
+                    [
+                        't'    => 'Shareholder Remedies Under Section 994 Companies Act 2006: Unfair Prejudice in Quasi-Partnerships',
+                        'type' => 'Corporate Governance',
+                        'w'    => '2,800',
+                        'd'    => '1,890',
+                    ],
+                ];
+            } else {
+                $samplesList = [
+                    [
+                        't'    => "Comprehensive Analysis of {$subjectName} Principles & Worked Solutions",
+                        'type' => $subjectName,
+                        'w'    => '3,200',
+                        'd'    => '2,450',
+                    ],
+                    [
+                        't'    => "Critical Literature Review & Empirical Methodology in {$subjectName}",
+                        'type' => $subjectName,
+                        'w'    => '4,100',
+                        'd'    => '3,120',
+                    ],
+                    [
+                        't'    => "Case Study & Theoretical Framework Applications in {$subjectName}",
+                        'type' => $subjectName,
+                        'w'    => '2,800',
+                        'd'    => '1,890',
+                    ],
+                ];
+            }
         }
 
         // 7. FAQs
@@ -522,7 +587,8 @@ class PrimeServicePageApiController extends Controller
             "{$subjectName} Assignment Help",
             "{$subjectName} Assignment Help UK",
             "{$subjectName} Coursework Help",
-            'IMA Mathematicians UK',
+            "UK {$subjectName} Specialists",
+            "{$subjectName} Case Law Help",
         ];
         $seo = [
             'title'       => $page->meta_title ?: $page->hero_heading,
@@ -588,7 +654,6 @@ class PrimeServicePageApiController extends Controller
             'faqs'               => $faqsList,
             'seo'                => $seo,
             'contentHtml'        => $contentHtml,
-            'page'               => $page, // backwards compatibility
         ];
     }
 
@@ -613,38 +678,153 @@ class PrimeServicePageApiController extends Controller
 
     private function getDefaultTopics(PrimeServicePage $page, string $subjectName): array
     {
+        // 1. Try to extract topics from long_content table if available
+        $extracted = $this->extractTopicsFromContent($page->long_content ?: '');
+        if (!empty($extracted)) {
+            return $extracted;
+        }
+
+        $isLaw = str_contains(strtolower($subjectName), 'law') || str_contains(strtolower($page->slug), 'law');
+        if ($isLaw) {
+            return [
+                [
+                    't' => 'Director Duties & Corporate Governance',
+                    'f' => 'ss 171–177 + UK Corporate Governance Code',
+                    'd' => 'Peskin v Anderson, Re City Equitable Fire Insurance Co, Item Software v Fassihi, Criterion Properties v Stratford UK Properties.',
+                ],
+                [
+                    't' => 'Corporate Personality & Veil Piercing',
+                    'f' => 's 16 + Insolvency Act 1986',
+                    'd' => 'Salomon v Salomon & Co Ltd, Prest v Petrodel Resources Ltd, Adams v Cape Industries.',
+                ],
+                [
+                    't' => 'Shareholder Protection & Minority Rights',
+                    'f' => 's 994 (Unfair Prejudice), ss 260–264',
+                    'd' => 'Foss v Harbottle, O’Neill v Phillips, Re Saul D Harrison & Sons plc, Ebrahimi v Westbourne Galleries.',
+                ],
+                [
+                    't' => 'Mergers, Acquisitions & Takeovers',
+                    'f' => 'UK Takeover Code + FSMA 2000 + Part 26 CA 2006',
+                    'd' => 'Re Hellenic and General Trust Ltd, mandatory offer rules, and schemes of arrangement.',
+                ],
+                [
+                    't' => 'Corporate Insolvency & Liquidation',
+                    'f' => 'ss 213–214 Insolvency Act 1986 + CIGA 2020',
+                    'd' => 'Re Spectrum Plus Ltd, BTI 2014 LLC v Sequana SA, wrongful trading and creditor duties.',
+                ],
+                [
+                    't' => 'Corporate Criminal Liability & Fraud',
+                    'f' => 'ECCTA 2023 + Criminal Justice Act 1993',
+                    'd' => 'Failure to prevent fraud, senior manager liability, identification doctrine, and insider dealing.',
+                ],
+            ];
+        }
+
+        $isMath = str_contains(strtolower($subjectName), 'math') || str_contains(strtolower($page->slug), 'math');
+        if ($isMath) {
+            return [
+                [
+                    't' => 'Algebra',
+                    'f' => 'x² − 5x + 6 = 0',
+                    'd' => 'Simplifying and factorising, polynomial equations, inequalities, matrices and proof by induction.',
+                ],
+                [
+                    't' => 'Calculus',
+                    'f' => '∫ f(x) dx',
+                    'd' => 'Limits, differentiation, integration by parts, substitution, series, multivariable calculus & ODEs.',
+                ],
+                [
+                    't' => 'Geometry',
+                    'f' => 'sin²θ + cos²θ = 1',
+                    'd' => 'Coordinate geometry, vectors, circle theorems, transformations and GeoGebra diagrams.',
+                ],
+                [
+                    't' => 'Trigonometry',
+                    'f' => 'e^(iθ) = cosθ + i sinθ',
+                    'd' => 'Identities, compound-angle formulae, solving equations, sine and cosine rules, and Fourier series.',
+                ],
+                [
+                    't' => 'Probability & Statistics',
+                    'f' => 'P(A | B) = [P(B|A)P(A)] / P(B)',
+                    'd' => 'Distributions, conditional probability, Bayes’ theorem, hypothesis tests, regression in R, SPSS or Excel.',
+                ],
+                [
+                    't' => 'Advanced & Applied Topics',
+                    'f' => '∇²u = ∂u/∂t',
+                    'd' => 'Group and ring theory, real & complex analysis, vector calculus, Runge-Kutta numerical methods, and LaTeX.',
+                ],
+            ];
+        }
+
         return [
             [
-                't' => 'Algebra',
-                'f' => 'x² − 5x + 6 = 0',
-                'd' => 'Simplifying and factorising, polynomial equations, inequalities, matrices and proof by induction.',
+                't' => "Core Principles of {$subjectName}",
+                'f' => "Foundational Theories & Frameworks",
+                'd' => "Essential principles, conceptual models and foundational literature in {$subjectName}.",
             ],
             [
-                't' => 'Calculus',
-                'f' => '∫ f(x) dx',
-                'd' => 'Limits, differentiation, integration by parts, substitution, series, multivariable calculus & ODEs.',
+                't' => "Advanced Theoretical Frameworks",
+                'f' => "Critical Analysis & Models",
+                'd' => "In-depth examination of contemporary models, critical debates, and structural paradigms.",
             ],
             [
-                't' => 'Geometry',
-                'f' => 'sin²θ + cos²θ = 1',
-                'd' => 'Coordinate geometry, vectors, circle theorems, transformations and GeoGebra diagrams.',
+                't' => "Applied Problem Solving & Case Studies",
+                'f' => "Practical Applications",
+                'd' => "Real-world scenario analysis, problem question structuring, and practical problem-solving methods.",
             ],
             [
-                't' => 'Trigonometry',
-                'f' => 'e^(iθ) = cosθ + i sinθ',
-                'd' => 'Identities, compound-angle formulae, solving equations, sine and cosine rules, and Fourier series.',
+                't' => "Research Methodologies & Synthesis",
+                'f' => "Qualitative & Quantitative",
+                'd' => "Systematic review techniques, empirical data evaluation, and academic synthesis standards.",
             ],
             [
-                't' => 'Probability & Statistics',
-                'f' => 'P(A | B) = [P(B|A)P(A)] / P(B)',
-                'd' => 'Distributions, conditional probability, Bayes’ theorem, hypothesis tests, regression in R, SPSS or Excel.',
+                't' => "Contemporary Issues & Reform Debates",
+                'f' => "Modern UK Curriculum Standards",
+                'd' => "Emerging trends, policy reforms, and current developments affecting UK university briefs.",
             ],
             [
-                't' => 'Advanced & Applied Topics',
-                'f' => '∇²u = ∂u/∂t',
-                'd' => 'Group and ring theory, real & complex analysis, vector calculus, Runge-Kutta numerical methods, and LaTeX.',
+                't' => "Comparative Analysis & Critical Evaluation",
+                'f' => "Cross-Disciplinary Perspectives",
+                'd' => "Multi-perspective evaluation, comparative case analysis, and high-scoring critical judgements.",
             ],
         ];
+    }
+
+    private function extractTopicsFromContent(string $html): array
+    {
+        if (empty($html)) {
+            return [];
+        }
+
+        $topics = [];
+
+        // Match table rows: <tr><td>Sub-discipline</td><td>Sections</td><td>Cases</td></tr>
+        if (preg_match_all('/<tr[^>]*>.*?<td[^>]*>(.*?)<\/td>.*?<td[^>]*>(.*?)<\/td>.*?<td[^>]*>(.*?)<\/td>.*?<\/tr>/is', $html, $matches, PREG_SET_ORDER)) {
+            foreach ($matches as $row) {
+                $t = trim(strip_tags($row[1]));
+                $f = trim(strip_tags($row[2]));
+                $d = trim(strip_tags($row[3]));
+
+                // Skip header rows
+                if (str_contains(strtolower($t), 'sub-discipline') || str_contains(strtolower($t), 'area')) {
+                    continue;
+                }
+
+                if (!empty($t) && strlen($t) < 120) {
+                    $topics[] = [
+                        't' => html_entity_decode($t, ENT_QUOTES | ENT_HTML5, 'UTF-8'),
+                        'f' => html_entity_decode($f, ENT_QUOTES | ENT_HTML5, 'UTF-8') ?: "Key Statutory Provisions & Code",
+                        'd' => html_entity_decode($d, ENT_QUOTES | ENT_HTML5, 'UTF-8') ?: "Detailed statutory analysis and judicial precedent application.",
+                    ];
+                }
+
+                if (count($topics) >= 6) {
+                    break;
+                }
+            }
+        }
+
+        return $topics;
     }
 
     /**
