@@ -32,6 +32,11 @@ class User extends Authenticatable
         'team_id',
         'refer_id',
         'referral_code',
+        'referral_discount_percent',
+        'referral_executive_id',
+        'referral_prefix',
+        'referral_code_generated_at',
+        'referral_updated_by',
         'total_referral_earnings',
         'Wallet',
         'verifyed',
@@ -60,6 +65,8 @@ class User extends Authenticatable
     protected $casts = [
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
+        'referral_discount_percent' => 'decimal:2',
+        'referral_code_generated_at' => 'datetime',
     ];
     protected $attributes = [
         'role_id' => 2,
@@ -392,13 +399,19 @@ class User extends Authenticatable
         return $this->hasMany(User::class, 'refer_id', 'id');
     }
 
+    public function referralExecutive()
+    {
+        return $this->belongsTo(User::class, 'referral_executive_id', 'id');
+    }
+
+    public function referralUpdatedBy()
+    {
+        return $this->belongsTo(User::class, 'referral_updated_by', 'id');
+    }
+
     public static function generateUniqueReferralCode(): string
     {
-        do {
-            $code = 'REF' . strtoupper(\Illuminate\Support\Str::random(6));
-        } while (self::where('referral_code', $code)->exists());
-
-        return $code;
+        return app(\App\Services\ReferralCodeService::class)->generateUniqueClientCode('AIN');
     }
 
     /**

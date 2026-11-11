@@ -119,7 +119,7 @@
                                     <input type="text"
                                         id="refer_search"
                                         class="form-control form-control-sm form-control-solid"
-                                        placeholder="Name, Email, Mobile search">
+                                        placeholder="Name, Email, Mobile or Referral Code">
 
                                     <input type="hidden" name="refer_id" id="refer_id">
 
@@ -547,18 +547,34 @@
                         },
                         success: function (users) {
                             let html = '';
+                            const esc = (v) => String(v ?? '')
+                                .replace(/&/g, '&amp;')
+                                .replace(/</g, '&lt;')
+                                .replace(/>/g, '&gt;')
+                                .replace(/"/g, '&quot;')
+                                .replace(/'/g, '&#039;');
 
                             if (users.length > 0) {
                                 users.forEach(function (user) {
+                                    const refPct = user.referral_discount_percent !== undefined && user.referral_discount_percent !== null
+                                        ? String(parseFloat(user.referral_discount_percent))
+                                        : '10';
+                                    const refBadge = user.referral_code
+                                        ? `<span class="badge badge-light-primary ms-1 font-monospace">${esc(user.referral_code)} (${esc(refPct)}%)</span>`
+                                        : '';
                                     html += `
                                         <div class="refer-item px-3 py-2 border-bottom"
                                             style="cursor:pointer;"
-                                            data-id="${user.id}"
-                                            data-name="${user.name ?? ''}"
-                                            data-email="${user.email ?? ''}"
-                                            data-mobile="${user.mobile_no ?? ''}">
-                                            <strong>${user.name ?? 'No Name'}</strong><br>
-                                            <small>${user.email ?? ''} | ${window.maskPhoneForDisplay(user.mobile_no ?? '')}</small>
+                                            data-id="${esc(user.id)}"
+                                            data-name="${esc(user.name ?? '')}"
+                                            data-email="${esc(user.email ?? '')}"
+                                            data-mobile="${esc(user.mobile_no ?? '')}"
+                                            data-referral-code="${esc(user.referral_code ?? '')}">
+                                            <div class="d-flex align-items-center justify-content-between">
+                                                <strong>${esc(user.name ?? 'No Name')}</strong>
+                                                ${refBadge}
+                                            </div>
+                                            <small>${esc(user.email ?? '')} | ${esc(window.maskPhoneForDisplay(user.mobile_no ?? ''))}</small>
                                         </div>
                                     `;
                                 });

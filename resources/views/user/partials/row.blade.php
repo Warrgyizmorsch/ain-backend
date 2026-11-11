@@ -103,31 +103,41 @@
             <span class="text-muted d-block fs-8 mt-1">No lead or order</span>
         @endif
     </td>
-    <td class="text-end">
+    <td class="col-role">
         <div class="d-flex flex-column w-100 me-2">
             <div class="d-flex flex-stack mb-2">
             @if($user->role_id == 1)
                 <span class="text-muted me-2 fs-7 fw-bold">Super Admin</span>
             @elseif($user->role_id == 2)
-            <span class="text-muted me-2 fs-7 fw-bold">User</span>
+                <span class="text-muted me-2 fs-7 fw-bold">User</span>
             @elseif($user->role_id == 3)
-            <span class="text-muted me-2 fs-7 fw-bold">Sub Admin</span>
+                <span class="text-muted me-2 fs-7 fw-bold">Qc Executive</span>
             @elseif($user->role_id == 4)
-            <span class="text-muted me-2 fs-7 fw-bold">Marketing Team</span>
+                <span class="text-muted me-2 fs-7 fw-bold">Marketing Team</span>
             @elseif($user->role_id == 5)
-            <span class="text-muted me-2 fs-7 fw-bold">Project Team</span>
+                <span class="text-muted me-2 fs-7 fw-bold">Project Team</span>
             @elseif($user->role_id == 6)
-            <span class="text-muted me-2 fs-7 fw-bold">WriterTL</span>
+                <span class="text-muted me-2 fs-7 fw-bold">WriterTL</span>
             @elseif($user->role_id == 7)
-            <span class="text-muted me-2 fs-7 fw-bold">Sub Writer</span>
+                <span class="text-muted me-2 fs-7 fw-bold">Sub Writer</span>
             @elseif($user->role_id == 8)
-            <span class="text-muted me-2 fs-7 fw-bold">Writer Admin</span>
-            @endif  
+                <span class="text-muted me-2 fs-7 fw-bold">Writer Admin</span>
+            @elseif($user->role_id == 9)
+                <span class="text-muted me-2 fs-7 fw-bold">Sub Admin</span>
+            @elseif($user->role_id == 10)
+                <span class="text-muted me-2 fs-7 fw-bold">SEO</span>
+            @elseif($user->role_id == 11)
+                <span class="text-muted me-2 fs-7 fw-bold">Payment Role</span>
+            @elseif($user->role_id == 12)
+                <span class="text-muted me-2 fs-7 fw-bold">Hr</span>
+            @else
+                <span class="text-muted me-2 fs-7 fw-bold">Role #{{ $user->role_id }}</span>
+            @endif
             </div>
             
         </div>
     </td>
-    <td class="text-end">
+    <td class="col-join-date">
         <div class="d-flex flex-column w-100 me-2">
             <div class="d-flex flex-stack mb-2">
                 @if($user->created_at != '')
@@ -137,13 +147,85 @@
             
         </div>
     </td>
-    <td>
+    <td class="col-order-count">
         <a href="{{ route('orders.index', ['uid' => $user->id]) }}" target="_blank" title="View Genuine Orders" class="badge badge-circle badge-primary fw-bold text-decoration-none">{{ $user->orders_count }}</a>
     </td>
-    <td>
+    <td class="col-followups">
         <span class="badge badge-circle badge-info fw-bold">{{ $user->followups_count ?? 0 }}</span>
     </td>
-    <td>
+    @php
+        $canViewReferral = \App\Services\ReferralCodeService::canView($authUser);
+        $canEditReferral = \App\Services\ReferralCodeService::canEdit($authUser);
+        $isStaffExec = in_array((int) $user->role_id, \App\Services\ReferralCodeService::STAFF_EXECUTIVE_ROLE_IDS, true);
+    @endphp
+    @if($canViewReferral)
+        <td class="col-referral" data-user-referral-cell="{{ $user->id }}">
+            @if($isStaffExec)
+                <div class="d-flex align-items-center gap-1">
+                    <span class="badge badge-light-dark fw-bolder fs-8 font-monospace">Prefix: {{ $user->referral_prefix ?: 'Auto' }}</span>
+                    @if($canEditReferral)
+                        <button type="button"
+                            class="btn btn-icon btn-sm btn-light-warning p-1 js-edit-referral-btn"
+                            data-user-id="{{ $user->id }}"
+                            data-user-name="{{ $user->name }}"
+                            data-role-id="{{ (int) $user->role_id }}"
+                            data-prefix="{{ $user->referral_prefix ?? '' }}"
+                            onclick="event.stopPropagation(); window.openEditReferralModal(this);"
+                            title="Edit Referral Prefix"
+                            style="width: 24px; height: 24px;">
+                            <i class="fa fa-edit fs-8"></i>
+                        </button>
+                    @endif
+                </div>
+            @elseif((int) $user->role_id === 2 || !empty($user->referral_code))
+                @php
+                    $pctFormatted = rtrim(rtrim(number_format((float) ($user->referral_discount_percent ?? 10.00), 2, '.', ''), '0'), '.');
+                    $execName = $user->referralExecutive?->name;
+                    $execPrefix = $user->referral_prefix ?: $user->referralExecutive?->referral_prefix;
+                @endphp
+                <div class="d-flex align-items-center flex-wrap gap-1">
+                    @if(!empty($user->referral_code))
+                        <span class="badge badge-light-primary fw-bolder fs-7 font-monospace">{{ $user->referral_code }}</span>
+                        <button type="button"
+                            class="btn btn-icon btn-sm p-0 border-0 bg-transparent ms-1 copy-contact-btn"
+                            title="Copy Referral Code"
+                            onclick="event.stopPropagation(); window.copyContactText ? window.copyContactText(@js($user->referral_code), this) : navigator.clipboard.writeText(@js($user->referral_code)); return false;"
+                            style="width: 16px; height: 16px; line-height: 1; flex-shrink: 0;">
+                            <i class="fa fa-copy text-muted fs-8"></i>
+                        </button>
+                        <span class="badge badge-light-success fw-bold fs-8 ms-1">{{ $pctFormatted }}% OFF</span>
+                    @else
+                        <span class="text-muted fs-8">Not generated</span>
+                    @endif
+                    @if($canEditReferral)
+                        <button type="button"
+                            class="btn btn-icon btn-sm btn-light-warning p-1 ms-1 js-edit-referral-btn"
+                            data-user-id="{{ $user->id }}"
+                            data-user-name="{{ $user->name }}"
+                            data-role-id="{{ (int) $user->role_id }}"
+                            data-referral-code="{{ $user->referral_code ?? '' }}"
+                            data-discount-percent="{{ $user->referral_discount_percent !== null ? number_format((float) $user->referral_discount_percent, 2, '.', '') : '10.00' }}"
+                            data-executive-id="{{ $user->referral_executive_id ?? '' }}"
+                            data-executive-name="{{ $execName ?? '' }}"
+                            data-prefix="{{ $user->referral_prefix ?? '' }}"
+                            onclick="event.stopPropagation(); window.openEditReferralModal(this);"
+                            title="Edit Referral Settings"
+                            style="width: 24px; height: 24px;">
+                            <i class="fa fa-edit fs-8"></i>
+                        </button>
+                    @endif
+                </div>
+                @if(!empty($user->referral_code))
+                    <div class="text-muted fs-8 mt-1">
+                        Exec: {{ $execName ?? 'System' }}@if(!empty($execPrefix)) ({{ $execPrefix }})@endif
+                    </div>
+                @endif
+            @else
+                <span class="text-muted fs-8">-</span>
+            @endif
+        </td>
+    @endif
+    <td class="col-actions">
         <div class="dropdown text-end">
             <button class="btn btn-sm btn-light-primary dropdown-toggle fw-bold" type="button" data-bs-toggle="dropdown">Actions</button>
             <ul class="dropdown-menu dropdown-menu-end shadow-sm">

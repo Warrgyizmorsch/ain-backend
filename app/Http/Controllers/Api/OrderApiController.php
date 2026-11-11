@@ -76,6 +76,7 @@ class OrderApiController extends Controller
             'requirements' => 'nullable|string',
             'finalPrice'   => 'nullable',
             'coupon_code' => 'nullable|string|max:50',
+            'referral_code' => 'nullable|string|max:50',
             'discount_amount' => 'nullable|numeric|min:0',
             'order_amount' => 'nullable|numeric|min:0',
             'source_page'  => 'nullable',
@@ -118,8 +119,62 @@ class OrderApiController extends Controller
             ], 422);
         }
 
-        // Update user's country from order (optional field)
+        // Validate coupon / referral code before creating any Lead or Order
+        $referralService = app(\App\Services\ReferralCodeService::class);
+        $coupon = null;
+        $referredByUser = null;
+        $isReferralCode = false;
+        $discountAppliedServerSide = false;
+        $couponCode = trim((string) ($request->input('coupon_code') ?: $request->input('referral_code') ?: ''));
+        $couponDiscount = (float) $request->input('discount_amount', 0);
+        $finalPrice = (float) $request->input('finalPrice', 0);
+        $originalPrice = (float) ($request->input('order_amount') ?? $request->input('original_amount', 0));
+        $appliedCouponCode = $couponCode !== '' ? $couponCode : null;
+        $appliedDiscountType = null;
+        $appliedDiscountValue = null;
+
+        if ($originalPrice <= 0) {
+            $originalPrice = $finalPrice + $couponDiscount;
+        }
+
+        if ($couponCode !== '') {
+            $coupon = \App\Models\Coupon::whereRaw('UPPER(coupon_code) = ?', [strtoupper($couponCode)])->first();
+            if ($coupon) {
+                $validation = $coupon->isValidForUser($authUser->id, $originalPrice);
+                if ($validation['valid']) {
+                    $couponDiscount = (float) $validation['discount'];
+                    $finalPrice = max(0, $originalPrice - $couponDiscount);
+                    $appliedCouponCode = $coupon->coupon_code;
+                    $appliedDiscountType = $coupon->discount_type;
+                    $appliedDiscountValue = $coupon->discount_value;
+                    $discountAppliedServerSide = true;
+                }
+            } else {
+                $referredByUser = $referralService->findReferrerByCode($couponCode);
+                if ($referredByUser) {
+                    $refValidation = $referralService->validateReferralUseForCustomer($referredByUser, $authUser->id, $originalPrice);
+                    if (!$refValidation['valid']) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => $refValidation['message'],
+                        ], 422);
+                    }
+                    $couponDiscount = (float) $refValidation['discount'];
+                    $finalPrice = max(0, $originalPrice - $couponDiscount);
+                    $appliedCouponCode = $referredByUser->referral_code;
+                    $appliedDiscountType = 'percentage';
+                    $appliedDiscountValue = (float) $refValidation['discount_percent'];
+                    $isReferralCode = true;
+                    $discountAppliedServerSide = true;
+                }
+            }
+        }
+
+        // Update user's country (and refer_id if newly linked via referral code)
         $authUser->country = $request->input('country');
+        if ($referredByUser && empty($authUser->refer_id) && (int) $referredByUser->id !== (int) $authUser->id) {
+            $authUser->refer_id = $referredByUser->id;
+        }
         $authUser->save();
 
         // Generate Order ID
@@ -132,30 +187,6 @@ class OrderApiController extends Controller
         }
 
         $newOrderId = 'UKS' . str_pad($newOrderNumber, 3, '0', STR_PAD_LEFT);
-
-        $coupon = null;
-        $couponCode = trim((string) $request->input('coupon_code', ''));
-        $couponDiscount = (float) $request->input('discount_amount', 0);
-        $finalPrice = (float) $request->input('finalPrice', 0);
-        $originalPrice = (float) ($request->input('order_amount') ?? $request->input('original_amount', 0));
-
-        if ($couponCode !== '') {
-            $coupon = \App\Models\Coupon::whereRaw('UPPER(coupon_code) = ?', [strtoupper($couponCode)])->first();
-            if ($coupon) {
-                if ($originalPrice <= 0) {
-                    $originalPrice = $finalPrice + $couponDiscount;
-                }
-                $validation = $coupon->isValidForUser($authUser->id, $originalPrice);
-                if ($validation['valid']) {
-                    $couponDiscount = (float) $validation['discount'];
-                    $finalPrice = max(0, $originalPrice - $couponDiscount);
-                }
-            }
-        }
-
-        if ($originalPrice <= 0) {
-            $originalPrice = $finalPrice + $couponDiscount;
-        }
 
         // File upload (supports fileUpload, image, images, file, files - single or array)
         $uploadedFiles = [];
@@ -195,9 +226,9 @@ class OrderApiController extends Controller
             'project_title' => $request->input('service'),
             'pages'         => $request->input('wordCount'),
             'price'         => $finalPrice,
-            'coupon_code' => $coupon?->coupon_code ?: ($couponCode ?: null),
-            'coupon_discount_type' => $coupon?->discount_type,
-            'coupon_discount_value' => $coupon?->discount_value,
+            'coupon_code' => $appliedCouponCode,
+            'coupon_discount_type' => $appliedDiscountType,
+            'coupon_discount_value' => $appliedDiscountValue,
             'coupon_discount_amount' => $couponDiscount,
             'coupon_original_amount' => $originalPrice,
             'service_type'  => str_replace('FirstClass', 'First Class Work', $request->input('workType')),
@@ -241,7 +272,9 @@ class OrderApiController extends Controller
             || $request->input('wallet') == '1'
             || strtolower((string)$request->input('wallet')) === 'true';
 
-        $finalPrice = (float) $request->input('finalPrice', 0);
+        if (!$discountAppliedServerSide) {
+            $finalPrice = (float) $request->input('finalPrice', 0);
+        }
         $usedWalletAmount = 0.0;
         $newWalletBalance = null;
 
@@ -288,12 +321,13 @@ class OrderApiController extends Controller
             'projectstatus'   => 'Pending',
             'lead_id'         => $lead->id,
             'uid'             => $authUser->id,
+            'referred_by_user_id' => $referredByUser?->id ?? ($authUser->refer_id ?: null),
             'title'           => $request->input('topic'),
             'amount'          => $finalPrice,
             'received_amount' => $usedWalletAmount,
-            'coupon_code' => $coupon?->coupon_code ?: ($couponCode ?: null),
-            'coupon_discount_type' => $coupon?->discount_type,
-            'coupon_discount_value' => $coupon?->discount_value,
+            'coupon_code' => $appliedCouponCode,
+            'coupon_discount_type' => $appliedDiscountType,
+            'coupon_discount_value' => $appliedDiscountValue,
             'coupon_discount_amount' => $couponDiscount,
             'coupon_original_amount' => $originalPrice,
             'module_code'     => $request->input('subject'),
@@ -317,52 +351,24 @@ class OrderApiController extends Controller
             $payment->save();
         }
 
-        // Record Coupon Usage if coupon_code provided
-        if ($request->filled('coupon_code')) {
-            $couponCode = trim($request->input('coupon_code'));
-            $coupon = $coupon ?: \App\Models\Coupon::where('coupon_code', $couponCode)->first();
-            if ($coupon) {
-                \App\Models\CouponUsage::create([
-                    'coupon_id' => $coupon->id,
-                    'user_id' => $authUser->id,
-                    'order_id' => $newOrderId,
-                    'discount_amount' => $couponDiscount,
-                ]);
-                $coupon->increment('total_used_count');
-            }
+        // Record Coupon Usage only for admin promo Coupon records
+        if ($coupon) {
+            \App\Models\CouponUsage::create([
+                'coupon_id' => $coupon->id,
+                'user_id' => $authUser->id,
+                'order_id' => $newOrderId,
+                'discount_amount' => $couponDiscount,
+            ]);
+            $coupon->increment('total_used_count');
         }
 
-        // --- 10% Referral Bonus to Referrer on First Order ---
-        $previousOrdersCount = Order::where('uid', $authUser->id)
-            ->where('id', '!=', $order->id)
-            ->count();
-
+        // Referrer bonus & client referral code generation occur strictly once an order is Converted / Confirmed.
         $referralBonusAwarded = false;
         $referralBonusAmount = 0.0;
-
-        if ($previousOrdersCount === 0 && !empty($authUser->refer_id)) {
-            $referrer = User::find($authUser->refer_id);
-            if ($referrer && $finalPrice > 0) {
-                $referralBonusAmount = round($finalPrice * 0.10, 2);
-
-                if ($referralBonusAmount > 0) {
-                    $referrerBalanceBefore = (float) ($referrer->Wallet ?? 0.00);
-                    $referrerBalanceAfter = $referrerBalanceBefore + $referralBonusAmount;
-
-                    $referrer->Wallet = $referrerBalanceAfter;
-                    $referrer->total_referral_earnings = (float) ($referrer->total_referral_earnings ?? 0.00) + $referralBonusAmount;
-                    $referrer->save();
-
-                    \App\Models\WalletTransaction::create([
-                        'user_id' => $referrer->id,
-                        'amount' => $referralBonusAmount,
-                        'type' => 'credit',
-                        'description' => '10% Referral bonus from ' . $authUser->name . ' (First Order #' . $newOrderId . ')',
-                        'balance_after' => $referrerBalanceAfter,
-                    ]);
-
-                    $referralBonusAwarded = true;
-                }
+        if ($referralService->isOrderEligibleForReferralCode($order)) {
+            $referralBonusAwarded = $referralService->awardReferrerBonusIfEligible($order, $authUser);
+            if ($referralBonusAwarded && $finalPrice > 0) {
+                $referralBonusAmount = round($finalPrice * (\App\Services\ReferralCodeService::DEFAULT_REFERRER_BONUS_PERCENT / 100), 2);
             }
         }
 
@@ -374,7 +380,9 @@ class OrderApiController extends Controller
             'is_app_lead'      => 1,
             'writer_id'        => $request->input('writer_id'),
             'total_amount'     => $finalPrice,
-            'coupon_code'      => $coupon?->coupon_code ?: ($couponCode ?: null),
+            'coupon_code'      => $appliedCouponCode,
+            'is_referral_code' => $isReferralCode,
+            'referral_discount_percent' => $isReferralCode ? $appliedDiscountValue : null,
             'coupon_discount_amount' => $couponDiscount,
             'original_amount'  => $originalPrice,
             'received_amount'  => $usedWalletAmount,
@@ -1337,14 +1345,59 @@ class OrderApiController extends Controller
         $userId = $request->user() ? $request->user()->id : ($data['uid'] ?? $data['user_id'] ?? null);
         $orderAmount = (float) ($data['order_amount'] ?? $data['amount'] ?? $data['finalPrice'] ?? 0.00);
 
-        $coupon = \App\Models\Coupon::where('coupon_code', $couponCode)->first();
+        $coupon = \App\Models\Coupon::whereRaw('UPPER(coupon_code) = ?', [strtoupper($couponCode)])->first();
 
         if (!$coupon) {
+            $referralService = app(\App\Services\ReferralCodeService::class);
+            $referrer = $referralService->findReferrerByCode($couponCode);
+
+            if (!$referrer) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid coupon or referral code.',
+                    'payload' => $data
+                ], 422);
+            }
+
+            $refValidation = $referralService->validateReferralUseForCustomer(
+                $referrer,
+                $userId ? (int) $userId : null,
+                $orderAmount
+            );
+
+            if (!$refValidation['valid']) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $refValidation['message'],
+                    'payload' => $data
+                ], 422);
+            }
+
+            $calculatedDiscount = $refValidation['discount'];
+            $finalPayableAmount = max(0, $orderAmount - $calculatedDiscount);
+            $pct = (float) $refValidation['discount_percent'];
+
             return response()->json([
-                'success' => false,
-                'message' => 'Invalid coupon code. Coupon does not exist.',
+                'success' => true,
+                'is_referral' => true,
+                'message' => $refValidation['message'],
+                'discount_amount' => $calculatedDiscount,
+                'final_payable_amount' => round($finalPayableAmount, 2),
+                'data' => [
+                    'id' => $referrer->id,
+                    'referrer_user_id' => $referrer->id,
+                    'referrer_name' => $referrer->name,
+                    'coupon_code' => $referrer->referral_code,
+                    'discount_type' => 'percentage',
+                    'discount_value' => $pct,
+                    'min_order_amount' => 0.0,
+                    'max_discount_amount' => null,
+                    'expires_at' => null,
+                    'usage_limit_per_user' => 1,
+                    'description' => 'Client Referral Discount (' . rtrim(rtrim(number_format($pct, 2, '.', ''), '0'), '.') . '% Off)',
+                ],
                 'payload' => $data
-            ], 422);
+            ], 200);
         }
 
         // Validate coupon rules against user ID, expiration, usage limits, and minimum order amount
@@ -1445,6 +1498,10 @@ class OrderApiController extends Controller
             'topic'        => 'nullable|string',
             'requirements' => 'nullable|string',
             'finalPrice'   => 'nullable',
+            'coupon_code'  => 'nullable|string|max:50',
+            'referral_code' => 'nullable|string|max:50',
+            'order_amount' => 'nullable|numeric|min:0',
+            'discount_amount' => 'nullable|numeric|min:0',
             'source_page'  => 'nullable',
             'fileUpload.*' => 'nullable|file|max:10240',
         ];
@@ -1542,6 +1599,46 @@ class OrderApiController extends Controller
             }
         }
 
+        $webFinalPrice = $request->input('finalPrice');
+        $webOriginalAmount = (float) ($request->input('order_amount') ?? $request->input('original_amount') ?? (is_numeric($webFinalPrice) ? $webFinalPrice : 0));
+        $webCouponDiscount = (float) $request->input('discount_amount', 0);
+        $webCouponCode = trim((string) ($request->input('coupon_code') ?: $request->input('referral_code') ?: ''));
+        $webAppliedCode = null;
+        $webDiscountType = null;
+        $webDiscountValue = null;
+        $webReferredByUser = null;
+
+        if ($webCouponCode !== '') {
+            $referralService = app(\App\Services\ReferralCodeService::class);
+            $webCoupon = \App\Models\Coupon::whereRaw('UPPER(coupon_code) = ?', [strtoupper($webCouponCode)])->first();
+            if ($webCoupon) {
+                $val = $webCoupon->isValidForUser($user->id, $webOriginalAmount);
+                if ($val['valid']) {
+                    $webCouponDiscount = (float) $val['discount'];
+                    $webFinalPrice = max(0, $webOriginalAmount - $webCouponDiscount);
+                    $webAppliedCode = $webCoupon->coupon_code;
+                    $webDiscountType = $webCoupon->discount_type;
+                    $webDiscountValue = $webCoupon->discount_value;
+                }
+            } else {
+                $webReferredByUser = $referralService->findReferrerByCode($webCouponCode);
+                if ($webReferredByUser) {
+                    $refVal = $referralService->validateReferralUseForCustomer($webReferredByUser, $user->id, $webOriginalAmount);
+                    if ($refVal['valid']) {
+                        $webCouponDiscount = (float) $refVal['discount'];
+                        $webFinalPrice = max(0, $webOriginalAmount - $webCouponDiscount);
+                        $webAppliedCode = $webReferredByUser->referral_code;
+                        $webDiscountType = 'percentage';
+                        $webDiscountValue = (float) $refVal['discount_percent'];
+                        if (empty($user->refer_id) && (int) $webReferredByUser->id !== (int) $user->id) {
+                            $user->refer_id = $webReferredByUser->id;
+                            $user->save();
+                        }
+                    }
+                }
+            }
+        }
+
         // Lead create
         $lead = Leads::create([
             'order_id'      => $newOrderId,
@@ -1557,7 +1654,12 @@ class OrderApiController extends Controller
             'is_app_lead'   => 0, // 0 for web lead
             'project_title' => $request->input('service'),
             'pages'         => $request->input('pages'), // Using the web 'pages' field!
-            'price'         => $request->input('finalPrice'),
+            'price'         => $webFinalPrice,
+            'coupon_code'   => $webAppliedCode,
+            'coupon_discount_type' => $webDiscountType,
+            'coupon_discount_value' => $webDiscountValue,
+            'coupon_discount_amount' => $webCouponDiscount,
+            'coupon_original_amount' => $webOriginalAmount ?: null,
             'service_type'  => str_replace('FirstClass', 'First Class Work', $request->input('workType')),
             'page_url'      => $request->input('source_page') ?? 'Website',
             'subject'       => $request->input('subject'),
@@ -1569,8 +1671,14 @@ class OrderApiController extends Controller
             'projectstatus' => 'Pending',
             'lead_id'       => $lead->id,
             'uid'           => $user->id,
+            'referred_by_user_id' => $webReferredByUser?->id ?? ($user->refer_id ?: null),
             'title'         => $request->input('topic') ?? $request->input('service'),
-            'amount'        => $request->input('finalPrice'),
+            'amount'        => $webFinalPrice,
+            'coupon_code'   => $webAppliedCode,
+            'coupon_discount_type' => $webDiscountType,
+            'coupon_discount_value' => $webDiscountValue,
+            'coupon_discount_amount' => $webCouponDiscount,
+            'coupon_original_amount' => $webOriginalAmount ?: null,
             'module_code'   => $request->input('subject'),
         ]);
 
@@ -1830,6 +1938,10 @@ class OrderApiController extends Controller
             'topic'        => 'nullable|string',
             'requirements' => 'nullable|string',
             'finalPrice'   => 'nullable',
+            'coupon_code'  => 'nullable|string|max:50',
+            'referral_code' => 'nullable|string|max:50',
+            'order_amount' => 'nullable|numeric|min:0',
+            'discount_amount' => 'nullable|numeric|min:0',
             'source_page'  => 'nullable',
             'fileUpload.*' => 'nullable|file|max:10240',
         ];
