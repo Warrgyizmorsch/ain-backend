@@ -189,6 +189,10 @@ class UserController extends Controller
         $requestedPeriod = $request->input('order_period');
         $collegeName = $request->input('college_name');
         $groupId = $request->input('group_id');
+        $orderSort = strtolower(trim((string) $request->input('order_sort', 'desc')));
+        if (!in_array($orderSort, ['desc', 'asc', 'latest'], true)) {
+            $orderSort = 'desc';
+        }
         // mk 5 10 26 - Changed perPage from 10 to 20 for infinite scroll
         $perPage = 20;
 
@@ -402,7 +406,19 @@ class UserController extends Controller
             });
         }
 
-        $data['users'] = $tabFilteredQuery->orderBy('users.id', 'desc')->paginate($perPage);
+        if ($orderSort === 'asc') {
+            $tabFilteredQuery->orderBy('orders_count', 'asc')
+                ->orderBy('total_orders_count', 'asc')
+                ->orderBy('users.id', 'desc');
+        } elseif ($orderSort === 'latest') {
+            $tabFilteredQuery->orderBy('users.id', 'desc');
+        } else {
+            $tabFilteredQuery->orderByDesc('orders_count')
+                ->orderByDesc('total_orders_count')
+                ->orderByDesc('users.id');
+        }
+
+        $data['users'] = $tabFilteredQuery->paginate($perPage);
         $data['role'] = Role::all();
         $data['teams'] = Team::where('is_delete', false)->orderBy('priority', 'asc')->get();
         $data['bank'] = Bank::all();
@@ -452,9 +468,10 @@ class UserController extends Controller
         $data['groups'] = GroupMaster::where('status', 1)->orderBy('name')->get(['id','name']);
         $data['orderPeriod'] = $effectiveOrderPeriod;
         $data['orderPeriodLabel'] = $orderPeriodLabel;
+        $data['orderSort'] = $orderSort;
 
         // Compacting tab variables for user_view
-        return view('user.user_view', compact('data', 'countAll', 'countConfirmed', 'countNotConfirmed', 'countDummyEmail', 'tab', 'codeToCountry', 'effectiveOrderPeriod', 'orderPeriodLabel'));
+        return view('user.user_view', compact('data', 'countAll', 'countConfirmed', 'countNotConfirmed', 'countDummyEmail', 'tab', 'codeToCountry', 'effectiveOrderPeriod', 'orderPeriodLabel', 'orderSort'));
     }
 
     public function EditUser(Request $request, $id)
