@@ -97,8 +97,8 @@ class OrderController extends Controller
     private function orderListRelations(): array
     {
         $userSelectCallback = function ($q) {
-            $q->select('id', 'name', 'email', 'countrycode', 'mobile_no', 'is_fail', 'feedback_issue', 'client_review')
-                ->with('groups');
+            $q->select('id', 'name', 'email', 'countrycode', 'mobile_no', 'is_fail', 'feedback_issue', 'client_review', 'referral_code', 'referral_discount_percent', 'referral_executive_id', 'referral_prefix')
+                ->with(['groups', 'referralExecutive:id,name,referral_prefix']);
         };
 
         return [

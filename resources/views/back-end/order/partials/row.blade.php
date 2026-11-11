@@ -323,6 +323,21 @@
                         </button>
                     </div><br>
                 @endif
+                @if (\App\Services\ReferralCodeService::canView(auth()->user()) && !empty($effectiveUser->referral_code))
+                    @php
+                        $refPct = rtrim(rtrim(number_format((float) ($effectiveUser->referral_discount_percent ?? 10.00), 2, '.', ''), '0'), '.');
+                    @endphp
+                    <div class="d-inline-flex align-items-center justify-content-center gap-1 mb-1">
+                        <span class="badge badge-light-primary fs-8 fw-bold font-monospace" title="Client Referral Code">
+                            Ref: {{ $effectiveUser->referral_code }} ({{ $refPct }}%)
+                        </span>
+                        <button type="button" class="btn btn-icon btn-sm btn-active-light-primary p-0 flex-shrink-0"
+                            style="width: 18px; height: 18px;" title="Copy Referral Code"
+                            onclick="event.stopPropagation(); crmCopyToClipboard(@js($effectiveUser->referral_code), 'Referral code copied!');">
+                            <i class="fa fa-clone fs-8 text-muted"></i>
+                        </button>
+                    </div><br>
+                @endif
 
                 @if (!empty($effectiveUser->client_review))
                     <span class="duplicate-info-wrapper">

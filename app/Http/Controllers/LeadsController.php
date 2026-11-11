@@ -472,7 +472,7 @@ class LeadsController extends Controller
             return response()->json(['user' => null, 'users' => [], 'referUser' => null]);
         }
 
-        $users = User::select('id', 'name', 'email', 'countrycode', 'mobile_no', 'countrycode2', 'mobile_no2', 'refer_id')
+        $users = User::select('id', 'name', 'email', 'countrycode', 'mobile_no', 'countrycode2', 'mobile_no2', 'refer_id', 'referral_code', 'referral_discount_percent')
             ->where(function ($query) use ($digits, $last10, $pattern) {
                 $hasCondition = false;
                 if (! empty($pattern) && preg_match('/\d/', $pattern)) {
@@ -510,7 +510,7 @@ class LeadsController extends Controller
             ->limit(10)
             ->get();
 
-        $referUsers = User::select('id', 'name', 'email', 'mobile_no')
+        $referUsers = User::select('id', 'name', 'email', 'mobile_no', 'referral_code', 'referral_discount_percent')
             ->whereIn('id', $users->pluck('refer_id')->filter()->unique())
             ->get()
             ->keyBy('id');
@@ -1093,6 +1093,12 @@ class LeadsController extends Controller
 
             // New fields
             $order->l_converted_by = Auth::user()->name;
+            if (empty($order->referred_by_user_id) && $emp_id) {
+                $customerRef = User::select('id', 'refer_id')->find($emp_id);
+                if ($customerRef && !empty($customerRef->refer_id)) {
+                    $order->referred_by_user_id = $customerRef->refer_id;
+                }
+            }
 
             // Save the order
             $order->save();
@@ -1558,6 +1564,9 @@ class LeadsController extends Controller
         $order->l_converted_by = Auth::user()->name;
 
         $user = User::where('id', $leadData->emp_id)->first();
+        if (empty($order->referred_by_user_id) && $user && !empty($user->refer_id)) {
+            $order->referred_by_user_id = $user->refer_id;
+        }
 
         $mailData = [
             'name' => $user->name,
@@ -2753,6 +2762,19 @@ class LeadsController extends Controller
         $order->projectstatus = 'Other';
         $order->l_converted_by = Auth::user()->name ?? 'System';
         $order->resit = $lead->resit;
+        if (empty($order->coupon_code) && !empty($lead->coupon_code)) {
+            $order->coupon_code = $lead->coupon_code;
+            $order->coupon_discount_type = $lead->coupon_discount_type;
+            $order->coupon_discount_value = $lead->coupon_discount_value;
+            $order->coupon_discount_amount = $lead->coupon_discount_amount;
+            $order->coupon_original_amount = $lead->coupon_original_amount;
+        }
+        if (empty($order->referred_by_user_id) && !empty($lead->emp_id)) {
+            $customerRef = User::select('id', 'refer_id')->find($lead->emp_id);
+            if ($customerRef && !empty($customerRef->refer_id)) {
+                $order->referred_by_user_id = $customerRef->refer_id;
+            }
+        }
 
         // Step 5: Save order
         $order->save();
@@ -3327,19 +3349,21 @@ class LeadsController extends Controller
 
     public function searchReferUsers(Request $request)
     {
-        $search = $request->search;
+        $search = trim((string) $request->search);
 
         if (! $search || strlen($search) < 2) {
             return response()->json([]);
         }
 
         $users = User::where('role_id', 2)
+            ->where('flag', 0)
             ->where(function ($q) use ($search) {
                 $q->where('name', 'LIKE', "%{$search}%")
                     ->orWhere('email', 'LIKE', "%{$search}%")
-                    ->orWhere('mobile_no', 'LIKE', "%{$search}%");
+                    ->orWhere('mobile_no', 'LIKE', "%{$search}%")
+                    ->orWhere('referral_code', 'LIKE', "%{$search}%");
             })
-            ->select('id', 'name', 'email', 'mobile_no')
+            ->select('id', 'name', 'email', 'mobile_no', 'referral_code', 'referral_discount_percent')
             ->limit(10)
             ->get();
 

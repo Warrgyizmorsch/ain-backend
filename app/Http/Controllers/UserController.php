@@ -13,6 +13,7 @@ use App\Models\UserLog;
 use App\Models\Order;
 use App\Models\GroupMaster;
 use App\Models\Team;
+use App\Services\ReferralCodeService;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
 
@@ -295,7 +296,7 @@ class UserController extends Controller
         };
 
         $oneYearAgo = \Carbon\Carbon::now()->subYear();
-        $query = User::with('groups:id,name')
+        $query = User::with(['groups:id,name', 'referralExecutive:id,name,referral_prefix'])
             ->select('users.*')
             ->withCount([
                 'genuineOrders as total_orders_count',
@@ -317,7 +318,8 @@ class UserController extends Controller
                 $q->where('users.name', 'like', '%' . $userText . '%')
                   ->orWhere('users.email', 'like', '%' . $userText . '%')
                   ->orWhere('users.mobile_no', 'like', '%' . $userText . '%')
-                  ->orWhere('users.mobile_no2', 'like', '%' . $userText . '%');
+                  ->orWhere('users.mobile_no2', 'like', '%' . $userText . '%')
+                  ->orWhere('users.referral_code', 'like', '%' . $userText . '%');
                 if (!empty($cleanUserText)) {
                     $q->orWhere('users.mobile_no', 'like', '%' . $cleanUserText . '%')
                       ->orWhereRaw("CONCAT(COALESCE(users.countrycode, ''), COALESCE(users.mobile_no, '')) LIKE ?", ["%{$cleanUserText}%"]);
@@ -476,6 +478,23 @@ class UserController extends Controller
 
     public function EditUser(Request $request, $id)
     {
+        $hasReferralPayload = $request->hasAny([
+            'referral_code',
+            'referral_discount_percent',
+            'referral_prefix',
+            'referral_executive_id',
+        ]);
+
+        if ($hasReferralPayload && ! ReferralCodeService::canEdit(Auth::user())) {
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Only Admin and Sub Admin can edit referral settings.',
+                ], 403);
+            }
+            abort(403, 'Only Admin and Sub Admin can edit referral settings.');
+        }
+
         try {
             $user = User::findOrFail($id);
 
@@ -506,19 +525,196 @@ class UserController extends Controller
             } else {
                 $user->photo = 'assets/media/avatars/blank.png';
             }
-            // dd($user);
-            // Check if the provided old password is correct
 
             $user->sip = $request->input('sip');
             if ($request->has('sip_password')) {
                 $user->sip_password = $request->input('sip_password');
             }
+
+            if ($hasReferralPayload) {
+                $referralError = $this->applyReferralSettingsToUser($request, $user, false);
+                if ($referralError !== null) {
+                    return redirect()->back()->withInput()->with('error', $referralError);
+                }
+            }
+
             $user->save();
 
             return redirect()->back()->with('success', 'Profile Updated Successfully');
         } catch (\Exception $e) {
             return redirect()->back()->with('error', 'Error: ' . $e->getMessage());
         }
+    }
+
+    public function referralExecutives(Request $request)
+    {
+        if (! ReferralCodeService::canEdit(Auth::user())) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Only Admin and Sub Admin can view referral executives.',
+            ], 403);
+        }
+
+        $executives = User::where('flag', 0)
+            ->whereIn('role_id', ReferralCodeService::STAFF_EXECUTIVE_ROLE_IDS)
+            ->orderBy('name')
+            ->get(['id', 'name', 'role_id', 'referral_prefix']);
+
+        return response()->json([
+            'success' => true,
+            'data' => $executives,
+        ]);
+    }
+
+    public function updateReferralSettings(Request $request, $id)
+    {
+        if (! ReferralCodeService::canEdit(Auth::user())) {
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Only Admin and Sub Admin can edit referral settings.',
+                ], 403);
+            }
+            abort(403, 'Only Admin and Sub Admin can edit referral settings.');
+        }
+
+        $user = User::findOrFail($id);
+        $error = $this->applyReferralSettingsToUser($request, $user, true);
+
+        if ($error !== null) {
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $error,
+                ], 422);
+            }
+
+            return redirect()->back()->withInput()->with('error', $error);
+        }
+
+        $user->save();
+        $user->load('referralExecutive:id,name,referral_prefix');
+
+        try {
+            if (function_exists('logActivity')) {
+                logActivity('User Referral', [
+                    'type' => 'Referral Settings Updated',
+                    'target_user_id' => $user->id,
+                    'referral_code' => $user->referral_code,
+                    'referral_discount_percent' => $user->referral_discount_percent,
+                    'referral_prefix' => $user->referral_prefix,
+                    'referral_executive_id' => $user->referral_executive_id,
+                    'updated_by' => Auth::user()?->name,
+                ]);
+            }
+        } catch (\Throwable $e) {
+            // Non-blocking audit log
+        }
+
+        $payload = [
+            'id' => $user->id,
+            'role_id' => (int) $user->role_id,
+            'referral_code' => $user->referral_code,
+            'referral_discount_percent' => $user->referral_discount_percent !== null
+                ? number_format((float) $user->referral_discount_percent, 2, '.', '')
+                : '10.00',
+            'referral_discount_display' => rtrim(rtrim(number_format((float) ($user->referral_discount_percent ?? 10.00), 2, '.', ''), '0'), '.'),
+            'referral_executive_id' => $user->referral_executive_id,
+            'referral_executive_name' => $user->referralExecutive?->name,
+            'referral_prefix' => $user->referral_prefix,
+        ];
+
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Referral settings updated successfully.',
+                'data' => $payload,
+            ]);
+        }
+
+        return redirect()->back()->with('success', 'Referral settings updated successfully.');
+    }
+
+    protected function applyReferralSettingsToUser(Request $request, User $user, bool $strictBlankCheck = false): ?string
+    {
+        $service = app(ReferralCodeService::class);
+        $hadCodeBefore = ! empty(trim((string) $user->referral_code));
+
+        if ($request->has('referral_executive_id')) {
+            $execId = $request->input('referral_executive_id');
+            if ($execId === '' || $execId === null) {
+                $user->referral_executive_id = null;
+            } else {
+                $exec = User::where('id', (int) $execId)
+                    ->where('flag', 0)
+                    ->whereIn('role_id', ReferralCodeService::STAFF_EXECUTIVE_ROLE_IDS)
+                    ->first();
+                if (! $exec) {
+                    return 'Selected marketing executive is invalid or inactive.';
+                }
+                $user->referral_executive_id = $exec->id;
+                $user->referral_prefix = $service->ensureExecutivePrefix($exec);
+            }
+        }
+
+        if ($request->has('referral_prefix') && in_array((int) $user->role_id, ReferralCodeService::STAFF_EXECUTIVE_ROLE_IDS, true)) {
+            $rawPrefix = trim((string) $request->input('referral_prefix', ''));
+            if ($rawPrefix === '') {
+                $user->referral_prefix = null;
+            } else {
+                $cleanPrefix = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', $rawPrefix));
+                if (! preg_match('/^[A-Z0-9]{3}$/', $cleanPrefix)) {
+                    return 'Executive referral prefix must be exactly 3 letters or numbers.';
+                }
+                $prefixExists = User::where('id', '!=', $user->id)
+                    ->where('flag', 0)
+                    ->whereIn('role_id', ReferralCodeService::STAFF_EXECUTIVE_ROLE_IDS)
+                    ->whereRaw('UPPER(referral_prefix) = ?', [$cleanPrefix])
+                    ->exists();
+                if ($prefixExists) {
+                    return 'This 3-character prefix is already assigned to another executive.';
+                }
+                $user->referral_prefix = $cleanPrefix;
+            }
+        }
+
+        if ($request->has('referral_code')) {
+            $rawCode = trim((string) $request->input('referral_code', ''));
+            if ($rawCode !== '') {
+                $normalizedCode = ReferralCodeService::normalizeReferralCode($rawCode);
+                if (! preg_match('/^[A-Z0-9]{5,10}$/', $normalizedCode)) {
+                    return 'Referral code must be 5 to 10 letters or numbers.';
+                }
+                if ($service->codeExistsAnywhere($normalizedCode, (int) $user->id)) {
+                    return 'This referral code is already in use by another client or coupon.';
+                }
+                $user->referral_code = $normalizedCode;
+                if (empty($user->referral_code_generated_at)) {
+                    $user->referral_code_generated_at = now();
+                }
+                if ((int) $user->role_id === 2 && ! $request->has('referral_executive_id') && empty($user->referral_prefix)) {
+                    $user->referral_prefix = substr($normalizedCode, 0, ReferralCodeService::PREFIX_LENGTH);
+                }
+            } elseif ($strictBlankCheck && $hadCodeBefore) {
+                return 'Referral code cannot be blank once assigned (use 5 to 10 characters).';
+            }
+        }
+
+        if ($request->has('referral_discount_percent') && $request->input('referral_discount_percent') !== '' && $request->input('referral_discount_percent') !== null) {
+            $rawDiscount = $request->input('referral_discount_percent');
+            if (! is_numeric($rawDiscount)) {
+                return 'Referral discount percentage must be a valid number.';
+            }
+            $pct = (float) $rawDiscount;
+            if ($pct < 0 || $pct > 100) {
+                return 'Referral discount percentage must be between 0 and 100.';
+            }
+            $user->referral_discount_percent = round($pct, 2);
+        }
+
+        $user->referral_updated_by = Auth::id();
+
+        return null;
     }
 
     public function deleteUser($id)
@@ -832,7 +1028,14 @@ class UserController extends Controller
 
     public function showUserProfile($id) // Ya aapka jo bhi function name ho
     {
-        $user = User::withCount('orders')->findOrFail($id);
+        $user = User::with('referralExecutive:id,name,referral_prefix')->withCount('orders')->findOrFail($id);
+
+        $executives = ReferralCodeService::canEdit(Auth::user())
+            ? User::where('flag', 0)
+                ->whereIn('role_id', ReferralCodeService::STAFF_EXECUTIVE_ROLE_IDS)
+                ->orderBy('name')
+                ->get(['id', 'name', 'role_id', 'referral_prefix'])
+            : collect();
 
         // Revenue (received_amount ka sum)
         $totalRevenue = \App\Models\Order::where('uid', $id)->sum('received_amount');
@@ -852,7 +1055,7 @@ class UserController extends Controller
         $pendingTickets = $totalTickets - $solvedTickets;
 
         // YAHAN DHYAN DEIN: File ka naam userreporting kar diya gaya hai
-        return view('user.userreporting', compact('user', 'totalRevenue', 'totalTickets', 'solvedTickets', 'pendingTickets'));
+        return view('user.userreporting', compact('user', 'executives', 'totalRevenue', 'totalTickets', 'solvedTickets', 'pendingTickets'));
     }
 
     // public function userReportList(Request $request)

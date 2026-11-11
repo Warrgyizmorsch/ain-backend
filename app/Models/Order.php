@@ -49,12 +49,15 @@ class Order extends Model
         'coupon_discount_type',
         'coupon_discount_value',
         'coupon_discount_amount',
-        'coupon_original_amount'
+        'coupon_original_amount',
+        'referred_by_user_id',
+        'referral_bonus_awarded_at'
     ];
 
     protected $casts = [
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
+        'referral_bonus_awarded_at' => 'datetime',
     ];
 
     public function getReceivedAmountAttribute($value)
@@ -71,6 +74,22 @@ class Order extends Model
     public function user()
     {
         return $this->belongsTo(User::class, 'uid');
+    }
+
+    public function referredByUser()
+    {
+        return $this->belongsTo(User::class, 'referred_by_user_id');
+    }
+
+    protected static function booted()
+    {
+        static::saved(function ($order) {
+            app(\App\Services\ReferralCodeService::class)->handleEligibleOrder(
+                $order,
+                null,
+                \Illuminate\Support\Facades\Auth::user()
+            );
+        });
     }
 
     public function payment()

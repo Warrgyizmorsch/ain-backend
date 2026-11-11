@@ -192,34 +192,42 @@
             opacity: .8;
         }
 
-        /* Role (5) and Join Date (6): left aligned like other columns */
-        .user-list-table thead th:nth-child(5),
-        .user-list-table thead th:nth-child(6),
-        .user-list-table tbody td:nth-child(5),
-        .user-list-table tbody td:nth-child(6) {
+        /* Role and Join Date: left aligned like other columns */
+        .user-list-table thead th.col-role,
+        .user-list-table thead th.col-join-date,
+        .user-list-table tbody td.col-role,
+        .user-list-table tbody td.col-join-date {
             text-align: left !important;
         }
 
-        .user-list-table tbody td:nth-child(5) .flex-stack,
-        .user-list-table tbody td:nth-child(6) .flex-stack {
+        .user-list-table tbody td.col-role .flex-stack,
+        .user-list-table tbody td.col-join-date .flex-stack {
             justify-content: flex-start !important;
         }
 
-        /* Order Count (7) and Follow-ups (8): centered under their titles */
-        .user-list-table thead th:nth-child(7),
-        .user-list-table thead th:nth-child(8),
-        .user-list-table tbody td:nth-child(7),
-        .user-list-table tbody td:nth-child(8) {
+        /* Order Count and Follow-ups: centered under their titles */
+        .user-list-table thead th.col-order-count,
+        .user-list-table thead th.col-followups,
+        .user-list-table tbody td.col-order-count,
+        .user-list-table tbody td.col-followups {
             text-align: center !important;
         }
 
-        /* Actions (9): right aligned */
-        .user-list-table thead th:nth-child(9),
-        .user-list-table tbody td:nth-child(9) {
+        /* Referral column: left aligned */
+        .user-list-table thead th.col-referral,
+        .user-list-table tbody td.col-referral {
+            text-align: left !important;
+        }
+
+        /* Actions: right aligned */
+        .user-list-table thead th.col-actions,
+        .user-list-table tbody td.col-actions {
             text-align: right !important;
         }
     </style>
     @php
+        $canViewReferral = \App\Services\ReferralCodeService::canView(auth()->user());
+        $canEditReferral = \App\Services\ReferralCodeService::canEdit(auth()->user());
         $hasActiveFilters =
             request()->filled('user') ||
             request()->filled('user_id') ||
@@ -282,7 +290,7 @@
                                 <!-- User ID filter -->
                                 <div class="col-lg-3 fv-row fv-plugins-icon-container position-relative">
                                     <input type="text" id="searchInput" name="user"
-                                        class="form-control form-control-solid" placeholder="User-Name,Number,Email"
+                                        class="form-control form-control-solid" placeholder="User-Name,Number,Email,Referral Code"
                                         autocomplete="off"
                                         value="{{ request('user') ? request('user') : (isset($data['selected_user']) && $data['selected_user'] ? $data['selected_user']->name . ' (ID: ' . $data['selected_user']->id . ')' : '') }}">
                                     <!-- Container to display custom search results dropdown -->
@@ -500,8 +508,8 @@
                                             <th class="min-w-200px">Contact</th>
                                             <th class="min-w-80px">Groups</th>
                                             <th class="min-w-130px">Conversion</th>
-                                            <th class="min-w-80px">Role</th>
-                                            <th class="min-w-190px">Join Date</th>
+                                            <th class="min-w-80px col-role">Role</th>
+                                            <th class="min-w-190px col-join-date">Join Date</th>
                                             @php
                                                 $currentOrderSort = in_array(strtolower((string) request('order_sort', $orderSort ?? 'desc')), ['desc', 'asc', 'latest'], true)
                                                     ? strtolower((string) request('order_sort', $orderSort ?? 'desc'))
@@ -512,7 +520,7 @@
                                                     ? 'Sorted High to Low (Click for Min to Max)'
                                                     : 'Sorted Low to High / Default (Click for Max to Min)';
                                             @endphp
-                                            <th class="min-w-100px">
+                                            <th class="min-w-100px col-order-count">
                                                 <a href="{{ request()->fullUrlWithQuery(['order_sort' => $nextHeaderSort, 'page' => null]) }}"
                                                     class="text-muted text-hover-primary text-decoration-none d-inline-flex align-items-center gap-1"
                                                     title="{{ $sortTitle }}">
@@ -521,8 +529,11 @@
                                                 </a>
                                                 <br><small>({{ $orderPeriodLabel ?? 'Last 1.5 Yrs' }})</small>
                                             </th>
-                                            <th class="min-w-100px">Follow-ups<br><small>(Last 1 Yr)</small></th>
-                                            <th class="min-w-90px">Actions</th>
+                                            <th class="min-w-100px col-followups">Follow-ups<br><small>(Last 1 Yr)</small></th>
+                                            @if ($canViewReferral)
+                                                <th class="min-w-170px col-referral">Referral Code</th>
+                                            @endif
+                                            <th class="min-w-90px col-actions">Actions</th>
                                         </tr>
                                     </thead>
                                     {{-- mk 5 10 26 - Infinite Scroll Tbody --}}
@@ -573,6 +584,60 @@
         </div>
     </div>
     </div>
+    @if ($canEditReferral)
+        <div class="modal fade" id="editReferralModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered mw-550px">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3 class="modal-title fw-bolder">Edit Referral Settings — <span id="refModalUserName" class="text-primary"></span></h3>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <form id="editReferralForm">
+                        @csrf
+                        <input type="hidden" id="refModalUserId" value="">
+                        <div class="modal-body py-5 px-7">
+                            <div id="refModalAlert" class="alert d-none mb-4"></div>
+
+                            <div id="refClientFieldsWrapper">
+                                <div class="mb-4">
+                                    <label class="form-label fw-bold required">Referral Code (5-10 chars)</label>
+                                    <input type="text" id="refModalCode" name="referral_code" maxlength="10"
+                                        class="form-control form-control-solid text-uppercase font-monospace"
+                                        placeholder="e.g. USK49M">
+                                    <div class="form-text">First 3 characters identify the marketing executive prefix.</div>
+                                </div>
+                                <div class="mb-4">
+                                    <label class="form-label fw-bold required">Discount Percentage (%)</label>
+                                    <input type="number" step="0.01" min="0" max="100" id="refModalDiscount" name="referral_discount_percent"
+                                        class="form-control form-control-solid" value="10.00">
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label fw-bold">Marketing Executive</label>
+                                    <select id="refModalExecutiveId" name="referral_executive_id" class="form-select form-select-solid js-referral-exec-select" data-selected-executive="">
+                                        <option value="">System / Default (AIN)</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div id="refExecutiveFieldsWrapper" class="d-none">
+                                <div class="mb-2">
+                                    <label class="form-label fw-bold required">Executive 3-Char Prefix</label>
+                                    <input type="text" id="refModalPrefix" name="referral_prefix" maxlength="3"
+                                        class="form-control form-control-solid text-uppercase font-monospace"
+                                        placeholder="e.g. USK">
+                                    <div class="form-text">Exactly 3 letters or digits used to prefix client referral codes converted by this executive.</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" id="refModalSubmitBtn" class="btn btn-primary fw-bold">Save Changes</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    @endif
 @endsection
 
 @push('scripts')
@@ -953,5 +1018,203 @@
             // Initial check after page render
             setTimeout(checkScrollTrigger, 400);
         })();
+
+        @if ($canEditReferral)
+        window.__refExecutivesList = null;
+        window.__refExecutivesPromise = null;
+
+        window.loadReferralExecutivesList = function() {
+            if (Array.isArray(window.__refExecutivesList)) {
+                return Promise.resolve(window.__refExecutivesList);
+            }
+            if (!window.__refExecutivesPromise) {
+                window.__refExecutivesPromise = fetch("{{ route('user.referral.executives') }}", {
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                })
+                .then(res => res.ok ? res.json() : { success: false, data: [] })
+                .then(json => {
+                    window.__refExecutivesList = Array.isArray(json.data) ? json.data : [];
+                    return window.__refExecutivesList;
+                })
+                .catch(() => {
+                    window.__refExecutivesPromise = null;
+                    return [];
+                });
+            }
+            return window.__refExecutivesPromise;
+        };
+
+        window.populateReferralExecutiveSelect = function($select, selectedId, fallbackLabel) {
+            if (!$select || !$select.length) return;
+            const targetId = selectedId !== undefined && selectedId !== null ? String(selectedId) : '';
+            $select.attr('data-selected-executive', targetId);
+
+            if (targetId && !$select.find('option[value="' + targetId.replace(/"/g, '\\"') + '"]').length) {
+                $select.append($('<option>', {
+                    value: targetId,
+                    text: fallbackLabel || ('Executive #' + targetId)
+                }));
+            }
+            $select.val(targetId);
+
+            window.loadReferralExecutivesList().then(list => {
+                if (!Array.isArray(list) || !list.length) return;
+                const currentTarget = String($select.attr('data-selected-executive') || '');
+                const preservedFallbackText = currentTarget
+                    ? ($select.find('option[value="' + currentTarget.replace(/"/g, '\\"') + '"]').text() || ('Executive #' + currentTarget))
+                    : '';
+
+                $select.empty();
+                $select.append($('<option>', { value: '', text: 'System / Default (AIN)' }));
+
+                let matchedTarget = false;
+                list.forEach(exec => {
+                    const idStr = String(exec.id);
+                    if (idStr === currentTarget) matchedTarget = true;
+                    const label = exec.name + (exec.referral_prefix ? ' (' + exec.referral_prefix + ')' : '');
+                    $select.append($('<option>', { value: idStr, text: label }));
+                });
+
+                if (currentTarget && !matchedTarget) {
+                    $select.append($('<option>', { value: currentTarget, text: preservedFallbackText }));
+                }
+                $select.val(currentTarget);
+            });
+        };
+
+        $(document).on('show.bs.modal', '.modal', function() {
+            const $execSelect = $(this).find('.js-referral-exec-select');
+            if ($execSelect.length && $execSelect.attr('id') !== 'refModalExecutiveId') {
+                const selectedId = $execSelect.attr('data-selected-executive') || $execSelect.val() || '';
+                window.populateReferralExecutiveSelect($execSelect, selectedId);
+            }
+        });
+
+        window.openEditReferralModal = function(btn) {
+            const $btn = $(btn);
+            const userId = $btn.data('user-id');
+            const userName = $btn.data('user-name') || '';
+            const roleId = parseInt($btn.data('role-id'), 10) || 2;
+            const referralCode = $btn.data('referral-code') || '';
+            const discountPercent = $btn.data('discount-percent') !== undefined && $btn.data('discount-percent') !== '' ? $btn.data('discount-percent') : '10.00';
+            const execId = $btn.data('executive-id') || '';
+            const execName = $btn.data('executive-name') || '';
+            const prefix = $btn.data('prefix') || '';
+
+            $('#refModalUserId').val(userId);
+            $('#refModalUserName').text(userName);
+            $('#refModalAlert').addClass('d-none').removeClass('alert-danger alert-success').text('');
+
+            const isStaffExec = [1, 4, 9].includes(roleId);
+            if (isStaffExec) {
+                $('#refClientFieldsWrapper').addClass('d-none');
+                $('#refExecutiveFieldsWrapper').removeClass('d-none');
+                $('#refModalPrefix').val(prefix);
+            } else {
+                $('#refExecutiveFieldsWrapper').addClass('d-none');
+                $('#refClientFieldsWrapper').removeClass('d-none');
+                $('#refModalCode').val(referralCode);
+                $('#refModalDiscount').val(discountPercent);
+                const fallbackExecLabel = execName ? (execName + (prefix ? ' (' + prefix + ')' : '')) : '';
+                window.populateReferralExecutiveSelect($('#refModalExecutiveId'), execId, fallbackExecLabel);
+            }
+
+            const modalEl = document.getElementById('editReferralModal');
+            if (modalEl && typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+                bootstrap.Modal.getOrCreateInstance(modalEl).show();
+            }
+        };
+
+        $('#editReferralForm').on('submit', function(e) {
+            e.preventDefault();
+            const userId = $('#refModalUserId').val();
+            const isExecMode = !$('#refExecutiveFieldsWrapper').hasClass('d-none');
+            const $btn = $('#refModalSubmitBtn');
+            const $alert = $('#refModalAlert');
+            $btn.prop('disabled', true).text('Saving...');
+            $alert.addClass('d-none').removeClass('alert-danger alert-success');
+
+            const payload = isExecMode
+                ? { referral_prefix: $('#refModalPrefix').val().trim().toUpperCase() }
+                : {
+                    referral_code: $('#refModalCode').val().trim().toUpperCase(),
+                    referral_discount_percent: $('#refModalDiscount').val(),
+                    referral_executive_id: $('#refModalExecutiveId').val()
+                };
+
+            fetch("{{ url('/user') }}/" + userId + "/referral", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') || ''
+                },
+                body: JSON.stringify(payload)
+            })
+            .then(async res => {
+                const json = await res.json().catch(() => ({}));
+                if (!res.ok || !json.success) {
+                    throw new Error(json.message || 'Unable to update referral settings.');
+                }
+                return json;
+            })
+            .then(json => {
+                const d = json.data || {};
+                const cell = document.querySelector('[data-user-referral-cell="' + userId + '"]');
+                if (cell) {
+                    const esc = (v) => $('<div>').text(v || '').html();
+                    const escapedName = esc($('#refModalUserName').text());
+                    const resolvedRoleId = parseInt(d.role_id, 10) || (isExecMode ? 4 : 2);
+                    const safeCode = esc(d.referral_code || '');
+                    const safePrefix = esc(d.referral_prefix || '');
+
+                    if (isExecMode) {
+                        const p = safePrefix || 'Auto';
+                        cell.innerHTML = '<div class="d-flex align-items-center gap-1">' +
+                            '<span class="badge badge-light-dark fw-bolder fs-8 font-monospace">Prefix: ' + p + '</span>' +
+                            '<button type="button" class="btn btn-icon btn-sm btn-light-warning p-1 js-edit-referral-btn" ' +
+                            'data-user-id="' + userId + '" data-user-name="' + escapedName + '" ' +
+                            'data-role-id="' + resolvedRoleId + '" data-prefix="' + safePrefix + '" ' +
+                            'onclick="event.stopPropagation(); window.openEditReferralModal(this);" title="Edit Referral Prefix"><i class="fa fa-edit fs-8"></i></button>' +
+                            '</div>';
+                    } else {
+                        const codeHtml = safeCode
+                            ? '<span class="badge badge-light-primary fw-bolder fs-7 font-monospace">' + safeCode + '</span>' +
+                              '<button type="button" class="btn btn-icon btn-sm p-0 border-0 bg-transparent ms-1 copy-contact-btn" title="Copy Referral Code" onclick="event.stopPropagation(); window.copyContactText ? window.copyContactText(\'' + safeCode + '\', this) : navigator.clipboard.writeText(\'' + safeCode + '\'); return false;"><i class="fa fa-copy text-muted fs-8"></i></button>' +
+                              '<span class="badge badge-light-success fw-bold fs-8 ms-1">' + esc(d.referral_discount_display || '10') + '% OFF</span>'
+                            : '<span class="text-muted fs-8">Not generated</span>';
+                        const execLine = safeCode
+                            ? '<div class="text-muted fs-8 mt-1">Exec: ' + esc(d.referral_executive_name || 'System') +
+                              (safePrefix ? ' (' + safePrefix + ')' : '') + '</div>'
+                            : '';
+                        cell.innerHTML = '<div class="d-flex align-items-center flex-wrap gap-1">' + codeHtml +
+                            '<button type="button" class="btn btn-icon btn-sm btn-light-warning p-1 ms-1 js-edit-referral-btn" ' +
+                            'data-user-id="' + userId + '" data-user-name="' + escapedName + '" ' +
+                            'data-role-id="' + resolvedRoleId + '" data-referral-code="' + safeCode + '" ' +
+                            'data-discount-percent="' + esc(d.referral_discount_percent || '10.00') + '" ' +
+                            'data-executive-id="' + esc(d.referral_executive_id || '') + '" ' +
+                            'data-executive-name="' + esc(d.referral_executive_name || '') + '" ' +
+                            'data-prefix="' + safePrefix + '" ' +
+                            'onclick="event.stopPropagation(); window.openEditReferralModal(this);" title="Edit Referral Settings"><i class="fa fa-edit fs-8"></i></button>' +
+                            '</div>' + execLine;
+                    }
+                }
+                const modalEl = document.getElementById('editReferralModal');
+                if (modalEl && typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+                    bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+                }
+            })
+            .catch(err => {
+                $alert.removeClass('d-none').addClass('alert-danger').text(err.message || 'Error saving referral settings.');
+            })
+            .finally(() => {
+                $btn.prop('disabled', false).text('Save Changes');
+            });
+        });
+        @endif
     </script>
 @endpush

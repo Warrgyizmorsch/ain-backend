@@ -66,6 +66,24 @@ class Leads extends Model
                     \Log::warning('Label auto-sync error on Lead save: ' . $e->getMessage());
                 }
             }
+
+            if ((int) ($lead->is_converted ?? 0) === 1) {
+                try {
+                    $order = Order::where('lead_id', $lead->id)->first();
+                    if (!$order && !empty($lead->order_id)) {
+                        $order = Order::where('order_id', $lead->order_id)->first();
+                    }
+                    if ($order) {
+                        app(\App\Services\ReferralCodeService::class)->handleEligibleOrder(
+                            $order,
+                            $lead,
+                            \Illuminate\Support\Facades\Auth::user()
+                        );
+                    }
+                } catch (\Throwable $e) {
+                    \Log::warning('Referral code generation hook error on Lead save: ' . $e->getMessage());
+                }
+            }
         });
     }
 
