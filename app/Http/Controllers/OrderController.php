@@ -305,6 +305,10 @@ class OrderController extends Controller
 
     public function exportStatus()
     {
+        if (!auth()->check() || (int) auth()->user()->role_id !== 1) {
+            abort(403, 'Unauthorized. Only Super Admin can export orders.');
+        }
+
         $userId = auth()->id();
         $exportStatus = Cache::get('order_export_status_' . $userId);
 
@@ -337,6 +341,10 @@ class OrderController extends Controller
 
     public function downloadExport(string $exportId)
     {
+        if (!auth()->check() || (int) auth()->user()->role_id !== 1) {
+            abort(403, 'Unauthorized. Only Super Admin can export orders.');
+        }
+
         $userId = auth()->id();
         $exportStatus = Cache::get('order_export_status_' . $userId);
 

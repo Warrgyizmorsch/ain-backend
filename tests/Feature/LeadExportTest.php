@@ -125,48 +125,51 @@ class LeadExportTest extends TestCase
         return [$headings, $parsed];
     }
 
-    public function test_lead_page_renders_visible_export_button_for_admins_only(): void
+    public function test_lead_page_renders_visible_export_button_for_super_admin_only(): void
     {
         $superAdmin = $this->createUser(1);
         $subAdmin = $this->createUser(9);
         $seo = $this->createUser(10); // SEO has menu 11 ("lead") but must NOT see Export
 
-        foreach ([$superAdmin, $subAdmin] as $authorized) {
-            $resp = $this->actingAs($authorized)->get('/lead');
-            $resp->assertStatus(200);
-            $html = $resp->getContent();
+        $resp = $this->actingAs($superAdmin)->get('/lead');
+        $resp->assertStatus(200);
+        $html = $resp->getContent();
 
-            $this->assertMatchesRegularExpression(
-                '/<button[^>]*id="export-btn"[^>]*>/i',
-                $html,
-                'Export button should render for authorized role ' . $authorized->role_id
-            );
-            $this->assertDoesNotMatchRegularExpression(
-                '/<button[^>]*style="[^"]*display\s*:\s*none[^"]*"[^>]*id="export-btn"/i',
-                $html,
-                'Export button must be visible immediately without display:none'
-            );
-            $this->assertStringContainsString('Choose Export Option', $html);
-            $this->assertStringContainsString('Export All', $html);
-            $this->assertStringContainsString('Custom Export', $html);
-            $this->assertStringNotContainsString('localStorage.setItem("leadExportStatus"', $html);
+        $this->assertMatchesRegularExpression(
+            '/<button[^>]*id="export-btn"[^>]*>/i',
+            $html,
+            'Export button should render for Super Admin'
+        );
+        $this->assertDoesNotMatchRegularExpression(
+            '/<button[^>]*style="[^"]*display\s*:\s*none[^"]*"[^>]*id="export-btn"/i',
+            $html,
+            'Export button must be visible immediately without display:none'
+        );
+        $this->assertStringContainsString('Choose Export Option', $html);
+        $this->assertStringContainsString('Export All', $html);
+        $this->assertStringContainsString('Custom Export', $html);
+        $this->assertStringNotContainsString('localStorage.setItem("leadExportStatus"', $html);
+
+        foreach ([$subAdmin, $seo] as $unauthorized) {
+            $unauthResp = $this->actingAs($unauthorized)->get('/lead');
+            $unauthResp->assertStatus(200);
+            $this->assertDoesNotMatchRegularExpression('/id="export-btn"/i', $unauthResp->getContent());
+            $this->assertStringNotContainsString('Choose Export Option', $unauthResp->getContent());
         }
 
-        $seoResp = $this->actingAs($seo)->get('/lead');
-        $seoResp->assertStatus(200);
-        $this->assertDoesNotMatchRegularExpression('/id="export-btn"/i', $seoResp->getContent());
-
         // Legacy /leads export button visibility
-        $legacySubResp = $this->actingAs($subAdmin)->get('/leads');
-        $legacySubResp->assertStatus(200);
-        $this->assertStringContainsString('onclick="leadsExport()"', $legacySubResp->getContent());
+        $legacySuperResp = $this->actingAs($superAdmin)->get('/leads');
+        $legacySuperResp->assertStatus(200);
+        $this->assertStringContainsString('onclick="leadsExport()"', $legacySuperResp->getContent());
 
-        $legacySeoResp = $this->actingAs($seo)->get('/leads');
-        $legacySeoResp->assertStatus(200);
-        $this->assertStringNotContainsString('onclick="leadsExport()"', $legacySeoResp->getContent());
+        foreach ([$subAdmin, $seo] as $unauthorized) {
+            $legacyUnauthResp = $this->actingAs($unauthorized)->get('/leads');
+            $legacyUnauthResp->assertStatus(200);
+            $this->assertStringNotContainsString('onclick="leadsExport()"', $legacyUnauthResp->getContent());
+        }
     }
 
-    public function test_lead_export_endpoints_require_admin_or_sub_admin(): void
+    public function test_lead_export_endpoints_require_super_admin(): void
     {
         $superAdmin = $this->createUser(1);
         $subAdmin = $this->createUser(9);
@@ -181,34 +184,32 @@ class LeadExportTest extends TestCase
         $this->get('/lead/export/download')->assertRedirect('/login');
         $this->get('/export-leads')->assertRedirect('/login');
 
-        // Non-admin roles must receive 403
-        foreach ([$customer, $marketing, $seo] as $nonAdmin) {
-            $this->actingAs($nonAdmin)->post('/lead/export')->assertStatus(403);
-            $this->actingAs($nonAdmin)->get('/lead/export')->assertStatus(403);
-            $this->actingAs($nonAdmin)->get('/lead/export/status')->assertStatus(403);
-            $this->actingAs($nonAdmin)->get('/lead/export/download')->assertStatus(403);
-            $this->actingAs($nonAdmin)->get('/export-leads')->assertStatus(403);
+        // All non-Super Admin roles (including Sub Admin role 9) must receive 403
+        foreach ([$subAdmin, $customer, $marketing, $seo] as $nonSuperAdmin) {
+            $this->actingAs($nonSuperAdmin)->post('/lead/export')->assertStatus(403);
+            $this->actingAs($nonSuperAdmin)->get('/lead/export')->assertStatus(403);
+            $this->actingAs($nonSuperAdmin)->get('/lead/export/status')->assertStatus(403);
+            $this->actingAs($nonSuperAdmin)->get('/lead/export/download')->assertStatus(403);
+            $this->actingAs($nonSuperAdmin)->get('/export-leads')->assertStatus(403);
         }
 
-        // Super Admin and Sub Admin succeed
-        foreach ([$superAdmin, $subAdmin] as $admin) {
-            $postCsv = $this->actingAs($admin)->post('/lead/export', ['order' => $this->prefix]);
-            $postCsv->assertStatus(200);
-            $this->assertStringContainsString('text/csv', (string) $postCsv->headers->get('Content-Type'));
-            $postCsv->streamedContent();
+        // Only Super Admin (role_id = 1) succeeds
+        $postCsv = $this->actingAs($superAdmin)->post('/lead/export', ['order' => $this->prefix]);
+        $postCsv->assertStatus(200);
+        $this->assertStringContainsString('text/csv', (string) $postCsv->headers->get('Content-Type'));
+        $postCsv->streamedContent();
 
-            $getCsv = $this->actingAs($admin)->get('/lead/export?order=' . $this->prefix);
-            $getCsv->assertStatus(200);
-            $getCsv->streamedContent();
+        $getCsv = $this->actingAs($superAdmin)->get('/lead/export?order=' . $this->prefix);
+        $getCsv->assertStatus(200);
+        $getCsv->streamedContent();
 
-            $this->actingAs($admin)->getJson('/lead/export/status')
-                ->assertStatus(200)
-                ->assertJson(['status' => 'idle', 'progress' => 0]);
+        $this->actingAs($superAdmin)->getJson('/lead/export/status')
+            ->assertStatus(200)
+            ->assertJson(['status' => 'idle', 'progress' => 0]);
 
-            $this->actingAs($admin)->get('/export-leads?additional_filter1=' . $this->prefix)
-                ->assertStatus(200)
-                ->streamedContent();
-        }
+        $this->actingAs($superAdmin)->get('/export-leads?additional_filter1=' . $this->prefix)
+            ->assertStatus(200)
+            ->streamedContent();
     }
 
     public function test_lead_export_filters_match_ui_and_handle_fallbacks(): void
@@ -414,7 +415,7 @@ class LeadExportTest extends TestCase
 
     public function test_leads_export_class_status_download_and_legacy_export_leads_work(): void
     {
-        $subAdmin = $this->createUser(9);
+        $superAdmin = $this->createUser(1);
 
         $activeId = $this->createLead([
             'order_id' => $this->prefix . 'LEG_1',
@@ -452,22 +453,22 @@ class LeadExportTest extends TestCase
         ], $mapped);
 
         // Export status + download lifecycle
-        Cache::put('lead_export_pending_' . $subAdmin->id, true, now()->addMinutes(5));
-        $this->actingAs($subAdmin)->getJson('/lead/export/status')
+        Cache::put('lead_export_pending_' . $superAdmin->id, true, now()->addMinutes(5));
+        $this->actingAs($superAdmin)->getJson('/lead/export/status')
             ->assertStatus(200)
             ->assertJson(['status' => 'pending']);
 
-        Cache::forget('lead_export_pending_' . $subAdmin->id);
-        Cache::put('lead_export_failed_' . $subAdmin->id, 'Test failure reason', now()->addMinutes(5));
-        $this->actingAs($subAdmin)->getJson('/lead/export/status')
+        Cache::forget('lead_export_pending_' . $superAdmin->id);
+        Cache::put('lead_export_failed_' . $superAdmin->id, 'Test failure reason', now()->addMinutes(5));
+        $this->actingAs($superAdmin)->getJson('/lead/export/status')
             ->assertStatus(200)
             ->assertJson(['status' => 'failed', 'message' => 'Test failure reason']);
 
         $testRelPath = 'exports/' . $this->prefix . 'test.xlsx';
         Storage::disk('public')->put($testRelPath, 'dummy-export-bytes');
-        Cache::put('lead_export_' . $subAdmin->id, $testRelPath, now()->addMinutes(5));
+        Cache::put('lead_export_' . $superAdmin->id, $testRelPath, now()->addMinutes(5));
 
-        $statusReady = $this->actingAs($subAdmin)->getJson('/lead/export/status');
+        $statusReady = $this->actingAs($superAdmin)->getJson('/lead/export/status');
         $statusReady->assertStatus(200)
             ->assertJson([
                 'status' => 'ready',
@@ -475,11 +476,11 @@ class LeadExportTest extends TestCase
                 'url' => route('lead.export.download'),
             ]);
 
-        $dlResp = $this->actingAs($subAdmin)->get('/lead/export/download');
+        $dlResp = $this->actingAs($superAdmin)->get('/lead/export/download');
         $dlResp->assertStatus(200);
 
         // Legacy /export-leads endpoint excludes converted & duplicate leads and uses fallbacks
-        $legacyResp = $this->actingAs($subAdmin)->get('/export-leads?additional_filter1=' . $this->prefix . 'LEG_');
+        $legacyResp = $this->actingAs($superAdmin)->get('/export-leads?additional_filter1=' . $this->prefix . 'LEG_');
         $legacyResp->assertStatus(200);
         [$lHead, $lRows] = $this->parseCsvContent($legacyResp->streamedContent());
         $this->assertSame('Order Code', $lHead[0]);

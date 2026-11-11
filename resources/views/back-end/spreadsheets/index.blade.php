@@ -620,12 +620,14 @@
                                             <i class="fa fa-copy text-info me-2"></i> Duplicate
                                         </a>
                                     </li>
+                                    @if(auth()->check() && (int) auth()->user()->role_id === 1)
                                     <li>
                                         <a class="dropdown-item py-2 fs-7" href="javascript:void(0)"
                                             onclick="exportToXlsx()">
                                             <i class="fa fa-download text-success me-2"></i> Download (.xlsx)
                                         </a>
                                     </li>
+                                    @endif
                                     <li>
                                         <hr class="dropdown-divider">
                                     </li>
@@ -686,9 +688,11 @@
                         onclick="saveActiveSpreadsheet(true)" title="Save changes immediately">
                         <i class="fa fa-floppy-o"></i> Save
                     </button>
+                    @if(auth()->check() && (int) auth()->user()->role_id === 1)
                     <button type="button" class="excel-btn" onclick="exportToXlsx()" title="Download as Excel .xlsx">
                         <i class="fa fa-download text-success"></i> Export XLSX
                     </button>
+                    @endif
                     <button type="button" class="excel-btn" onclick="document.getElementById('excelFileInput').click()"
                         title="Import Excel File">
                         <i class="fa fa-upload"></i> Import
@@ -1164,11 +1168,13 @@
                                         <i class="fa fa-copy text-info me-2"></i> Duplicate
                                     </a>
                                 </li>
+                                @if(auth()->check() && (int) auth()->user()->role_id === 1)
                                 <li>
                                     <a class="dropdown-item py-2 fs-7" href="javascript:void(0)" onclick="exportToXlsx()">
                                         <i class="fa fa-download text-success me-2"></i> Download (.xlsx)
                                     </a>
                                 </li>
+                                @endif
                                 <li><hr class="dropdown-divider"></li>
                                 <li>
                                     <a class="dropdown-item py-2 fs-7 text-danger" href="javascript:void(0)" onclick="deleteSheet(${sheet.id}, '${sheet.title.replace(/'/g, "\\'")}')">
@@ -1290,6 +1296,7 @@
         }
 
         // 16. Export to .xlsx via ExcelJS
+        @if(auth()->check() && (int) auth()->user()->role_id === 1)
         async function exportToXlsx() {
             if (!window.ExcelJS || !window.saveAs) {
                 alert('Export library is still loading. Please wait a few seconds.');
@@ -1365,6 +1372,11 @@
             const filename = (currentSheetTitle || 'Spreadsheet') + '.xlsx';
             window.saveAs(blob, filename);
         }
+        @else
+        async function exportToXlsx() {
+            alert('Unauthorized. Only Super Admin can export spreadsheets.');
+        }
+        @endif
 
         // Initialize on page load
         document.addEventListener('DOMContentLoaded', function() {

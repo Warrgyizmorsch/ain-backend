@@ -25,12 +25,14 @@
                                 customers for year {{ $currentReportYear }}</span>
                         </div>
                     </div>
+                    @if(auth()->check() && (int) auth()->user()->role_id === 1)
                     <div class="d-flex align-items-center gap-2">
                         <a href="{{ request()->fullUrlWithQuery(['export' => 'csv']) }}"
                             class="btn btn-sm btn-danger fw-bolder">
                             <i class="fa fa-file-excel me-1"></i> Export to CSV
                         </a>
                     </div>
+                    @endif
                 </div>
             </div>
 

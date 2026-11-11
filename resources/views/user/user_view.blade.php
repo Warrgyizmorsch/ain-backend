@@ -462,7 +462,7 @@
                             </h3>
                             <div class="d-flex align-items-center gap-2">
 
-                                @if(auth()->check() && (in_array((int) auth()->user()->role_id, [1, 9]) || in_array(strtolower(optional(auth()->user()->role)->role ?? ''), ['super admin', 'admin', 'sub admin'])))
+                                @if(auth()->check() && (int) auth()->user()->role_id === 1)
                                 <a onclick="exportUsers()" style="height: fit-content;"
                                     class="btn btn-sm btn-danger">Export</a>
                                 @endif

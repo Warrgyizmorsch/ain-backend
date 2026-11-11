@@ -14,10 +14,10 @@ use App\Models\multipleswiter;
 
 class ExportController extends Controller
 {
-     public function export(Request $request)
+    public function export(Request $request)
     {
-        if (!auth()->check() || (!in_array((int) auth()->user()->role_id, [1, 9]) && !in_array(strtolower(optional(auth()->user()->role)->role ?? ''), ['super admin', 'admin', 'sub admin']))) {
-            abort(403, 'Unauthorized. Only admins can export orders.');
+        if (!auth()->check() || (int) auth()->user()->role_id !== 1) {
+            abort(403, 'Unauthorized. Only Super Admin can export orders.');
         }
 
         // Retrieve filter parameters from the request supporting both camelCase and snake_case
@@ -326,8 +326,8 @@ class ExportController extends Controller
 
     public function exportLeads(Request $request)
     {
-        if (!auth()->check() || (!in_array((int) auth()->user()->role_id, [1, 9], true) && !in_array(strtolower(trim((string) optional(auth()->user()->role)->role)), ['super admin', 'admin', 'sub admin'], true))) {
-            abort(403, 'Unauthorized. Only admins can export leads.');
+        if (!auth()->check() || (int) auth()->user()->role_id !== 1) {
+            abort(403, 'Unauthorized. Only Super Admin can export leads.');
         }
 
         // Retrieve filter parameters from the request
@@ -527,8 +527,8 @@ class ExportController extends Controller
 
     public function exportUsers(Request $request)
     {
-        if (!auth()->check() || (!in_array((int) auth()->user()->role_id, [1, 9]) && !in_array(strtolower(optional(auth()->user()->role)->role ?? ''), ['super admin', 'admin', 'sub admin']))) {
-            abort(403, 'Unauthorized. Only admins can export users.');
+        if (!auth()->check() || (int) auth()->user()->role_id !== 1) {
+            abort(403, 'Unauthorized. Only Super Admin can export users.');
         }
 
         // Retrieve filter parameters from the request
@@ -787,6 +787,10 @@ class ExportController extends Controller
 
     public function exportWD(Request $request)
     {
+        if (!auth()->check() || (int) auth()->user()->role_id !== 1) {
+            abort(403, 'Unauthorized. Only Super Admin can export writer orders.');
+        }
+
         // Retrieve parameters from the request
         $tlId = $request->input('writerTL');
         $swId = $request->input('SubWriter');
