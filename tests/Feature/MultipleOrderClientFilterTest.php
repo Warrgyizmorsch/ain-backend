@@ -540,5 +540,110 @@ class MultipleOrderClientFilterTest extends TestCase
 
         $this->assertLessThan(60.0, $elapsed, 'Combined cold-cache live HTTP smoke checks took too long: ' . json_encode($timings));
     }
+
+    public function test_commented_filters_are_hidden_and_user_list_sorts_by_genuine_orders_max_and_min(): void
+    {
+        $admin = $this->createUser(['role_id' => 1, 'name' => $this->prefix . 'ActingMgr']);
+        $this->actingAs($admin);
+
+        // Synthetic users with distinct genuine recent order counts (plus noise orders that must NOT count):
+        // High (6 genuine), Mid (3 genuine), Low (1 genuine + 3 Cancelled/Draft that must be excluded), ZeroLead (0 genuine + lead)
+        $uZero = $this->createUser(['name' => $this->prefix . 'SortZero']);
+        $this->createLead(['emp_id' => $uZero->id, 'is_converted' => 0]);
+
+        $uLow = $this->createUser(['name' => $this->prefix . 'SortLow']);
+        $this->createOrder($uLow->id, ['projectstatus' => 'Delivered', 'order_date' => '2026-03-01']);
+        $this->createOrder($uLow->id, ['projectstatus' => 'Cancelled', 'order_date' => '2026-03-02']);
+        $this->createOrder($uLow->id, ['projectstatus' => 'Pending', 'order_date' => null]);
+
+        $uMid = $this->createUser(['name' => $this->prefix . 'SortMid']);
+        for ($i = 0; $i < 3; $i++) {
+            $this->createOrder($uMid->id, ['projectstatus' => 'Delivered', 'order_date' => '2026-03-0' . ($i + 1)]);
+        }
+
+        $uHigh = $this->createUser(['name' => $this->prefix . 'SortHigh']);
+        for ($i = 0; $i < 6; $i++) {
+            $this->createOrder($uHigh->id, ['projectstatus' => 'Delivered', 'order_date' => '2026-04-0' . ($i + 1)]);
+        }
+
+        // 1. UI checks: commented filter fields MUST NOT render in HTML on /user or /orders
+        $respUserDefault = $this->get('/user');
+        $respUserDefault->assertOk();
+        $respUserDefault->assertDontSee('name="order_category"', false);
+        $respUserDefault->assertDontSee('name="min_orders"', false);
+        $respUserDefault->assertDontSee('Filter By Order Category');
+        $respUserDefault->assertDontSee('Min Genuine Orders');
+        $respUserDefault->assertSee('name="order_sort"', false);
+        $respUserDefault->assertSee('Orders Count: Max to Min');
+        $respUserDefault->assertSee('Orders Count: Min to Max');
+
+        // Verify live default /user page 1 & page 2 scroll are strictly Max -> Min with zero duplicates
+        $livePage1 = $respUserDefault->original->getData()['data']['users'];
+        $p1Counts = collect($livePage1->items())->pluck('orders_count')->map(fn ($c) => (int) $c)->values()->all();
+        $this->assertGreaterThan(1, count($p1Counts));
+        for ($i = 1; $i < count($p1Counts); $i++) {
+            $this->assertLessThanOrEqual($p1Counts[$i - 1], $p1Counts[$i], 'Default /user must be sorted Max to Min by orders_count');
+        }
+        $p1Ids = collect($livePage1->items())->pluck('id')->all();
+
+        $respScrollP2 = $this->getJson('/user?scroll=1&page=2');
+        $respScrollP2->assertOk();
+        $this->assertMatchesRegularExpression('/badge-circle badge-primary/', $respScrollP2->json('html'));
+        $p2Matches = [];
+        preg_match_all('/orders\?uid=(\d+)/', $respScrollP2->json('html'), $p2Matches);
+        $p2Ids = array_map('intval', array_unique($p2Matches[1] ?? []));
+        $this->assertEmpty(array_intersect($p1Ids, $p2Ids), 'Infinite scroll page 2 must not duplicate page 1 users');
+
+        // Also check /orders UI no longer renders client_orders select
+        $respOrders = $this->get('/orders');
+        $respOrders->assertOk();
+        $respOrders->assertDontSee('name="client_orders"', false);
+
+        // 2. Fixture Max -> Min (default desc)
+        $respDesc = $this->get('/user?user=' . $this->prefix . 'Sort');
+        $respDesc->assertOk();
+        $descUsers = collect($respDesc->original->getData()['data']['users']->items());
+        $this->assertSame(
+            [$uHigh->id, $uMid->id, $uLow->id, $uZero->id],
+            $descUsers->pluck('id')->values()->all()
+        );
+        $this->assertSame([6, 3, 1, 0], $descUsers->pluck('orders_count')->map(fn ($v) => (int) $v)->values()->all());
+
+        // 3. Fixture Min -> Max (asc)
+        $respAsc = $this->get('/user?order_sort=asc&user=' . $this->prefix . 'Sort');
+        $respAsc->assertOk();
+        $ascUsers = collect($respAsc->original->getData()['data']['users']->items());
+        $this->assertSame(
+            [$uZero->id, $uLow->id, $uMid->id, $uHigh->id],
+            $ascUsers->pluck('id')->values()->all()
+        );
+        $this->assertSame([0, 1, 3, 6], $ascUsers->pluck('orders_count')->map(fn ($v) => (int) $v)->values()->all());
+
+        // 4. Confirmed tab Min -> Max starts at 1 (excludes 0-order lead)
+        $respConfirmedAsc = $this->get('/user?tab=confirmed&order_sort=asc&user=' . $this->prefix . 'Sort');
+        $respConfirmedAsc->assertOk();
+        $confirmedAscUsers = collect($respConfirmedAsc->original->getData()['data']['users']->items());
+        $this->assertSame(
+            [$uLow->id, $uMid->id, $uHigh->id],
+            $confirmedAscUsers->pluck('id')->values()->all()
+        );
+
+        // 5. CSV Export /export-users respects order_sort (desc vs asc)
+        $respExportDesc = $this->get('/export-users?order_sort=desc&user=' . $this->prefix . 'Sort');
+        $respExportDesc->assertOk();
+        $csvDesc = file_get_contents($respExportDesc->getFile()->getPathname());
+        @unlink($respExportDesc->getFile()->getPathname());
+        $this->assertLessThan(strpos($csvDesc, $uMid->name), strpos($csvDesc, $uHigh->name));
+        $this->assertLessThan(strpos($csvDesc, $uLow->name), strpos($csvDesc, $uMid->name));
+        $this->assertLessThan(strpos($csvDesc, $uZero->name), strpos($csvDesc, $uLow->name));
+
+        $respExportAsc = $this->get('/export-users?order_sort=asc&user=' . $this->prefix . 'Sort');
+        $respExportAsc->assertOk();
+        $csvAsc = file_get_contents($respExportAsc->getFile()->getPathname());
+        @unlink($respExportAsc->getFile()->getPathname());
+        $this->assertLessThan(strpos($csvAsc, $uLow->name), strpos($csvAsc, $uZero->name));
+        $this->assertLessThan(strpos($csvAsc, $uMid->name), strpos($csvAsc, $uLow->name));
+        $this->assertLessThan(strpos($csvAsc, $uHigh->name), strpos($csvAsc, $uMid->name));
+    }
 }
 

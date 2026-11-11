@@ -544,6 +544,10 @@ class ExportController extends Controller
         $collegeName = $request->input('college_name');
         $groupId = $request->input('group_id');
         $tab = $request->get('tab', 'all');
+        $orderSort = strtolower(trim((string) $request->input('order_sort', 'desc')));
+        if (!in_array($orderSort, ['desc', 'asc', 'latest'], true)) {
+            $orderSort = 'desc';
+        }
 
         $globalCountries = [
             'India' => ['+91', '91', '091'],
@@ -724,7 +728,16 @@ class ExportController extends Controller
         }
 
         // Retrieve filtered users data from the database
-        $users = $usersQuery->orderBy('users.id', 'desc')->get();
+        if ($orderSort === 'asc') {
+            $usersQuery->orderBy('genuine_orders_count', 'asc')
+                ->orderBy('users.id', 'desc');
+        } elseif ($orderSort === 'latest') {
+            $usersQuery->orderBy('users.id', 'desc');
+        } else {
+            $usersQuery->orderByDesc('genuine_orders_count')
+                ->orderByDesc('users.id');
+        }
+        $users = $usersQuery->get();
 
         // Prepare CSV file content with headers
         $csvData = "Name,Email,CountryCode,MobileNo,CountryCode2,MobileNo2,Role,JoinDate,GenuineOrders" . PHP_EOL;

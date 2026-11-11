@@ -228,9 +228,8 @@
             request()->filled('end_date') ||
             request()->filled('role') ||
             request()->filled('countrycode') ||
-            request()->filled('order_category') ||
-            request()->filled('min_orders') ||
             request()->filled('order_period') ||
+            (request()->filled('order_sort') && request('order_sort') !== 'desc') ||
             request()->filled('college_name') ||
             request()->filled('group_id');
     @endphp
@@ -345,6 +344,7 @@
                                     <div class="fv-plugins-message-container invalid-feedback"></div>
                                 </div>
 
+                                {{-- Commented out per request: hide Filter By Order Category & Min Genuine Orders fields
                                 <div class="col-lg-3 fv-row fv-plugins-icon-container">
                                     <select name="order_category" class="form-select form-select-solid"
                                         data-control="select2" data-placeholder="Filter By Order Category">
@@ -374,6 +374,21 @@
                                     <input type="number" name="min_orders" min="1" step="1"
                                         class="form-control form-control-solid" placeholder="Min Genuine Orders (e.g. 2)"
                                         value="{{ request('min_orders') }}">
+                                </div>
+                                --}}
+
+                                <div class="col-lg-3 fv-row fv-plugins-icon-container">
+                                    @php
+                                        $selectedOrderSort = in_array(strtolower((string) request('order_sort', $orderSort ?? 'desc')), ['desc', 'asc', 'latest'], true)
+                                            ? strtolower((string) request('order_sort', $orderSort ?? 'desc'))
+                                            : 'desc';
+                                    @endphp
+                                    <select name="order_sort" class="form-select form-select-solid"
+                                        data-control="select2" data-placeholder="Sort By Orders">
+                                        <option value="desc" {{ $selectedOrderSort === 'desc' ? 'selected' : '' }}>Orders Count: Max to Min</option>
+                                        <option value="asc" {{ $selectedOrderSort === 'asc' ? 'selected' : '' }}>Orders Count: Min to Max</option>
+                                        <option value="latest" {{ $selectedOrderSort === 'latest' ? 'selected' : '' }}>Latest Users (Newest First)</option>
+                                    </select>
                                 </div>
 
                                 <div class="col-lg-3 fv-row fv-plugins-icon-container">
@@ -487,7 +502,25 @@
                                             <th class="min-w-130px">Conversion</th>
                                             <th class="min-w-80px">Role</th>
                                             <th class="min-w-190px">Join Date</th>
-                                            <th class="min-w-100px">Order Count<br><small>({{ $orderPeriodLabel ?? 'Last 1.5 Yrs' }})</small></th>
+                                            @php
+                                                $currentOrderSort = in_array(strtolower((string) request('order_sort', $orderSort ?? 'desc')), ['desc', 'asc', 'latest'], true)
+                                                    ? strtolower((string) request('order_sort', $orderSort ?? 'desc'))
+                                                    : 'desc';
+                                                $nextHeaderSort = $currentOrderSort === 'desc' ? 'asc' : 'desc';
+                                                $sortArrow = $currentOrderSort === 'asc' ? '↑' : ($currentOrderSort === 'desc' ? '↓' : '↕');
+                                                $sortTitle = $currentOrderSort === 'desc'
+                                                    ? 'Sorted High to Low (Click for Min to Max)'
+                                                    : 'Sorted Low to High / Default (Click for Max to Min)';
+                                            @endphp
+                                            <th class="min-w-100px">
+                                                <a href="{{ request()->fullUrlWithQuery(['order_sort' => $nextHeaderSort, 'page' => null]) }}"
+                                                    class="text-muted text-hover-primary text-decoration-none d-inline-flex align-items-center gap-1"
+                                                    title="{{ $sortTitle }}">
+                                                    <span>Order Count</span>
+                                                    <span class="fw-bolder {{ $currentOrderSort !== 'latest' ? 'text-primary' : 'text-muted' }}">{{ $sortArrow }}</span>
+                                                </a>
+                                                <br><small>({{ $orderPeriodLabel ?? 'Last 1.5 Yrs' }})</small>
+                                            </th>
                                             <th class="min-w-100px">Follow-ups<br><small>(Last 1 Yr)</small></th>
                                             <th class="min-w-90px">Actions</th>
                                         </tr>
@@ -690,9 +723,10 @@
             var endDate = $('input[name="end_date"]').val() || urlParams.get('end_date') || '';
             var roleId = $('select[name="role"]').val() || urlParams.get('role') || '';
             var countrycode = $('select[name="countrycode"]').val() || urlParams.get('countrycode') || '';
-            var orderCategory = $('select[name="order_category"]').val() || urlParams.get('order_category') || '';
-            var minOrders = $('input[name="min_orders"]').val() || urlParams.get('min_orders') || '';
+            var orderCategory = urlParams.get('order_category') || '';
+            var minOrders = urlParams.get('min_orders') || '';
             var orderPeriod = $('select[name="order_period"]').val() || urlParams.get('order_period') || '';
+            var orderSort = $('select[name="order_sort"]').val() || urlParams.get('order_sort') || 'desc';
             var collegeName = $('select[name="college_name"]').val() || urlParams.get('college_name') || '';
             var groupId = $('select[name="group_id"]').val() || urlParams.get('group_id') || '';
             var tab = urlParams.get('tab') || $('input[name="tab"]').val() || '{{ $tab ?? "all" }}';
@@ -711,6 +745,7 @@
                 order_category: orderCategory,
                 min_orders: minOrders,
                 order_period: orderPeriod,
+                order_sort: orderSort,
                 college_name: collegeName,
                 group_id: groupId,
                 tab: tab
