@@ -246,30 +246,16 @@ class OrderController extends Controller
             return;
         }
 
-        $ordersCounts = DB::table('orders')
-            ->whereIn('uid', $userIds)
-            ->groupBy('uid')
-            ->pluck(DB::raw('COUNT(*)'), 'uid');
-
-        $unconvertedOrderCodes = Cache::remember('unconverted_order_codes_in_orders', 180, function () {
-            return DB::table('orders')
-                ->join('leads', 'orders.order_id', '=', 'leads.order_id')
-                ->where('leads.is_converted', 0)
-                ->pluck('orders.order_id')
-                ->filter()
-                ->values()
-                ->toArray();
-        });
-
-        $convQuery = DB::table('orders')->whereIn('uid', $userIds);
-        if (!empty($unconvertedOrderCodes)) {
-            $convQuery->whereNotIn('order_id', $unconvertedOrderCodes);
-        }
-        $convertedCounts = $convQuery->groupBy('uid')->pluck(DB::raw('COUNT(*)'), 'uid');
+        $genuineCounts = Order::query()
+            ->genuinePlaced('orders')
+            ->whereIn('orders.uid', $userIds)
+            ->groupBy('orders.uid')
+            ->pluck(DB::raw('COUNT(*)'), 'orders.uid');
 
         foreach ($effectiveUsers as $user) {
-            $user->orders_count = (int) ($ordersCounts[$user->id] ?? 0);
-            $user->converted_orders_count = (int) ($convertedCounts[$user->id] ?? ($ordersCounts[$user->id] ?? 0));
+            $count = (int) ($genuineCounts[$user->id] ?? 0);
+            $user->orders_count = $count;
+            $user->converted_orders_count = $count;
         }
     }
 
@@ -4132,16 +4118,23 @@ class OrderController extends Controller
               ->orWhereNotNull('orders.lead_id');
         });
 
+        // Client multiple-order / repeat customer filter (strictly genuine placed converted orders of active role_id=2 customers)
+        $clientOrdersFilter = $request->input('client_orders') ?: $request->input('order_category');
+        $minClientOrdersFilter = $request->input('min_client_orders') ?: $request->input('min_orders');
+        $clientOrderBounds = Order::resolveClientOrderBounds($clientOrdersFilter, $minClientOrdersFilter);
+
         // mk 5 10 26 - Cache unconverted order codes for 180s (3 min) to avoid heavy 60,000 order join spikes
-        $unconvertedOrderCodes = Cache::remember('unconverted_order_codes_in_orders', 180, function () {
-            return DB::table('orders')
-                ->join('leads', 'orders.order_id', '=', 'leads.order_id')
-                ->where('leads.is_converted', 0)
-                ->pluck('orders.order_id')
-                ->filter()
-                ->values()
-                ->toArray();
-        });
+        $unconvertedOrderCodes = $clientOrderBounds === null
+            ? Cache::remember('unconverted_order_codes_in_orders', 180, function () {
+                return DB::table('orders')
+                    ->join('leads', 'orders.order_id', '=', 'leads.order_id')
+                    ->where('leads.is_converted', 0)
+                    ->pluck('orders.order_id')
+                    ->filter()
+                    ->values()
+                    ->toArray();
+            })
+            : [];
 
         // Resolve exact and candidate order codes from 'search', 'order', or 'user'
         $rawSearch = trim((string)($request->search ?? $request->order ?? ''));
@@ -4208,8 +4201,17 @@ class OrderController extends Controller
                 $matchedOrderIds = array_values(array_unique(array_merge($matchedOrderIds, $userMatchedCodes)));
             }
         }
-        // Enforce lead conversion (never display unconverted or cancelled leads as orders)
-        if (!empty($unconvertedOrderCodes)) {
+        if ($clientOrderBounds !== null) {
+            $query->genuinePlaced('orders')
+                ->joinSub(
+                    Order::genuineClientAggregateSubquery($clientOrderBounds),
+                    'gc_clients',
+                    function ($join) {
+                        $join->on('orders.uid', '=', 'gc_clients.client_uid');
+                    }
+                );
+        } elseif (!empty($unconvertedOrderCodes)) {
+            // Enforce lead conversion (never display unconverted or cancelled leads as orders)
             $query->whereNotIn('orders.order_id', $unconvertedOrderCodes);
         }
         // ──────────────────────────────────────────────────────────────────────────────
@@ -4736,14 +4738,14 @@ class OrderController extends Controller
         $filters = $request->all();
 
         // Check if all filters are empty on initial offset 0 request
-        $hasAnyFilter = !empty($filters['search']) || !empty($filters['uid']) || !empty($filters['user']) || !empty($filters['selectedValue']) || !empty($filters['group_id']) || !empty($filters['status']) || !empty($filters['writer']) || !empty($filters['dateStatus']) || !empty($filters['fromDate']) || !empty($filters['toDate']) || !empty($filters['from_date']) || !empty($filters['to_date']) || !empty($filters['WriterTL']) || !empty($filters['SubWriter']) || !empty($filters['college']) || !empty($filters['extra']) || !empty($filters['module_code']) || !empty($filters['paper_type']) || !empty($filters['semester']) || !empty($filters['month']) || !empty($filters['payment']) || !empty($filters['deadline_status']) || !empty($filters['offer']) || !empty($filters['duec']) || !empty($filters['marks_filter']) || !empty($filters['team_id']) || !empty($filters['today_deadline_filter']) || !empty($filters['yesterday_deadline_filter']) || !empty($filters['today_writer_deadline_filter']) || !empty($filters['duration_gap']);
+        $hasAnyFilter = !empty($filters['search']) || !empty($filters['uid']) || !empty($filters['user']) || !empty($filters['selectedValue']) || !empty($filters['group_id']) || !empty($filters['status']) || !empty($filters['writer']) || !empty($filters['dateStatus']) || !empty($filters['fromDate']) || !empty($filters['toDate']) || !empty($filters['from_date']) || !empty($filters['to_date']) || !empty($filters['WriterTL']) || !empty($filters['SubWriter']) || !empty($filters['college']) || !empty($filters['extra']) || !empty($filters['module_code']) || !empty($filters['paper_type']) || !empty($filters['semester']) || !empty($filters['month']) || !empty($filters['payment']) || !empty($filters['deadline_status']) || !empty($filters['offer']) || !empty($filters['duec']) || !empty($filters['marks_filter']) || !empty($filters['team_id']) || !empty($filters['today_deadline_filter']) || !empty($filters['yesterday_deadline_filter']) || !empty($filters['today_writer_deadline_filter']) || !empty($filters['duration_gap']) || !empty($filters['client_orders']) || !empty($filters['min_client_orders']) || !empty($filters['order_category']) || !empty($filters['min_orders']);
 
         if (!$hasAnyFilter && (int)$request->get('offset', 0) === 0 && !$request->has('autoload')) {
             return response()->json(['message' => 'No filters applied'], 200);
         }
 
         // Special case: only month (one order per UID, only if no newer order exists for that UID)
-        if ($request->filled('month')) {
+        if ($request->filled('month') && empty($filters['client_orders']) && empty($filters['min_client_orders']) && empty($filters['order_category']) && empty($filters['min_orders'])) {
             try {
                 $startOfMonth = Carbon::parse($request->month . '-01')->startOfMonth();
                 $endOfMonth = Carbon::parse($request->month . '-01')->endOfMonth();
@@ -4947,7 +4949,7 @@ class OrderController extends Controller
         $gammaCount = $teamCounts[3] ?? 0;
 
         if ($offset === 0) {
-            $onlyTeamFilter = $request->filled('team_id') && empty($request->search) && empty($request->uid) && empty($request->user) && empty($request->group_id) && empty($request->status) && empty($request->writer) && empty($request->dateStatus) && empty($request->fromDate) && empty($request->toDate) && empty($request->from_date) && empty($request->to_date) && empty($request->WriterTL) && empty($request->SubWriter) && empty($request->college) && empty($request->extra) && empty($request->module_code) && empty($request->paper_type) && empty($request->semester) && empty($request->month) && empty($request->payment) && empty($request->deadline_status) && empty($request->offer) && empty($request->duec) && empty($request->marks_filter) && empty($request->today_deadline_filter) && empty($request->yesterday_deadline_filter) && empty($request->today_writer_deadline_filter) && empty($request->duration_gap);
+            $onlyTeamFilter = $request->filled('team_id') && empty($request->search) && empty($request->uid) && empty($request->user) && empty($request->group_id) && empty($request->status) && empty($request->writer) && empty($request->dateStatus) && empty($request->fromDate) && empty($request->toDate) && empty($request->from_date) && empty($request->to_date) && empty($request->WriterTL) && empty($request->SubWriter) && empty($request->college) && empty($request->extra) && empty($request->module_code) && empty($request->paper_type) && empty($request->semester) && empty($request->month) && empty($request->payment) && empty($request->deadline_status) && empty($request->offer) && empty($request->duec) && empty($request->marks_filter) && empty($request->today_deadline_filter) && empty($request->yesterday_deadline_filter) && empty($request->today_writer_deadline_filter) && empty($request->duration_gap) && empty($request->client_orders) && empty($request->min_client_orders) && empty($request->order_category) && empty($request->min_orders);
 
             if ($onlyTeamFilter && isset($teamCounts[$request->team_id])) {
                 $totalCount = (int) $teamCounts[$request->team_id];

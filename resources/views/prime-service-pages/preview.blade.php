@@ -96,7 +96,7 @@
     <section class="hero">
         <div class="wrap hero-grid">
             <div>
-                <div class="crumb">Home › Prime Assignment › {{ $page->primeSubject?->name ?? 'Service' }}</div>
+                <div class="crumb">Home › Prime Assignment › {{ ucfirst($page->type ?: 'service') }} › {{ $page->primeSubject?->name ?? $page->hero_heading }}</div>
                 <div class="rating"><span class="stars">★★★★★</span>Rated 4.9/5 by 30,000+ UK Students</div>
                 <h1>{{ $page->hero_heading }}<br><span class="orange">{{ $page->hero_highlight }}</span></h1>
                 <p>{{ $page->hero_content }}</p>

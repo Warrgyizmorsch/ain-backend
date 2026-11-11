@@ -137,6 +137,35 @@ class User extends Authenticatable
             });
     }
 
+    /**
+     * Genuine, placed, converted, non-cancelled orders for this user.
+     */
+    public function genuineOrders()
+    {
+        return $this->hasMany(Order::class, 'uid', 'id')->genuinePlaced('orders');
+    }
+
+    /**
+     * Scope users to genuine active customers matching client order count bounds.
+     */
+    public function scopeFilterByGenuineOrderBounds($query, ?array $bounds, ?string $orderFrom = null, ?string $orderTo = null)
+    {
+        if ($bounds === null) {
+            return $query;
+        }
+
+        return $query
+            ->where('users.role_id', 2)
+            ->where('users.flag', 0)
+            ->joinSub(
+                Order::genuineClientAggregateSubquery($bounds, $orderFrom, $orderTo),
+                'gc_clients',
+                function ($join) {
+                    $join->on('users.id', '=', 'gc_clients.client_uid');
+                }
+            );
+    }
+
     public function leads()
     {
         return $this->hasMany(Leads::class, 'emp_id', 'id');

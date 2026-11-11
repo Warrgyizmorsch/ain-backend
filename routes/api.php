@@ -111,6 +111,18 @@ Route::middleware('api.key')->group(function () {
     // Prime Assignment Dynamic Pages APIs for Next.js Website
     Route::prefix('prime')->group(function () {
         Route::get('/subjects', [PrimeServicePageApiController::class, 'subjects']);
+        Route::get('/subjects/{slug}', [PrimeServicePageApiController::class, 'show'])->where('slug', '.*');
+        Route::get('/subject-pages', [PrimeServicePageApiController::class, 'subjectIndex']);
+        Route::get('/subject_pages', [PrimeServicePageApiController::class, 'subjectIndex']);
+        Route::get('/subject-pages/{slug}', [PrimeServicePageApiController::class, 'show'])->where('slug', '.*');
+        Route::get('/subject_pages/{slug}', [PrimeServicePageApiController::class, 'show'])->where('slug', '.*');
+
+        Route::get('/city-pages', [PrimeServicePageApiController::class, 'cityIndex']);
+        Route::get('/city_pages', [PrimeServicePageApiController::class, 'cityIndex']);
+        Route::get('/city-pages/{slug}', [PrimeServicePageApiController::class, 'show'])->where('slug', '.*');
+        Route::get('/city_pages/{slug}', [PrimeServicePageApiController::class, 'show'])->where('slug', '.*');
+
+        Route::get('/pages/{slug}', [PrimeServicePageApiController::class, 'show'])->where('slug', '.*');
         Route::get('/service-pages', [PrimeServicePageApiController::class, 'index']);
         Route::get('/service_pages', [PrimeServicePageApiController::class, 'index']);
         Route::get('/service-pages/prefix/{prefix}', [PrimeServicePageApiController::class, 'getByPrefix'])->where('prefix', '.*');
@@ -134,6 +146,18 @@ Route::middleware('api.key')->group(function () {
         Route::get('/samples/{slug}', [PrimeSampleApiController::class, 'show'])->where('slug', '.*');
         Route::get('/sample/{slug}', [PrimeSampleApiController::class, 'show'])->where('slug', '.*');
     });
+});
+
+// Prime Assignment v1 Public API Endpoints
+Route::prefix('v1')->group(function () {
+    Route::get('/subjects', [PrimeServicePageApiController::class, 'subjectIndex']);
+    Route::get('/subjects/{slug}', [PrimeServicePageApiController::class, 'show'])->where('slug', '.*');
+    Route::get('/subject-pages', [PrimeServicePageApiController::class, 'subjectIndex']);
+    Route::get('/subject-pages/{slug}', [PrimeServicePageApiController::class, 'show'])->where('slug', '.*');
+    Route::get('/service-pages', [PrimeServicePageApiController::class, 'index']);
+    Route::get('/service-pages/{slug}', [PrimeServicePageApiController::class, 'show'])->where('slug', '.*');
+    Route::get('/city-pages', [PrimeServicePageApiController::class, 'cityIndex']);
+    Route::get('/city-pages/{slug}', [PrimeServicePageApiController::class, 'show'])->where('slug', '.*');
 });
 
 Route::prefix('app')->group(function () {

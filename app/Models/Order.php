@@ -143,6 +143,138 @@ class Order extends Model
         return strtolower(trim((string) $this->projectstatus)) === 'initiated';
     }
 
+    /**
+     * Scope to genuine, placed, converted, non-cancelled customer orders.
+     * Excludes unconverted lead placeholders (leads.is_converted = 0 matched on integer FK lead_id),
+     * cancelled/trashed orders, and incomplete un-dated Pending/empty checkout drafts.
+     */
+    public function scopeGenuinePlaced($query, string $tableAlias = 'orders')
+    {
+        return $query
+            ->whereNotNull("{$tableAlias}.uid")
+            ->where("{$tableAlias}.uid", '>', 0)
+            ->whereRaw("LOWER(TRIM(COALESCE({$tableAlias}.projectstatus, ''))) NOT IN ('cancelled', 'trash')")
+            ->where(function ($q) use ($tableAlias) {
+                $q->whereNotNull("{$tableAlias}.order_date")
+                  ->orWhereRaw("LOWER(TRIM(COALESCE({$tableAlias}.projectstatus, ''))) NOT IN ('', 'pending')");
+            })
+            ->whereNotExists(function ($sub) use ($tableAlias) {
+                $sub->select(DB::raw(1))
+                    ->from('leads as gl')
+                    ->whereColumn('gl.id', "{$tableAlias}.lead_id")
+                    ->where('gl.is_converted', 0);
+            });
+    }
+
+    /**
+     * Parse client order category / minimum count filter into [min, max] bounds.
+     *
+     * @return array{min: int, max: ?int}|null
+     */
+    public static function resolveClientOrderBounds(?string $category, $minOrders = null): ?array
+    {
+        $cat = strtolower(trim((string) $category));
+        $bounds = null;
+
+        if ($cat !== '') {
+            $bounds = match ($cat) {
+                'multiple', 'multi', '2+' => ['min' => 2, 'max' => null],
+                '2_to_3', 'repeat_2_3', '2-3' => ['min' => 2, 'max' => 3],
+                'retainer', 'repeated', '4+' => ['min' => 4, 'max' => null],
+                'loyal', '10+', '>10' => ['min' => 11, 'max' => null],
+                'single', '1', 'beginner_1' => ['min' => 1, 'max' => 1],
+                'beginner', '1_to_3', '1-3' => ['min' => 1, 'max' => 3],
+                default => null,
+            };
+        }
+
+        if ($minOrders !== null && $minOrders !== '' && is_numeric($minOrders)) {
+            $minInt = (int) $minOrders;
+            if ($minInt >= 1) {
+                if ($bounds === null) {
+                    $bounds = ['min' => $minInt, 'max' => null];
+                } else {
+                    $bounds['min'] = max($bounds['min'], $minInt);
+                    if ($bounds['max'] !== null && $bounds['min'] > $bounds['max']) {
+                        $bounds['max'] = null;
+                    }
+                }
+            }
+        }
+
+        return $bounds;
+    }
+
+    /**
+     * Resolve optional [from, to] order_date range from an order_period preset and/or explicit dates.
+     *
+     * @return array{0: ?string, 1: ?string}
+     */
+    public static function resolveOrderPeriodDateRange(?string $orderPeriod, ?string $fromDate = null, ?string $toDate = null): array
+    {
+        $period = strtolower(trim((string) $orderPeriod));
+        if ($fromDate || $toDate) {
+            return [$fromDate ?: null, $toDate ?: null];
+        }
+
+        return match ($period) {
+            '18_months' => [Carbon::now()->subMonths(18)->toDateString(), null],
+            'this_year' => [Carbon::now()->startOfYear()->toDateString(), Carbon::now()->endOfYear()->toDateString()],
+            'lifetime', 'all', '' => [null, null],
+            default => [null, null],
+        };
+    }
+
+    /**
+     * Build derived aggregate subquery of genuine active customers (role_id = 2, flag = 0)
+     * with counts strictly over genuine, placed, converted, non-cancelled orders.
+     */
+    public static function genuineClientAggregateSubquery(?array $bounds = null, ?string $orderFrom = null, ?string $orderTo = null)
+    {
+        $sub = DB::table('orders as gc_o')
+            ->join('users as gc_u', 'gc_u.id', '=', 'gc_o.uid')
+            ->leftJoin('leads as gc_l', function ($join) {
+                $join->on('gc_l.id', '=', 'gc_o.lead_id')
+                     ->where('gc_l.is_converted', '=', 0);
+            })
+            ->where('gc_u.role_id', 2)
+            ->where('gc_u.flag', 0)
+            ->whereNotNull('gc_o.uid')
+            ->where('gc_o.uid', '>', 0)
+            ->whereNull('gc_l.id')
+            ->whereRaw("LOWER(TRIM(COALESCE(gc_o.projectstatus, ''))) NOT IN ('cancelled', 'trash')")
+            ->where(function ($q) {
+                $q->whereNotNull('gc_o.order_date')
+                  ->orWhereRaw("LOWER(TRIM(COALESCE(gc_o.projectstatus, ''))) NOT IN ('', 'pending')");
+            });
+
+        if ($orderFrom && $orderTo) {
+            $sub->whereBetween('gc_o.order_date', [$orderFrom, $orderTo]);
+        } elseif ($orderFrom) {
+            $sub->where('gc_o.order_date', '>=', $orderFrom);
+        } elseif ($orderTo) {
+            $sub->where('gc_o.order_date', '<=', $orderTo);
+        }
+
+        $sub->selectRaw('gc_o.uid as client_uid, COUNT(*) as genuine_orders_count')
+            ->groupBy('gc_o.uid');
+
+        if ($bounds !== null) {
+            $min = (int) ($bounds['min'] ?? 1);
+            $max = isset($bounds['max']) ? (int) $bounds['max'] : null;
+
+            if ($max !== null && $min === $max) {
+                $sub->havingRaw('COUNT(*) = ?', [$min]);
+            } elseif ($max !== null) {
+                $sub->havingRaw('COUNT(*) BETWEEN ? AND ?', [$min, $max]);
+            } else {
+                $sub->havingRaw('COUNT(*) >= ?', [$min]);
+            }
+        }
+
+        return $sub;
+    }
+
     public function assignTeamForInitiatedStatus(bool $allowNonInitiated = false): void
     {
         if ((!$allowNonInitiated && !$this->isInitiatedStatus()) || !empty($this->team_id)) {
