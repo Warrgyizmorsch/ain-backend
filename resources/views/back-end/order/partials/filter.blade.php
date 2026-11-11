@@ -479,6 +479,7 @@
                     </select>
                 </div>
 
+                {{-- Commented out per request: hide Client Orders (Repeat / Multiple) dropdown from /orders filter UI
                 @php
                     $reqClientOrders = request('client_orders') ?: request('order_category');
                 @endphp
@@ -494,6 +495,7 @@
                         <option value="single" {{ $reqClientOrders == 'single' ? 'selected' : '' }}>Single Order (1)</option>
                     </select>
                 </div>
+                --}}
 
 
 
