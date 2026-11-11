@@ -19,14 +19,20 @@
                     {{ $codeToCountry[$cleanCode] ?? 'Unknown' }}
                 </span>
                 @php
-                    $count = $user->orders_count;
-                    
-                    if($count > 10) { 
-                        $class = "badge-light-success"; $label = "Loyal Customer"; 
-                    } elseif($count >= 4) { 
-                        $class = "badge-light-warning"; $label = "Retainer"; 
-                    } else { 
-                        $class = "badge-light-info"; $label = "Beginner"; 
+                    $count = (int) ($user->orders_count ?? 0);
+                    $lifetimeCount = (int) ($user->total_orders_count ?? $count);
+                    $badgeCount = max($count, 0);
+
+                    if ($badgeCount > 10) {
+                        $class = "badge-light-success"; $label = "Loyal Customer";
+                    } elseif ($badgeCount >= 4) {
+                        $class = "badge-light-warning"; $label = "Retainer";
+                    } elseif ($badgeCount >= 1) {
+                        $class = "badge-light-info"; $label = "Beginner";
+                    } elseif ($lifetimeCount >= 1) {
+                        $class = "badge-light-info"; $label = "Past Customer";
+                    } else {
+                        $class = "badge-light-secondary"; $label = "No Placed Orders";
                     }
                 @endphp
                 <span class="badge {{ $class }} fw-bold fs-8" style="width: fit-content;">{{ $label }}</span>
@@ -132,7 +138,7 @@
         </div>
     </td>
     <td>
-        <span class="badge badge-circle badge-primary fw-bold">{{ $user->orders_count }}</span>
+        <a href="{{ route('orders.index', ['uid' => $user->id]) }}" target="_blank" title="View Genuine Orders" class="badge badge-circle badge-primary fw-bold text-decoration-none">{{ $user->orders_count }}</a>
     </td>
     <td>
         <span class="badge badge-circle badge-info fw-bold">{{ $user->followups_count ?? 0 }}</span>

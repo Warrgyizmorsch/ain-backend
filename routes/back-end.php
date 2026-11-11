@@ -52,9 +52,12 @@ Route::middleware(['auth'])->group(function () {
         ->name('admin.login-otp-system-ban');
     Route::post('/admin/login-otp-system-unban', [AuthenticatedSessionController::class, 'unbanOtpSystem'])
         ->name('admin.login-otp-system-unban');
+    Route::match(['get', 'post'], '/lead/export', [LeadsController::class, 'export'])->name('lead.export');
+    Route::get('/lead/export/status', [LeadsController::class, 'exportStatus'])->name('lead.export.status');
+    Route::get('/lead/export/download', [LeadsController::class, 'downloadExport'])->name('lead.export.download');
 
 });
-Route::post('/lead/export', [LeadsController::class, 'export'])->name('lead.export');
+
 
 Route::middleware(['auth'])->group(function () {
     Route::resource('subjects', SubjectController::class)->only(['index', 'store', 'update', 'destroy']);
@@ -73,7 +76,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('prime-samples/{primeSample}/preview', [PrimeSampleController::class, 'preview'])->name('prime-samples.preview');
     Route::resource('prime-samples', PrimeSampleController::class)->except(['show']);
 });
-Route::get('/lead/export/status', [LeadsController::class, 'exportStatus']);
+
 Route::any('/order/export', [ExportController::class, 'export'])->name('order.export');
 Route::post('/lead/assign-type', [LeadsController::class, 'assignType'])
     ->name('lead.assignType');

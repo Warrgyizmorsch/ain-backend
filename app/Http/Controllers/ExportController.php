@@ -45,13 +45,28 @@ class ExportController extends Controller
         $yesterday_deadline_filter = $request->input('yesterday_deadline_filter');
         $today_writer_deadline_filter = $request->input('today_writer_deadline_filter');
         $month = $request->input('month');
+        $clientOrders = $request->input('client_orders') ?: $request->input('order_category');
+        $minClientOrders = $request->input('min_client_orders') ?: $request->input('min_orders');
+        $clientOrderBounds = Order::resolveClientOrderBounds($clientOrders, $minClientOrders);
 
         // Query orders based on the filter parameters
         $orders = Order::with(['user', 'lead.user', 'frontendLead.user', 'team', 'writer', 'mulsubwriter.user'])
+            ->select('orders.*')
             ->where(function ($q) {
                 $q->whereNotNull('orders.uid')
                   ->orWhereNotNull('orders.lead_id');
             });
+
+        if ($clientOrderBounds !== null) {
+            $orders->genuinePlaced('orders')
+                ->joinSub(
+                    Order::genuineClientAggregateSubquery($clientOrderBounds),
+                    'gc_clients',
+                    function ($join) {
+                        $join->on('orders.uid', '=', 'gc_clients.client_uid');
+                    }
+                );
+        }
 
         // Apply search by order ID or title
         if ($searchTerm) {
@@ -311,42 +326,46 @@ class ExportController extends Controller
 
     public function exportLeads(Request $request)
     {
-        if (!auth()->check() || (!in_array((int) auth()->user()->role_id, [1, 9]) && !in_array(strtolower(optional(auth()->user()->role)->role ?? ''), ['super admin', 'admin', 'sub admin']))) {
-            abort(403, 'Unauthorized. Only admins can export users.');
+        if (!auth()->check() || (!in_array((int) auth()->user()->role_id, [1, 9], true) && !in_array(strtolower(trim((string) optional(auth()->user()->role)->role)), ['super admin', 'admin', 'sub admin'], true))) {
+            abort(403, 'Unauthorized. Only admins can export leads.');
         }
 
         // Retrieve filter parameters from the request
-        $searchTerm = $request->input('additional_filter1');
-        $userDetail = $request->input('additional_filter2');
-        $status = $request->input('additional_filter4');
-        $techn = $request->input('additional_filter5');
-        $fromDate = $request->input('additional_filter3');
-        $uptoDate = $request->input('additional_filter6');
-        $dateStatus = $request->input('additional_filter7');
-    
-        // Start query to retrieve leads
-        $leadsQuery = Leads::with('user')->where('status', 0);
-    
+        $searchTerm = trim((string) $request->input('additional_filter1', ''));
+        $userDetail = trim((string) $request->input('additional_filter2', ''));
+        $status = trim((string) $request->input('additional_filter4', ''));
+        $techn = trim((string) $request->input('additional_filter5', ''));
+        $fromDate = trim((string) $request->input('additional_filter3', ''));
+        $uptoDate = trim((string) $request->input('additional_filter6', ''));
+        $dateStatus = trim((string) $request->input('additional_filter7', ''));
+
+        // Start query to retrieve active non-converted, non-duplicate leads
+        $leadsQuery = Leads::with('user')
+            ->where('status', 0)
+            ->where('is_converted', 0)
+            ->where('duplicate_lead', 0);
+
         // Apply filters if provided
-        if ($searchTerm) {
+        if ($searchTerm !== '') {
             $searchUserIds = find_user_ids_by_search_term($searchTerm);
             $cleanSearchMasked = preg_replace('/\*+/', '%', preg_replace('/[^0-9*]/', '', $searchTerm));
             $cleanSearchDigits = preg_replace('/\D+/', '', $searchTerm);
 
             $leadsQuery->where(function ($query) use ($searchTerm, $searchUserIds, $cleanSearchMasked, $cleanSearchDigits) {
                 $query->where('order_id', 'like', '%' . $searchTerm . '%')
-                    ->orWhere('project_title', 'like', '%' . $searchTerm . '%');
+                    ->orWhere('project_title', 'like', '%' . $searchTerm . '%')
+                    ->orWhere('user_name', 'like', '%' . $searchTerm . '%');
 
                 if (!empty($searchUserIds)) {
                     $query->orWhereIn('emp_id', $searchUserIds);
                 }
 
-                if (strpos($searchTerm, '*') !== false && !empty($cleanSearchMasked) && preg_match('/\d/', $cleanSearchMasked)) {
+                if (strpos($searchTerm, '@') === false && strpos($searchTerm, '*') !== false && !empty($cleanSearchMasked) && preg_match('/\d/', $cleanSearchMasked)) {
                     $query->orWhere('mobile', 'like', '%' . $cleanSearchMasked . '%')
                         ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile, '')) LIKE ?", ['%' . $cleanSearchMasked . '%']);
                 }
 
-                if (!empty($cleanSearchDigits) && strlen($cleanSearchDigits) >= 4) {
+                if (strpos($searchTerm, '@') === false && !empty($cleanSearchDigits) && strlen($cleanSearchDigits) >= 4) {
                     $last10 = strlen($cleanSearchDigits) >= 10 ? substr($cleanSearchDigits, -10) : $cleanSearchDigits;
                     $query->orWhere('mobile', 'like', '%' . $cleanSearchDigits . '%')
                         ->orWhere('mobile', 'like', '%' . $last10 . '%')
@@ -355,39 +374,43 @@ class ExportController extends Controller
 
                 if (strpos($searchTerm, '@') !== false) {
                     $cleanEmail = preg_replace('/\*+/', '%', $searchTerm);
-                    $query->orWhere('email', 'like', '%' . $cleanEmail . '%');
+                    $query->orWhere('email', 'like', '%' . $cleanEmail . '%')
+                        ->orWhereHas('user', fn ($uq) => $uq->where('email', 'like', '%' . $cleanEmail . '%'));
+                } else {
+                    $query->orWhere('email', 'like', '%' . $searchTerm . '%');
                 }
             });
         }
-    
-        if ($userDetail) {
+
+        if ($userDetail !== '') {
             if (is_numeric($userDetail)) {
-                $leadsQuery->where('emp_id', $userDetail);
+                $leadsQuery->where('emp_id', (int) $userDetail);
             } else {
-                $matchingUserIds = find_user_ids_by_search_term((string)$userDetail);
-                $cleanUserMasked = preg_replace('/\*+/', '%', preg_replace('/[^0-9*]/', '', (string)$userDetail));
-                $cleanUserDigits = preg_replace('/\D+/', '', (string)$userDetail);
+                $matchingUserIds = find_user_ids_by_search_term($userDetail);
+                $cleanUserMasked = preg_replace('/\*+/', '%', preg_replace('/[^0-9*]/', '', $userDetail));
+                $cleanUserDigits = preg_replace('/\D+/', '', $userDetail);
 
                 $leadsQuery->where(function ($query) use ($userDetail, $matchingUserIds, $cleanUserMasked, $cleanUserDigits) {
                     if (!empty($matchingUserIds)) {
                         $query->whereIn('emp_id', $matchingUserIds);
                     }
 
-                    if (strpos((string)$userDetail, '*') !== false && !empty($cleanUserMasked) && preg_match('/\d/', $cleanUserMasked)) {
+                    if (strpos($userDetail, '@') === false && strpos($userDetail, '*') !== false && !empty($cleanUserMasked) && preg_match('/\d/', $cleanUserMasked)) {
                         $query->orWhere('mobile', 'like', '%' . $cleanUserMasked . '%')
                             ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile, '')) LIKE ?", ['%' . $cleanUserMasked . '%']);
                     }
 
-                    if (!empty($cleanUserDigits) && strlen($cleanUserDigits) >= 4) {
+                    if (strpos($userDetail, '@') === false && !empty($cleanUserDigits) && strlen($cleanUserDigits) >= 4) {
                         $last10 = strlen($cleanUserDigits) >= 10 ? substr($cleanUserDigits, -10) : $cleanUserDigits;
                         $query->orWhere('mobile', 'like', '%' . $cleanUserDigits . '%')
                             ->orWhere('mobile', 'like', '%' . $last10 . '%')
                             ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile, '')) LIKE ?", ['%' . $cleanUserDigits . '%']);
                     }
 
-                    if (strpos((string)$userDetail, '@') !== false) {
-                        $cleanEmail = preg_replace('/\*+/', '%', (string)$userDetail);
-                        $query->orWhere('email', 'like', '%' . $cleanEmail . '%');
+                    if (strpos($userDetail, '@') !== false) {
+                        $cleanEmail = preg_replace('/\*+/', '%', $userDetail);
+                        $query->orWhere('email', 'like', '%' . $cleanEmail . '%')
+                            ->orWhereHas('user', fn ($uq) => $uq->where('email', 'like', '%' . $cleanEmail . '%'));
                     } else {
                         $query->orWhere('user_name', 'like', '%' . $userDetail . '%')
                             ->orWhere('email', 'like', '%' . $userDetail . '%');
@@ -395,12 +418,16 @@ class ExportController extends Controller
                 });
             }
         }
-    
-        if ($status) {
-            $leadsQuery->where('l_status', $status);
+
+        if ($status !== '' && $status !== 'All') {
+            if (in_array($status, ['Hot', 'Warm', 'Cold'], true)) {
+                $leadsQuery->where('lead_status', $status);
+            } else {
+                $leadsQuery->where('l_status', $status);
+            }
         }
-    
-        if ($techn) {
+
+        if ($techn !== '') {
             if ($techn == 'Technical') {
                 $leadsQuery->where('tech', 'on');
             } elseif ($techn == 'Resit') {
@@ -409,64 +436,68 @@ class ExportController extends Controller
                 $leadsQuery->where('service_type', 'First Class Work');
             }
         }
-    
+
         $dateField = ($dateStatus === 'Deadline') ? 'deadline' : 'create_at';
-        if ($fromDate && $uptoDate) {
+        if ($fromDate !== '' && $uptoDate !== '') {
             if ($dateField === 'create_at') {
                 $leadsQuery->whereBetween('create_at', [$fromDate . ' 00:00:00', $uptoDate . ' 23:59:59']);
             } else {
                 $leadsQuery->whereBetween('deadline', [$fromDate, $uptoDate]);
             }
-        } elseif ($fromDate) {
+        } elseif ($fromDate !== '') {
             $leadsQuery->whereDate($dateField, '>=', $fromDate);
-        } elseif ($uptoDate) {
+        } elseif ($uptoDate !== '') {
             $leadsQuery->whereDate($dateField, '<=', $uptoDate);
         }
-    
-        // Fetch the leads
-        $leads = $leadsQuery->orderByDesc('id');
-    
-        // Check if filters are provided
-        $filtersProvided = $searchTerm || $userDetail || $status || $techn || $fromDate || $uptoDate || $dateStatus;
 
-        // Fetch leads based on whether filters are provided or not
-        $leads = $filtersProvided ? $leadsQuery->get() : Leads::where('status', 0)->orderByDesc('id')->get();
+        @set_time_limit(0);
+        @ini_set('memory_limit', '1024M');
 
-        // Prepare CSV file content with headers
-        
-        $csvData = 'Order Code,User Name,User Email,Mobile,Order Date,Pages,Title,Delivery Date,Delivery Time,Draft Date,Draft Time' . PHP_EOL;
-    
-        // Generate CSV data
-        
-        foreach ($leads as $lead) {
-            // Access user's name and email from the user relationship
-            $userName = '"' . ($lead->user->name ?? '') . '"';
-            $userEmail = '"' . ($lead->user->email ?? '') . '"';
-            $userMobile = '"' . ($lead->user->mobile_no ?? '') . '"';
-            // Enclose fields in double quotes to treat commas as a single block in Excel
-            $order_id = '"' . $lead->order_id . '"';
-            $title = '"' . $lead->project_title . '"';
-            $pages = '"' . $lead->pages . '"';
-            $amount = '"' . $lead->price . '"';
-            $deliveryDate = '"' . $lead->deadline . '"';
-            $deliveryTime = '"' . $lead->delivery_time . '"';
-            $orderDate = '"' . $lead->create_at . '"';
-            $draftDate = '"' . $lead->draft_date . '"';
-            $draftTime = '"' . $lead->draft_time . '"';
-        
-            $csvData .= $order_id . ',' . $userName . ',' . $userEmail . ',' . $userMobile . ',' . $orderDate . ',' . $pages . ',' . $title . ','  . $deliveryDate . ',' . $deliveryTime . ',' . $draftDate . ',' . $draftTime .  PHP_EOL;
-        }
-    
-        // Generate file name
         $filename = 'leads_' . now()->format('YmdHis') . '.csv';
-    
-        // Save CSV content to storage
-        Storage::disk('local')->put($filename, $csvData);
-    
-        // Return the file path to the AJAX request
-        return response()->download(storage_path('app/' . $filename), $filename, [
-            'Content-Type' => 'text/csv',
-            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+
+        return response()->streamDownload(function () use ($leadsQuery) {
+            $handle = fopen('php://output', 'w');
+            fputs($handle, "\xEF\xBB\xBF");
+
+            fputcsv($handle, [
+                'Order Code', 'User Name', 'User Email', 'Mobile', 'Order Date',
+                'Pages', 'Title', 'Delivery Date', 'Delivery Time', 'Draft Date', 'Draft Time',
+            ]);
+
+            if (ob_get_level() > 0) {
+                @ob_flush();
+            }
+            @flush();
+
+            $leadsQuery->orderByDesc('id')->chunk(500, function ($leads) use ($handle) {
+                foreach ($leads as $lead) {
+                    fputcsv($handle, [
+                        $lead->order_id ?? '',
+                        $lead->user->name ?? $lead->user_name ?? '',
+                        $lead->user->email ?? $lead->email ?? '',
+                        $lead->user->mobile_no ?? $lead->mobile ?? '',
+                        $lead->create_at ?: ($lead->created_at ?? ''),
+                        $lead->pages ?? '',
+                        $lead->project_title ?? '',
+                        $lead->deadline ?? '',
+                        $lead->delivery_time ?? '',
+                        $lead->draft_date ?? '',
+                        $lead->draft_time ?? '',
+                    ]);
+                }
+
+                if (ob_get_level() > 0) {
+                    @ob_flush();
+                }
+                @flush();
+            });
+
+            fclose($handle);
+        }, $filename, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Cache-Control' => 'no-cache, no-store, must-revalidate',
+            'Pragma' => 'no-cache',
+            'Expires' => '0',
         ]);
     }
     
@@ -508,6 +539,8 @@ class ExportController extends Controller
         $roleId = $request->input('role');
         $countrycode = $request->input('countrycode');
         $orderFilter = $request->input('order_category');
+        $minOrders = $request->input('min_orders');
+        $requestedPeriod = $request->input('order_period');
         $collegeName = $request->input('college_name');
         $groupId = $request->input('group_id');
         $tab = $request->get('tab', 'all');
@@ -577,43 +610,59 @@ class ExportController extends Controller
             $allKnownCodes = array_merge($allKnownCodes, $codes);
         }
 
-        $oneAndHalfYearAgo = Carbon::now()->subMonths(18);
+        $clientOrderBounds = Order::resolveClientOrderBounds($orderFilter, $minOrders);
+        $allowedPeriods = ['lifetime', '18_months', 'this_year'];
+        $effectiveOrderPeriod = in_array($requestedPeriod, $allowedPeriods, true)
+            ? $requestedPeriod
+            : ($clientOrderBounds !== null ? 'lifetime' : '18_months');
+        [$orderFrom, $orderTo] = Order::resolveOrderPeriodDateRange($effectiveOrderPeriod);
 
         // Initialize the user query
-        $usersQuery = User::query()->where('flag', 0);
+        $usersQuery = User::query()
+            ->select('users.*')
+            ->withCount(['genuineOrders as genuine_orders_count' => function ($q) use ($orderFrom, $orderTo) {
+                if ($orderFrom && $orderTo) {
+                    $q->whereBetween('order_date', [$orderFrom, $orderTo]);
+                } elseif ($orderFrom) {
+                    $q->where('order_date', '>=', $orderFrom);
+                } elseif ($orderTo) {
+                    $q->where('order_date', '<=', $orderTo);
+                }
+            }])
+            ->where('users.flag', 0);
 
         // Basic Filters
         if ($searchUserId) {
-            $usersQuery->where('id', $searchUserId);
+            $usersQuery->where('users.id', $searchUserId);
         } elseif ($userText !== '') {
             $cleanUserText = preg_replace('/\D+/', '', $userText);
             $last10 = strlen($cleanUserText) >= 10 ? substr($cleanUserText, -10) : $cleanUserText;
 
             $usersQuery->where(function ($q) use ($userText, $cleanUserText, $last10) {
-                $q->where('name', 'like', '%' . $userText . '%')
-                  ->orWhere('email', 'like', '%' . $userText . '%')
-                  ->orWhere('mobile_no', 'like', '%' . $userText . '%')
-                  ->orWhere('mobile_no2', 'like', '%' . $userText . '%');
+                $q->where('users.name', 'like', '%' . $userText . '%')
+                  ->orWhere('users.email', 'like', '%' . $userText . '%')
+                  ->orWhere('users.mobile_no', 'like', '%' . $userText . '%')
+                  ->orWhere('users.mobile_no2', 'like', '%' . $userText . '%');
                 if (!empty($cleanUserText)) {
-                    $q->orWhere('mobile_no', 'like', '%' . $cleanUserText . '%')
-                      ->orWhereRaw("CONCAT(COALESCE(countrycode, ''), COALESCE(mobile_no, '')) LIKE ?", ["%{$cleanUserText}%"]);
+                    $q->orWhere('users.mobile_no', 'like', '%' . $cleanUserText . '%')
+                      ->orWhereRaw("CONCAT(COALESCE(users.countrycode, ''), COALESCE(users.mobile_no, '')) LIKE ?", ["%{$cleanUserText}%"]);
                 }
                 if (!empty($last10)) {
-                    $q->orWhere('mobile_no', 'like', '%' . $last10 . '%');
+                    $q->orWhere('users.mobile_no', 'like', '%' . $last10 . '%');
                 }
             });
         }
 
         if ($startDate && !$endDate) {
-            $usersQuery->whereDate('created_at', $startDate);
+            $usersQuery->whereDate('users.created_at', $startDate);
         }
 
         if ($startDate && $endDate) {
-            $usersQuery->whereBetween('created_at', [$startDate, $endDate]);
+            $usersQuery->whereBetween('users.created_at', [$startDate, $endDate]);
         }
 
         if ($roleId) {
-            $usersQuery->where('role_id', $roleId);
+            $usersQuery->where('users.role_id', $roleId);
         }
 
         if ($groupId) {
@@ -629,58 +678,56 @@ class ExportController extends Controller
             if ($countrycode === 'Other') {
                 $usersQuery->where(function ($q) use ($allKnownCodes, $allCodesRegex) {
                     $q->where(function ($subQ) use ($allKnownCodes) {
-                        $subQ->whereNotIn('countrycode', $allKnownCodes)
-                            ->orWhereNull('countrycode')
-                            ->orWhere('countrycode', '');
+                        $subQ->whereNotIn('users.countrycode', $allKnownCodes)
+                            ->orWhereNull('users.countrycode')
+                            ->orWhere('users.countrycode', '');
                     });
                     $q->where(function ($subQ) use ($allCodesRegex) {
-                        $subQ->where('mobile_no', 'NOT REGEXP', $allCodesRegex)
-                            ->orWhereNull('mobile_no')
-                            ->orWhere('mobile_no', '');
+                        $subQ->where('users.mobile_no', 'NOT REGEXP', $allCodesRegex)
+                            ->orWhereNull('users.mobile_no')
+                            ->orWhere('users.mobile_no', '');
                     });
                 });
             } elseif (array_key_exists($countrycode, $globalCountries)) {
                 $selectedCodes = $globalCountries[$countrycode];
-                $usersQuery->whereIn('countrycode', $selectedCodes);
+                $usersQuery->whereIn('users.countrycode', $selectedCodes);
             }
         }
 
         if ($collegeName) {
-            $usersQuery->whereHas('orders', function ($q) use ($collegeName) {
+            $usersQuery->whereHas('genuineOrders', function ($q) use ($collegeName) {
                 $q->where('college_name', $collegeName);
             });
         }
 
-        if ($orderFilter) {
-            $usersQuery->whereHas(
-                'convertedOrders',
-                function ($q) use ($oneAndHalfYearAgo) {
-                    $q->where('order_date', '>=', $oneAndHalfYearAgo);
-                },
-                ($orderFilter == 'loyal' ? '>' : ($orderFilter == 'repeated' ? '>=' : '<=')),
-                ($orderFilter == 'loyal' ? 10 : ($orderFilter == 'repeated' ? 4 : 3))
-            );
+        if ($clientOrderBounds !== null) {
+            $usersQuery->filterByGenuineOrderBounds($clientOrderBounds, $orderFrom, $orderTo);
         }
 
         // Base customer requirement (matches UI tab rules: only users with an order or lead)
-        if (!$searchUserId && $userText === '') {
+        if (!$searchUserId && $userText === '' && $clientOrderBounds === null) {
             $usersQuery->where(function ($customerQuery) {
-                $customerQuery->whereHas('convertedOrders')->orWhereHas('leads');
+                $customerQuery->whereHas('genuineOrders')->orWhereHas('leads');
             });
         }
 
         // Tab selection filtering
         if ($tab === 'confirmed') {
-            $usersQuery->whereHas('convertedOrders');
+            $usersQuery->whereHas('genuineOrders');
         } elseif ($tab === 'not_confirmed') {
-            $usersQuery->whereHas('leads')->whereDoesntHave('convertedOrders');
+            $usersQuery->whereHas('leads')->whereDoesntHave('genuineOrders');
+        } elseif ($tab === 'dummy_email') {
+            $usersQuery->where(function ($q) {
+                $q->where('users.email', 'like', 'user%@gmail.com')
+                  ->orWhere('users.email', 'like', 'next_lead_%');
+            });
         }
 
         // Retrieve filtered users data from the database
-        $users = $usersQuery->orderBy('id', 'desc')->get();
+        $users = $usersQuery->orderBy('users.id', 'desc')->get();
 
         // Prepare CSV file content with headers
-        $csvData = "Name,Email,CountryCode,MobileNo,CountryCode2,MobileNo2,Role,JoinDate" . PHP_EOL;
+        $csvData = "Name,Email,CountryCode,MobileNo,CountryCode2,MobileNo2,Role,JoinDate,GenuineOrders" . PHP_EOL;
 
         // Generate CSV data
         foreach ($users as $user) {
@@ -692,7 +739,8 @@ class ExportController extends Controller
                 str_replace('"', '""', (string)$user->countrycode2),
                 str_replace('"', '""', (string)$user->mobile_no2),
                 str_replace('"', '""', (string)$this->getRoleName($user->role_id)),
-                $user->created_at ? $user->created_at->format('d M Y (h:i:s a)') : ''
+                $user->created_at ? $user->created_at->format('d M Y (h:i:s a)') : '',
+                (string)((int)($user->genuine_orders_count ?? 0))
             ]) . '"' . PHP_EOL;
         }
 

@@ -20,11 +20,20 @@
 
             <!-- Optimized Search & Filter Form for 200+ Pages -->
             <form method="GET" action="{{ route('prime-service-pages.index') }}" class="row g-3 mb-6 align-items-end">
-                <div class="col-md-5">
+                <div class="col-md-4">
                     <label class="form-label fs-7 fw-bold text-muted">Search Page or Slug</label>
                     <input type="text" name="search" class="form-control form-control-solid" placeholder="Search by title or slug..." value="{{ request('search') }}">
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-2">
+                    <label class="form-label fs-7 fw-bold text-muted">Type</label>
+                    <select name="type" class="form-select form-select-solid">
+                        <option value="">All Types</option>
+                        <option value="service" @selected(request('type') === 'service')>Service</option>
+                        <option value="subject" @selected(request('type') === 'subject')>Subject</option>
+                        <option value="city" @selected(request('type') === 'city')>City</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
                     <label class="form-label fs-7 fw-bold text-muted">Filter by Prefix</label>
                     <select name="prefix_id" class="form-select form-select-solid">
                         <option value="">All Prefixes</option>
@@ -43,7 +52,7 @@
                 </div>
                 <div class="col-md-2 d-flex gap-2">
                     <button type="submit" class="btn btn-primary w-100">Filter</button>
-                    @if(request()->hasAny(['search', 'prefix_id', 'status']))
+                    @if(request()->hasAny(['search', 'type', 'prefix_id', 'status']))
                         <a href="{{ route('prime-service-pages.index') }}" class="btn btn-light" title="Reset Filters"><i class="fa fa-undo"></i></a>
                     @endif
                 </div>
@@ -54,6 +63,7 @@
                     <thead>
                         <tr class="fw-bold text-muted">
                             <th>Prefix</th>
+                            <th>Type</th>
                             <th>Page</th>
                             <th>Slug</th>
                             <th>Status</th>
@@ -65,6 +75,12 @@
                         <tr>
                             <td>
                                 <span class="badge badge-light-info fw-semibold">{{ $page->primeSubject?->name ?? 'N/A' }}</span>
+                            </td>
+                            <td>
+                                @php($pageType = $page->type ?: 'service')
+                                <span class="badge badge-light-{{ $pageType === 'subject' ? 'primary' : ($pageType === 'city' ? 'warning' : 'info') }} fw-bold">
+                                    {{ ucfirst($pageType) }}
+                                </span>
                             </td>
                             <td>
                                 <strong>{{ $page->hero_heading }}</strong>
@@ -93,7 +109,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="5" class="text-center text-muted py-6">
+                            <td colspan="6" class="text-center text-muted py-6">
                                 No prime dynamic pages found. Click "Add Dynamic Page" to create one.
                             </td>
                         </tr>
