@@ -140,7 +140,7 @@
                         </span>
                     </button>
 
-                    @if(auth()->check() && (in_array((int) auth()->user()->role_id, [1, 9], true) || in_array(strtolower(trim((string) optional(auth()->user()->role)->role)), ['super admin', 'admin', 'sub admin'], true)))
+                    @if(auth()->check() && (int) auth()->user()->role_id === 1)
                     <button type="button" class="btn btn-sm btn-danger" style="margin-left: 10px;" id="export-btn">
                         Export
                     </button>
@@ -674,6 +674,7 @@
         // Clear any leftover legacy export polling flag on page load
         localStorage.removeItem('leadExportStatus');
 
+        @if(auth()->check() && (int) auth()->user()->role_id === 1)
         function getActiveLeadExportFilters() {
             const searchOrderVal = ($('#search_order').val() || '').trim();
             const searchUserVal = ($('#searchInput').val() || '').trim();
@@ -844,6 +845,7 @@
                 });
             });
         });
+        @endif
     </script>
 @endpush
 

@@ -54,7 +54,7 @@
                             </span>
                             New Leads
                         </a>
-                        @if(auth()->check() && (in_array((int) auth()->user()->role_id, [1, 9], true) || in_array(strtolower(trim((string) optional(auth()->user()->role)->role)), ['super admin', 'admin', 'sub admin'], true)))
+                        @if(auth()->check() && (int) auth()->user()->role_id === 1)
                             <a onclick="leadsExport()" style="margin-left: 10px;" class="btn btn-sm btn-danger">Export</a>
                         @endif
                     </div>

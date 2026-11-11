@@ -118,7 +118,9 @@
             complete: function() {
                 $('#spinner-row').hide();
                 document.documentElement.classList.remove('lead-filter-restoring');
+                @if(auth()->check() && (int) auth()->user()->role_id === 1)
                 $('#export-btn').show();
+                @endif
             }
         });
     }

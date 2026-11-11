@@ -346,6 +346,10 @@ public function sourceLeadReport(Request $request)
 
         // CSV export
         if ($request->has('export') && $request->export == 'csv') {
+            if (!auth()->check() || (int) auth()->user()->role_id !== 1) {
+                abort(403, 'Unauthorized. Only Super Admin can export reports.');
+            }
+
             return $this->exportCustomerDueCsv($selectQuery->get());
         }
 

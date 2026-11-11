@@ -821,6 +821,7 @@
         });
     </script> -->
 
+    @if(auth()->check() && (int) auth()->user()->role_id === 1)
     <script>
         document.addEventListener("DOMContentLoaded", function () {
             const preloader = document.getElementById('export-preloader');
@@ -929,6 +930,7 @@
             });
         });
     </script>
+    @endif
 
     <script>
         window.currentAlertOrder = null;

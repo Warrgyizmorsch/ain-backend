@@ -64,6 +64,7 @@
                 Monthly Registration Retention Summary ({{ $year }})
             @endif
         </h3>
+        @if(auth()->check() && (int) auth()->user()->role_id === 1)
         <div class="d-flex align-items-center gap-2">
             <div class="dropdown">
                 <button class="btn btn-sm btn-danger dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -77,6 +78,7 @@
                 </ul>
             </div>
         </div>
+        @endif
     </div>
     <div class="card-body pt-0">
         <div class="table-responsive">
@@ -241,6 +243,7 @@ function toggleUserList(rowId) {
     $('#' + rowId).toggle();
 }
 
+@if(auth()->check() && (int) auth()->user()->role_id === 1)
 function exportRetentionUserList(btn, title) {
     var table = $(btn).closest('.p-3').find('table.retention-user-table')[0];
     if (!table) return;
@@ -358,6 +361,7 @@ function downloadCSV(csvArray, filename) {
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
 }
+@endif
 </script>
 
 @endsection
