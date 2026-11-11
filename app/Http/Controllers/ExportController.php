@@ -646,7 +646,8 @@ class ExportController extends Controller
                 $q->where('users.name', 'like', '%' . $userText . '%')
                   ->orWhere('users.email', 'like', '%' . $userText . '%')
                   ->orWhere('users.mobile_no', 'like', '%' . $userText . '%')
-                  ->orWhere('users.mobile_no2', 'like', '%' . $userText . '%');
+                  ->orWhere('users.mobile_no2', 'like', '%' . $userText . '%')
+                  ->orWhere('users.referral_code', 'like', '%' . $userText . '%');
                 if (!empty($cleanUserText)) {
                     $q->orWhere('users.mobile_no', 'like', '%' . $cleanUserText . '%')
                       ->orWhereRaw("CONCAT(COALESCE(users.countrycode, ''), COALESCE(users.mobile_no, '')) LIKE ?", ["%{$cleanUserText}%"]);
@@ -739,12 +740,19 @@ class ExportController extends Controller
         }
         $users = $usersQuery->get();
 
+        $includeReferralCols = \App\Services\ReferralCodeService::canView(auth()->user());
+
         // Prepare CSV file content with headers
-        $csvData = "Name,Email,CountryCode,MobileNo,CountryCode2,MobileNo2,Role,JoinDate,GenuineOrders" . PHP_EOL;
+        $headers = ['Name', 'Email', 'CountryCode', 'MobileNo', 'CountryCode2', 'MobileNo2', 'Role', 'JoinDate', 'GenuineOrders'];
+        if ($includeReferralCols) {
+            $headers[] = 'ReferralCode';
+            $headers[] = 'ReferralDiscountPercent';
+        }
+        $csvData = implode(',', $headers) . PHP_EOL;
 
         // Generate CSV data
         foreach ($users as $user) {
-            $csvData .= '"' . implode('","', [
+            $rowCols = [
                 str_replace('"', '""', (string)$user->name),
                 str_replace('"', '""', (string)$user->email),
                 str_replace('"', '""', (string)$user->countrycode),
@@ -754,7 +762,14 @@ class ExportController extends Controller
                 str_replace('"', '""', (string)$this->getRoleName($user->role_id)),
                 $user->created_at ? $user->created_at->format('d M Y (h:i:s a)') : '',
                 (string)((int)($user->genuine_orders_count ?? 0))
-            ]) . '"' . PHP_EOL;
+            ];
+            if ($includeReferralCols) {
+                $rowCols[] = str_replace('"', '""', (string)($user->referral_code ?? ''));
+                $rowCols[] = !empty($user->referral_code)
+                    ? (string)(number_format((float)($user->referral_discount_percent ?? \App\Services\ReferralCodeService::DEFAULT_DISCOUNT_PERCENT), 2, '.', ''))
+                    : '';
+            }
+            $csvData .= '"' . implode('","', $rowCols) . '"' . PHP_EOL;
         }
 
         // Generate file name

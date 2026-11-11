@@ -17,7 +17,7 @@ class CheckPermission
         'user' => [
             'user', 'usercreate', 'user-logs', 'user-history', 'user/report',
             'user/report-list', 'user-report', 'refer-user-report', 'user-retention-report',
-            'user.update', 'user.delete', 'user.userlogs', 'user.feedbackhistory',
+            'user.update', 'user.referral.executives', 'user/referral-executives', 'user.referral.update', 'user/referral', 'user.delete', 'user.userlogs', 'user.feedbackhistory',
             'postChangePasswordAdmin', 'updateUser'
         ],
         'orders' => [

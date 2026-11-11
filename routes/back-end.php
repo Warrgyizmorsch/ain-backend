@@ -183,6 +183,8 @@ Route::middleware(['auth', 'check.permission'])->group(function () {
 
     // User Managment
     Route::get('/user', [UserController::class, 'index'])->name('user');
+    Route::get('/user/referral-executives', [UserController::class, 'referralExecutives'])->name('user.referral.executives');
+    Route::post('/user/{id}/referral', [UserController::class, 'updateReferralSettings'])->name('user.referral.update');
     Route::POST('/user/{id}', [UserController::class, 'EditUser'])->name('user.update');
     Route::delete('/user/{id}', [UserController::class, 'DeleteUser'])->name('user.delete');
     Route::get('/usercreate', [UserController::class, 'new_user'])->name('usercreate');

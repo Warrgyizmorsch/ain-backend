@@ -56,8 +56,11 @@ class AuthController extends Controller
         if ($request->filled('refer_id')) {
             $referId = $request->input('refer_id');
         } elseif ($request->filled('referral_code')) {
-            $refCode = trim($request->input('referral_code'));
-            $referrer = User::where('referral_code', $refCode)->orWhere('id', $refCode)->first();
+            $refCode = trim((string) $request->input('referral_code'));
+            $referrer = app(\App\Services\ReferralCodeService::class)->findReferrerByCode($refCode);
+            if (! $referrer && ctype_digit($refCode)) {
+                $referrer = User::where('flag', 0)->find((int) $refCode);
+            }
             if ($referrer) {
                 $referId = $referrer->id;
             }
@@ -70,7 +73,6 @@ class AuthController extends Controller
             'password' => Hash::make($request->password),
             'role_id' => 2,
             'refer_id' => $referId,
-            'referral_code' => User::generateUniqueReferralCode(),
         ]);
 
         $token = $user->createToken('app_token')->plainTextToken;
@@ -362,20 +364,20 @@ class AuthController extends Controller
     {
         $user = $request->user();
 
-        // Ensure user has a referral code
-        if (empty($user->referral_code)) {
-            $user->referral_code = User::generateUniqueReferralCode();
-            $user->save();
-        }
-
         $referredUsers = \App\Models\User::where('refer_id', $user->id)
             ->select('id', 'name', 'email', 'mobile_no', 'countrycode', 'created_at')
             ->orderBy('id', 'desc')
             ->get()
             ->map(function ($refUser) use ($user) {
-                // Find first order of referred user
-                $firstOrder = \App\Models\Order::where('uid', $refUser->id)->oldest('id')->first();
-                $bonusEarned = $firstOrder ? round((float)$firstOrder->amount * 0.10, 2) : 0.00;
+                $awardedOrder = \App\Models\Order::where('uid', $refUser->id)
+                    ->whereNotNull('referral_bonus_awarded_at')
+                    ->first();
+                $firstOrder = $awardedOrder
+                    ?: \App\Models\Order::where('uid', $refUser->id)->genuinePlaced('orders')->oldest('orders.id')->first()
+                    ?: \App\Models\Order::where('uid', $refUser->id)->oldest('id')->first();
+                $bonusEarned = ($awardedOrder && !empty($awardedOrder->referral_bonus_awarded_at))
+                    ? round((float) $awardedOrder->amount * (\App\Services\ReferralCodeService::DEFAULT_REFERRER_BONUS_PERCENT / 100), 2)
+                    : 0.00;
 
                 return [
                     'id' => $refUser->id,
@@ -386,14 +388,18 @@ class AuthController extends Controller
                     'joined_at' => $refUser->created_at ? $refUser->created_at->format('Y-m-d H:i:s') : null,
                     'has_ordered' => $firstOrder ? true : false,
                     'first_order_id' => $firstOrder ? $firstOrder->order_id : null,
-                    'first_order_amount' => $firstOrder ? (float)$firstOrder->amount : 0.00,
+                    'first_order_amount' => $firstOrder ? (float) $firstOrder->amount : 0.00,
                     'referral_bonus_earned' => $bonusEarned,
                 ];
             });
 
+        $hasReferralCode = !empty(trim((string) $user->referral_code));
+
         return response()->json([
             'success' => true,
-            'referral_code' => $user->referral_code,
+            'has_referral_code' => $hasReferralCode,
+            'referral_code' => $hasReferralCode ? $user->referral_code : null,
+            'referral_discount_percent' => $hasReferralCode ? (float) ($user->referral_discount_percent ?? \App\Services\ReferralCodeService::DEFAULT_DISCOUNT_PERCENT) : null,
             'total_referrals' => $referredUsers->count(),
             'total_referral_earnings' => (float) ($user->total_referral_earnings ?? 0.00),
             'data' => $referredUsers,
@@ -436,8 +442,11 @@ class AuthController extends Controller
                 if ($request->filled('refer_id')) {
                     $referId = $request->input('refer_id');
                 } elseif ($request->filled('referral_code')) {
-                    $refCode = trim($request->input('referral_code'));
-                    $referrer = User::where('referral_code', $refCode)->orWhere('id', $refCode)->first();
+                    $refCode = trim((string) $request->input('referral_code'));
+                    $referrer = app(\App\Services\ReferralCodeService::class)->findReferrerByCode($refCode);
+                    if (! $referrer && ctype_digit($refCode)) {
+                        $referrer = User::where('flag', 0)->find((int) $refCode);
+                    }
                     if ($referrer) {
                         $referId = $referrer->id;
                     }
@@ -450,7 +459,6 @@ class AuthController extends Controller
                     'role_id' => 2,
                     'mobile_no' => $mobile,
                     'refer_id' => $referId,
-                    'referral_code' => User::generateUniqueReferralCode(),
                 ]);
                 $registered = true;
             } else {
