@@ -2318,37 +2318,49 @@ class LeadsController extends Controller
         ]);
     }
 
-    public function filter(Request $request)
+    private function canExportLeads(): bool
     {
-        $query = Leads::query()
-            ->with($this->leadListRelations())
-            ->select($this->leadListColumns());
-        $query->where('duplicate_lead', 0);
+        $user = auth()->user();
+        if (! $user) {
+            return false;
+        }
 
-        $selectedUid = $request->input('selectedValue') ?: $request->input('uid');
+        if (in_array((int) $user->role_id, [1, 9], true)) {
+            return true;
+        }
+
+        $roleName = strtolower(trim((string) optional($user->role)->role));
+
+        return in_array($roleName, ['super admin', 'admin', 'sub admin'], true);
+    }
+
+    /**
+     * Apply UI lead filters consistently across both the /lead AJAX list and CSV export.
+     */
+    private function applyLeadFilters($query, array $input): void
+    {
+        $query->where('leads.duplicate_lead', 0);
+
+        $selectedUid = $input['selectedValue'] ?? $input['uid'] ?? null;
         $hasSelectedUser = false;
 
-        // Filter by user ID if selectedValue / uid is set
         if (! empty($selectedUid) && is_numeric($selectedUid) && (int) $selectedUid > 0) {
-            $query->where('emp_id', (int) $selectedUid);
+            $query->where('leads.emp_id', (int) $selectedUid);
             $hasSelectedUser = true;
         }
 
-        // Gather all search terms (from search, order, search_order, user, searchInput)
-        $searchOrder = trim((string) ($request->input('order') ?? $request->input('search_order') ?? ''));
-        $searchUser = trim((string) ($request->input('user') ?? $request->input('searchInput') ?? ''));
-        $generalSearch = trim((string) ($request->input('search') ?? ''));
+        $searchOrder = trim((string) ($input['order'] ?? $input['search_order'] ?? ''));
+        $searchUser = trim((string) ($input['user'] ?? $input['searchInput'] ?? ''));
+        $generalSearch = trim((string) ($input['search'] ?? ''));
 
-        // mk 7 10 26 - If customer is selected by UID, do not apply the formatted dropdown label as raw text search so matching leads are not blocked
         $searchTermsToApply = [];
-        if (! empty($generalSearch) && (! $hasSelectedUser || $generalSearch !== $searchUser)) {
+        if ($generalSearch !== '' && (! $hasSelectedUser || $generalSearch !== $searchUser)) {
             $searchTermsToApply[] = $generalSearch;
         }
-        if (! empty($searchOrder)) {
+        if ($searchOrder !== '') {
             $searchTermsToApply[] = $searchOrder;
         }
-        // If user was NOT selected by UID, apply the typed user term as text filter
-        if (! $hasSelectedUser && ! empty($searchUser)) {
+        if (! $hasSelectedUser && $searchUser !== '') {
             $searchTermsToApply[] = $searchUser;
         }
 
@@ -2361,50 +2373,57 @@ class LeadsController extends Controller
             $last10 = strlen($cleanSearchDigits) >= 10 ? substr($cleanSearchDigits, -10) : $cleanSearchDigits;
 
             $query->where(function ($q) use ($searchTerm, $searchUserIds, $cleanSearchMasked, $cleanSearchDigits, $last10) {
-                $q->where('order_id', 'like', '%'.$searchTerm.'%')
-                    ->orWhere('project_title', 'like', '%'.$searchTerm.'%')
-                    ->orWhere('user_name', 'like', '%'.$searchTerm.'%');
+                $q->where('leads.order_id', 'like', '%'.$searchTerm.'%')
+                    ->orWhere('leads.project_title', 'like', '%'.$searchTerm.'%')
+                    ->orWhere('leads.user_name', 'like', '%'.$searchTerm.'%');
 
                 if (! empty($searchUserIds)) {
-                    $q->orWhereIn('emp_id', $searchUserIds);
+                    $q->orWhereIn('leads.emp_id', $searchUserIds);
                 }
                 if (is_numeric($searchTerm)) {
-                    $q->orWhere('emp_id', (int) $searchTerm);
+                    $q->orWhere('leads.emp_id', (int) $searchTerm);
                 }
 
-                if (strpos($searchTerm, '*') !== false && ! empty($cleanSearchMasked) && preg_match('/\d/', $cleanSearchMasked)) {
-                    $q->orWhere('mobile', 'like', '%'.$cleanSearchMasked.'%')
-                        ->orWhere('mobile2', 'like', '%'.$cleanSearchMasked.'%')
-                        ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile, '')) LIKE ?", ['%'.$cleanSearchMasked.'%']);
+                $isEmailSearch = strpos($searchTerm, '@') !== false;
+
+                if (! $isEmailSearch && strpos($searchTerm, '*') !== false && ! empty($cleanSearchMasked) && preg_match('/\d/', $cleanSearchMasked)) {
+                    $q->orWhere('leads.mobile', 'like', '%'.$cleanSearchMasked.'%')
+                        ->orWhere('leads.mobile2', 'like', '%'.$cleanSearchMasked.'%')
+                        ->orWhereRaw("CONCAT(IFNULL(leads.countrycode, ''), IFNULL(leads.mobile, '')) LIKE ?", ['%'.$cleanSearchMasked.'%']);
                 }
 
-                if (! empty($cleanSearchDigits) && strlen($cleanSearchDigits) >= 2) {
-                    $q->orWhere('mobile', 'like', '%'.$cleanSearchDigits.'%')
-                        ->orWhere('mobile', 'like', '%'.$last10.'%')
-                        ->orWhere('mobile2', 'like', '%'.$cleanSearchDigits.'%')
-                        ->orWhere('mobile2', 'like', '%'.$last10.'%')
-                        ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile, '')) LIKE ?", ['%'.$cleanSearchDigits.'%']);
+                if (! $isEmailSearch && ! empty($cleanSearchDigits) && strlen($cleanSearchDigits) >= 2) {
+                    $q->orWhere('leads.mobile', 'like', '%'.$cleanSearchDigits.'%')
+                        ->orWhere('leads.mobile', 'like', '%'.$last10.'%')
+                        ->orWhere('leads.mobile2', 'like', '%'.$cleanSearchDigits.'%')
+                        ->orWhere('leads.mobile2', 'like', '%'.$last10.'%')
+                        ->orWhereRaw("CONCAT(IFNULL(leads.countrycode, ''), IFNULL(leads.mobile, '')) LIKE ?", ['%'.$cleanSearchDigits.'%']);
                 }
 
-                if (strpos($searchTerm, '@') !== false) {
+                if ($isEmailSearch) {
                     $cleanEmail = preg_replace('/\*+/', '%', $searchTerm);
-                    $q->orWhere('email', 'like', '%'.$cleanEmail.'%');
+                    $q->orWhere('leads.email', 'like', '%'.$cleanEmail.'%');
                 } else {
-                    $q->orWhere('email', 'like', '%'.$searchTerm.'%');
+                    $q->orWhere('leads.email', 'like', '%'.$searchTerm.'%');
                 }
 
-                $q->orWhereHas('user', function ($uq) use ($searchTerm, $cleanSearchDigits, $last10, $cleanSearchMasked) {
-                    $uq->where('name', 'like', '%'.$searchTerm.'%')
-                        ->orWhere('email', 'like', '%'.$searchTerm.'%');
+                $q->orWhereHas('user', function ($uq) use ($searchTerm, $isEmailSearch, $cleanSearchDigits, $last10, $cleanSearchMasked) {
+                    if ($isEmailSearch) {
+                        $cleanEmail = preg_replace('/\*+/', '%', $searchTerm);
+                        $uq->where('email', 'like', '%'.$cleanEmail.'%');
+                    } else {
+                        $uq->where('name', 'like', '%'.$searchTerm.'%')
+                            ->orWhere('email', 'like', '%'.$searchTerm.'%');
+                    }
 
-                    if (strpos($searchTerm, '*') !== false && ! empty($cleanSearchMasked) && preg_match('/\d/', $cleanSearchMasked)) {
+                    if (! $isEmailSearch && strpos($searchTerm, '*') !== false && ! empty($cleanSearchMasked) && preg_match('/\d/', $cleanSearchMasked)) {
                         $uq->orWhere('mobile_no', 'like', '%'.$cleanSearchMasked.'%')
                             ->orWhere('mobile_no2', 'like', '%'.$cleanSearchMasked.'%')
                             ->orWhereRaw("CONCAT(IFNULL(countrycode, ''), IFNULL(mobile_no, '')) LIKE ?", ['%'.$cleanSearchMasked.'%'])
                             ->orWhereRaw("CONCAT(IFNULL(countrycode2, ''), IFNULL(mobile_no2, '')) LIKE ?", ['%'.$cleanSearchMasked.'%']);
                     }
 
-                    if (! empty($cleanSearchDigits) && strlen($cleanSearchDigits) >= 2) {
+                    if (! $isEmailSearch && ! empty($cleanSearchDigits) && strlen($cleanSearchDigits) >= 2) {
                         $uq->orWhere('mobile_no', 'like', '%'.$cleanSearchDigits.'%')
                             ->orWhere('mobile_no', 'like', '%'.$last10.'%')
                             ->orWhere('mobile_no2', 'like', '%'.$cleanSearchDigits.'%')
@@ -2415,83 +2434,96 @@ class LeadsController extends Controller
             });
         }
 
-        if ($request->filled('lead_status_tab')) {
-            $tab = $request->lead_status_tab;
-
-            if ($tab != 'All') {
-                if (in_array($tab, ['Hot', 'Warm', 'Cold'])) {
-                    $query->where('lead_status', $tab);
-                } else {
-                    $query->where('l_status', $tab);
-                }
+        $leadStatusTab = trim((string) ($input['lead_status_tab'] ?? ''));
+        if ($leadStatusTab !== '' && $leadStatusTab !== 'All') {
+            if (in_array($leadStatusTab, ['Hot', 'Warm', 'Cold'], true)) {
+                $query->where('leads.lead_status', $leadStatusTab);
+            } else {
+                $query->where('leads.l_status', $leadStatusTab);
             }
         }
 
-        // Filter by status
-        if ($request->filled('status')) {
-            $status = $request->input('status');
-
-            if (in_array($status, ['Hot', 'Warm', 'Cold'])) {
-                $query->where('lead_status', $status);
-            } elseif ($status != 'All') {
-                $query->where('l_status', $status);
+        $status = trim((string) ($input['status'] ?? ''));
+        if ($status !== '' && $status !== 'All') {
+            if (in_array($status, ['Hot', 'Warm', 'Cold'], true)) {
+                $query->where('leads.lead_status', $status);
+            } else {
+                $query->where('leads.l_status', $status);
             }
         }
 
-        // Filter by type
-        if ($request->filled('type')) {
-            $type = $request->input('type');
-
+        $type = trim((string) ($input['type'] ?? ''));
+        if ($type !== '') {
             if ($type === 'Technical') {
-                $query->where('tech', 'on');
+                $query->where('leads.tech', 'on');
             } elseif ($type === 'Resit') {
-                $query->where('resit', 'on');
+                $query->where('leads.resit', 'on');
             } elseif ($type === 'First') {
-                $query->where('service_type', 'First Class Work');
+                $query->where('leads.service_type', 'First Class Work');
             }
         }
 
-        // Date Filter
-        $dateFrom = $request->input('date_from');
-        $dateTo = $request->input('date_to');
-        $dateType = $request->input('date_type');
+        $dateFrom = trim((string) ($input['date_from'] ?? ''));
+        $dateTo = trim((string) ($input['date_to'] ?? ''));
+        $dateType = trim((string) ($input['date_type'] ?? ''));
 
-        $dateColumn = 'created_at';
-
-        if (! empty($dateType) && in_array($dateType, ['created_at', 'deadline'], true)) {
-            $dateColumn = $dateType;
+        if ($dateType === 'deadline') {
+            if ($dateFrom !== '' && $dateTo !== '') {
+                $query->whereDate('leads.deadline', '>=', $dateFrom)
+                    ->whereDate('leads.deadline', '<=', $dateTo);
+            } elseif ($dateFrom !== '') {
+                $query->whereDate('leads.deadline', '=', $dateFrom);
+            } elseif ($dateTo !== '') {
+                $query->whereDate('leads.deadline', '=', $dateTo);
+            }
+        } else {
+            $createdExpr = "COALESCE(NULLIF(leads.created_at, ''), leads.create_at)";
+            if ($dateFrom !== '' && $dateTo !== '') {
+                $query->whereRaw("DATE($createdExpr) >= ?", [$dateFrom])
+                    ->whereRaw("DATE($createdExpr) <= ?", [$dateTo]);
+            } elseif ($dateFrom !== '') {
+                $query->whereRaw("DATE($createdExpr) = ?", [$dateFrom]);
+            } elseif ($dateTo !== '') {
+                $query->whereRaw("DATE($createdExpr) = ?", [$dateTo]);
+            }
         }
 
-        if (! empty($dateFrom) && ! empty($dateTo)) {
-            $query->whereDate($dateColumn, '>=', $dateFrom)
-                ->whereDate($dateColumn, '<=', $dateTo);
-        } elseif (! empty($dateFrom)) {
-            $query->whereDate($dateColumn, '=', $dateFrom);
-        } elseif (! empty($dateTo)) {
-            $query->whereDate($dateColumn, '=', $dateTo);
+        $groupId = $input['group_id'] ?? null;
+        if ($groupId !== null && $groupId !== '') {
+            $query->whereHas('user.groups', fn ($g) => $g->where('group_masters.id', $groupId));
         }
 
-        if ($request->filled('group_id')) {
-            $query->whereHas('user.groups', fn ($g) => $g->where('group_masters.id', $request->group_id));
+        $assignType = $input['assign_type'] ?? null;
+        if ($assignType !== null && $assignType !== '') {
+            $query->where('leads.assign_type', (int) $assignType);
         }
 
-        // Filter by assign_type (0/1 both work)
-        if ($request->filled('assign_type')) {
-            $query->where('assign_type', (int) $request->assign_type);
+        $leadSource = $input['lead_source'] ?? null;
+        if ($leadSource !== null && $leadSource !== '') {
+            $cleanSource = is_string($leadSource) && str_starts_with($leadSource, 'source_')
+                ? substr($leadSource, 7)
+                : $leadSource;
+            $query->where('leads.lead_source', $cleanSource);
         }
 
-        if ($request->filled('lead_source')) {
-            $query->where('lead_source', $request->lead_source);
-        }
+        $query->where('leads.status', 0)
+            ->where('leads.is_converted', 0);
+    }
+
+    public function filter(Request $request)
+    {
+        $query = Leads::query()
+            ->with($this->leadListRelations())
+            ->select($this->leadListColumns());
+
+        $this->applyLeadFilters($query, $request->all());
 
         // Filter by status = 0 and order descending
         $limit = (int) $request->get('limit', 30);
         $limit = $limit > 0 ? $limit : 30;
         $offset = max(0, (int) $request->get('offset', 0));
 
-        $leads = $query->where('status', 0)
-            ->orderBy('id', 'desc')
-            ->where('is_converted', 0)
+        $leads = $query->orderBy('leads.id', 'desc')
             ->skip($offset)
             ->limit($limit + 1)
             ->get();
@@ -2932,37 +2964,298 @@ class LeadsController extends Controller
         ]);
     }
 
+    private function leadExportColumnLabels(): array
+    {
+        return [
+            'order_id' => 'Order ID',
+            'name' => 'Name',
+            'email' => 'Email',
+            'customer_country_code' => 'Country Code',
+            'customer_phone' => 'Phone',
+            'order_date' => 'Order Date',
+            'project_title' => 'Project Title',
+            'pages' => 'Words',
+            'price' => 'Price',
+            'deadline' => 'Delivery Date',
+            'delivery_time' => 'Delivery Time',
+            'l_status' => 'Status',
+            'lead_status' => 'Lead Priority',
+            'source' => 'Source',
+            'assign_type' => 'Assign Type',
+            'service_type' => 'Service Type',
+            'module_code' => 'Module Code',
+        ];
+    }
+
+    private function leadExportDefaultColumns(): array
+    {
+        return [
+            'order_id',
+            'name',
+            'email',
+            'customer_country_code',
+            'customer_phone',
+            'order_date',
+            'project_title',
+            'pages',
+            'price',
+            'deadline',
+            'delivery_time',
+            'l_status',
+            'lead_status',
+            'source',
+            'assign_type',
+            'service_type',
+            'module_code',
+        ];
+    }
+
+    private function resolveLeadExportColumns(Request $request): array
+    {
+        $allowed = array_keys($this->leadExportColumnLabels());
+        $requested = $request->input('selected_columns', []);
+
+        if (is_string($requested)) {
+            $requested = array_filter(array_map('trim', explode(',', $requested)));
+        }
+
+        if (! is_array($requested) || empty($requested)) {
+            return $this->leadExportDefaultColumns();
+        }
+
+        $resolved = array_values(array_unique(array_intersect($requested, $allowed)));
+
+        return ! empty($resolved) ? $resolved : $this->leadExportDefaultColumns();
+    }
+
+    private function formatLeadExportDate($date): string
+    {
+        $raw = trim((string) $date);
+        if ($raw === '' || str_starts_with($raw, '0000-00-00')) {
+            return '';
+        }
+
+        try {
+            return Carbon::parse($raw)->format('d M Y');
+        } catch (\Throwable $e) {
+            return $raw;
+        }
+    }
+
+    private function mapLeadExportRow(Leads $lead, array $columns): array
+    {
+        $name = trim((string) ($lead->user->name ?? $lead->user_name ?? ''));
+        $email = trim((string) ($lead->user->email ?? $lead->email ?? ''));
+        $countryCode = trim((string) ($lead->user->countrycode ?? $lead->countrycode ?? ''));
+        if ($countryCode !== '') {
+            $countryCode = str_starts_with($countryCode, '+')
+                ? $countryCode
+                : '+'.ltrim($countryCode, '+');
+        }
+        $phone = trim((string) ($lead->user->mobile_no ?? $lead->mobile ?? ''));
+        $orderDateRaw = ! empty($lead->create_at) ? $lead->create_at : $lead->created_at;
+
+        $row = [];
+        foreach ($columns as $column) {
+            switch ($column) {
+                case 'order_id':
+                    $row[] = $lead->order_id ?? '';
+                    break;
+                case 'name':
+                    $row[] = $name;
+                    break;
+                case 'email':
+                    $row[] = $email;
+                    break;
+                case 'customer_country_code':
+                    $row[] = $countryCode;
+                    break;
+                case 'customer_phone':
+                    $row[] = $phone;
+                    break;
+                case 'order_date':
+                    $row[] = $this->formatLeadExportDate($orderDateRaw);
+                    break;
+                case 'project_title':
+                    $row[] = $lead->project_title ?? '';
+                    break;
+                case 'pages':
+                    $row[] = $lead->pages ?? '';
+                    break;
+                case 'price':
+                    $row[] = $lead->price ?? '';
+                    break;
+                case 'deadline':
+                    $row[] = $this->formatLeadExportDate($lead->deadline);
+                    break;
+                case 'delivery_time':
+                    $row[] = $lead->delivery_time ?? '';
+                    break;
+                case 'l_status':
+                    $row[] = $lead->l_status ?? '';
+                    break;
+                case 'lead_status':
+                    $row[] = $lead->lead_status ?? '';
+                    break;
+                case 'source':
+                    $row[] = $lead->source->source_name ?? '';
+                    break;
+                case 'assign_type':
+                    $row[] = ((int) ($lead->assign_type ?? 0) === 1) ? "Let's Lern" : 'AIN';
+                    break;
+                case 'service_type':
+                    $row[] = $lead->service_type ?? '';
+                    break;
+                case 'module_code':
+                    $row[] = $lead->module_code ?? '';
+                    break;
+                default:
+                    $row[] = '';
+                    break;
+            }
+        }
+
+        return $row;
+    }
+
     public function export(Request $request)
     {
-        $filters = $request->all();
-        $timestamp = now()->format('YmdHis');
-        $filename = 'exports/leads_export_'.$timestamp.'.xlsx';
+        if (! $this->canExportLeads()) {
+            abort(403, 'Unauthorized. Only admins can export leads.');
+        }
 
         $userId = auth()->id();
+        if ($userId) {
+            Cache::forget('lead_export_pending_'.$userId);
+            Cache::forget('lead_export_failed_'.$userId);
+        }
 
-        ExportLeadsJob::dispatch($filters, $filename, $userId);
+        $columns = $this->resolveLeadExportColumns($request);
+        $labels = $this->leadExportColumnLabels();
+        $headings = array_map(fn ($col) => $labels[$col] ?? $col, $columns);
 
-        return response()->json([
-            'status' => 'queued',
-            'message' => 'Export started. It will be available shortly.',
+        $query = Leads::query()
+            ->with([
+                'user:id,name,email,countrycode,mobile_no',
+                'source:id,source_name',
+            ])
+            ->select([
+                'leads.id',
+                'leads.emp_id',
+                'leads.order_id',
+                'leads.user_name',
+                'leads.email',
+                'leads.countrycode',
+                'leads.mobile',
+                'leads.project_title',
+                'leads.pages',
+                'leads.price',
+                'leads.deadline',
+                'leads.delivery_time',
+                'leads.l_status',
+                'leads.lead_status',
+                'leads.lead_source',
+                'leads.assign_type',
+                'leads.service_type',
+                'leads.module_code',
+                'leads.created_at',
+                'leads.create_at',
+            ]);
+
+        $this->applyLeadFilters($query, $request->all());
+
+        @set_time_limit(0);
+        @ini_set('memory_limit', '1024M');
+
+        $filename = 'Leads_'.now()->format('Ymd_His').'.csv';
+
+        return response()->streamDownload(function () use ($query, $headings, $columns) {
+            $handle = fopen('php://output', 'w');
+            fputs($handle, "\xEF\xBB\xBF");
+            fputcsv($handle, $headings);
+
+            if (ob_get_level() > 0) {
+                @ob_flush();
+            }
+            @flush();
+
+            $query->orderBy('leads.id', 'desc')->chunk(500, function ($leads) use ($handle, $columns) {
+                foreach ($leads as $lead) {
+                    fputcsv($handle, $this->mapLeadExportRow($lead, $columns));
+                }
+
+                if (ob_get_level() > 0) {
+                    @ob_flush();
+                }
+                @flush();
+            });
+
+            fclose($handle);
+        }, $filename, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Cache-Control' => 'no-cache, no-store, must-revalidate',
+            'Pragma' => 'no-cache',
+            'Expires' => '0',
         ]);
     }
 
     public function exportStatus()
     {
-        $filePath = Cache::get('lead_export_'.auth()->id());
+        if (! $this->canExportLeads()) {
+            abort(403, 'Unauthorized. Only admins can export leads.');
+        }
 
-        if ($filePath && Storage::disk('public')->exists($filePath)) {
-            // Clear the cache so that next export will be generated fresh
-            Cache::forget('lead_export_'.auth()->id());
+        $userId = auth()->id();
+        $filePath = Cache::get('lead_export_'.$userId);
 
+        if ($filePath && is_string($filePath) && Storage::disk('public')->exists($filePath)) {
             return response()->json([
                 'status' => 'ready',
-                'url' => asset('storage/app/public/'.$filePath),
+                'progress' => 100,
+                'url' => route('lead.export.download'),
             ]);
         }
 
-        return response()->json(['status' => 'pending']);
+        $failedMessage = Cache::get('lead_export_failed_'.$userId);
+        if ($failedMessage !== null) {
+            Cache::forget('lead_export_failed_'.$userId);
+
+            return response()->json([
+                'status' => 'failed',
+                'message' => is_string($failedMessage) && $failedMessage !== ''
+                    ? $failedMessage
+                    : 'Lead export failed. Please try again.',
+            ]);
+        }
+
+        if (Cache::get('lead_export_pending_'.$userId)) {
+            return response()->json([
+                'status' => 'pending',
+                'progress' => 50,
+                'message' => 'Your leads export is being prepared.',
+            ]);
+        }
+
+        return response()->json([
+            'status' => 'idle',
+            'progress' => 0,
+        ]);
+    }
+
+    public function downloadExport()
+    {
+        if (! $this->canExportLeads()) {
+            abort(403, 'Unauthorized. Only admins can export leads.');
+        }
+
+        $userId = auth()->id();
+        $filePath = Cache::get('lead_export_'.$userId);
+
+        if (! $filePath || ! is_string($filePath) || ! str_starts_with($filePath, 'exports/') || ! Storage::disk('public')->exists($filePath)) {
+            abort(404, 'Export file not found or expired.');
+        }
+
+        return Storage::disk('public')->download($filePath, basename($filePath));
     }
 
     public function assignType(Request $request)

@@ -16,7 +16,11 @@
         request()->filled('from_date') ||
         request()->filled('to_date') ||
         request()->filled('month') ||
-        request()->filled('deadline_status');
+        request()->filled('deadline_status') ||
+        request()->filled('client_orders') ||
+        request()->filled('min_client_orders') ||
+        request()->filled('order_category') ||
+        request()->filled('min_orders');
 @endphp
 <div class="card card-xxl-stretch mb-5 mb-xl-8">
     <div class="card-header border-0 pt-4 pb-2 px-6 d-flex align-items-center justify-content-between flex-nowrap"
@@ -160,6 +164,7 @@
             <input type="hidden" id="today_writer_deadline_filter"
                 value="{{ request('today_writer_deadline_filter') ?? '' }}">
             <input type="hidden" id="holdBtn" value="{{ request('holdBtn') ?? '' }}">
+            <input type="hidden" id="min_client_orders" value="{{ request('min_client_orders') ?: (request('min_orders') ?: '') }}">
             <div class="row mb-3">
                 <div class="col-md-3 fv-row">
                     <input type="search" name="search" id="search" value="{{ $reqSearch }}"
@@ -474,6 +479,22 @@
                     </select>
                 </div>
 
+                @php
+                    $reqClientOrders = request('client_orders') ?: request('order_category');
+                @endphp
+                <div class="col-lg-3 fv-row fv-plugins-icon-container mt-3">
+                    <select name="client_orders" id="client_orders" data-control="select2"
+                        aria-label="Client Orders" data-placeholder="Client Orders (Repeat / Multiple)"
+                        class="form-select form-select-solid form-select-lg" tabindex="-1">
+                        <option value=""></option>
+                        <option value="multiple" {{ $reqClientOrders == 'multiple' ? 'selected' : '' }}>Multiple Orders (2+)</option>
+                        <option value="2_to_3" {{ $reqClientOrders == '2_to_3' ? 'selected' : '' }}>Repeat (2-3 Orders)</option>
+                        <option value="retainer" {{ in_array(strtolower((string) $reqClientOrders), ['retainer', 'repeated'], true) ? 'selected' : '' }}>Retainer (4+ Orders)</option>
+                        <option value="loyal" {{ $reqClientOrders == 'loyal' ? 'selected' : '' }}>Loyal (&gt;10 Orders)</option>
+                        <option value="single" {{ $reqClientOrders == 'single' ? 'selected' : '' }}>Single Order (1)</option>
+                    </select>
+                </div>
+
 
 
             </div>
@@ -632,7 +653,9 @@
                                         today_deadline_filter: getVal('today_deadline_filter', 'today_deadline_filter'),
                                         yesterday_deadline_filter: getVal('yesterday_deadline_filter', 'yesterday_deadline_filter'),
                                         today_writer_deadline_filter: getVal('today_writer_deadline_filter', 'today_writer_deadline_filter'),
-                                        duration_gap: getVal('duration_gap_filter', 'duration_gap')
+                                        duration_gap: getVal('duration_gap_filter', 'duration_gap'),
+                                        client_orders: getVal('client_orders', 'client_orders') || urlParams.get('order_category') || '',
+                                        min_client_orders: getVal('min_client_orders', 'min_client_orders') || urlParams.get('min_orders') || ''
                                     };
 
                                     var params = new URLSearchParams();
@@ -1667,6 +1690,10 @@ resetFilters();
                 } else if ($('#status').val() === 'Hold Work') {
                     $('#filter-total').text(
                         `Hold Work Orders (${response.total ?? currentTotalCount} total)`);
+                } else if ($('#client_orders').val()) {
+                    const coText = $('#client_orders option:selected').text().trim() || 'Client Orders';
+                    $('#filter-total').text(
+                        `${coText} (${response.total ?? currentTotalCount} total)`);
                 } else {
                     $('#filter-total').text(
                         `{{ $filterTitle ?? 'Filtered Orders' }} (${response.total ?? currentTotalCount} total)`
@@ -1723,7 +1750,9 @@ resetFilters();
             today_deadline_filter: $('#today_deadline_filter').val() || '',
             yesterday_deadline_filter: $('#yesterday_deadline_filter').val() || '',
             today_writer_deadline_filter: $('#today_writer_deadline_filter').val() || '',
-            duration_gap: $('#duration_gap_filter').val() || ''
+            duration_gap: $('#duration_gap_filter').val() || '',
+            client_orders: $('#client_orders').val() || '',
+            min_client_orders: $('#min_client_orders').val() || ''
         };
     }
 
@@ -1737,7 +1766,8 @@ resetFilters();
                 'college', 'extra', 'module_code', 'paper_type', 'semester', 'payment',
                 'month', 'deadline_status', 'team_id', 'offer', 'duec', 'marks_filter',
                 'today_deadline_filter', 'yesterday_deadline_filter',
-                'today_writer_deadline_filter', 'duration_gap', 'holdBtn'
+                'today_writer_deadline_filter', 'duration_gap', 'holdBtn',
+                'client_orders', 'min_client_orders', 'order_category', 'min_orders'
             ];
             filterKeys.forEach(k => currentUrl.searchParams.delete(k));
 
@@ -1818,6 +1848,7 @@ resetFilters();
         $('#today_writer_deadline_filter').val('');
         $('#deadline_status').val('');
         $('#holdBtn').val('');
+        $('#min_client_orders').val('');
         $('#orderFilterForm input[type=hidden]').not('[name="_token"]').val('');
 
         // Reset select dropdowns
@@ -1989,11 +2020,14 @@ resetFilters();
         const toDateParam = urlParams.get('toDate') || urlParams.get('to_date');
         const writerTLParam = urlParams.get('WriterTL') || urlParams.get('writerTL');
         const subWriterParam = urlParams.get('SubWriter');
+        const clientOrdersParam = urlParams.get('client_orders') || urlParams.get('order_category');
+        const minClientOrdersParam = urlParams.get('min_client_orders') || urlParams.get('min_orders');
 
         const hasAnyUrlFilter = searchParam || uidParam || userParam || statusParam || teamParam ||
             deadlineStatusParam || todayDeadlineParam || yesterdayDeadlineParam || todayWriterDeadlineParam ||
             durationGapParam || writerParam || collegeParam || moduleParam || paperTypeParam || semesterParam ||
-            monthParam || fromDateParam || toDateParam || writerTLParam || subWriterParam;
+            monthParam || fromDateParam || toDateParam || writerTLParam || subWriterParam ||
+            clientOrdersParam || minClientOrdersParam;
 
         if (hasAnyUrlFilter) {
             try {
@@ -2020,6 +2054,8 @@ resetFilters();
             if (toDateParam) $('#to_date').val(toDateParam);
             if (writerTLParam) $('#writerTL').val(writerTLParam).trigger('change.select2');
             if (subWriterParam) $('#SubWriter').val(subWriterParam).trigger('change.select2');
+            if (clientOrdersParam) $('#client_orders').val(clientOrdersParam).trigger('change.select2');
+            if (minClientOrdersParam) $('#min_client_orders').val(minClientOrdersParam);
 
             $('#filterBody').show();
             $('#toggleFilterBtn').text('Hide Filters').removeClass('btn-primary').addClass('btn-danger');
@@ -2095,7 +2131,9 @@ resetFilters();
             today_deadline_filter: $('#today_deadline_filter').val() || urlParams.get('today_deadline_filter') || "",
             yesterday_deadline_filter: $('#yesterday_deadline_filter').val() || urlParams.get('yesterday_deadline_filter') || "",
             today_writer_deadline_filter: ($('#today_writer_deadline_filter').val() || urlParams.get('today_writer_deadline_filter') || ""),
-            duration_gap: $('#duration_gap_filter').val() || urlParams.get('duration_gap') || ""
+            duration_gap: $('#duration_gap_filter').val() || urlParams.get('duration_gap') || "",
+            client_orders: $('#client_orders').val() || urlParams.get('client_orders') || urlParams.get('order_category') || "",
+            min_client_orders: $('#min_client_orders').val() || urlParams.get('min_client_orders') || urlParams.get('min_orders') || ""
         };
 
         const params = new URLSearchParams();

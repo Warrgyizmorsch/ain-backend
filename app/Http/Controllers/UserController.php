@@ -185,6 +185,8 @@ class UserController extends Controller
         $roleId = $request->input('role');
         $countrycode = $request->input('countrycode');
         $orderFilter = $request->input('order_category');
+        $minOrders = $request->input('min_orders');
+        $requestedPeriod = $request->input('order_period');
         $collegeName = $request->input('college_name');
         $groupId = $request->input('group_id');
         // mk 5 10 26 - Changed perPage from 10 to 20 for infinite scroll
@@ -265,48 +267,70 @@ class UserController extends Controller
             }
         }
 
-        $oneAndHalfYearAgo = \Carbon\Carbon::now()->subMonths(18);
-        $oneYearAgo = \Carbon\Carbon::now()->subYear();
-        $query = User::with('groups:id,name')->withCount([
-            'convertedOrders as total_orders_count',
-            'leads',
-            'convertedOrders as orders_count' => function ($q) use ($oneAndHalfYearAgo) {
-                $q->where('order_date', '>=', $oneAndHalfYearAgo);
-            },
-            'followups' => function ($q) use ($oneYearAgo) {
-                $q->where('created_at', '>=', $oneYearAgo);
+        $clientOrderBounds = Order::resolveClientOrderBounds($orderFilter, $minOrders);
+        $allowedPeriods = ['lifetime', '18_months', 'this_year'];
+        $effectiveOrderPeriod = in_array($requestedPeriod, $allowedPeriods, true)
+            ? $requestedPeriod
+            : ($clientOrderBounds !== null ? 'lifetime' : '18_months');
+
+        [$orderFrom, $orderTo] = Order::resolveOrderPeriodDateRange($effectiveOrderPeriod);
+        $orderPeriodLabel = match ($effectiveOrderPeriod) {
+            'lifetime' => 'Lifetime',
+            'this_year' => 'Year ' . \Carbon\Carbon::now()->year,
+            default => 'Last 1.5 Yrs',
+        };
+
+        $applyOrderPeriodScope = function ($q) use ($orderFrom, $orderTo) {
+            if ($orderFrom && $orderTo) {
+                $q->whereBetween('order_date', [$orderFrom, $orderTo]);
+            } elseif ($orderFrom) {
+                $q->where('order_date', '>=', $orderFrom);
+            } elseif ($orderTo) {
+                $q->where('order_date', '<=', $orderTo);
             }
-        ])->where('flag', 0);
+        };
+
+        $oneYearAgo = \Carbon\Carbon::now()->subYear();
+        $query = User::with('groups:id,name')
+            ->select('users.*')
+            ->withCount([
+                'genuineOrders as total_orders_count',
+                'leads',
+                'genuineOrders as orders_count' => $applyOrderPeriodScope,
+                'followups' => function ($q) use ($oneYearAgo) {
+                    $q->where('created_at', '>=', $oneYearAgo);
+                }
+            ])->where('users.flag', 0);
 
         // Basic Filters
         if ($searchUserId) {
-            $query->where('id', $searchUserId);
+            $query->where('users.id', $searchUserId);
         } elseif ($userText !== '') {
             $cleanUserText = preg_replace('/\D+/', '', $userText);
             $last10 = strlen($cleanUserText) >= 10 ? substr($cleanUserText, -10) : $cleanUserText;
 
             $query->where(function ($q) use ($userText, $cleanUserText, $last10) {
-                $q->where('name', 'like', '%' . $userText . '%')
-                  ->orWhere('email', 'like', '%' . $userText . '%')
-                  ->orWhere('mobile_no', 'like', '%' . $userText . '%')
-                  ->orWhere('mobile_no2', 'like', '%' . $userText . '%');
+                $q->where('users.name', 'like', '%' . $userText . '%')
+                  ->orWhere('users.email', 'like', '%' . $userText . '%')
+                  ->orWhere('users.mobile_no', 'like', '%' . $userText . '%')
+                  ->orWhere('users.mobile_no2', 'like', '%' . $userText . '%');
                 if (!empty($cleanUserText)) {
-                    $q->orWhere('mobile_no', 'like', '%' . $cleanUserText . '%')
-                      ->orWhereRaw("CONCAT(COALESCE(countrycode, ''), COALESCE(mobile_no, '')) LIKE ?", ["%{$cleanUserText}%"]);
+                    $q->orWhere('users.mobile_no', 'like', '%' . $cleanUserText . '%')
+                      ->orWhereRaw("CONCAT(COALESCE(users.countrycode, ''), COALESCE(users.mobile_no, '')) LIKE ?", ["%{$cleanUserText}%"]);
                 }
                 if (!empty($last10)) {
-                    $q->orWhere('mobile_no', 'like', '%' . $last10 . '%');
+                    $q->orWhere('users.mobile_no', 'like', '%' . $last10 . '%');
                 }
             });
         }
         if ($startDate && !$endDate) {
-            $query->whereDate('created_at', $startDate);
+            $query->whereDate('users.created_at', $startDate);
         }
         if ($startDate && $endDate) {
-            $query->whereBetween('created_at', [$startDate, $endDate]); 
+            $query->whereBetween('users.created_at', [$startDate, $endDate]);
         }
         if ($roleId) {
-            $query->where('role_id', $roleId);
+            $query->where('users.role_id', $roleId);
         }
         if ($groupId) {
             $query->whereHas('groups', fn ($q) => $q->where('group_masters.id', $groupId));
@@ -324,54 +348,41 @@ class UserController extends Controller
             if ($countrycode === 'Other') {
                 $query->where(function ($q) use ($allKnownCodes, $allCodesRegex) {
                     $q->where(function ($subQ) use ($allKnownCodes) {
-                        $subQ->whereNotIn('countrycode', $allKnownCodes)
-                            ->orWhereNull('countrycode')
-                            ->orWhere('countrycode', '');
+                        $subQ->whereNotIn('users.countrycode', $allKnownCodes)
+                            ->orWhereNull('users.countrycode')
+                            ->orWhere('users.countrycode', '');
                     });
                     $q->where(function ($subQ) use ($allCodesRegex) {
-                        $subQ->where('mobile_no', 'NOT REGEXP', $allCodesRegex)
-                            ->orWhereNull('mobile_no')
-                            ->orWhere('mobile_no', '');
+                        $subQ->where('users.mobile_no', 'NOT REGEXP', $allCodesRegex)
+                            ->orWhereNull('users.mobile_no')
+                            ->orWhere('users.mobile_no', '');
                     });
                 });
             } elseif (array_key_exists($countrycode, $globalCountries)) {
                 $selectedCodes = $globalCountries[$countrycode];
-                $escapedSelected = array_map(function ($c) {
-                    return str_replace('+', '\\\\+', $c);
-                }, $selectedCodes);
-                $selectedRegex = '^(' . implode('|', $escapedSelected) . ')';
 
-                $query->where(function ($q) use ($selectedCodes, $selectedRegex) {
-                    $q->whereIn('countrycode', $selectedCodes)
-                        //   ->orWhere('mobile_no', 'REGEXP', $selectedRegex);
-                        ->whereIn('countrycode', $selectedCodes);
+                $query->where(function ($q) use ($selectedCodes) {
+                    $q->whereIn('users.countrycode', $selectedCodes);
                 });
             }
         }
 
         if ($collegeName) {
-    $query->whereHas('orders', function ($q) use ($collegeName) {
-        $q->where('college_name', $collegeName);
-    });
-}
+            $query->whereHas('genuineOrders', function ($q) use ($collegeName) {
+                $q->where('college_name', $collegeName);
+            });
+        }
 
-        if ($orderFilter) {
-            $query->whereHas(
-                'convertedOrders',
-                function ($q) use ($oneAndHalfYearAgo) {
-                    $q->where('order_date', '>=', $oneAndHalfYearAgo);
-                },
-                ($orderFilter == 'loyal' ? '>' : ($orderFilter == 'repeated' ? '>=' : '<=')),
-                ($orderFilter == 'loyal' ? 10 : ($orderFilter == 'repeated' ? 4 : 3))
-            );
+        if ($clientOrderBounds !== null) {
+            $query->filterByGenuineOrderBounds($clientOrderBounds, $orderFrom, $orderTo);
         }
 
         // The three tabs represent customer records only. Keeping the base set
         // to users with either a lead or an order makes the groups exhaustive:
         // All Customers = Confirmed + Not Confirmed.
-        if (!$searchUserId && $userText === '') {
+        if (!$searchUserId && $userText === '' && $clientOrderBounds === null) {
             $query->where(function ($customerQuery) {
-                $customerQuery->whereHas('convertedOrders')->orWhereHas('leads');
+                $customerQuery->whereHas('genuineOrders')->orWhereHas('leads');
             });
         }
 
@@ -381,17 +392,17 @@ class UserController extends Controller
         $tab = $request->get('tab', 'all');
         $tabFilteredQuery = clone $query;
         if ($tab === 'confirmed') {
-            $tabFilteredQuery->whereHas('convertedOrders');
+            $tabFilteredQuery->whereHas('genuineOrders');
         } elseif ($tab === 'not_confirmed') {
-            $tabFilteredQuery->whereHas('leads')->whereDoesntHave('convertedOrders');
+            $tabFilteredQuery->whereHas('leads')->whereDoesntHave('genuineOrders');
         } elseif ($tab === 'dummy_email') {
             $tabFilteredQuery->where(function ($q) {
-                $q->where('email', 'like', 'user%@gmail.com')
-                  ->orWhere('email', 'like', 'next_lead_%');
+                $q->where('users.email', 'like', 'user%@gmail.com')
+                  ->orWhere('users.email', 'like', 'next_lead_%');
             });
         }
 
-        $data['users'] = $tabFilteredQuery->orderBy('id', 'desc')->paginate($perPage);
+        $data['users'] = $tabFilteredQuery->orderBy('users.id', 'desc')->paginate($perPage);
         $data['role'] = Role::all();
         $data['teams'] = Team::where('is_delete', false)->orderBy('priority', 'asc')->get();
         $data['bank'] = Bank::all();
@@ -415,16 +426,16 @@ class UserController extends Controller
         }
 
         $countAll = (clone $query)->count();
-        $countConfirmed = (clone $query)->whereHas('convertedOrders')->count();
+        $countConfirmed = (clone $query)->whereHas('genuineOrders')->count();
         $countNotConfirmed = (clone $query)
             ->whereHas('leads')
-            ->whereDoesntHave('convertedOrders')
+            ->whereDoesntHave('genuineOrders')
             ->count();
 
         $countDummyEmail = (clone $query)
             ->where(function ($q) {
-                $q->where('email', 'like', 'user%@gmail.com')
-                  ->orWhere('email', 'like', 'next_lead_%');
+                $q->where('users.email', 'like', 'user%@gmail.com')
+                  ->orWhere('users.email', 'like', 'next_lead_%');
             })
             ->count();
 
@@ -439,9 +450,11 @@ class UserController extends Controller
             return Order::whereNotNull('college_name')->where('college_name', '!=', '')->distinct()->orderBy('college_name')->pluck('college_name');
         });
         $data['groups'] = GroupMaster::where('status', 1)->orderBy('name')->get(['id','name']);
+        $data['orderPeriod'] = $effectiveOrderPeriod;
+        $data['orderPeriodLabel'] = $orderPeriodLabel;
 
         // Compacting tab variables for user_view
-        return view('user.user_view', compact('data', 'countAll', 'countConfirmed', 'countNotConfirmed', 'countDummyEmail', 'tab', 'codeToCountry'));
+        return view('user.user_view', compact('data', 'countAll', 'countConfirmed', 'countNotConfirmed', 'countDummyEmail', 'tab', 'codeToCountry', 'effectiveOrderPeriod', 'orderPeriodLabel'));
     }
 
     public function EditUser(Request $request, $id)
@@ -953,108 +966,141 @@ public function userReportList(Request $request)
     foreach ($globalCountries as $countryName => $codes) {
         foreach ($codes as $code) {
             $codeToCountry[$code] = $countryName;
+            $codeToCountry[ltrim($code, '+')] = $countryName;
         }
     }
 
     // =========================
-    // 2. Base Query
+    // 2. Base Query (Genuine active role 2 customers only)
     // =========================
 
-    $query = \App\Models\User::where('role_id', 2)
-        ->has('orders');
+    $query = \App\Models\User::query()
+        ->where('users.role_id', 2)
+        ->where('users.flag', 0);
 
     // =========================
     // 3. Filters
     // =========================
 
     if ($request->filled('search')) {
+        $search = trim((string) $request->search);
+        $cleanDigits = preg_replace('/\D+/', '', $search);
 
-        $search = $request->search;
-
-        $query->where(function ($q) use ($search) {
-
-            $q->where('name', 'LIKE', "%{$search}%")
-                ->orWhere('email', 'LIKE', "%{$search}%")
-                ->orWhere('mobile_no', 'LIKE', "%{$search}%");
+        $query->where(function ($q) use ($search, $cleanDigits) {
+            $q->where('users.name', 'LIKE', "%{$search}%")
+                ->orWhere('users.email', 'LIKE', "%{$search}%")
+                ->orWhere('users.mobile_no', 'LIKE', "%{$search}%");
+            if (is_numeric($search)) {
+                $q->orWhere('users.id', (int) $search);
+            }
+            if (!empty($cleanDigits)) {
+                $q->orWhere('users.mobile_no', 'LIKE', "%{$cleanDigits}%");
+            }
         });
     }
 
     // Country Filter
     if ($request->filled('country')) {
-
         $selectedCountry = $request->country;
 
         if ($selectedCountry === 'Other') {
-
             $allCodes = array_keys($codeToCountry);
 
             $query->where(function ($q) use ($allCodes) {
-
-                $q->whereNotIn('countrycode', $allCodes)
-                    ->orWhereNull('countrycode')
-                    ->orWhere('countrycode', '');
+                $q->whereNotIn('users.countrycode', $allCodes)
+                    ->orWhereNull('users.countrycode')
+                    ->orWhere('users.countrycode', '');
             });
-
         } elseif (isset($globalCountries[$selectedCountry])) {
-
-            $query->whereIn('countrycode', $globalCountries[$selectedCountry]);
+            $query->whereIn('users.countrycode', $globalCountries[$selectedCountry]);
         }
     }
 
-    // Date Filter
-    if ($request->filled('from_date')) {
-        $query->whereDate('created_at', '>=', $request->from_date);
+    // Date & Order Count Bounds Filter
+    $dateType = $request->input('date_type', 'join_date');
+    $fromDate = $request->input('from_date');
+    $toDate = $request->input('to_date');
+    $orderFrom = null;
+    $orderTo = null;
+
+    if ($dateType === 'order_date') {
+        $orderFrom = $fromDate ?: null;
+        $orderTo = $toDate ?: null;
+    } else {
+        if ($fromDate) {
+            $query->whereDate('users.created_at', '>=', $fromDate);
+        }
+        if ($toDate) {
+            $query->whereDate('users.created_at', '<=', $toDate);
+        }
     }
 
-    if ($request->filled('to_date')) {
-        $query->whereDate('created_at', '<=', $request->to_date);
+    $bounds = Order::resolveClientOrderBounds(
+        $request->input('order_category'),
+        $request->input('min_orders')
+    ) ?? ['min' => 1, 'max' => null];
+
+    $query->filterByGenuineOrderBounds($bounds, $orderFrom, $orderTo);
+
+    // =========================
+    // 4 & 5. GRAND TOTALS (Strictly genuine placed converted non-cancelled orders)
+    // =========================
+
+    $filteredUidSub = (clone $query)->select('users.id as filter_uid');
+    $totalsQuery = \App\Models\Order::query()
+        ->genuinePlaced('orders')
+        ->joinSub($filteredUidSub, 'filtered_users', function ($join) {
+            $join->on('orders.uid', '=', 'filtered_users.filter_uid');
+        });
+
+    if ($orderFrom && $orderTo) {
+        $totalsQuery->whereBetween('orders.order_date', [$orderFrom, $orderTo]);
+    } elseif ($orderFrom) {
+        $totalsQuery->where('orders.order_date', '>=', $orderFrom);
+    } elseif ($orderTo) {
+        $totalsQuery->where('orders.order_date', '<=', $orderTo);
     }
 
-    // =========================
-    // 4. GET FILTERED USER IDS
-    // =========================
+    $aggTotals = $totalsQuery->selectRaw("
+        COUNT(*) as total_orders,
+        COALESCE(SUM(orders.received_amount), 0) as total_revenue,
+        SUM(CASE WHEN orders.feedback_ticket IS NOT NULL AND orders.feedback_ticket != '' THEN 1 ELSE 0 END) as total_tickets,
+        SUM(CASE WHEN orders.is_fail = 1 THEN 1 ELSE 0 END) as total_failed_orders
+    ")->first();
 
-    $filteredUserIds = (clone $query)->pluck('id');
-
-    // =========================
-    // 5. GRAND TOTALS
-    // =========================
-
-    // Total Orders
-    $totalOrders = \App\Models\Order::whereIn('uid', $filteredUserIds)
-        ->count();
-
-    // Total Revenue
-    $totalRevenue = \App\Models\Order::whereIn('uid', $filteredUserIds)
-        ->sum('received_amount');
-
-    // Total Tickets
-    $totalTickets = \App\Models\Order::whereIn('uid', $filteredUserIds)
-        ->whereNotNull('feedback_ticket')
-        ->where('feedback_ticket', '!=', '')
-        ->count();
-
-    // Total Failed Orders
-    $totalFailedOrders = \App\Models\Order::whereIn('uid', $filteredUserIds)
-        ->where('is_fail', 1)
-        ->count();
-
-    $totalTicketsAndFailed = $totalTickets + $totalFailedOrders;    
+    $totalOrders = (int) ($aggTotals->total_orders ?? 0);
+    $totalRevenue = (float) ($aggTotals->total_revenue ?? 0);
+    $totalTickets = (int) ($aggTotals->total_tickets ?? 0);
+    $totalFailedOrders = (int) ($aggTotals->total_failed_orders ?? 0);
+    $totalTicketsAndFailed = $totalTickets + $totalFailedOrders;
 
     // =========================
-    // 6. USER TABLE COUNTS
+    // 6. USER TABLE COUNTS (Strictly genuine orders matching date scope)
     // =========================
 
-    $query->withCount('orders')
-        ->withSum('orders as total_revenue', 'received_amount')
+    $applyOrderDateScope = function ($q) use ($orderFrom, $orderTo) {
+        if ($orderFrom && $orderTo) {
+            $q->whereBetween('orders.order_date', [$orderFrom, $orderTo]);
+        } elseif ($orderFrom) {
+            $q->where('orders.order_date', '>=', $orderFrom);
+        } elseif ($orderTo) {
+            $q->where('orders.order_date', '<=', $orderTo);
+        }
+    };
+
+    $query->select('users.*')
+        ->withCount(['genuineOrders as orders_count' => $applyOrderDateScope])
+        ->withSum(['genuineOrders as total_revenue' => $applyOrderDateScope], 'received_amount')
         ->withCount([
-            'orders as total_tickets' => function ($q) {
+            'genuineOrders as total_tickets' => function ($q) use ($applyOrderDateScope) {
+                $applyOrderDateScope($q);
                 $q->whereNotNull('feedback_ticket')
                     ->where('feedback_ticket', '!=', '');
             }
         ])
         ->withCount([
-            'orders as failed_orders_count' => function ($q) {
+            'genuineOrders as failed_orders_count' => function ($q) use ($applyOrderDateScope) {
+                $applyOrderDateScope($q);
                 $q->where('is_fail', 1);
             }
         ]);

@@ -229,6 +229,8 @@
             request()->filled('role') ||
             request()->filled('countrycode') ||
             request()->filled('order_category') ||
+            request()->filled('min_orders') ||
+            request()->filled('order_period') ||
             request()->filled('college_name') ||
             request()->filled('group_id');
     @endphp
@@ -277,7 +279,7 @@
                             <!-- YEH HIDDEN INPUT ADD KIYA HAI TAB STATE KE LIYE -->
                             <input type="hidden" name="tab" value="{{ request('tab', 'all') }}">
 
-                            <div class="row mb-3">
+                            <div class="row g-3 mb-3">
                                 <!-- User ID filter -->
                                 <div class="col-lg-3 fv-row fv-plugins-icon-container position-relative">
                                     <input type="text" id="searchInput" name="user"
@@ -347,14 +349,45 @@
                                     <select name="order_category" class="form-select form-select-solid"
                                         data-control="select2" data-placeholder="Filter By Order Category">
                                         <option value="">All Categories</option>
-                                        <option value="beginner"
-                                            {{ request('order_category') == 'beginner' ? 'selected' : '' }}>Beginners
+                                        <option value="multiple"
+                                            {{ request('order_category') == 'multiple' ? 'selected' : '' }}>Multiple Orders (2+ Orders)
+                                        </option>
+                                        <option value="2_to_3"
+                                            {{ request('order_category') == '2_to_3' ? 'selected' : '' }}>Repeat (2-3 Orders)
                                         </option>
                                         <option value="Retainer"
-                                            {{ request('order_category') == 'Retainer' ? 'selected' : '' }}>Retainer
+                                            {{ in_array(strtolower((string) request('order_category')), ['retainer', 'repeated'], true) ? 'selected' : '' }}>Retainer (4+ Orders)
                                         </option>
                                         <option value="loyal"
-                                            {{ request('order_category') == 'loyal' ? 'selected' : '' }}>Loyal Customers
+                                            {{ request('order_category') == 'loyal' ? 'selected' : '' }}>Loyal Customers (&gt;10 Orders)
+                                        </option>
+                                        <option value="single"
+                                            {{ request('order_category') == 'single' ? 'selected' : '' }}>Single Order (1 Order)
+                                        </option>
+                                        <option value="beginner"
+                                            {{ request('order_category') == 'beginner' ? 'selected' : '' }}>Beginners (1-3 Orders)
+                                        </option>
+                                    </select>
+                                </div>
+
+                                <div class="col-lg-3 fv-row fv-plugins-icon-container">
+                                    <input type="number" name="min_orders" min="1" step="1"
+                                        class="form-control form-control-solid" placeholder="Min Genuine Orders (e.g. 2)"
+                                        value="{{ request('min_orders') }}">
+                                </div>
+
+                                <div class="col-lg-3 fv-row fv-plugins-icon-container">
+                                    <select name="order_period" class="form-select form-select-solid"
+                                        data-control="select2" data-placeholder="Order Period">
+                                        <option value="">Order Period (Auto)</option>
+                                        <option value="lifetime"
+                                            {{ request('order_period') == 'lifetime' ? 'selected' : '' }}>All Time (Lifetime)
+                                        </option>
+                                        <option value="18_months"
+                                            {{ request('order_period') == '18_months' ? 'selected' : '' }}>Last 1.5 Years
+                                        </option>
+                                        <option value="this_year"
+                                            {{ request('order_period') == 'this_year' ? 'selected' : '' }}>This Year ({{ date('Y') }})
                                         </option>
                                     </select>
                                 </div>
@@ -454,7 +487,7 @@
                                             <th class="min-w-130px">Conversion</th>
                                             <th class="min-w-80px">Role</th>
                                             <th class="min-w-190px">Join Date</th>
-                                            <th class="min-w-100px">Order Count<br><small>(Last 1.5 Yrs)</small></th>
+                                            <th class="min-w-100px">Order Count<br><small>({{ $orderPeriodLabel ?? 'Last 1.5 Yrs' }})</small></th>
                                             <th class="min-w-100px">Follow-ups<br><small>(Last 1 Yr)</small></th>
                                             <th class="min-w-90px">Actions</th>
                                         </tr>
@@ -658,6 +691,8 @@
             var roleId = $('select[name="role"]').val() || urlParams.get('role') || '';
             var countrycode = $('select[name="countrycode"]').val() || urlParams.get('countrycode') || '';
             var orderCategory = $('select[name="order_category"]').val() || urlParams.get('order_category') || '';
+            var minOrders = $('input[name="min_orders"]').val() || urlParams.get('min_orders') || '';
+            var orderPeriod = $('select[name="order_period"]').val() || urlParams.get('order_period') || '';
             var collegeName = $('select[name="college_name"]').val() || urlParams.get('college_name') || '';
             var groupId = $('select[name="group_id"]').val() || urlParams.get('group_id') || '';
             var tab = urlParams.get('tab') || $('input[name="tab"]').val() || '{{ $tab ?? "all" }}';
@@ -674,6 +709,8 @@
                 role: roleId,
                 countrycode: countrycode,
                 order_category: orderCategory,
+                min_orders: minOrders,
+                order_period: orderPeriod,
                 college_name: collegeName,
                 group_id: groupId,
                 tab: tab

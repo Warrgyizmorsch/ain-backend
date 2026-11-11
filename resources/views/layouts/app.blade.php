@@ -903,6 +903,10 @@
                                     if (inlinePanel) inlinePanel.style.display = 'none';
                                 }
                                 Swal.fire('Export Failed', data.message || 'Please try again.', 'error');
+                            } else if (data.status === "idle") {
+                                localStorage.removeItem(statusKey);
+                                sessionStorage.removeItem(`${type}ExportProgressDismissed`);
+                                preloader.style.display = 'none';
                             }
                         })
                         .catch(() => {

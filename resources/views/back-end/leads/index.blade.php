@@ -140,8 +140,8 @@
                         </span>
                     </button>
 
-                    @if( auth()->user()->role_id == 1)
-                    <button class="btn btn-sm btn-danger" style="margin-left: 10px; display: none;" id="export-btn">
+                    @if(auth()->check() && (in_array((int) auth()->user()->role_id, [1, 9], true) || in_array(strtolower(trim((string) optional(auth()->user()->role)->role)), ['super admin', 'admin', 'sub admin'], true)))
+                    <button type="button" class="btn btn-sm btn-danger" style="margin-left: 10px;" id="export-btn">
                         Export
                     </button>
                     @endif
@@ -670,6 +670,180 @@
                 }
             });
         }
+
+        // Clear any leftover legacy export polling flag on page load
+        localStorage.removeItem('leadExportStatus');
+
+        function getActiveLeadExportFilters() {
+            const searchOrderVal = ($('#search_order').val() || '').trim();
+            const searchUserVal = ($('#searchInput').val() || '').trim();
+            const selectedUidVal = ($('#selectedValue').val() || '').trim();
+            const activeTabStatus = ($('#lead_status_tab').val() || $('.lead-status-tabs .nav-link.active').attr('data-status') || '').trim();
+
+            return {
+                search: searchOrderVal || (selectedUidVal ? '' : searchUserVal) || '',
+                order: searchOrderVal,
+                user: searchUserVal,
+                selectedValue: selectedUidVal,
+                status: $('#status_filter').val() || '',
+                lead_status_tab: activeTabStatus === 'All' ? '' : activeTabStatus,
+                type: $('#type_filter').val() || '',
+                date_from: $('#date_from').val() || '',
+                date_to: $('#date_to').val() || '',
+                date_type: $('#date_type').val() || '',
+                assign_type: String($('#assign_type').val() ?? ''),
+                lead_source: $('#lead_source').val() || '',
+                group_id: $('#lead_group_id').val() || ''
+            };
+        }
+
+        function triggerLeadCsvExport(payload) {
+            const $exportBtn = $('#export-btn');
+            const originalHtml = $exportBtn.data('original-html') || $exportBtn.html();
+            $exportBtn.data('original-html', originalHtml);
+            $exportBtn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Exporting...');
+
+            const exportUrl = @json(route('lead.export', [], false));
+            const csrfToken = $('meta[name="csrf-token"]').attr('content') || '';
+
+            fetch(exportUrl, {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': csrfToken,
+                    'Content-Type': 'application/json',
+                    'Accept': 'text/csv, application/json'
+                },
+                body: JSON.stringify(payload || {})
+            })
+            .then(async (response) => {
+                if (!response.ok) {
+                    let message = 'Failed to export leads.';
+                    try {
+                        const errData = await response.json();
+                        if (errData && errData.message) {
+                            message = errData.message;
+                        }
+                    } catch (e) {}
+                    throw new Error(message);
+                }
+
+                const contentType = (response.headers.get('Content-Type') || '').toLowerCase();
+                if (contentType.includes('text/html')) {
+                    throw new Error('Session expired. Please refresh and log in again.');
+                }
+
+                const disposition = response.headers.get('Content-Disposition') || '';
+                const filenameMatch = disposition.match(/filename\*?=(?:UTF-8''|")?([^";]+)/i);
+                const filename = filenameMatch && filenameMatch[1]
+                    ? decodeURIComponent(filenameMatch[1].replace(/"/g, '').trim())
+                    : 'Leads_' + new Date().toISOString().slice(0, 19).replace(/[-T:]/g, '') + '.csv';
+
+                const blob = await response.blob();
+                const blobUrl = window.URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = blobUrl;
+                link.download = filename;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                setTimeout(() => window.URL.revokeObjectURL(blobUrl), 1000);
+
+                Swal.fire({
+                    title: 'Leads Exported!',
+                    text: 'Your CSV file has started downloading.',
+                    icon: 'success',
+                    timer: 2000,
+                    showConfirmButton: false
+                });
+            })
+            .catch((err) => {
+                Swal.fire('Export Failed', err && err.message ? err.message : 'Unable to export leads right now.', 'error');
+            })
+            .finally(() => {
+                $exportBtn.prop('disabled', false).html(originalHtml).show();
+            });
+        }
+
+        $(document).on('click', '#export-btn', function(e) {
+            e.preventDefault();
+
+            Swal.fire({
+                title: 'Choose Export Option',
+                icon: 'question',
+                showConfirmButton: true,
+                confirmButtonText: 'Export All',
+                showDenyButton: true,
+                denyButtonText: 'Custom Export',
+                showCancelButton: true,
+                cancelButtonText: 'Cancel'
+            }).then((result) => {
+                if (!result.isConfirmed && !result.isDenied) {
+                    return;
+                }
+
+                const filters = getActiveLeadExportFilters();
+
+                if (result.isConfirmed) {
+                    triggerLeadCsvExport(filters);
+                    return;
+                }
+
+                Swal.fire({
+                    title: 'Select Columns to Export',
+                    html: `
+                        <div style="text-align: left; max-height: 340px; overflow-y: auto;">
+                            <div class="mb-2 pb-2 border-bottom">
+                                <label class="fw-bold"><input type="checkbox" id="export-select-all"> Select All Columns</label>
+                            </div>
+                            <label class="d-block mb-1"><input type="checkbox" value="order_id" class="export-column" checked> Order ID</label>
+                            <label class="d-block mb-1"><input type="checkbox" value="name" class="export-column" checked> Name</label>
+                            <label class="d-block mb-1"><input type="checkbox" value="email" class="export-column" checked> Email</label>
+                            <label class="d-block mb-1"><input type="checkbox" value="customer_country_code" class="export-column" checked> Country Code</label>
+                            <label class="d-block mb-1"><input type="checkbox" value="customer_phone" class="export-column" checked> Phone</label>
+                            <label class="d-block mb-1"><input type="checkbox" value="order_date" class="export-column" checked> Order Date</label>
+                            <label class="d-block mb-1"><input type="checkbox" value="project_title" class="export-column" checked> Project Title</label>
+                            <label class="d-block mb-1"><input type="checkbox" value="pages" class="export-column" checked> Words</label>
+                            <label class="d-block mb-1"><input type="checkbox" value="price" class="export-column" checked> Price</label>
+                            <label class="d-block mb-1"><input type="checkbox" value="deadline" class="export-column" checked> Delivery Date</label>
+                            <label class="d-block mb-1"><input type="checkbox" value="delivery_time" class="export-column"> Delivery Time</label>
+                            <label class="d-block mb-1"><input type="checkbox" value="l_status" class="export-column"> Status</label>
+                            <label class="d-block mb-1"><input type="checkbox" value="lead_status" class="export-column"> Lead Priority</label>
+                            <label class="d-block mb-1"><input type="checkbox" value="source" class="export-column"> Source</label>
+                            <label class="d-block mb-1"><input type="checkbox" value="assign_type" class="export-column"> Assign Type</label>
+                            <label class="d-block mb-1"><input type="checkbox" value="service_type" class="export-column"> Service Type</label>
+                            <label class="d-block mb-1"><input type="checkbox" value="module_code" class="export-column"> Module Code</label>
+                        </div>
+                    `,
+                    confirmButtonText: 'Export Selected',
+                    showCancelButton: true,
+                    didOpen: () => {
+                        const toggleAll = document.getElementById('export-select-all');
+                        if (toggleAll) {
+                            toggleAll.addEventListener('change', function() {
+                                document.querySelectorAll('.export-column').forEach((cb) => {
+                                    cb.checked = toggleAll.checked;
+                                });
+                            });
+                        }
+                    },
+                    preConfirm: () => {
+                        const selected = Array.from(document.querySelectorAll('.export-column:checked')).map((el) => el.value);
+                        if (selected.length === 0) {
+                            Swal.showValidationMessage('Please select at least one column');
+                            return false;
+                        }
+                        return selected;
+                    }
+                }).then((colRes) => {
+                    if (colRes.isConfirmed) {
+                        triggerLeadCsvExport({
+                            ...filters,
+                            selected_columns: colRes.value
+                        });
+                    }
+                });
+            });
+        });
     </script>
 @endpush
 
@@ -798,96 +972,4 @@
         color: #ffad0f !important;
     }
 </style>
-
-<script>
-    const leadExportBtn = document.getElementById("export-btn");
-    if (leadExportBtn) {
-    leadExportBtn.addEventListener("click", function() {
-        $('#export-btn').hide();
-        Swal.fire({
-            title: 'Choose Export Option',
-            icon: 'question',
-            showConfirmButton: true,
-            confirmButtonText: 'Export All',
-            showDenyButton: true,
-            denyButtonText: 'Custom Export',
-            showCancelButton: true,
-            cancelButtonText: 'Cancel',
-        }).then((result) => {
-            const filters = {
-                order: document.getElementById("search_order")?.value ?? "",
-                status: document.getElementById("status_filter")?.value ?? "",
-                type: document.getElementById("type_filter")?.value ?? "",
-                selectedValue: document.getElementById("selectedValue")?.value ?? "",
-                date_from: document.getElementById("date_from")?.value ?? "",
-                date_to: document.getElementById("date_to")?.value ?? "",
-                date_type: document.getElementById("date_type")?.value ?? "",
-            };
-
-            if (result.isConfirmed) {
-                // Export All
-                sendExport(filters);
-            } else if (result.isDenied) {
-                // Custom Export
-                Swal.fire({
-                    title: 'Select Columns to Export',
-                    html: `
-                            <div style="text-align: left;">
-                                <label><input type="checkbox" value="order_id" class="export-column" > Order ID</label><br>
-                                <label><input type="checkbox" value="name" class="export-column" > Name</label><br>
-                                <label><input type="checkbox" value="email" class="export-column" > Email</label><br>
-                                <label><input type="checkbox" value="customer_country_code" class="export-column" > Country Code</label><br>
-                                <label><input type="checkbox" value="customer_phone" class="export-column" > Phone</label><br>
-                                <label><input type="checkbox" value="order_date" class="export-column" > Order Date</label><br>
-                                <label><input type="checkbox" value="project_title" class="export-column" > Project Title</label><br>
-                                <label><input type="checkbox" value="pages" class="export-column" > Words</label><br>
-                                <label><input type="checkbox" value="price" class="export-column" > Price</label><br>
-                                <label><input type="checkbox" value="deadline" class="export-column" > Delivery Date</label>
-                            </div>
-                        `,
-                    confirmButtonText: 'Export Selected',
-                    showCancelButton: true,
-                    preConfirm: () => {
-                        const selected = Array.from(document.querySelectorAll(".export-column:checked")).map(el => el.value);
-                        if (selected.length === 0) {
-                            Swal.showValidationMessage("Please select at least one column");
-                        }
-                        return selected;
-                    }
-                }).then((colRes) => {
-                    if (colRes.isConfirmed) {
-                        sendExport({
-                            ...filters,
-                            selected_columns: colRes.value
-                        });
-                    }
-                });
-            }
-        });
-
-        function sendExport(payload) {
-            fetch("/lead/export", {
-                    method: "POST",
-                    headers: {
-                        "X-CSRF-TOKEN": document.querySelector('meta[name="csrf-token"]').content,
-                        "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify(payload),
-                })
-                .then(res => res.json())
-                .then(() => {
-                    localStorage.setItem("leadExportStatus", "pending");
-                    Swal.fire({
-                        title: 'Export started!',
-                        text: 'Your file will be ready shortly.',
-                        icon: 'info',
-                        timer: 2000,
-                        showConfirmButton: false
-        });
-    });
-    }
-        }
-
-    });
-</script>
 @endsection
