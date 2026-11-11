@@ -617,7 +617,7 @@
                         </a>
                     @endif
                 </div>
-                @if (in_array((int) auth()->user()->role_id, [1, 4, 9]))
+                @if (auth()->check() && (int) auth()->user()->role_id === 1)
                     <div class="d-flex align-items-center gap-2">
                         <script>
                             function exportOrdersDirect() {
@@ -693,7 +693,7 @@
                                 }
                             }
                         </script>
-                        @if(auth()->check() && (in_array((int) auth()->user()->role_id, [1, 9]) || in_array(strtolower(optional(auth()->user()->role)->role ?? ''), ['super admin', 'admin', 'sub admin'])))
+                        @if(auth()->check() && (int) auth()->user()->role_id === 1)
                         <button type="button" onclick="exportOrdersDirect()" class="btn btn-sm btn-danger"
                             id="export-order-btn">
                             Export
@@ -1157,7 +1157,9 @@ $('#filter-total').text(`Filtered Orders (${response.total ?? 0} total)`);
 
 $('#spinner-row').hide();
 $('#preloader2').hide();
+@if (auth()->check() && (int) auth()->user()->role_id === 1)
 $('#export-order-btn').show();
+@endif
 loading = false;
 },
 error: function () {
@@ -1229,7 +1231,9 @@ disableScrollHandler();
 $('#lead-rows').hide().empty();
 $('#initial-order-rows').show();
 $('#filter-total').text(`All Orders`);
+@if (auth()->check() && (int) auth()->user()->role_id === 1)
 $('#export-order-btn').show();
+@endif
 }
 
 function enableScrollHandler() {
@@ -1704,7 +1708,9 @@ resetFilters();
 
                 $('#spinner-row').hide();
                 $('#preloader2').hide();
+                @if (auth()->check() && (int) auth()->user()->role_id === 1)
                 $('#export-order-btn').show();
+                @endif
             },
             error: function(xhr, status, errorThrown) {
                 if (status === 'abort') return;
@@ -1886,7 +1892,9 @@ resetFilters();
         $('#lead-rows').hide().empty();
         $('#initial-order-rows').show();
         $('#filter-total').text('All Orders');
+        @if (auth()->check() && (int) auth()->user()->role_id === 1)
         $('#export-order-btn').show();
+        @endif
         $('#resetFiltersBtn, #topResetFiltersBtn').hide();
         var el = document.getElementById('additionalFiltersRow');
         if (el) el.style.setProperty('display', 'none', 'important');
@@ -2103,6 +2111,7 @@ resetFilters();
         }
     });
 
+    @if (auth()->check() && (int) auth()->user()->role_id === 1)
     // Global direct export handler
     window.exportOrdersDirect = function() {
         const urlParams = new URLSearchParams(window.location.search);
@@ -2173,4 +2182,5 @@ resetFilters();
             window.exportOrdersDirect();
         });
     });
+    @endif
 </script>

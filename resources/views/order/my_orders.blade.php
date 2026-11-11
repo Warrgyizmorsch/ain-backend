@@ -40,7 +40,7 @@
 						<h3 class="card-title align-items-start flex-column">
 							<span class="card-label fw-bolder fs-3 mb-1">Orders</span>
 						</h3>
-						@if(auth()->check() && (in_array((int) auth()->user()->role_id, [1, 9]) || in_array(strtolower(optional(auth()->user()->role)->role ?? ''), ['super admin', 'admin', 'sub admin'])))
+						@if(auth()->check() && (int) auth()->user()->role_id === 1)
 						<a onclick="orderExport()" style="height: fit-content;" class="btn btn-sm btn-danger">Export</a>
 						@endif
 

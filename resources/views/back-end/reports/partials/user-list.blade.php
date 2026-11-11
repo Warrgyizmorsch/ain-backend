@@ -3,9 +3,11 @@
         <h5 class="fw-bold mb-0 text-gray-800">
             <i class="fa fa-users text-primary me-1"></i> {{ $title }} ({{ count($users) }})
         </h5>
+        @if(auth()->check() && (int) auth()->user()->role_id === 1)
         <button type="button" class="btn btn-sm btn-danger" onclick="exportRetentionUserList(this, '{{ addslashes($title) }}')">
             <i class="fa fa-file-excel me-1"></i> Export to CSV
         </button>
+        @endif
     </div>
 
     <div class="table-responsive" style="max-height: 440px; overflow-y: auto; overflow-x: auto;">

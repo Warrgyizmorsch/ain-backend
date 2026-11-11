@@ -2330,17 +2330,8 @@ class LeadsController extends Controller
     private function canExportLeads(): bool
     {
         $user = auth()->user();
-        if (! $user) {
-            return false;
-        }
 
-        if (in_array((int) $user->role_id, [1, 9], true)) {
-            return true;
-        }
-
-        $roleName = strtolower(trim((string) optional($user->role)->role));
-
-        return in_array($roleName, ['super admin', 'admin', 'sub admin'], true);
+        return (bool) ($user && (int) $user->role_id === 1);
     }
 
     /**
