@@ -383,7 +383,7 @@ class ReferralDashboardTest extends TestCase
             $this->actingAs($superAdmin)->get('/referral-system/export?tab=executives&search=Z9Q')->streamedContent()
         );
         $this->assertCount(1, $execCsv);
-        $this->assertSame('Z9Q', $execCsv[0]['3-Char Prefix']);
+        $this->assertSame('Z9Q', $execCsv[0]['2-Char Prefix']);
         $this->assertSame('320.00', $execCsv[0]['Referred Revenue (GBP)']);
         $this->assertSame('20.00', $execCsv[0]['Bonuses Unlocked (GBP)']);
 
@@ -463,5 +463,50 @@ class ReferralDashboardTest extends TestCase
         $this->assertSame('REFZZZ222', User::findOrFail($usedBySignup->id)->referral_code);
         $this->assertSame('REFZZZ333', User::findOrFail($usedByCouponOrder->id)->referral_code);
         $this->assertSame('USK49M', User::findOrFail($newPatternClient->id)->referral_code);
+    }
+
+    public function test_referral_code_reformatting_migration_updates_existing_codes_to_user3_exec2_10(): void
+    {
+        $exec = $this->createUser(4, [
+            'name' => 'Usk Kelvin',
+            'referral_prefix' => 'USK',
+        ]);
+
+        $oldClient = $this->createUser(2, [
+            'name' => 'Carol Chagas',
+            'referral_code' => 'USK49M',
+            'referral_prefix' => 'USK',
+            'referral_executive_id' => $exec->id,
+            'referral_discount_percent' => 10.00,
+            'referral_code_generated_at' => now()->subDay(),
+        ]);
+
+        $usedLegacy = $this->createUser(2, [
+            'name' => 'Paulo Mendy',
+            'referral_code' => 'REFZZZ999',
+            'referral_prefix' => null,
+            'referral_executive_id' => null,
+            'referral_discount_percent' => 10.00,
+        ]);
+
+        $uncodedSignup = $this->createUser(2, [
+            'name' => 'No Order Client',
+            'referral_code' => null,
+        ]);
+
+        $migration = require database_path('migrations/2026_11_12_150000_convert_referral_codes_to_user3_exec2_discount_format.php');
+        $migration->up();
+
+        $exec->refresh();
+        $oldClient->refresh();
+        $usedLegacy->refresh();
+        $uncodedSignup->refresh();
+
+        $this->assertSame('US', $exec->referral_prefix);
+        $this->assertSame('CARUS10', $oldClient->referral_code);
+        $this->assertSame('US', $oldClient->referral_prefix);
+        $this->assertSame('PAUAI10', $usedLegacy->referral_code);
+        $this->assertSame('AI', $usedLegacy->referral_prefix);
+        $this->assertNull($uncodedSignup->referral_code);
     }
 }

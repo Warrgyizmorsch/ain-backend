@@ -19,10 +19,11 @@ Comprehensive documentation for the **Client Individual Referral Code System** i
    - Existing legacy clients without referral codes are **not** backfilled in bulk.
    - Any existing client receives a code automatically when they place/convert their **next** eligible genuine order; brand-new clients receive one upon their **first** converted order.
    - Repeat orders by an already-coded client preserve their existing `referral_code`, `referral_discount_percent`, and `referral_executive_id`.
-3. **6-Character Code Format (`[3-Char Exec Prefix][3-Char Suffix]`)**
-   - Total length: **6 characters** (uppercase alphanumeric).
-   - **First 3 characters:** Persistent 3-character identifier of the converting/assigned Marketing Executive or Admin (`users.referral_prefix`, e.g., `USK`, `PIY`, `MAX`, fallback `AIN`).
-   - **Last 3 characters:** Unambiguous random suffix drawn from `ABCDEFGHJKLMNPQRSTUVWXYZ23456789` (excludes confusing `0`, `O`, `1`, `I`).
+3. **Referral Code Format (`[User Name Prefix (3)][Marketing Exec Prefix (2)][Discount (10)]`)**
+   - Total length: **7 characters** for standard 10% codes (uppercase alphanumeric, e.g., Client `"Carol Chagas"` + Exec `"Usk Kelvin"` (`US`) + `10%` = **`CARUS10`**).
+   - **First 3 characters:** Derived from the client's name (first 3 letters, e.g., `CAR`), disambiguated using additional characters from the client's name if a collision occurs under the same executive.
+   - **Middle 2 characters:** Persistent 2-character identifier of the converting/assigned Marketing Executive or Admin (`users.referral_prefix`, e.g., `US`, `PI`, `MA`, fallback `AI`).
+   - **Trailing discount token:** Client's configured discount % integer (`10` for default 10%).
    - **Global Uniqueness:** Guaranteed unique (case-insensitive) across **both** `users.referral_code` and `coupons.coupon_code`.
 4. **Default 10% Discount + Double-Sided Reward**
    - Every generated code defaults to `referral_discount_percent = 10.00%` (editable between `0.00` and `100.00` by Admin / Sub Admin).
@@ -83,7 +84,7 @@ Migration file: [`database/migrations/2026_11_11_143000_add_client_individual_re
 | :--- | :--- | :--- | :--- |
 | `users` | `referral_discount_percent` | `DECIMAL(5,2) NOT NULL DEFAULT 10.00` | Custom or default discount % offered when others use this user's referral code |
 | `users` | `referral_executive_id` | `UNSIGNED BIGINT NULL` (indexed) | Foreign reference to the attributing staff executive (`users.id`) |
-| `users` | `referral_prefix` | `VARCHAR(10) NULL` (indexed) | Staff's persistent 3-char prefix (for roles `1, 4, 9`) or snapshot prefix on client |
+| `users` | `referral_prefix` | `VARCHAR(10) NULL` (indexed) | Staff's persistent 2-char prefix (for roles `1, 4, 9`) or snapshot prefix on client |
 | `users` | `referral_code_generated_at` | `TIMESTAMP NULL` (indexed) | Exact timestamp when the client's referral code was first generated |
 | `orders` | `referred_by_user_id` | `UNSIGNED BIGINT NULL` (indexed) | ID of the referring user whose referral code was applied on this order |
 | `orders` | `referral_bonus_awarded_at` | `TIMESTAMP NULL` (indexed) | Atomic idempotency lock timestamp proving referrer wallet bonus was paid once |

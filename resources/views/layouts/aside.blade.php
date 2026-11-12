@@ -192,15 +192,15 @@
                                     if (auth()->check() && auth()->user()->role_id == 9) {
                                         $subRoute = trim($submenu->routes, '/');
                                         $currentUserId = auth()->id();
+                                        if ($subRoute == 'my-break-time-report') {
+                                            return false;
+                                        }
                                         if ($currentUserId == 13715) {
-                                            if (
-                                                $subRoute == 'my-break-time-report' ||
-                                                $subRoute == 'my-revoke-payments'
-                                            ) {
+                                            if ($subRoute == 'my-revoke-payments') {
                                                 return false;
                                             }
                                         } else {
-                                            if ($subRoute == 'break-time-report' || $subRoute == 'revoke-payments') {
+                                            if ($subRoute == 'revoke-payments') {
                                                 return false;
                                             }
                                         }
