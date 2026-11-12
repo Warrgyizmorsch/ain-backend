@@ -77,6 +77,8 @@
                     $menus = $menus->sortBy(function ($menu) {
                         return (int) $menu->sort_order;
                     });
+                    $renderedSuperAdminReferralMenu = false;
+                    $isSuperAdminReferralActive = $isActiveRoute('referral-system');
                 @endphp
 
                 <div class="menu-item">
@@ -314,8 +316,32 @@
                                 </a>
                             </div>
                         @endif
+                        @if (strtolower($menu['menu_name']) == 'reports' && auth()->check() && (int) auth()->user()->role_id === 1 && !$renderedSuperAdminReferralMenu)
+                            @php $renderedSuperAdminReferralMenu = true; @endphp
+                            <div class="menu-item">
+                                <a class="menu-link {{ $isSuperAdminReferralActive ? 'active' : '' }}"
+                                    href="{{ url('referral-system') }}">
+                                    <span class="menu-icon">
+                                        <i class="fa fa-tags"></i>
+                                    </span>
+                                    <span class="menu-title">Referral System</span>
+                                </a>
+                            </div>
+                        @endif
                     @endif
                 @endforeach
+
+                @if (auth()->check() && (int) auth()->user()->role_id === 1 && !$renderedSuperAdminReferralMenu)
+                    <div class="menu-item">
+                        <a class="menu-link {{ $isSuperAdminReferralActive ? 'active' : '' }}"
+                            href="{{ url('referral-system') }}">
+                            <span class="menu-icon">
+                                <i class="fa fa-tags"></i>
+                            </span>
+                            <span class="menu-title">Referral System</span>
+                        </a>
+                    </div>
+                @endif
 
 
 
