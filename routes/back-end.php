@@ -37,6 +37,7 @@ use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\EnquiryController;
 use App\Http\Controllers\ChatbotController;
 use App\Http\Controllers\PluginController;
+use App\Http\Controllers\ReferralDashboardController;
 use App\Http\Controllers\SpreadsheetController;
 
 Route::middleware(['auth'])->group(function () {
@@ -666,4 +667,10 @@ Route::middleware(['auth', 'check.permission'])->group(function () {
 
         Route::get('/customer-due-orders/{userId}', [ReportController::class, 'customerDueOrders'])
             ->name('reports.customer-due.orders');
+
+        Route::get('/referral-system', [ReferralDashboardController::class, 'index'])
+            ->name('admin.referral.system');
+
+        Route::get('/referral-system/export', [ReferralDashboardController::class, 'export'])
+            ->name('admin.referral.export');
     });

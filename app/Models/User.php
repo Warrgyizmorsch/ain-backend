@@ -399,6 +399,11 @@ class User extends Authenticatable
         return $this->hasMany(User::class, 'refer_id', 'id');
     }
 
+    public function referredOrders()
+    {
+        return $this->hasMany(Order::class, 'referred_by_user_id', 'id');
+    }
+
     public function referralExecutive()
     {
         return $this->belongsTo(User::class, 'referral_executive_id', 'id');
