@@ -663,8 +663,8 @@ class UserController extends Controller
                 $user->referral_prefix = null;
             } else {
                 $cleanPrefix = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', $rawPrefix));
-                if (! preg_match('/^[A-Z0-9]{3}$/', $cleanPrefix)) {
-                    return 'Executive referral prefix must be exactly 3 letters or numbers.';
+                if (! preg_match('/^[A-Z0-9]{2}$/', $cleanPrefix)) {
+                    return 'Executive referral prefix must be exactly 2 letters or numbers.';
                 }
                 $prefixExists = User::where('id', '!=', $user->id)
                     ->where('flag', 0)
@@ -672,7 +672,7 @@ class UserController extends Controller
                     ->whereRaw('UPPER(referral_prefix) = ?', [$cleanPrefix])
                     ->exists();
                 if ($prefixExists) {
-                    return 'This 3-character prefix is already assigned to another executive.';
+                    return 'This 2-character prefix is already assigned to another executive.';
                 }
                 $user->referral_prefix = $cleanPrefix;
             }
@@ -693,7 +693,7 @@ class UserController extends Controller
                     $user->referral_code_generated_at = now();
                 }
                 if ((int) $user->role_id === 2 && ! $request->has('referral_executive_id') && empty($user->referral_prefix)) {
-                    $user->referral_prefix = substr($normalizedCode, 0, ReferralCodeService::PREFIX_LENGTH);
+                    $user->referral_prefix = substr($normalizedCode, ReferralCodeService::CLIENT_PREFIX_LENGTH, ReferralCodeService::EXECUTIVE_PREFIX_LENGTH);
                 }
             } elseif ($strictBlankCheck && $hadCodeBefore) {
                 return 'Referral code cannot be blank once assigned (use 5 to 10 characters).';

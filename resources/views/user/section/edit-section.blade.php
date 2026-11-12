@@ -181,10 +181,10 @@
 								<h4 class="fw-bolder text-gray-800 mb-5">Referral Settings</h4>
 								@if(in_array((int) $user->role_id, \App\Services\ReferralCodeService::STAFF_EXECUTIVE_ROLE_IDS, true))
 									<div class="row mb-6">
-										<label class="col-lg-4 col-form-label fw-bold fs-6">Executive Prefix (3 chars)</label>
+										<label class="col-lg-4 col-form-label fw-bold fs-6">Executive Prefix (2 chars)</label>
 										<div class="col-lg-8">
-											<input type="text" name="referral_prefix" maxlength="3" class="form-control form-control-lg form-control-solid text-uppercase font-monospace" placeholder="e.g. USK" value="{{ $user->referral_prefix }}">
-											<div class="form-text">Exactly 3 letters/digits used as prefix for client codes generated from this executive's conversions.</div>
+											<input type="text" name="referral_prefix" maxlength="2" class="form-control form-control-lg form-control-solid text-uppercase font-monospace" placeholder="e.g. US" value="{{ $user->referral_prefix }}">
+											<div class="form-text">Exactly 2 letters/digits used as the executive prefix in client codes generated from this executive's conversions.</div>
 										</div>
 									</div>
 								@else
@@ -192,7 +192,7 @@
 										<label class="col-lg-4 col-form-label fw-bold fs-6">Referral Code (5-10 chars)</label>
 										<div class="col-lg-8">
 											<input type="text" name="referral_code" maxlength="10" class="form-control form-control-lg form-control-solid text-uppercase font-monospace" placeholder="Auto-generated on confirmed order" value="{{ $user->referral_code }}">
-											<div class="form-text">First 3 characters identify the marketing executive prefix.</div>
+											<div class="form-text">Format: User prefix (3) + Executive prefix (2) + Discount (10).</div>
 										</div>
 									</div>
 									<div class="row mb-6">
@@ -205,7 +205,7 @@
 										<label class="col-lg-4 col-form-label fw-bold fs-6">Marketing Executive</label>
 										<div class="col-lg-8">
 											<select name="referral_executive_id" class="form-select form-select-solid form-select-lg js-referral-exec-select" data-selected-executive="{{ $user->referral_executive_id ?? '' }}">
-												<option value="">System / Default (AIN)</option>
+												<option value="">System / Default (AI)</option>
 												@if($user->referralExecutive)
 													<option value="{{ $user->referralExecutive->id }}" selected>{{ $user->referralExecutive->name }}@if(!empty($user->referralExecutive->referral_prefix)) ({{ $user->referralExecutive->referral_prefix }})@endif</option>
 												@endif

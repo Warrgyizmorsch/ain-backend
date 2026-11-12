@@ -603,8 +603,8 @@
                                     <label class="form-label fw-bold required">Referral Code (5-10 chars)</label>
                                     <input type="text" id="refModalCode" name="referral_code" maxlength="10"
                                         class="form-control form-control-solid text-uppercase font-monospace"
-                                        placeholder="e.g. USK49M">
-                                    <div class="form-text">First 3 characters identify the marketing executive prefix.</div>
+                                        placeholder="e.g. CARUS10">
+                                    <div class="form-text">Format: User prefix (3) + Executive prefix (2) + Discount (10).</div>
                                 </div>
                                 <div class="mb-4">
                                     <label class="form-label fw-bold required">Discount Percentage (%)</label>
@@ -614,18 +614,18 @@
                                 <div class="mb-2">
                                     <label class="form-label fw-bold">Marketing Executive</label>
                                     <select id="refModalExecutiveId" name="referral_executive_id" class="form-select form-select-solid js-referral-exec-select" data-selected-executive="">
-                                        <option value="">System / Default (AIN)</option>
+                                        <option value="">System / Default (AI)</option>
                                     </select>
                                 </div>
                             </div>
 
                             <div id="refExecutiveFieldsWrapper" class="d-none">
                                 <div class="mb-2">
-                                    <label class="form-label fw-bold required">Executive 3-Char Prefix</label>
-                                    <input type="text" id="refModalPrefix" name="referral_prefix" maxlength="3"
+                                    <label class="form-label fw-bold required">Executive 2-Char Prefix</label>
+                                    <input type="text" id="refModalPrefix" name="referral_prefix" maxlength="2"
                                         class="form-control form-control-solid text-uppercase font-monospace"
-                                        placeholder="e.g. USK">
-                                    <div class="form-text">Exactly 3 letters or digits used to prefix client referral codes converted by this executive.</div>
+                                        placeholder="e.g. US">
+                                    <div class="form-text">Exactly 2 letters or digits used in client referral codes converted by this executive.</div>
                                 </div>
                             </div>
                         </div>
@@ -1068,7 +1068,7 @@
                     : '';
 
                 $select.empty();
-                $select.append($('<option>', { value: '', text: 'System / Default (AIN)' }));
+                $select.append($('<option>', { value: '', text: 'System / Default (AI)' }));
 
                 let matchedTarget = false;
                 list.forEach(exec => {
