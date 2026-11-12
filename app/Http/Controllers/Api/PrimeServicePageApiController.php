@@ -53,34 +53,7 @@ class PrimeServicePageApiController extends Controller
         $cityPages = [];
 
         foreach ($pages as $page) {
-            $type = strtolower($page->type ?? '');
-
-            if (!in_array($type, ['service', 'subject', 'city'])) {
-                $slug = trim($page->slug, '/');
-                $firstSegment = strtolower(explode('/', $slug)[0] ?? '');
-                $subjectSlug  = strtolower($page->primeSubject->slug ?? '');
-                $subjectName  = strtolower($page->primeSubject->name ?? '');
-
-                if (
-                    in_array($firstSegment, ['city', 'cities']) ||
-                    in_array($subjectSlug, ['city', 'cities']) ||
-                    str_contains($firstSegment, 'city') ||
-                    str_contains($subjectSlug, 'city') ||
-                    str_contains($subjectName, 'city')
-                ) {
-                    $type = 'city';
-                } elseif (
-                    in_array($firstSegment, ['subject', 'subjects']) ||
-                    in_array($subjectSlug, ['subject', 'subjects']) ||
-                    str_contains($firstSegment, 'subject') ||
-                    str_contains($subjectSlug, 'subject') ||
-                    str_contains($subjectName, 'subject')
-                ) {
-                    $type = 'subject';
-                } else {
-                    $type = 'service';
-                }
-            }
+            $type = $this->resolveStoredType($page);
 
             if ($type === 'subject') {
                 $subjectPages[] = $page;
@@ -250,12 +223,68 @@ class PrimeServicePageApiController extends Controller
     }
 
     /**
-     * Get details of a specific prime dynamic page by slug, title, or prefix.
+     * Resolve a page's type from its DB column, falling back to slug / prefix inference.
+     * Does NOT look at the request path, so it is safe to use for filtering.
      */
-    public function show($slug)
+    private function resolveStoredType(PrimeServicePage $page): string
+    {
+        $type = strtolower(trim((string) ($page->type ?? '')));
+        if (in_array($type, ['service', 'subject', 'city'])) {
+            return $type;
+        }
+
+        $slug = trim((string) $page->slug, '/');
+        $firstSegment = strtolower(explode('/', $slug)[0] ?? '');
+        $subjectSlug  = strtolower($page->primeSubject->slug ?? '');
+        $subjectName  = strtolower($page->primeSubject->name ?? '');
+
+        if (
+            str_contains($firstSegment, 'city') ||
+            str_contains($subjectSlug, 'city') ||
+            str_contains($subjectName, 'city')
+        ) {
+            return 'city';
+        }
+
+        if (
+            str_contains($firstSegment, 'subject') ||
+            str_contains($subjectSlug, 'subject') ||
+            str_contains($subjectName, 'subject')
+        ) {
+            return 'subject';
+        }
+
+        return 'service';
+    }
+
+    /** Detail endpoint restricted to service pages. */
+    public function showService($slug)
+    {
+        return $this->show($slug, 'service');
+    }
+
+    /** Detail endpoint restricted to subject pages. */
+    public function showSubject($slug)
+    {
+        return $this->show($slug, 'subject');
+    }
+
+    /** Detail endpoint restricted to city pages. */
+    public function showCity($slug)
+    {
+        return $this->show($slug, 'city');
+    }
+
+    /**
+     * Get details of a specific prime dynamic page by slug, title, or prefix.
+     * When $type is given, only pages of that type are returned (404 otherwise).
+     */
+    public function show($slug, ?string $type = null)
     {
         $slug = urldecode($slug);
         $cleanSlug = trim($slug, '/');
+
+        $matchesType = fn (PrimeServicePage $p) => $type === null || $this->resolveStoredType($p) === $type;
 
         // 1. Check in PrimeServicePage by slug
         $page = PrimeServicePage::with('primeSubject')
@@ -270,7 +299,8 @@ class PrimeServicePageApiController extends Controller
                     $query->orWhere('id', (int) $cleanSlug);
                 }
             })
-            ->first();
+            ->get()
+            ->first($matchesType);
 
         // 2. If no slug match, try matching by page title / hero_heading
         if (!$page) {
@@ -279,7 +309,8 @@ class PrimeServicePageApiController extends Controller
                     $query->where('hero_heading', 'like', '%' . $cleanSlug . '%')
                           ->orWhere('meta_title', 'like', '%' . $cleanSlug . '%');
                 })
-                ->first();
+                ->get()
+                ->first($matchesType);
         }
 
         // 3. If still no page, check if $slug is a Prefix (PrimeSubject)
@@ -293,14 +324,17 @@ class PrimeServicePageApiController extends Controller
                 $page = PrimeServicePage::with('primeSubject')
                     ->where('prime_subject_id', $subject->id)
                     ->orWhere('slug', 'like', $subject->slug . '/%')
-                    ->first();
+                    ->get()
+                    ->first($matchesType);
             }
         }
 
         if (!$page) {
             return response()->json([
                 'success' => false,
-                'message' => "Prime page not found for slug '{$slug}'",
+                'message' => $type
+                    ? "Prime {$type} page not found for slug '{$slug}'"
+                    : "Prime page not found for slug '{$slug}'",
             ], 404);
         }
 
