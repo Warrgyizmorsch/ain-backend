@@ -17,14 +17,37 @@ class PrimeServicePageApiController extends Controller
     }
 
     /**
-     * Get list of Prime dynamic service, subject, and city pages (Strictly isolated).
+     * Listing for Prime Service Pages only.
      */
     public function index(Request $request)
     {
+        return $this->listByType($request, 'service');
+    }
+
+    /**
+     * Listing for Prime Subject Pages only.
+     */
+    public function subjectIndex(Request $request)
+    {
+        return $this->listByType($request, 'subject');
+    }
+
+    /**
+     * Listing for Prime City Pages only.
+     */
+    public function cityIndex(Request $request)
+    {
+        return $this->listByType($request, 'city');
+    }
+
+    /**
+     * Return only pages of the given type, optionally narrowed by ?prefix=.
+     */
+    private function listByType(Request $request, string $type)
+    {
         $query = PrimeServicePage::with('primeSubject');
 
-        // Optional prefix filter
-        if ($request->has('prefix')) {
+        if ($request->filled('prefix')) {
             $prefix = $request->query('prefix');
             $query->where(function ($q) use ($prefix) {
                 $q->whereHas('primeSubject', function ($sq) use ($prefix) {
@@ -34,76 +57,18 @@ class PrimeServicePageApiController extends Controller
                   ->orWhere('slug', 'like', '%/' . $prefix)
                   ->orWhere('slug', $prefix);
             });
-
-            $pages = $query->get();
-            $formatted = $this->formatPages($pages);
-
-            return response()->json([
-                'status'    => 'success',
-                'success'   => true,
-                'data'      => $formatted,
-                'all_pages' => $pages,
-            ]);
         }
 
-        $pages = $query->get();
-
-        $servicePages = [];
-        $subjectPages = [];
-        $cityPages = [];
-
-        foreach ($pages as $page) {
-            $type = $this->resolveStoredType($page);
-
-            if ($type === 'subject') {
-                $subjectPages[] = $page;
-            } elseif ($type === 'city') {
-                $cityPages[] = $page;
-            } else {
-                $servicePages[] = $page;
-            }
-        }
-
-        $typeFilter = strtolower($request->query('type') ?? '');
-        if ($typeFilter === 'subject') {
-            $mainData = $this->formatPages($subjectPages);
-        } elseif ($typeFilter === 'city') {
-            $mainData = $this->formatPages($cityPages);
-        } else {
-            $mainData = $this->formatPages($servicePages);
-        }
+        $pages = $query->get()
+            ->filter(fn (PrimeServicePage $p) => $this->resolveStoredType($p) === $type)
+            ->values();
 
         return response()->json([
-            'status'    => 'success',
-            'success'   => true,
-            'data'      => $mainData,
-            'service'   => $this->formatPages($servicePages),
-            'services'  => $this->formatPages($servicePages),
-            'subject'   => $this->formatPages($subjectPages),
-            'subjects'  => $this->formatPages($subjectPages),
-            'city'      => $this->formatPages($cityPages),
-            'cities'    => $this->formatPages($cityPages),
-            'all_pages' => $pages,
-            'pages'     => $pages,
+            'status'  => 'success',
+            'success' => true,
+            'type'    => $type,
+            'data'    => $this->formatPages($pages),
         ]);
-    }
-
-    /**
-     * Dedicated listing for Prime Subject Pages.
-     */
-    public function subjectIndex(Request $request)
-    {
-        $request->merge(['type' => 'subject']);
-        return $this->index($request);
-    }
-
-    /**
-     * Dedicated listing for Prime City Pages.
-     */
-    public function cityIndex(Request $request)
-    {
-        $request->merge(['type' => 'city']);
-        return $this->index($request);
     }
 
     /**
