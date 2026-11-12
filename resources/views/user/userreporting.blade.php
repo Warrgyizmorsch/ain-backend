@@ -120,7 +120,7 @@
                     @if ($isStaffExec)
                         <div class="col-md-4">
                             <div class="p-4 rounded bg-light">
-                                <div class="text-muted fs-8 fw-bold text-uppercase">3-Char Executive Prefix</div>
+                                <div class="text-muted fs-8 fw-bold text-uppercase">2-Char Executive Prefix</div>
                                 <div class="fs-3 fw-bolder font-monospace text-dark mt-1">
                                     {{ $user->referral_prefix ?: 'Auto on first conversion' }}
                                 </div>
@@ -178,17 +178,17 @@
                         <div class="row g-4 align-items-end">
                             @if ($isStaffExec)
                                 <div class="col-md-4">
-                                    <label class="form-label fw-bold required">Executive 3-Char Prefix</label>
-                                    <input type="text" name="referral_prefix" maxlength="3"
+                                    <label class="form-label fw-bold required">Executive 2-Char Prefix</label>
+                                    <input type="text" name="referral_prefix" maxlength="2"
                                         class="form-control form-control-solid text-uppercase font-monospace"
-                                        placeholder="e.g. USK" value="{{ old('referral_prefix', $user->referral_prefix) }}">
+                                        placeholder="e.g. US" value="{{ old('referral_prefix', $user->referral_prefix) }}">
                                 </div>
                             @else
                                 <div class="col-md-3">
                                     <label class="form-label fw-bold">Referral Code (5-10 chars)</label>
                                     <input type="text" name="referral_code" maxlength="10"
                                         class="form-control form-control-solid text-uppercase font-monospace"
-                                        placeholder="e.g. USK49M" value="{{ old('referral_code', $user->referral_code) }}">
+                                        placeholder="e.g. CARUS10" value="{{ old('referral_code', $user->referral_code) }}">
                                 </div>
                                 <div class="col-md-3">
                                     <label class="form-label fw-bold required">Discount (%)</label>
@@ -199,7 +199,7 @@
                                 <div class="col-md-4">
                                     <label class="form-label fw-bold">Marketing Executive</label>
                                     <select name="referral_executive_id" class="form-select form-select-solid">
-                                        <option value="">System / Default (AIN)</option>
+                                        <option value="">System / Default (AI)</option>
                                         @foreach (($executives ?? collect()) as $exec)
                                             <option value="{{ $exec->id }}" @if ((int) old('referral_executive_id', $user->referral_executive_id) === (int) $exec->id) selected @endif>
                                                 {{ $exec->name }}@if (!empty($exec->referral_prefix)) ({{ $exec->referral_prefix }})@endif

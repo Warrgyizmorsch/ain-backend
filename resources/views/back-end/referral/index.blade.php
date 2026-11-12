@@ -95,14 +95,14 @@
                             <div class="bg-white rounded p-3 h-100 border">
                                 <div class="fw-bolder text-primary mb-1">1. Code Auto-Generation</div>
                                 Generated once on a client's <strong>first confirmed / converted</strong> non-cancelled order in format
-                                <code class="font-monospace">[3-char Exec Prefix][3-char Code]</code>.
+                                <code class="font-monospace">[Client 3-char][Exec 2-char][10]</code> (e.g. <code>CARUS10</code>).
                             </div>
                         </div>
                         <div class="col-md-3">
                             <div class="bg-white rounded p-3 h-100 border">
                                 <div class="fw-bolder text-dark mb-1">2. Executive Prefix Priority</div>
                                 Resolved via <code>l_converted_by</code> &rarr; <code>order.created_by</code> &rarr;
-                                <code>lead.created_by</code> &rarr; acting staff &rarr; fallback <code>AIN</code>.
+                                <code>lead.created_by</code> &rarr; acting staff &rarr; fallback <code>AI</code>.
                             </div>
                         </div>
                         <div class="col-md-3">
@@ -148,7 +148,7 @@
                             {{ number_format($summary['coded_executives']) }}
                             <span class="fs-6 text-muted fw-normal">/ {{ number_format($summary['total_executives']) }}</span>
                         </div>
-                        <div class="text-muted fs-8 mt-1">3-char exec prefixes</div>
+                        <div class="text-muted fs-8 mt-1">2-char exec prefixes</div>
                     </div>
                 </div>
             </div>
@@ -680,7 +680,7 @@
                             <thead>
                                 <tr class="fw-bolder text-muted bg-light fs-8 text-uppercase">
                                     <th class="ps-3 min-w-180px">Staff Executive</th>
-                                    <th class="min-w-110px">3-Char Prefix</th>
+                                    <th class="min-w-110px">2-Char Prefix</th>
                                     <th class="text-center min-w-90px">Coded Clients</th>
                                     <th class="text-center min-w-80px">Signups</th>
                                     <th class="text-center min-w-90px">Ref Orders</th>
@@ -849,8 +849,8 @@
                             <label class="form-label fw-bold required">Referral Code (5-10 chars)</label>
                             <input type="text" id="saRefModalCode" name="referral_code" maxlength="10"
                                 class="form-control form-control-solid text-uppercase font-monospace"
-                                placeholder="e.g. USK49M">
-                            <div class="form-text">First 3 characters identify the executive prefix. Must be unique across clients &amp; coupons.</div>
+                                placeholder="e.g. CARUS10">
+                            <div class="form-text">Format: User prefix (3) + Executive prefix (2) + Discount (10). Must be unique across clients &amp; coupons.</div>
                         </div>
                         <div class="mb-4">
                             <label class="form-label fw-bold required">Friend Discount Percentage (%)</label>
@@ -860,7 +860,7 @@
                         <div class="mb-2">
                             <label class="form-label fw-bold">Marketing Executive</label>
                             <select id="saRefModalExecutiveId" name="referral_executive_id" class="form-select form-select-solid">
-                                <option value="">System / Default (AIN)</option>
+                                <option value="">System / Default (AI)</option>
                                 @foreach ($executivesList as $exec)
                                     <option value="{{ $exec->id }}">
                                         {{ $exec->name }}@if (!empty($exec->referral_prefix)) ({{ $exec->referral_prefix }})@endif
@@ -872,11 +872,11 @@
 
                     <div id="saRefExecutiveFieldsWrapper" class="d-none">
                         <div class="mb-2">
-                            <label class="form-label fw-bold required">Executive 3-Char Prefix</label>
-                            <input type="text" id="saRefModalPrefix" name="referral_prefix" maxlength="3"
+                            <label class="form-label fw-bold required">Executive 2-Char Prefix</label>
+                            <input type="text" id="saRefModalPrefix" name="referral_prefix" maxlength="2"
                                 class="form-control form-control-solid text-uppercase font-monospace"
-                                placeholder="e.g. USK">
-                            <div class="form-text">Leave blank to clear custom prefix (auto-assigned on next eligible conversion). Must be 3 alphanumeric characters.</div>
+                                placeholder="e.g. US">
+                            <div class="form-text">Leave blank to clear custom prefix (auto-assigned on next eligible conversion). Must be 2 alphanumeric characters.</div>
                         </div>
                     </div>
                 </div>

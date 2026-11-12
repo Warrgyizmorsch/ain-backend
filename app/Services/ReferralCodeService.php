@@ -18,11 +18,13 @@ class ReferralCodeService
     public const STAFF_EXECUTIVE_ROLE_IDS = [1, 4, 9];
 
     public const CODE_SUFFIX_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    public const PREFIX_LENGTH = 3;
-    public const SUFFIX_LENGTH = 3;
+    public const CLIENT_PREFIX_LENGTH = 3;
+    public const EXECUTIVE_PREFIX_LENGTH = 2;
+    public const PREFIX_LENGTH = 2;
     public const DEFAULT_DISCOUNT_PERCENT = 10.00;
     public const DEFAULT_REFERRER_BONUS_PERCENT = 10.00;
-    public const FALLBACK_PREFIX = 'AIN';
+    public const FALLBACK_PREFIX = 'AI';
+    public const FALLBACK_CLIENT_PREFIX = 'USR';
 
     /** @var array<int, bool> */
     private static array $processingOrderIds = [];
@@ -41,7 +43,7 @@ class ReferralCodeService
     {
         $clean = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', Str::ascii((string) $prefix)));
 
-        return substr($clean, 0, self::PREFIX_LENGTH);
+        return substr($clean, 0, self::EXECUTIVE_PREFIX_LENGTH);
     }
 
     public static function normalizeReferralCode(?string $code): string
@@ -49,14 +51,104 @@ class ReferralCodeService
         return strtoupper(preg_replace('/[^A-Za-z0-9]/', '', trim((string) $code)));
     }
 
+    public static function formatDiscountToken(float|int|string|null $discountPercent = null): string
+    {
+        $pct = is_numeric($discountPercent)
+            ? max(0.0, min(100.0, (float) $discountPercent))
+            : self::DEFAULT_DISCOUNT_PERCENT;
+
+        return (string) ((int) round($pct));
+    }
+
     /**
-     * Build ordered list of human-readable 3-character prefix candidates from an executive name.
+     * Build ordered list of human-readable 2-character prefix candidates from an executive name.
      *
      * @return array<int, string>
      */
-    public function derivePrefixCandidates(string $name): array
+    public function derivePrefixCandidates(string $name, ?string $preferredSeed = null): array
     {
         $asciiUpper = strtoupper(Str::ascii(trim($name)));
+        $wordString = trim((string) preg_replace('/[^A-Z0-9\s]+/', ' ', $asciiUpper));
+        $words = array_values(array_filter(preg_split('/\s+/', $wordString) ?: []));
+        $flatLetters = preg_replace('/[^A-Z]/', '', $wordString);
+        $flatAlphaNum = preg_replace('/[^A-Z0-9]/', '', $wordString);
+
+        $candidates = [];
+
+        if ($preferredSeed !== null && $preferredSeed !== '') {
+            $cleanSeed = strtoupper((string) preg_replace('/[^A-Za-z0-9]/', '', Str::ascii($preferredSeed)));
+            if (strlen($cleanSeed) >= self::EXECUTIVE_PREFIX_LENGTH) {
+                $candidates[] = substr($cleanSeed, 0, self::EXECUTIVE_PREFIX_LENGTH);
+            }
+        }
+
+        if (! empty($words)) {
+            $w0 = $words[0];
+            $w1 = $words[1] ?? '';
+
+            // 1. First 2 chars of first word (e.g. Usk -> US, Piyush -> PI, Max -> MA)
+            if (strlen($w0) >= 2) {
+                $candidates[] = substr($w0, 0, 2);
+            }
+
+            // 2. First letter of word 1 + first letter of word 2 (e.g. Usk Kelvin -> UK)
+            if ($w1 !== '') {
+                $candidates[] = $w0[0] . $w1[0];
+                if (strlen($w1) >= 2) {
+                    $candidates[] = $w0[0] . $w1[1];
+                }
+                if (strlen($w0) >= 2) {
+                    $candidates[] = $w0[1] . $w1[0];
+                }
+            }
+        }
+
+        // 3. Sliding 2-char pairs across cleaned letters
+        if (strlen($flatLetters) >= 2) {
+            $candidates[] = substr($flatLetters, 0, 2);
+            $len = strlen($flatLetters);
+            for ($i = 2; $i < $len; $i++) {
+                $candidates[] = $flatLetters[0] . $flatLetters[$i];
+            }
+            for ($i = 1; $i < $len - 1; $i++) {
+                $candidates[] = $flatLetters[$i] . $flatLetters[$i + 1];
+            }
+        }
+
+        if (strlen($flatAlphaNum) >= 2) {
+            $candidates[] = substr($flatAlphaNum, 0, 2);
+        }
+
+        // 4. Deterministic 1-char stem + unambiguous digit/letter fallbacks
+        $stem1 = $flatLetters !== '' ? $flatLetters[0] : ($flatAlphaNum !== '' ? $flatAlphaNum[0] : 'E');
+        foreach (['2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'J', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'X', 'Y', 'Z'] as $ch) {
+            $candidates[] = $stem1 . $ch;
+        }
+
+        $unique = [];
+        foreach ($candidates as $cand) {
+            $cand = strtoupper((string) $cand);
+            if (strlen($cand) === self::EXECUTIVE_PREFIX_LENGTH && preg_match('/^[A-Z0-9]{2}$/', $cand)) {
+                $unique[$cand] = $cand;
+            }
+        }
+
+        return array_values($unique);
+    }
+
+    /**
+     * Build ordered list of 3-character prefix candidates from a client's name (fallback to email local-part).
+     *
+     * @return array<int, string>
+     */
+    public function deriveClientNamePrefixCandidates(string $name, ?string $email = null): array
+    {
+        $source = trim($name);
+        if ($source === '' && $email !== null && $email !== '') {
+            $source = (string) strstr($email, '@', true) ?: $email;
+        }
+
+        $asciiUpper = strtoupper(Str::ascii($source));
         $wordString = trim((string) preg_replace('/[^A-Z0-9\s]+/', ' ', $asciiUpper));
         $words = array_values(array_filter(preg_split('/\s+/', $wordString) ?: []));
         $flatLetters = preg_replace('/[^A-Z]/', '', $wordString);
@@ -69,12 +161,12 @@ class ReferralCodeService
             $w1 = $words[1] ?? '';
             $w2 = $words[2] ?? '';
 
-            // 1. First 3 chars of first word (e.g. MAX -> MAX, Piyush -> PIY, Nikhil -> NIK)
+            // 1. First 3 chars of first word (e.g. Carol Chagas -> CAR, Rahul -> RAH)
             if (strlen($w0) >= 3) {
                 $candidates[] = substr($w0, 0, 3);
             }
 
-            // 2. Combinations using second / third word initials
+            // 2. Combinations using multi-word initials/prefixes for disambiguation
             if ($w1 !== '') {
                 if (strlen($w0) >= 2) {
                     $candidates[] = substr($w0, 0, 2) . $w1[0];
@@ -89,7 +181,7 @@ class ReferralCodeService
             }
         }
 
-        // 3. Sliding 3-char chunks & combinations across cleaned string
+        // 3. Sliding 3-char chunks & combinations across cleaned client name
         if (strlen($flatLetters) >= 3) {
             $candidates[] = substr($flatLetters, 0, 3);
             $len = strlen($flatLetters);
@@ -105,16 +197,20 @@ class ReferralCodeService
             $candidates[] = substr($flatAlphaNum, 0, 3);
         }
 
-        // 4. Deterministic 2-char stem + unambiguous digit/letter fallbacks
-        $stem2 = substr(str_pad($flatLetters !== '' ? $flatLetters : ($flatAlphaNum !== '' ? $flatAlphaNum : 'EX'), 2, 'X'), 0, 2);
-        foreach (['2', '3', '4', '5', '6', '7', '8', '9', 'K', 'M', 'P', 'R', 'S', 'T', 'V', 'W', 'X', 'Z'] as $ch) {
+        // 4. Short names (< 3 chars, e.g. "Al" or "X") + collision escape using unambiguous suffixes
+        $base = $flatLetters !== '' ? $flatLetters : ($flatAlphaNum !== '' ? $flatAlphaNum : self::FALLBACK_CLIENT_PREFIX);
+        if (strlen($base) < 3) {
+            $candidates[] = str_pad($base, 3, 'X');
+        }
+        $stem2 = substr(str_pad($base, 2, 'X'), 0, 2);
+        foreach (['2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'J', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'X', 'Y', 'Z'] as $ch) {
             $candidates[] = $stem2 . $ch;
         }
 
         $unique = [];
         foreach ($candidates as $cand) {
             $cand = strtoupper((string) $cand);
-            if (strlen($cand) === self::PREFIX_LENGTH && preg_match('/^[A-Z0-9]{3}$/', $cand)) {
+            if (strlen($cand) === self::CLIENT_PREFIX_LENGTH && preg_match('/^[A-Z0-9]{3}$/', $cand)) {
                 $unique[$cand] = $cand;
             }
         }
@@ -123,20 +219,21 @@ class ReferralCodeService
     }
 
     /**
-     * Ensure an executive (Admin / Sub-Admin / Marketing) has a persistent unique 3-char prefix.
+     * Ensure an executive (Admin / Sub-Admin / Marketing) has a persistent unique 2-char prefix.
      */
     public function ensureExecutivePrefix(User $executive): string
     {
-        if (Schema::hasColumn('users', 'referral_prefix')) {
-            $existing = self::normalizePrefix($executive->referral_prefix);
-            if (strlen($existing) === self::PREFIX_LENGTH) {
-                if ($executive->referral_prefix !== $existing) {
-                    $executive->referral_prefix = $existing;
-                    $executive->saveQuietly();
-                }
+        $rawExisting = Schema::hasColumn('users', 'referral_prefix')
+            ? strtoupper((string) preg_replace('/[^A-Za-z0-9]/', '', Str::ascii((string) $executive->referral_prefix)))
+            : '';
 
-                return $existing;
+        if (strlen($rawExisting) === self::EXECUTIVE_PREFIX_LENGTH && preg_match('/^[A-Z0-9]{2}$/', $rawExisting)) {
+            if ($executive->referral_prefix !== $rawExisting) {
+                $executive->referral_prefix = $rawExisting;
+                $executive->saveQuietly();
             }
+
+            return $rawExisting;
         }
 
         $takenPrefixes = Schema::hasColumn('users', 'referral_prefix')
@@ -148,12 +245,13 @@ class ReferralCodeService
                 ->where('referral_prefix', '!=', '')
                 ->pluck('referral_prefix')
                 ->map(fn ($p) => strtoupper(trim((string) $p)))
+                ->filter(fn ($p) => strlen($p) === self::EXECUTIVE_PREFIX_LENGTH)
                 ->flip()
                 ->all()
             : [];
 
         $chosen = null;
-        foreach ($this->derivePrefixCandidates((string) $executive->name) as $candidate) {
+        foreach ($this->derivePrefixCandidates((string) $executive->name, $rawExisting) as $candidate) {
             if (! isset($takenPrefixes[$candidate])) {
                 $chosen = $candidate;
                 break;
@@ -165,7 +263,6 @@ class ReferralCodeService
             $len = strlen($alphabet);
             for ($attempt = 0; $attempt < 200; $attempt++) {
                 $cand = $alphabet[random_int(0, $len - 1)]
-                    . $alphabet[random_int(0, $len - 1)]
                     . $alphabet[random_int(0, $len - 1)];
                 if (! isset($takenPrefixes[$cand])) {
                     $chosen = $cand;
@@ -185,39 +282,45 @@ class ReferralCodeService
     }
 
     /**
-     * Generate a globally unique 6-character referral code: [3-char prefix][3-char unambiguous suffix].
+     * Generate a globally unique referral code in format: [User Name Prefix (3)][Executive Prefix (2)][Discount (10)].
      */
-    public function generateUniqueClientCode(string $prefix): string
-    {
-        $cleanPrefix = self::normalizePrefix($prefix);
-        if (strlen($cleanPrefix) < self::PREFIX_LENGTH) {
-            $cleanPrefix = str_pad($cleanPrefix !== '' ? $cleanPrefix : self::FALLBACK_PREFIX, self::PREFIX_LENGTH, 'X');
+    public function generateUniqueClientCode(
+        string $execPrefix,
+        string $clientName = '',
+        float|int|string|null $discountPercent = self::DEFAULT_DISCOUNT_PERCENT,
+        ?string $clientEmail = null,
+        ?int $ignoreUserId = null
+    ): string {
+        $cleanExecPrefix = self::normalizePrefix($execPrefix);
+        if (strlen($cleanExecPrefix) < self::EXECUTIVE_PREFIX_LENGTH) {
+            $cleanExecPrefix = str_pad($cleanExecPrefix !== '' ? $cleanExecPrefix : self::FALLBACK_PREFIX, self::EXECUTIVE_PREFIX_LENGTH, 'X');
+        }
+
+        $discountToken = self::formatDiscountToken($discountPercent);
+        $clientCandidates = $this->deriveClientNamePrefixCandidates($clientName, $clientEmail);
+
+        foreach ($clientCandidates as $userPrefix3) {
+            $code = $userPrefix3 . $cleanExecPrefix . $discountToken;
+            if (! $this->codeExistsAnywhere($code, $ignoreUserId)) {
+                return $code;
+            }
         }
 
         $alphabet = self::CODE_SUFFIX_ALPHABET;
         $maxIndex = strlen($alphabet) - 1;
 
         for ($attempt = 0; $attempt < 300; $attempt++) {
-            $suffix = '';
-            for ($i = 0; $i < self::SUFFIX_LENGTH; $i++) {
-                $suffix .= $alphabet[random_int(0, $maxIndex)];
-            }
-            $code = $cleanPrefix . $suffix;
+            $userPrefix3 = $alphabet[random_int(0, $maxIndex)]
+                . $alphabet[random_int(0, $maxIndex)]
+                . $alphabet[random_int(0, $maxIndex)];
+            $code = $userPrefix3 . $cleanExecPrefix . $discountToken;
 
-            if (! $this->codeExistsAnywhere($code)) {
+            if (! $this->codeExistsAnywhere($code, $ignoreUserId)) {
                 return $code;
             }
         }
 
-        // Deterministic collision escape should random 3-char space ever fill for one prefix
-        for ($i = 0; $i < 100; $i++) {
-            $code = $cleanPrefix . substr(strtoupper(Str::random(4)), 0, 3);
-            if (! $this->codeExistsAnywhere($code)) {
-                return $code;
-            }
-        }
-
-        return $cleanPrefix . strtoupper(Str::random(4));
+        return strtoupper(Str::random(3)) . $cleanExecPrefix . $discountToken;
     }
 
     public function codeExistsAnywhere(string $code, ?int $ignoreUserId = null): bool
@@ -440,7 +543,7 @@ class ReferralCodeService
     }
 
     /**
-     * Idempotently assign a 6-char referral code & default 10% discount once per client on first eligible order.
+     * Idempotently assign a referral code ([User3][Exec2][10]) & default 10% discount once per client on first eligible order.
      */
     public function ensureClientReferralCodeForOrder(Order $order, ?Leads $lead = null, ?User $actingUser = null): ?User
     {
@@ -456,7 +559,16 @@ class ReferralCodeService
 
             $executive = $this->resolveOrderExecutive($order, $lead, $actingUser);
             $prefix = $executive ? $this->ensureExecutivePrefix($executive) : self::FALLBACK_PREFIX;
-            $code = $this->generateUniqueClientCode($prefix);
+            $discountPercent = ($lockedCustomer->referral_discount_percent !== null && $lockedCustomer->referral_discount_percent !== '')
+                ? (float) $lockedCustomer->referral_discount_percent
+                : self::DEFAULT_DISCOUNT_PERCENT;
+            $code = $this->generateUniqueClientCode(
+                $prefix,
+                (string) $lockedCustomer->name,
+                $discountPercent,
+                $lockedCustomer->email,
+                (int) $lockedCustomer->id
+            );
 
             $lockedCustomer->referral_code = $code;
             if ($lockedCustomer->referral_discount_percent === null || $lockedCustomer->referral_discount_percent === '') {

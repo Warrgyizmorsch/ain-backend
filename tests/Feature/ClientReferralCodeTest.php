@@ -108,16 +108,14 @@ class ClientReferralCodeTest extends TestCase
             'role_id' => 4,
         ]);
 
-        // Clear any colliding USK prefix from real seed data only inside transaction if needed,
-        // or assert exact 3-char candidate logic and distinct prefix assignment.
         $candidates1 = $service->derivePrefixCandidates('Usk Kelvin');
-        $this->assertSame('USK', $candidates1[0]);
+        $this->assertSame('US', $candidates1[0]);
 
         $prefix1 = $service->ensureExecutivePrefix($exec1);
         $prefix2 = $service->ensureExecutivePrefix($exec2);
 
-        $this->assertMatchesRegularExpression('/^[A-Z0-9]{3}$/', $prefix1);
-        $this->assertMatchesRegularExpression('/^[A-Z0-9]{3}$/', $prefix2);
+        $this->assertMatchesRegularExpression('/^[A-Z0-9]{2}$/', $prefix1);
+        $this->assertMatchesRegularExpression('/^[A-Z0-9]{2}$/', $prefix2);
         $this->assertNotSame($prefix1, $prefix2);
     }
 
@@ -219,13 +217,13 @@ class ClientReferralCodeTest extends TestCase
         }
     }
 
-    public function test_converted_order_generates_six_char_code_with_exec_prefix_and_preserves_on_repeat_orders(): void
+    public function test_converted_order_generates_user3_exec2_discount10_code_and_preserves_on_repeat_orders(): void
     {
         $exec = $this->createUser([
             'name' => $this->prefix . 'ExecUsk',
             'email' => strtolower($this->prefix) . 'exec_z1@example.test',
             'role_id' => 4,
-            'referral_prefix' => 'Z1K',
+            'referral_prefix' => 'Z1',
         ]);
         $client = $this->createUser(['name' => $this->prefix . 'GenuineClient']);
 
@@ -264,12 +262,11 @@ class ClientReferralCodeTest extends TestCase
 
         $client->refresh();
         $this->assertNotNull($client->referral_code);
-        $this->assertSame(6, strlen($client->referral_code));
-        $this->assertStringStartsWith('Z1K', $client->referral_code);
-        $this->assertMatchesRegularExpression('/^Z1K[A-HJ-NP-Z2-9]{3}$/', $client->referral_code);
+        $this->assertSame('ZZTZ110', $client->referral_code);
+        $this->assertMatchesRegularExpression('/^[A-Z0-9]{3}Z110$/', $client->referral_code);
         $this->assertSame('10.00', number_format((float) $client->referral_discount_percent, 2, '.', ''));
         $this->assertSame((int) $exec->id, (int) $client->referral_executive_id);
-        $this->assertSame('Z1K', $client->referral_prefix);
+        $this->assertSame('Z1', $client->referral_prefix);
         $this->assertNotNull($client->referral_code_generated_at);
 
         $originalCode = $client->referral_code;
@@ -283,7 +280,7 @@ class ClientReferralCodeTest extends TestCase
             'name' => $this->prefix . 'ExecTwo',
             'email' => strtolower($this->prefix) . 'exec_z2@example.test',
             'role_id' => 4,
-            'referral_prefix' => 'Z2M',
+            'referral_prefix' => 'Z2',
         ]);
         $lead2 = Leads::create([
             'order_id' => 'ZZREF_CONV2_' . rand(10000, 99999),
@@ -373,7 +370,7 @@ class ClientReferralCodeTest extends TestCase
             'name' => $this->prefix . 'ExecPiy',
             'email' => strtolower($this->prefix) . 'exec_p9@example.test',
             'role_id' => 4,
-            'referral_prefix' => 'P9Q',
+            'referral_prefix' => 'P9',
         ]);
 
         $referrer = $this->createUser([
@@ -479,8 +476,9 @@ class ClientReferralCodeTest extends TestCase
         $friendOrder->refresh();
 
         $this->assertNotNull($friend->referral_code);
-        $this->assertStringStartsWith('P9Q', $friend->referral_code);
-        $this->assertSame(6, strlen($friend->referral_code));
+        $this->assertSame('ZZTP910', $friend->referral_code);
+        $this->assertMatchesRegularExpression('/^[A-Z0-9]{3}[A-Z0-9]{2}10$/', $friend->referral_code);
+        $this->assertSame('P9', $friend->referral_prefix);
         $this->assertSame('10.00', number_format((float) $friend->referral_discount_percent, 2, '.', ''));
 
         $this->assertNotNull($friendOrder->referral_bonus_awarded_at);
@@ -523,17 +521,17 @@ class ClientReferralCodeTest extends TestCase
     {
         $this->grantTestRoutesForRoles();
 
-        $admin = $this->createUser(['role_id' => 1, 'name' => $this->prefix . 'SuperAdmin', 'referral_prefix' => 'AD1']);
-        $subAdmin = $this->createUser(['role_id' => 9, 'name' => $this->prefix . 'SubAdmin', 'referral_prefix' => 'SA9']);
-        $marketing = $this->createUser(['role_id' => 4, 'name' => $this->prefix . 'MarketingExec', 'referral_prefix' => 'MK4']);
+        $admin = $this->createUser(['role_id' => 1, 'name' => $this->prefix . 'SuperAdmin', 'referral_prefix' => 'A1']);
+        $subAdmin = $this->createUser(['role_id' => 9, 'name' => $this->prefix . 'SubAdmin', 'referral_prefix' => 'S9']);
+        $marketing = $this->createUser(['role_id' => 4, 'name' => $this->prefix . 'MarketingExec', 'referral_prefix' => 'M4']);
         $writerTl = $this->createUser(['role_id' => 6, 'name' => $this->prefix . 'WriterTL']);
 
         $client = $this->createUser([
             'name' => $this->prefix . 'VisibleClient',
-            'referral_code' => 'MK488Z',
+            'referral_code' => 'ZZTM410',
             'referral_discount_percent' => 12.50,
             'referral_executive_id' => $marketing->id,
-            'referral_prefix' => 'MK4',
+            'referral_prefix' => 'M4',
             'referral_code_generated_at' => now(),
         ]);
 
@@ -549,7 +547,7 @@ class ClientReferralCodeTest extends TestCase
         // 1. /user view & edit visibility per role + lazy executives endpoint RBAC
         $this->actingAs($admin);
         $adminHtml = $this->get('/user?user_id=' . $client->id)->assertStatus(200)->getContent();
-        $this->assertStringContainsString('MK488Z', $adminHtml);
+        $this->assertStringContainsString('ZZTM410', $adminHtml);
         $this->assertStringContainsString('12.5% OFF', $adminHtml);
         $this->assertStringContainsString('id="editReferralModal"', $adminHtml);
         $this->assertStringContainsString('js-edit-referral-btn', $adminHtml);
@@ -557,15 +555,15 @@ class ClientReferralCodeTest extends TestCase
         $this->getJson(route('user.referral.executives'))
             ->assertStatus(200)
             ->assertJsonPath('success', true)
-            ->assertJsonFragment(['id' => $marketing->id, 'referral_prefix' => 'MK4']);
+            ->assertJsonFragment(['id' => $marketing->id, 'referral_prefix' => 'M4']);
 
         $adminScrollJson = $this->getJson('/user?scroll=1&user_id=' . $client->id)->assertStatus(200)->json('html');
-        $this->assertStringContainsString('MK488Z', (string) $adminScrollJson);
+        $this->assertStringContainsString('ZZTM410', (string) $adminScrollJson);
         $this->assertStringContainsString('js-edit-referral-btn', (string) $adminScrollJson);
 
         $this->actingAs($subAdmin);
         $subAdminHtml = $this->get('/user?user_id=' . $client->id)->assertStatus(200)->getContent();
-        $this->assertStringContainsString('MK488Z', $subAdminHtml);
+        $this->assertStringContainsString('ZZTM410', $subAdminHtml);
         $this->assertStringContainsString('id="editReferralModal"', $subAdminHtml);
         $this->assertStringContainsString('js-edit-referral-btn', $subAdminHtml);
 
@@ -575,7 +573,7 @@ class ClientReferralCodeTest extends TestCase
 
         $this->actingAs($marketing);
         $marketingHtml = $this->get('/user?user_id=' . $client->id)->assertStatus(200)->getContent();
-        $this->assertStringContainsString('MK488Z', $marketingHtml);
+        $this->assertStringContainsString('ZZTM410', $marketingHtml);
         $this->assertStringContainsString('12.5% OFF', $marketingHtml);
         $this->assertStringNotContainsString('id="editReferralModal"', $marketingHtml);
         $this->assertStringNotContainsString('js-edit-referral-btn', $marketingHtml);
@@ -583,35 +581,35 @@ class ClientReferralCodeTest extends TestCase
 
         $this->actingAs($writerTl);
         $writerHtml = $this->get('/user?user_id=' . $client->id)->assertStatus(200)->getContent();
-        $this->assertStringNotContainsString('MK488Z', $writerHtml);
+        $this->assertStringNotContainsString('ZZTM410', $writerHtml);
         $this->assertStringNotContainsString('<th class="min-w-170px col-referral">', $writerHtml);
         $this->assertStringNotContainsString('data-user-referral-cell="' . $client->id . '"', $writerHtml);
         $this->assertStringNotContainsString('id="editReferralModal"', $writerHtml);
         $this->getJson(route('user.referral.executives'))->assertStatus(403);
 
         $writerScrollJson = $this->getJson('/user?scroll=1&user_id=' . $client->id)->assertStatus(200)->json('html');
-        $this->assertStringNotContainsString('MK488Z', (string) $writerScrollJson);
+        $this->assertStringNotContainsString('ZZTM410', (string) $writerScrollJson);
         $this->assertStringNotContainsString('data-user-referral-cell="' . $client->id . '"', (string) $writerScrollJson);
 
         // 2. /user/report/{id} visibility & edit form RBAC
         $this->actingAs($marketing);
         $mktProfile = $this->get(route('user.report', $client->id))->assertStatus(200)->getContent();
-        $this->assertStringContainsString('MK488Z', $mktProfile);
+        $this->assertStringContainsString('ZZTM410', $mktProfile);
         $this->assertStringNotContainsString('Save Referral', $mktProfile);
 
         $this->actingAs($writerTl);
         $writerProfile = $this->get(route('user.report', $client->id))->assertStatus(200)->getContent();
-        $this->assertStringNotContainsString('MK488Z', $writerProfile);
+        $this->assertStringNotContainsString('ZZTM410', $writerProfile);
         $this->assertStringNotContainsString('Referral Program Details', $writerProfile);
 
         // 3. /orders page visibility per role (end-to-end OrderController + row partial)
         $this->actingAs($marketing);
         $mktOrderHtml = $this->get('/orders?uid=' . $client->id)->assertStatus(200)->getContent();
-        $this->assertStringContainsString('Ref: MK488Z (12.5%)', $mktOrderHtml);
+        $this->assertStringContainsString('Ref: ZZTM410 (12.5%)', $mktOrderHtml);
 
         $this->actingAs($writerTl);
         $writerOrderHtml = $this->get('/orders?uid=' . $client->id)->assertStatus(200)->getContent();
-        $this->assertStringNotContainsString('MK488Z', $writerOrderHtml);
+        $this->assertStringNotContainsString('ZZTM410', $writerOrderHtml);
 
         // 4. Write lock: Marketing (role 4) and WriterTL (role 6) receive 403 on referral edits
         $this->actingAs($marketing);
@@ -634,50 +632,78 @@ class ClientReferralCodeTest extends TestCase
 
         // Confirm DB remained intact
         $client->refresh();
-        $this->assertSame('MK488Z', $client->referral_code);
+        $this->assertSame('ZZTM410', $client->referral_code);
         $this->assertSame('12.50', number_format((float) $client->referral_discount_percent, 2, '.', ''));
 
         // 5. Sub Admin (role 9) CAN update referral code, discount, and executive prefix
         $this->actingAs($subAdmin);
         $this->postJson(route('user.referral.update', $client->id), [
-            'referral_code' => 'MK499X',
+            'referral_code' => 'Vism410',
             'referral_discount_percent' => 20,
             'referral_executive_id' => $marketing->id,
         ])->assertStatus(200)
             ->assertJsonPath('success', true)
-            ->assertJsonPath('data.referral_code', 'MK499X');
+            ->assertJsonPath('data.referral_code', 'VISM410');
 
         $this->postJson(route('user.referral.update', $marketing->id), [
-            'referral_prefix' => 'MKT',
+            'referral_prefix' => 'MK',
         ])->assertStatus(200)
             ->assertJsonPath('success', true)
-            ->assertJsonPath('data.referral_prefix', 'MKT');
+            ->assertJsonPath('data.referral_prefix', 'MK');
 
-        // Reject invalid prefix length (!= 3) and out-of-range discount (> 100)
+        // Reject invalid prefix length (!= 2) and out-of-range discount (> 100)
         $this->postJson(route('user.referral.update', $marketing->id), [
-            'referral_prefix' => 'AB',
+            'referral_prefix' => 'ABC',
         ])->assertStatus(422);
 
         $this->postJson(route('user.referral.update', $client->id), [
-            'referral_code' => 'MK499X',
+            'referral_code' => 'VISM410',
             'referral_discount_percent' => 120,
         ])->assertStatus(422);
 
         // 6. Search by referral code in /user & /search-refer-users & CSV export
         $this->actingAs($admin);
-        $searchHtml = $this->get('/user?user=MK499X')->assertStatus(200)->getContent();
-        $this->assertStringContainsString('MK499X', $searchHtml);
+        $searchHtml = $this->get('/user?user=VISM410')->assertStatus(200)->getContent();
+        $this->assertStringContainsString('VISM410', $searchHtml);
 
-        $referSearch = $this->getJson('/search-refer-users?search=MK499X');
+        $referSearch = $this->getJson('/search-refer-users?search=VISM410');
         $referSearch->assertStatus(200)
-            ->assertJsonFragment(['id' => $client->id, 'referral_code' => 'MK499X']);
+            ->assertJsonFragment(['id' => $client->id, 'referral_code' => 'VISM410']);
 
-        $exportResp = $this->get('/export-users?user=MK499X');
+        $exportResp = $this->get('/export-users?user=VISM410');
         $exportResp->assertStatus(200);
         $csvPath = $exportResp->getFile()->getPathname();
         $csvOutput = (string) file_get_contents($csvPath);
         @unlink($csvPath);
         $this->assertStringContainsString('ReferralCode,ReferralDiscountPercent', $csvOutput);
-        $this->assertStringContainsString('MK499X', $csvOutput);
+        $this->assertStringContainsString('VISM410', $csvOutput);
+    }
+
+    public function test_user3_exec2_discount10_format_with_name_collision_disambiguation(): void
+    {
+        $service = app(ReferralCodeService::class);
+        $exec = $this->createUser([
+            'name' => 'Usk Kelvin',
+            'email' => strtolower($this->prefix) . 'exec_carol@example.test',
+            'role_id' => 4,
+            'referral_prefix' => 'US',
+        ]);
+
+        $carol = $this->createUser(['name' => 'Carol Chagas']);
+        $rahul1 = $this->createUser(['name' => 'Rahul Sharma']);
+        $rahul2 = $this->createUser(['name' => 'Rahul Verma']);
+
+        // Exact specification: User prefix (3) + Marketing Exec prefix (2) + 10 => CARUS10
+        $carolCode = $service->generateUniqueClientCode('US', $carol->name, 10.00, $carol->email, $carol->id);
+        $this->assertSame('CARUS10', $carolCode);
+
+        $rahul1Code = $service->generateUniqueClientCode('US', $rahul1->name, 10.00, $rahul1->email, $rahul1->id);
+        $this->assertSame('RAHUS10', $rahul1Code);
+        DB::table('users')->where('id', $rahul1->id)->update(['referral_code' => $rahul1Code]);
+
+        // Second Rahul under same US exec collides on RAHUS10 -> disambiguates using client's own name words => RAVUS10
+        $rahul2Code = $service->generateUniqueClientCode('US', $rahul2->name, 10.00, $rahul2->email, $rahul2->id);
+        $this->assertNotSame($rahul1Code, $rahul2Code);
+        $this->assertSame('RAVUS10', $rahul2Code);
     }
 }
