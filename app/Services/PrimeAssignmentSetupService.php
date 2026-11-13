@@ -86,37 +86,57 @@ class PrimeAssignmentSetupService
         } else {
             try {
                 DB::statement('ALTER TABLE `prime_service_pages` MODIFY `prime_subject_id` BIGINT UNSIGNED NULL');
-                
-                // Add type column if missing
+            } catch (\Throwable $e) {}
+
+            try {
                 if (!Schema::hasColumn('prime_service_pages', 'type')) {
                     Schema::table('prime_service_pages', function (Blueprint $table) {
                         $table->string('type', 50)->default('service')->after('prime_subject_id')->index();
                     });
                 }
-                
-                // Add extended response columns if missing
+            } catch (\Throwable $e) {}
+
+            try {
                 if (!Schema::hasColumn('prime_service_pages', 'topics')) {
                     Schema::table('prime_service_pages', function (Blueprint $table) {
                         $table->json('topics')->nullable()->after('faqs');
                     });
                 }
+            } catch (\Throwable $e) {}
+
+            try {
                 if (!Schema::hasColumn('prime_service_pages', 'brand')) {
                     Schema::table('prime_service_pages', function (Blueprint $table) {
                         $table->string('brand', 50)->nullable()->after('hero_highlight');
+                    });
+                }
+            } catch (\Throwable $e) {}
+
+            try {
+                if (!Schema::hasColumn('prime_service_pages', 'brand_soft')) {
+                    Schema::table('prime_service_pages', function (Blueprint $table) {
                         $table->string('brand_soft', 50)->nullable()->after('brand');
                     });
                 }
+            } catch (\Throwable $e) {}
+
+            try {
                 if (!Schema::hasColumn('prime_service_pages', 'stats')) {
                     Schema::table('prime_service_pages', function (Blueprint $table) {
                         $table->json('stats')->nullable()->after('brand_soft');
                     });
                 }
+            } catch (\Throwable $e) {}
+
+            try {
                 if (!Schema::hasColumn('prime_service_pages', 'pricing')) {
                     Schema::table('prime_service_pages', function (Blueprint $table) {
                         $table->json('pricing')->nullable()->after('stats');
                     });
                 }
+            } catch (\Throwable $e) {}
 
+            try {
                 DB::table('prime_service_pages')->whereNull('type')->orWhere('type', '')->update(['type' => 'service']);
                 DB::table('prime_service_pages')->where('slug', 'like', '%law%')->where('type', '!=', 'city')->update(['type' => 'service']);
                 DB::table('prime_service_pages')->where('slug', 'like', '%math%')->update(['type' => 'subject']);
@@ -127,9 +147,7 @@ class PrimeAssignmentSetupService
                 if (Schema::hasTable('prime_samples')) {
                     DB::table('prime_samples')->where('is_published', 0)->update(['is_published' => 1]);
                 }
-            } catch (\Throwable $e) {
-                // Ignore if already nullable or driver doesn't support modify
-            }
+            } catch (\Throwable $e) {}
         }
 
         // 3. Prime Blogs

@@ -4,9 +4,12 @@
 <div class="content d-flex flex-column flex-column-fluid" id="kt_content">
 <div id="kt_content_container" class="container-xxl py-6">
 @php($editing = $page->exists)
-<form method="POST" action="{{ $editing ? route('prime-service-pages.update', $page) : route('prime-service-pages.store') }}">
+<form method="POST" action="{{ $editing ? route('prime-service-pages.update', $page) : route('prime-service-pages.store') }}" id="primePageForm">
 @csrf
-@if($editing) @method('PUT') @endif
+@if($editing)
+    @method('PUT')
+    <input type="hidden" name="id" value="{{ $page->id }}">
+@endif
 
 <div class="card mb-6">
     <div class="card-header">
@@ -16,18 +19,31 @@
             @if($editing)
                 <button type="button" class="btn btn-light-info me-2 btn-preview" data-url="{{ route('prime-service-pages.preview', $page) }}">Preview</button>
             @endif
-            <button class="btn btn-primary">Save Page</button>
+            <button type="submit" class="btn btn-primary">Save Page</button>
         </div>
     </div>
     <div class="card-body">
         @include('layouts.flash')
+        @if(session('error'))
+            <div class="alert alert-danger alert-dismissible fade show mb-4" role="alert">
+                <strong>{{ session('error') }}</strong>
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        @endif
+        @if(session('success'))
+            <div class="alert alert-success alert-dismissible fade show mb-4" role="alert">
+                <strong>{{ session('success') }}</strong>
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        @endif
         @if($errors->any())
-            <div class="alert alert-danger">
+            <div class="alert alert-danger alert-dismissible fade show mb-4" role="alert">
                 <ul class="mb-0">
                     @foreach($errors->all() as $error)
                         <li>{{ $error }}</li>
                     @endforeach
                 </ul>
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
             </div>
         @endif
         <div class="row g-5">
@@ -205,7 +221,7 @@
             <input class="form-check-input" type="checkbox" name="is_published" value="1" @checked(old('is_published', $page->exists ? $page->is_published : true))>
             <span class="form-check-label fw-bold">Publish on frontend</span>
         </label>
-        <button class="btn btn-primary px-10">Save Page</button>
+        <button type="submit" class="btn btn-primary px-10">Save Page</button>
     </div>
 </div>
 </form>
@@ -390,21 +406,34 @@ document.addEventListener('DOMContentLoaded', function () {
         document.body.appendChild(script);
     }
 
-    loadScript('https://cdn.jsdelivr.net/npm/summernote@0.9.0/dist/summernote-lite.min.js', function () {
-        $('#long_content').summernote({
-            placeholder: 'Enter long content with formatting, points, lists, etc...',
-            tabsize: 2,
-            height: 350,
-            toolbar: [
-                ['style', ['style']],
-                ['font', ['bold', 'italic', 'underline', 'clear']],
-                ['color', ['color']],
-                ['para', ['ul', 'ol', 'paragraph']],
-                ['table', ['table']],
-                ['insert', ['link', 'picture']],
-                ['view', ['codeview', 'help']]
-            ]
+        loadScript('https://cdn.jsdelivr.net/npm/summernote@0.9.0/dist/summernote-lite.min.js', function () {
+            $('#long_content').summernote({
+                placeholder: 'Enter long content with formatting, points, lists, etc...',
+                tabsize: 2,
+                height: 350,
+                toolbar: [
+                    ['style', ['style']],
+                    ['font', ['bold', 'italic', 'underline', 'clear']],
+                    ['color', ['color']],
+                    ['para', ['ul', 'ol', 'paragraph']],
+                    ['table', ['table']],
+                    ['insert', ['link', 'picture']],
+                    ['view', ['codeview', 'help']]
+                ]
+            });
         });
+
+        // Ensure Summernote content is synced to textarea before any form submit
+        const form = document.getElementById('primePageForm');
+        if (form) {
+            form.addEventListener('submit', function () {
+                if (typeof $ !== 'undefined' && $('#long_content').data('summernote')) {
+                    try {
+                        $('#long_content').val($('#long_content').summernote('code'));
+                    } catch (e) {}
+                }
+            });
+        }
     });
 });
 </script>
