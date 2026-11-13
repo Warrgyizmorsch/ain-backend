@@ -151,50 +151,6 @@
 
 <div class="card mb-6">
     <div class="card-header">
-        <h3 class="card-title">Why Choose Section</h3>
-        <div class="card-toolbar">
-            <button type="button" id="addWhyItem" class="btn btn-sm btn-light-primary">Add Benefit</button>
-        </div>
-    </div>
-    <div class="card-body">
-        <div class="row g-5 mb-6">
-            <div class="col-md-6">
-                <label class="form-label">Main Heading</label>
-                <input name="why_heading" class="form-control" value="{{ old('why_heading', $page->why_heading) }}" placeholder="Why Choose Our Prime Assignment Help?">
-            </div>
-            <div class="col-md-6">
-                <label class="form-label">Subheading / Intro Content</label>
-                <textarea name="why_subheading" class="form-control" rows="3" placeholder="Short introductory paragraph...">{{ old('why_subheading', $page->why_subheading) }}</textarea>
-            </div>
-        </div>
-        <div id="whyItemRows" class="row g-5"></div>
-    </div>
-</div>
-
-<div class="card mb-6">
-    <div class="card-header">
-        <h3 class="card-title">Final CTA</h3>
-    </div>
-    <div class="card-body">
-        <div class="row g-5">
-            <div class="col-12">
-                <label class="form-label">CTA Content</label>
-                <textarea name="cta_content" class="form-control" rows="3" placeholder="Get professional academic writing help today...">{{ old('cta_content', $page->cta_content) }}</textarea>
-            </div>
-            <div class="col-md-6">
-                <label class="form-label">Button Label</label>
-                <input name="cta_button_label" class="form-control" value="{{ old('cta_button_label', $page->cta_button_label) }}" placeholder="Get Free Quote Now">
-            </div>
-            <div class="col-md-6">
-                <label class="form-label">Button URL</label>
-                <input name="cta_button_url" class="form-control" value="{{ old('cta_button_url', $page->cta_button_url) }}" placeholder="/order-now">
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="card mb-6">
-    <div class="card-header">
         <h3 class="card-title">Dynamic FAQs</h3>
         <div class="card-toolbar">
             <button type="button" id="addFaq" class="btn btn-sm btn-light-primary">Add FAQ</button>
@@ -206,11 +162,41 @@
 </div>
 
 <div class="card mb-6">
-    <div class="card-header">
+    <div class="card-header d-flex justify-content-between align-items-center">
         <h3 class="card-title">Long Content Section</h3>
+        <div class="card-toolbar d-flex align-items-center gap-2">
+            <span class="text-muted fs-7 me-1">Mode:</span>
+            <div class="btn-group" role="group" aria-label="Editor Mode">
+                <button type="button" id="btnModeVisual" class="btn btn-sm btn-primary active">
+                    <i class="fa fa-font me-1"></i> Visual / Direct Text
+                </button>
+                <button type="button" id="btnModeHtml" class="btn btn-sm btn-light-primary">
+                    <i class="fa fa-code me-1"></i> Raw HTML Code
+                </button>
+            </div>
+        </div>
     </div>
     <div class="card-body">
-        <textarea id="long_content" name="long_content" class="form-control">{{ old('long_content', $page->long_content) }}</textarea>
+        <div class="alert alert-light-info d-flex align-items-center p-3 mb-4">
+            <i class="fa fa-info-circle text-info fs-4 me-3"></i>
+            <div class="fs-7 text-gray-700">
+                Aap <strong>Visual / Direct Text</strong> mode me direct text format kar sakte hain ya <strong>Raw HTML Code</strong> mode me direct HTML code paste/edit kar sakte hain. Dono mode auto-sync honge.
+            </div>
+        </div>
+
+        <!-- Raw HTML Code Editor (Monospace Dark Box) -->
+        <div id="htmlEditorContainer" style="display: none;">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="text-muted fs-7"><i class="fa fa-code text-primary me-1"></i> HTML Editor (Paste ya type karein raw HTML code):</span>
+                <span class="badge badge-light-primary fs-8">HTML Code View</span>
+            </div>
+            <textarea id="long_content_raw" class="form-control" rows="18" style="font-family: Consolas, Monaco, 'Courier New', monospace; font-size: 13.5px; line-height: 1.6; background-color: #1e1e2d; color: #5eead4; border: 1px solid #2d3748; border-radius: 8px; padding: 14px;" placeholder="<h2>Apna Heading</h2><p>Apna HTML content yahan paste karein...</p>"></textarea>
+        </div>
+
+        <!-- Visual Direct Text Editor Area -->
+        <div id="visualEditorContainer">
+            <textarea id="long_content" name="long_content" class="form-control" style="min-height: 380px;">{{ old('long_content', $page->long_content) }}</textarea>
+        </div>
     </div>
 </div>
 
@@ -227,37 +213,6 @@
 </form>
 
 @php($faqValues = old('faqs', $page->faqs ?: [['question' => '', 'answer' => '']]))
-@php($whyItemValues = old('why_items', $page->why_items ?: [['icon' => 'fas fa-clipboard-check', 'heading' => '', 'content' => '']]))
-
-<template id="whyItemTemplate">
-    <div class="why-item-row col-md-6">
-        <div class="border rounded p-4 h-100">
-            <div class="d-flex justify-content-between align-items-center mb-4">
-                <strong>Benefit Item</strong>
-                <div>
-                    <button type="button" class="btn btn-sm btn-light-info clone-why-item me-2"><i class="fa fa-copy"></i> Clone</button>
-                    <button type="button" class="btn btn-sm btn-light-danger remove-why-item">Remove</button>
-                </div>
-            </div>
-            <label class="form-label">Icon</label>
-            <select class="form-select why-icon mb-3">
-                <option value="fas fa-clipboard-check">Clipboard Check</option>
-                <option value="fas fa-edit">Edit / Custom Solution</option>
-                <option value="fas fa-check-square">Accuracy Check</option>
-                <option value="fas fa-link">Confidentiality Link</option>
-                <option value="fas fa-user-shield">Privacy Shield</option>
-                <option value="fas fa-headset">Support</option>
-                <option value="fas fa-award">Quality Award</option>
-                <option value="fas fa-clock">On-time Delivery</option>
-                <option value="fas fa-book-open">Academic Expertise</option>
-            </select>
-            <label class="form-label required">H3 Heading</label>
-            <input class="form-control why-heading mb-3" placeholder="Quality Assistance">
-            <label class="form-label required">Content</label>
-            <textarea class="form-control why-content" rows="4" placeholder="Benefit description..."></textarea>
-        </div>
-    </div>
-</template>
 
 <template id="faqTemplate">
     <div class="faq-row border rounded p-4 mb-4">
@@ -294,35 +249,7 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 </script>
 
-<script>
-document.addEventListener('DOMContentLoaded', function () {
-    const rows = document.getElementById('whyItemRows');
-    const tpl = document.getElementById('whyItemTemplate');
-    let index = 0;
 
-    function addWhyItem(item = {}) {
-        const node = tpl.content.cloneNode(true);
-        const row = node.querySelector('.why-item-row');
-        row.querySelector('.why-icon').name = `why_items[${index}][icon]`;
-        row.querySelector('.why-heading').name = `why_items[${index}][heading]`;
-        row.querySelector('.why-content').name = `why_items[${index}][content]`;
-        row.querySelector('.why-icon').value = item.icon || 'fas fa-clipboard-check';
-        row.querySelector('.why-heading').value = item.heading || '';
-        row.querySelector('.why-content').value = item.content || '';
-        row.querySelector('.remove-why-item').onclick = () => row.remove();
-        row.querySelector('.clone-why-item').onclick = () => addWhyItem({
-            icon: row.querySelector('.why-icon').value,
-            heading: row.querySelector('.why-heading').value,
-            content: row.querySelector('.why-content').value
-        });
-        rows.appendChild(node);
-        index++;
-    }
-
-    document.getElementById('addWhyItem').onclick = () => addWhyItem();
-    @json($whyItemValues).forEach(addWhyItem);
-});
-</script>
 
 <script>
 document.addEventListener('DOMContentLoaded', function () {
@@ -397,44 +324,178 @@ document.addEventListener('DOMContentLoaded', function () {
 </script>
 
 <link href="https://cdn.jsdelivr.net/npm/summernote@0.9.0/dist/summernote-lite.min.css" rel="stylesheet">
+<style>
+    .note-editor.note-frame {
+        border: 1px solid #e4e6ef !important;
+        border-radius: 8px !important;
+        box-shadow: none !important;
+    }
+    .note-editor .note-toolbar {
+        background: #f8f9fa !important;
+        border-bottom: 1px solid #e4e6ef !important;
+        border-top-left-radius: 8px !important;
+        border-top-right-radius: 8px !important;
+        padding: 6px 10px !important;
+    }
+    .note-editor .note-editable {
+        min-height: 380px !important;
+        font-family: inherit !important;
+        font-size: 14px !important;
+        line-height: 1.7 !important;
+        color: #181c32 !important;
+        background: #ffffff !important;
+        padding: 16px !important;
+    }
+    .note-editor .note-statusbar {
+        border-bottom-left-radius: 8px !important;
+        border-bottom-right-radius: 8px !important;
+        background: #f8f9fa !important;
+    }
+</style>
+
 <script>
 document.addEventListener('DOMContentLoaded', function () {
+    const rawTextarea = document.getElementById('long_content_raw');
+    const visualTextarea = document.getElementById('long_content');
+    const visualContainer = document.getElementById('visualEditorContainer');
+    const htmlContainer = document.getElementById('htmlEditorContainer');
+    const btnVisual = document.getElementById('btnModeVisual');
+    const btnHtml = document.getElementById('btnModeHtml');
+    const form = document.getElementById('primePageForm');
+
+    let currentMode = 'visual';
+    let summernoteReady = false;
+
+    // Initialize raw textarea value with existing content
+    if (rawTextarea && visualTextarea) {
+        rawTextarea.value = visualTextarea.value || '';
+    }
+
+    function getEditorContent() {
+        if (summernoteReady && typeof $ !== 'undefined' && $('#long_content').data('summernote')) {
+            return $('#long_content').summernote('code');
+        }
+        return visualTextarea ? visualTextarea.value : '';
+    }
+
+    function setEditorContent(content) {
+        if (summernoteReady && typeof $ !== 'undefined' && $('#long_content').data('summernote')) {
+            $('#long_content').summernote('code', content);
+        }
+        if (visualTextarea) {
+            visualTextarea.value = content;
+        }
+    }
+
+    function switchToVisual() {
+        if (currentMode === 'visual') return;
+        const htmlVal = rawTextarea.value;
+        setEditorContent(htmlVal);
+        currentMode = 'visual';
+        if (htmlContainer) htmlContainer.style.display = 'none';
+        if (visualContainer) visualContainer.style.display = 'block';
+
+        if (btnVisual) {
+            btnVisual.classList.add('btn-primary', 'active');
+            btnVisual.classList.remove('btn-light-primary');
+        }
+        if (btnHtml) {
+            btnHtml.classList.remove('btn-primary', 'active');
+            btnHtml.classList.add('btn-light-primary');
+        }
+    }
+
+    function switchToHtml() {
+        if (currentMode === 'html') return;
+        const visualVal = getEditorContent();
+        if (rawTextarea) rawTextarea.value = visualVal;
+        currentMode = 'html';
+        if (visualContainer) visualContainer.style.display = 'none';
+        if (htmlContainer) htmlContainer.style.display = 'block';
+
+        if (btnHtml) {
+            btnHtml.classList.add('btn-primary', 'active');
+            btnHtml.classList.remove('btn-light-primary');
+        }
+        if (btnVisual) {
+            btnVisual.classList.remove('btn-primary', 'active');
+            btnVisual.classList.add('btn-light-primary');
+        }
+        if (rawTextarea) rawTextarea.focus();
+    }
+
+    if (btnVisual) btnVisual.addEventListener('click', switchToVisual);
+    if (btnHtml) btnHtml.addEventListener('click', switchToHtml);
+
+    // Sync content to main textarea before form submit
+    if (form) {
+        form.addEventListener('submit', function () {
+            if (currentMode === 'html') {
+                if (visualTextarea && rawTextarea) {
+                    visualTextarea.value = rawTextarea.value;
+                }
+                if (summernoteReady && typeof $ !== 'undefined' && $('#long_content').data('summernote')) {
+                    try {
+                        $('#long_content').summernote('code', rawTextarea.value);
+                    } catch (e) {}
+                }
+            } else {
+                if (summernoteReady && typeof $ !== 'undefined' && $('#long_content').data('summernote')) {
+                    try {
+                        const code = $('#long_content').summernote('code');
+                        if (visualTextarea) visualTextarea.value = code;
+                        if (rawTextarea) rawTextarea.value = code;
+                    } catch (e) {}
+                }
+            }
+        });
+    }
+
     function loadScript(src, callback) {
-        let script = document.createElement('script');
+        const script = document.createElement('script');
         script.src = src;
         script.onload = callback;
         document.body.appendChild(script);
     }
 
-        loadScript('https://cdn.jsdelivr.net/npm/summernote@0.9.0/dist/summernote-lite.min.js', function () {
-            $('#long_content').summernote({
-                placeholder: 'Enter long content with formatting, points, lists, etc...',
-                tabsize: 2,
-                height: 350,
-                toolbar: [
-                    ['style', ['style']],
-                    ['font', ['bold', 'italic', 'underline', 'clear']],
-                    ['color', ['color']],
-                    ['para', ['ul', 'ol', 'paragraph']],
-                    ['table', ['table']],
-                    ['insert', ['link', 'picture']],
-                    ['view', ['codeview', 'help']]
-                ]
-            });
-        });
-
-        // Ensure Summernote content is synced to textarea before any form submit
-        const form = document.getElementById('primePageForm');
-        if (form) {
-            form.addEventListener('submit', function () {
-                if (typeof $ !== 'undefined' && $('#long_content').data('summernote')) {
-                    try {
-                        $('#long_content').val($('#long_content').summernote('code'));
-                    } catch (e) {}
+    function initSummernote() {
+        if (typeof $ === 'undefined' || typeof $.fn.summernote === 'undefined') return;
+        $('#long_content').summernote({
+            placeholder: 'Type direct content with headings, lists, tables or switch to HTML Code mode...',
+            tabsize: 2,
+            height: 380,
+            toolbar: [
+                ['style', ['style']],
+                ['font', ['bold', 'italic', 'underline', 'clear']],
+                ['color', ['color']],
+                ['para', ['ul', 'ol', 'paragraph']],
+                ['table', ['table']],
+                ['insert', ['link', 'picture', 'hr']],
+                ['view', ['fullscreen', 'codeview']]
+            ],
+            callbacks: {
+                onInit: function () {
+                    summernoteReady = true;
+                    if (rawTextarea && !rawTextarea.value) {
+                        rawTextarea.value = $('#long_content').summernote('code');
+                    }
+                },
+                onChange: function (contents) {
+                    if (currentMode === 'visual' && rawTextarea) {
+                        rawTextarea.value = contents;
+                    }
                 }
-            });
-        }
-    });
+            }
+        });
+    }
+
+    if (typeof window.jQuery !== 'undefined') {
+        loadScript('https://cdn.jsdelivr.net/npm/summernote@0.9.0/dist/summernote-lite.min.js', initSummernote);
+    } else {
+        loadScript('https://code.jquery.com/jquery-3.7.1.min.js', function () {
+            loadScript('https://cdn.jsdelivr.net/npm/summernote@0.9.0/dist/summernote-lite.min.js', initSummernote);
+        });
+    }
 });
 </script>
 </div>
