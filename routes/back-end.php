@@ -72,6 +72,7 @@ Route::middleware(['auth'])->group(function () {
     Route::resource('prime-subjects', PrimeSubjectController::class)->only(['index', 'store', 'update', 'destroy']);
     Route::get('prime-service-pages/{primeServicePage}/preview', [PrimeServicePageController::class, 'preview'])->name('prime-service-pages.preview');
     Route::resource('prime-service-pages', PrimeServicePageController::class)->except(['show']);
+    Route::match(['put', 'patch', 'post'], 'prime-service-pages/{primeServicePage}', [PrimeServicePageController::class, 'update'])->name('prime-service-pages.update.fallback');
     Route::get('prime-blogs/{primeBlog}/preview', [PrimeBlogController::class, 'preview'])->name('prime-blogs.preview');
     Route::resource('prime-blogs', PrimeBlogController::class)->except(['show']);
     Route::get('prime-samples/{primeSample}/preview', [PrimeSampleController::class, 'preview'])->name('prime-samples.preview');
