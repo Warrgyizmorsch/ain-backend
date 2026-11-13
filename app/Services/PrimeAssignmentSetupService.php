@@ -137,16 +137,11 @@ class PrimeAssignmentSetupService
             } catch (\Throwable $e) {}
 
             try {
-                DB::table('prime_service_pages')->whereNull('type')->orWhere('type', '')->update(['type' => 'service']);
-                DB::table('prime_service_pages')->where('slug', 'like', '%law%')->where('type', '!=', 'city')->update(['type' => 'service']);
-                DB::table('prime_service_pages')->where('slug', 'like', '%math%')->update(['type' => 'subject']);
-                DB::table('prime_service_pages')->where('is_published', 0)->update(['is_published' => 1]);
-                if (Schema::hasTable('prime_blogs')) {
-                    DB::table('prime_blogs')->where('is_published', 0)->update(['is_published' => 1]);
-                }
-                if (Schema::hasTable('prime_samples')) {
-                    DB::table('prime_samples')->where('is_published', 0)->update(['is_published' => 1]);
-                }
+                // Only default legacy rows where type is completely null or empty
+                DB::table('prime_service_pages')
+                    ->whereNull('type')
+                    ->orWhere('type', '')
+                    ->update(['type' => 'service']);
             } catch (\Throwable $e) {}
         }
 
