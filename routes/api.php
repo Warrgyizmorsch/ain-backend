@@ -24,6 +24,7 @@ use App\Http\Controllers\Api\PrimeServicePageApiController;
 use App\Http\Controllers\Api\PrimeBlogApiController;
 use App\Http\Controllers\Api\PrimeSampleApiController;
 use App\Http\Controllers\Api\EnquiryApiController;
+use App\Http\Controllers\Api\ContactApiController;
 use App\Http\Controllers\PluginController;
 
 /*
@@ -54,6 +55,8 @@ Route::prefix('public/leads')->group(function () {
     Route::post('/send-otp', [PublicLeadOtpController::class, 'sendOtpAndCreateLead']);
     Route::post('/verify-otp', [PublicLeadOtpController::class, 'verifyOtp']);
 });
+Route::get('/contact-us', [ContactApiController::class, 'contactDetails']);
+Route::get('/contact-details', [ContactApiController::class, 'contactDetails']);
 Route::post('/submit-feedback', [FeedbackController::class, 'submitFeedback']);
 Route::post('/save-order', [OrderApiController::class, 'store']);
 Route::post('/submit-enquiry', [EnquiryApiController::class, 'store']);
@@ -161,6 +164,8 @@ Route::prefix('v1')->group(function () {
 });
 
 Route::prefix('app')->group(function () {
+    Route::get('/contact-us', [ContactApiController::class, 'contactDetails']);
+    Route::get('/contact-details', [ContactApiController::class, 'contactDetails']);
     Route::get('/countries', [AppDropdownController::class, 'countries']);
     Route::get('/services', [AppDropdownController::class, 'services']);
     Route::get('/work-types', [AppDropdownController::class, 'workTypes']);
