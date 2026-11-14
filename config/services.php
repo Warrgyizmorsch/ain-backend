@@ -70,6 +70,12 @@ return [
         'password' => env('SOFTPHONE_PASSWORD', ''),
         'sip_domain' => env('SOFTPHONE_SIP_DOMAIN', ''),
     ],
+    'contact' => [
+        'call_number' => env('APP_CONTACT_CALL_NUMBER', '+44 7917481696'),
+        'whatsapp_number' => env('APP_CONTACT_WHATSAPP_NUMBER', '+44 78262 33106'),
+        'email' => env('APP_CONTACT_EMAIL', 'order@assignnmentinneed.com'),
+    ],
+
    
 
 ];
