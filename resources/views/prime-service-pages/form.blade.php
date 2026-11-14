@@ -151,6 +151,28 @@
 
 <div class="card mb-6">
     <div class="card-header">
+        <h3 class="card-title">Why Choose Section</h3>
+        <div class="card-toolbar">
+            <button type="button" id="addWhyItem" class="btn btn-sm btn-light-primary">Add Benefit</button>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="row g-5 mb-6">
+            <div class="col-md-6">
+                <label class="form-label">Main Heading</label>
+                <input name="why_heading" class="form-control" value="{{ old('why_heading', $page->why_heading) }}" placeholder="Why Choose Our Prime Assignment Help?">
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Subheading / Intro Content</label>
+                <textarea name="why_subheading" class="form-control" rows="3" placeholder="Short introductory paragraph...">{{ old('why_subheading', $page->why_subheading) }}</textarea>
+            </div>
+        </div>
+        <div id="whyItemRows" class="row g-5"></div>
+    </div>
+</div>
+
+<div class="card mb-6">
+    <div class="card-header">
         <h3 class="card-title">Dynamic FAQs</h3>
         <div class="card-toolbar">
             <button type="button" id="addFaq" class="btn btn-sm btn-light-primary">Add FAQ</button>
@@ -213,6 +235,37 @@
 </form>
 
 @php($faqValues = old('faqs', $page->faqs ?: [['question' => '', 'answer' => '']]))
+@php($whyItemValues = old('why_items', $page->why_items ?: [['icon' => 'fas fa-clipboard-check', 'heading' => '', 'content' => '']]))
+
+<template id="whyItemTemplate">
+    <div class="why-item-row col-md-6">
+        <div class="border rounded p-4 h-100">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <strong>Benefit Item</strong>
+                <div>
+                    <button type="button" class="btn btn-sm btn-light-info clone-why-item me-2"><i class="fa fa-copy"></i> Clone</button>
+                    <button type="button" class="btn btn-sm btn-light-danger remove-why-item">Remove</button>
+                </div>
+            </div>
+            <label class="form-label">Icon</label>
+            <select class="form-select why-icon mb-3">
+                <option value="fas fa-clipboard-check">Clipboard Check</option>
+                <option value="fas fa-edit">Edit / Custom Solution</option>
+                <option value="fas fa-check-square">Accuracy Check</option>
+                <option value="fas fa-link">Confidentiality Link</option>
+                <option value="fas fa-user-shield">Privacy Shield</option>
+                <option value="fas fa-headset">Support</option>
+                <option value="fas fa-award">Quality Award</option>
+                <option value="fas fa-clock">On-time Delivery</option>
+                <option value="fas fa-book-open">Academic Expertise</option>
+            </select>
+            <label class="form-label required">H3 Heading</label>
+            <input class="form-control why-heading mb-3" placeholder="Quality Assistance">
+            <label class="form-label required">Content</label>
+            <textarea class="form-control why-content" rows="4" placeholder="Benefit description..."></textarea>
+        </div>
+    </div>
+</template>
 
 <template id="faqTemplate">
     <div class="faq-row border rounded p-4 mb-4">
@@ -246,6 +299,53 @@ document.addEventListener('DOMContentLoaded', function () {
 
     document.getElementById('addFaq').onclick = () => addFaq();
     @json($faqValues).forEach(addFaq);
+});
+</script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const rows = document.getElementById('whyItemRows');
+    const tpl = document.getElementById('whyItemTemplate');
+    let index = 0;
+
+    function addWhyItem(item = {}) {
+        if (!rows || !tpl) return;
+        const node = tpl.content.cloneNode(true);
+        const row = node.querySelector('.why-item-row');
+        const iconSelect = row.querySelector('.why-icon');
+        iconSelect.name = `why_items[${index}][icon]`;
+        row.querySelector('.why-heading').name = `why_items[${index}][heading]`;
+        row.querySelector('.why-content').name = `why_items[${index}][content]`;
+
+        const currentIcon = item.icon || 'fas fa-clipboard-check';
+        if (currentIcon && !iconSelect.querySelector(`option[value="${currentIcon}"]`)) {
+            const opt = document.createElement('option');
+            opt.value = currentIcon;
+            opt.textContent = currentIcon;
+            iconSelect.appendChild(opt);
+        }
+        iconSelect.value = currentIcon;
+
+        row.querySelector('.why-heading').value = item.heading || '';
+        row.querySelector('.why-content').value = item.content || '';
+        row.querySelector('.remove-why-item').onclick = () => row.remove();
+        row.querySelector('.clone-why-item').onclick = () => addWhyItem({
+            icon: iconSelect.value,
+            heading: row.querySelector('.why-heading').value,
+            content: row.querySelector('.why-content').value
+        });
+        rows.appendChild(node);
+        index++;
+    }
+
+    const addWhyBtn = document.getElementById('addWhyItem');
+    if (addWhyBtn) {
+        addWhyBtn.onclick = () => addWhyItem();
+    }
+    const initialWhyItems = @json($whyItemValues);
+    if (Array.isArray(initialWhyItems)) {
+        initialWhyItems.forEach(addWhyItem);
+    }
 });
 </script>
 
