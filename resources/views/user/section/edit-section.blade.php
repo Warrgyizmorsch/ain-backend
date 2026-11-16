@@ -1,9 +1,11 @@
- <!-- Edit Section Start   -->
- <div class="modal fade" id="kt_modal_create_app{{$user->id}}" tabindex="-1" aria-hidden="true">
-		<div class="modal-dialog modal-dialog-centered mw-900px">
-			<div class="modal-content">
+<!-- Edit Section Start -->
+<div class="modal fade" id="kt_modal_create_app{{$user->id}}" tabindex="-1" aria-hidden="true">
+	<div class="modal-dialog modal-dialog-centered modal-dialog-scrollable mw-900px">
+		<div class="modal-content">
+			<form id="edit_user_form_{{$user->id}}" class="form d-flex flex-column flex-grow-1" method="POST" enctype="multipart/form-data" action="{{ route('user.update', ['id' =>  $user->id ]) }}">
+				@csrf
 				<div class="modal-header">
-					<h2>User Details </h2>
+					<h2 class="fw-bolder">User Details</h2>
 					<div class="btn btn-sm btn-icon btn-active-color-primary" data-bs-dismiss="modal">
 						<span class="svg-icon svg-icon-1">
 							<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
@@ -13,232 +15,215 @@
 						</span>
 					</div>
 				</div>
-			    <div class="card-body p-9">
-                    <form id="{{$user->id}}" class="form fv-plugins-bootstrap5 fv-plugins-framework" method="POST" enctype="multipart/form-data" action="{{ route('user.update', ['id' =>  $user->id ]) }}">
-						@csrf
-						<div class="card-body border-top p-9">
-							<div class="row mb-6">
-								<label class="col-lg-4 col-form-label fw-bold fs-6">Avatar</label>
-								<div class="col-lg-8">
-									<div class="image-input image-input-outline" data-kt-image-input="true" style="background-image: url(assets/media/avatars/blank.png)">
-									@if($user->photo)
-										<div class="image-input-wrapper w-125px h-125px" style="background-image: url({{ asset($user->photo) }})"></div>
-									@else
-										<div class="image-input-wrapper w-125px h-125px" style="background-image:  url(assets/media/avatars/blank.png)"></div>
-									@endif
-										<label class="btn btn-icon btn-circle btn-active-color-primary w-25px h-25px bg-body shadow" data-kt-image-input-action="change" data-bs-toggle="tooltip" title="" data-bs-original-title="Change avatar">
-											<i class="bi bi-pencil-fill fs-7"></i>
-											<input type="file" name="photo" accept=".png, .jpg, .jpeg">
-										</label>
-										<span class="btn btn-icon btn-circle btn-active-color-primary w-25px h-25px bg-body shadow" data-kt-image-input-action="cancel" data-bs-toggle="tooltip" title="" data-bs-original-title="Cancel avatar">
-											<i class="bi bi-x fs-2"></i>
-										</span>
-										<span class="btn btn-icon btn-circle btn-active-color-primary w-25px h-25px bg-body shadow" data-kt-image-input-action="remove" data-bs-toggle="tooltip" title="" data-bs-original-title="Remove avatar">
-											<i class="bi bi-x fs-2"></i>
-										</span>
-									</div>
-									<div class="form-text">Allowed file types: png, jpg, jpeg.</div>
-								</div>
-							</div>
-
-							<div class="row mb-12">
-								<label class="col-lg-4 col-form-label required fw-bold fs-6">Name</label>
-								<div class="col-lg-8">
-									<div class="row">
-										<div class="col-lg-12 fv-row fv-plugins-icon-container">
-											<input type="text" name="name" class="form-control form-control-lg form-control-solid mb-3 mb-lg-0" placeholder="Name" value="{{ $user->name }}">
-										<div class="fv-plugins-message-container invalid-feedback"></div></div>
-										
-									</div>
-								</div>
-							</div>
-							<div class="row mb-6">
-								<label class="col-lg-4 col-form-label required fw-bold fs-6">Email</label>
-								<div class="col-lg-8 fv-row fv-plugins-icon-container">
-									<input type="email" name="email" class="form-control form-control-lg form-control-solid" placeholder="Youremail@gmail.com"  value="{{ $user->email }}">
-								<div class="fv-plugins-message-container invalid-feedback"></div></div>
-							</div>
-
-                            <div class="row mb-6">
-								<label class="col-lg-4 col-form-label required fw-bold fs-6">Role</label>
-								<div class="col-lg-3 fv-row fv-plugins-icon-container">
-                                    <select name="role" aria-label="Select a Language"   class="form-select form-select-solid form-select-lg "  >
-                                    <option value="" data-select2-id="select2-data-15-jtqd"></option>
-                                    @foreach($data['role'] as $roles)
-										<option  value="{{ $roles['id'] }}" @if($roles['id'] == $user['role_id']) selected @endif>{{ $roles['role']}}</option>
-									@endforeach
-                                    
-                                    </select>
-                                    <div class="fv-plugins-message-container invalid-feedback"></div>
-								</div>
-							</div>
-                            <div class="row mb-6">
-								<label class="col-lg-4 col-form-label required fw-bold fs-6">Bank</label>
-								<div class="col-lg-3 fv-row fv-plugins-icon-container">
-                                    <select name="bank" aria-label="Select a Language"   class="form-select form-select-solid form-select-lg "  >
-                                    <option value="" data-select2-id="select2-data-15-jtqd"></option>
-                                    @foreach($data['bank'] as $banks)
-										<option  value="{{ $banks->id }}" @if($banks->id == $user->bank_id) selected @endif>{{ $banks->name }}</option>
-									@endforeach
-                                    
-                                    </select>
-                                    <div class="fv-plugins-message-container invalid-feedback"></div>
-								</div>
-							</div>
-
-							                            <div class="row mb-6">
-								<label class="col-lg-4 col-form-label fw-bold fs-6">
-									<span class="{{ $user['role_id'] == 4 ? 'required' : '' }}">Team</span>
-								</label>
-								<div class="col-lg-3 fv-row fv-plugins-icon-container">
-                                    <select name="team_id" class="form-select form-select-solid form-select-lg" {{ $user['role_id'] == 4 ? 'required' : '' }}>
-                                        <option value="">Select Team</option>
-                                        @php
-                                            $allTeams = isset($data['teams']) ? $data['teams'] : \App\Models\Team::where('is_delete', false)->orderBy('priority', 'asc')->get();
-                                        @endphp
-                                        @foreach($allTeams as $team)
-                                            <option value="{{ $team->id }}" @if($team->id == ($user->team_id ?? null)) selected @endif>{{ $team->team_name }}</option>
-                                        @endforeach
-                                    </select>
-                                    <div class="fv-plugins-message-container invalid-feedback"></div>
-								</div>
-							</div>
-
-							<!-- SIP fields -->
-							<div class="row mb-6">
-								<label class="col-lg-4 col-form-label fw-bold fs-6">
-									<span>SIP ID / Extension</span>
-									<i class="fas fa-exclamation-circle ms-1 fs-7" data-bs-toggle="tooltip" title="Next2Call agent extension / SIP ID" aria-label="Next2Call agent extension / SIP ID"></i>
-								</label>
-								<div class="col-lg-8 fv-row fv-plugins-icon-container">
-									<input type="text" name="sip" class="form-control form-control-lg form-control-solid" placeholder="e.g. 10101" value="{{ $user->sip }}">
-									<div class="text-muted fs-8 mt-1">Agent SIP extension ID for Next2Call softphone calls.</div>
-								</div>
-							</div>
-
-							<div class="row mb-6">
-								<label class="col-lg-4 col-form-label fw-bold fs-6">
-									<span>SIP Password</span>
-									<i class="fas fa-exclamation-circle ms-1 fs-7" data-bs-toggle="tooltip" title="Next2Call agent SIP password (optional)" aria-label="Next2Call agent SIP password (optional)"></i>
-								</label>
-								<div class="col-lg-8 fv-row fv-plugins-icon-container">
-									<input type="password" name="sip_password" class="form-control form-control-lg form-control-solid" placeholder="Leave blank to use default admin SIP password" value="{{ $user->sip_password }}">
-									<div class="text-muted fs-8 mt-1">Optional. If empty, system automatically uses the Next2Call admin default password.</div>
-								</div>
-							</div>
-						
-
-
-							<div class="row mb-6">
-								<label class="col-lg-4 col-form-label fw-bold fs-6">
-									<span class="required">Primary Mobile Number</span>
-									<i class="fas fa-exclamation-circle ms-1 fs-7" data-bs-toggle="tooltip" title="" data-bs-original-title="Phone number must be active" aria-label="Phone number must be active"></i>
-								</label>
-								<div class="col-lg-2 fv-row fv-plugins-icon-container">
-									<input type="tel" name="countrycode" class="form-control form-control-lg form-control-solid" placeholder="Country Code" value="{{ $user->countrycode }}">
-								<div class="fv-plugins-message-container invalid-feedback"></div></div>
-								<div class="col-lg-6 fv-row fv-plugins-icon-container">
-									<input type="tel" name="phone" class="form-control form-control-lg form-control-solid" placeholder="Primary Mobile Number" value="{{ $user->mobile_no }}">
-								<div class="fv-plugins-message-container invalid-feedback"></div></div>
-							</div>
-							<div class="row mb-6">
-								<label class="col-lg-4 col-form-label fw-bold fs-6">
-									<span class="required">Secondary Mobile Number</span>
-									<i class="fas fa-exclamation-circle ms-1 fs-7" data-bs-toggle="tooltip" title="" data-bs-original-title="Phone number must be active" aria-label="Phone number must be active"></i>
-								</label>
-								<div class="col-lg-2 fv-row fv-plugins-icon-container">
-									<input type="tel" name="countrycode2" class="form-control form-control-lg form-control-solid" placeholder="Country Code2" value="{{ $user->countrycode2 }}">
-								<div class="fv-plugins-message-container invalid-feedback"></div></div>
-								<div class="col-lg-6 fv-row fv-plugins-icon-container">
-									<input type="tel" name="phone2" class="form-control form-control-lg form-control-solid" placeholder="Secondary Mobile Number" value="{{ $user->mobile_no2 }}">
-								<div class="fv-plugins-message-container invalid-feedback"></div></div>
-							</div>
-
-                            <div class="row mb-6">
-								<label class="col-lg-4 col-form-label fw-bold fs-6">
-									<span class="required">Address</span>
-									<i class="fas fa-exclamation-circle ms-1 fs-7" data-bs-toggle="tooltip" title="" data-bs-original-title="Phone number must be active" aria-label="Phone number must be active"></i>
-								</label>
-								<div class="col-lg-8 fv-row fv-plugins-icon-container">
-									<input type="text" name="address" class="form-control form-control-lg form-control-solid" placeholder="Enter YOur Address" value="{{ $user->address }}">
-								<div class="fv-plugins-message-container invalid-feedback"></div></div>
-							</div>
-							
-							@if($user->role_id == 9)
-							 <div class="row mb-6">
-								<label class="col-lg-4 col-form-label fw-bold fs-6">
-									<span class="required">Calling Id</span>
-									<i class="fas fa-exclamation-circle ms-1 fs-7" data-bs-toggle="tooltip" title="" data-bs-original-title="Calling Id" aria-label="Calling Id"></i>
-								</label>
-								<div class="col-lg-8 fv-row fv-plugins-icon-container">
-									<input type="text" name="call_id" class="form-control form-control-lg form-control-solid" placeholder="Enter Agent Calling Id" value="{{ $user->call_id }}">
-								<div class="fv-plugins-message-container invalid-feedback"></div></div>
-							</div>
+				<div class="modal-body py-8 px-9">
+					<div class="row mb-6">
+						<label class="col-lg-4 col-form-label fw-bold fs-6">Avatar</label>
+						<div class="col-lg-8">
+							<div class="image-input image-input-outline" data-kt-image-input="true" style="background-image: url({{ asset('assets/media/avatars/blank.png') }})">
+							@if(!empty($user->photo))
+								<div class="image-input-wrapper w-125px h-125px" style="background-image: url({{ asset($user->photo) }})"></div>
+							@else
+								<div class="image-input-wrapper w-125px h-125px" style="background-image: url({{ asset('assets/media/avatars/blank.png') }})"></div>
 							@endif
-
-							@if(\App\Services\ReferralCodeService::canEdit(auth()->user()))
-								<div class="separator my-6"></div>
-								<h4 class="fw-bolder text-gray-800 mb-5">Referral Settings</h4>
-								@if(in_array((int) $user->role_id, \App\Services\ReferralCodeService::STAFF_EXECUTIVE_ROLE_IDS, true))
-									<div class="row mb-6">
-										<label class="col-lg-4 col-form-label fw-bold fs-6">Executive Prefix (2 chars)</label>
-										<div class="col-lg-8">
-											<input type="text" name="referral_prefix" maxlength="2" class="form-control form-control-lg form-control-solid text-uppercase font-monospace" placeholder="e.g. US" value="{{ $user->referral_prefix }}">
-											<div class="form-text">Exactly 2 letters/digits used as the executive prefix in client codes generated from this executive's conversions.</div>
-										</div>
-									</div>
-								@else
-									<div class="row mb-6">
-										<label class="col-lg-4 col-form-label fw-bold fs-6">Referral Code (5-10 chars)</label>
-										<div class="col-lg-8">
-											<input type="text" name="referral_code" maxlength="10" class="form-control form-control-lg form-control-solid text-uppercase font-monospace" placeholder="Auto-generated on confirmed order" value="{{ $user->referral_code }}">
-											<div class="form-text">Format: User prefix (3) + Executive prefix (2) + Discount (10).</div>
-										</div>
-									</div>
-									<div class="row mb-6">
-										<label class="col-lg-4 col-form-label fw-bold fs-6">Referral Discount (%)</label>
-										<div class="col-lg-4">
-											<input type="number" step="0.01" min="0" max="100" name="referral_discount_percent" class="form-control form-control-lg form-control-solid" value="{{ $user->referral_discount_percent !== null ? number_format((float) $user->referral_discount_percent, 2, '.', '') : '10.00' }}">
-										</div>
-									</div>
-									<div class="row mb-6">
-										<label class="col-lg-4 col-form-label fw-bold fs-6">Marketing Executive</label>
-										<div class="col-lg-8">
-											<select name="referral_executive_id" class="form-select form-select-solid form-select-lg js-referral-exec-select" data-selected-executive="{{ $user->referral_executive_id ?? '' }}">
-												<option value="">System / Default (AI)</option>
-												@if($user->referralExecutive)
-													<option value="{{ $user->referralExecutive->id }}" selected>{{ $user->referralExecutive->name }}@if(!empty($user->referralExecutive->referral_prefix)) ({{ $user->referralExecutive->referral_prefix }})@endif</option>
-												@endif
-											</select>
-										</div>
-									</div>
-								@endif
-							@endif
-							
+								<label class="btn btn-icon btn-circle btn-active-color-primary w-25px h-25px bg-body shadow" data-kt-image-input-action="change" data-bs-toggle="tooltip" title="Change avatar">
+									<i class="bi bi-pencil-fill fs-7"></i>
+									<input type="file" name="photo" accept=".png, .jpg, .jpeg">
+									<input type="hidden" name="avatar_remove" value="0">
+								</label>
+								<span class="btn btn-icon btn-circle btn-active-color-primary w-25px h-25px bg-body shadow" data-kt-image-input-action="cancel" data-bs-toggle="tooltip" title="Cancel avatar">
+									<i class="bi bi-x fs-2"></i>
+								</span>
+								<span class="btn btn-icon btn-circle btn-active-color-primary w-25px h-25px bg-body shadow" data-kt-image-input-action="remove" data-bs-toggle="tooltip" title="Remove avatar">
+									<i class="bi bi-x fs-2"></i>
+								</span>
+							</div>
+							<div class="form-text">Allowed file types: png, jpg, jpeg.</div>
 						</div>
-					<div>
-
 					</div>
-                    </div>
-			    <div class="modal-footer">
-			    	<button data-bs-dismiss="modal" type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
-			    	<button  type="submit" class="btn btn-primary" >Submit</button>
-			    </div>
+
+					<div class="row mb-6">
+						<label class="col-lg-4 col-form-label required fw-bold fs-6">Name</label>
+						<div class="col-lg-8">
+							<input type="text" name="name" required class="form-control form-control-lg form-control-solid" placeholder="Name" value="{{ $user->name }}">
+						</div>
+					</div>
+
+					<div class="row mb-6">
+						<label class="col-lg-4 col-form-label required fw-bold fs-6">Email</label>
+						<div class="col-lg-8">
+							<input type="email" name="email" required class="form-control form-control-lg form-control-solid" placeholder="Youremail@gmail.com" value="{{ $user->email }}">
+						</div>
+					</div>
+
+					<div class="row mb-6">
+						<label class="col-lg-4 col-form-label required fw-bold fs-6">Role</label>
+						<div class="col-lg-8">
+							<select name="role" class="form-select form-select-solid form-select-lg">
+							@if(isset($data['role']))
+								@foreach($data['role'] as $roles)
+									<option value="{{ $roles['id'] }}" @if($roles['id'] == $user['role_id']) selected @endif>{{ $roles['role'] }}</option>
+								@endforeach
+							@endif
+							</select>
+						</div>
+					</div>
+
+					<div class="row mb-6">
+						<label class="col-lg-4 col-form-label fw-bold fs-6">Bank</label>
+						<div class="col-lg-8">
+							<select name="bank" class="form-select form-select-solid form-select-lg">
+								<option value="">Select Bank (Optional)</option>
+								@if(isset($data['bank']))
+									@foreach($data['bank'] as $banks)
+										<option value="{{ $banks->id }}" @if($banks->id == $user->bank_id) selected @endif>{{ $banks->name }}</option>
+									@endforeach
+								@endif
+							</select>
+						</div>
+					</div>
+
+					<div class="row mb-6">
+						<label class="col-lg-4 col-form-label fw-bold fs-6">
+							<span class="{{ $user['role_id'] == 4 ? 'required' : '' }}">Team</span>
+						</label>
+						<div class="col-lg-8">
+							<select name="team_id" class="form-select form-select-solid form-select-lg" {{ $user['role_id'] == 4 ? 'required' : '' }}>
+								<option value="">Select Team</option>
+								@php
+									$allTeams = isset($data['teams']) ? $data['teams'] : \App\Models\Team::where('is_delete', false)->orderBy('priority', 'asc')->get();
+								@endphp
+								@foreach($allTeams as $team)
+									<option value="{{ $team->id }}" @if($team->id == ($user->team_id ?? null)) selected @endif>{{ $team->team_name }}</option>
+								@endforeach
+							</select>
+						</div>
+					</div>
+
+					<!-- SIP fields -->
+					<div class="row mb-6">
+						<label class="col-lg-4 col-form-label fw-bold fs-6">
+							<span>SIP ID / Extension</span>
+							<i class="fas fa-exclamation-circle ms-1 fs-7" data-bs-toggle="tooltip" title="Next2Call agent extension / SIP ID"></i>
+						</label>
+						<div class="col-lg-8">
+							<input type="text" name="sip" class="form-control form-control-lg form-control-solid" placeholder="e.g. 10101" value="{{ $user->sip }}">
+							<div class="text-muted fs-8 mt-1">Agent SIP extension ID for Next2Call softphone calls.</div>
+						</div>
+					</div>
+
+					<div class="row mb-6">
+						<label class="col-lg-4 col-form-label fw-bold fs-6">
+							<span>SIP Password</span>
+							<i class="fas fa-exclamation-circle ms-1 fs-7" data-bs-toggle="tooltip" title="Next2Call agent SIP password (optional)"></i>
+						</label>
+						<div class="col-lg-8">
+							<input type="password" name="sip_password" class="form-control form-control-lg form-control-solid" placeholder="Leave blank to preserve existing password" value="">
+							<div class="text-muted fs-8 mt-1">Leave blank to keep existing password or use Next2Call admin default.</div>
+						</div>
+					</div>
+
+					<div class="row mb-6">
+						<label class="col-lg-4 col-form-label fw-bold fs-6">
+							<span>Primary Mobile Number</span>
+						</label>
+						<div class="col-lg-3">
+							<input type="tel" name="countrycode" class="form-control form-control-lg form-control-solid" placeholder="Country Code" value="{{ $user->countrycode }}">
+						</div>
+						<div class="col-lg-5">
+							<input type="tel" name="phone" class="form-control form-control-lg form-control-solid" placeholder="Primary Mobile Number" value="{{ $user->mobile_no }}">
+						</div>
+					</div>
+
+					<div class="row mb-6">
+						<label class="col-lg-4 col-form-label fw-bold fs-6">
+							<span>Secondary Mobile Number</span>
+						</label>
+						<div class="col-lg-3">
+							<input type="tel" name="countrycode2" class="form-control form-control-lg form-control-solid" placeholder="Country Code 2" value="{{ $user->countrycode2 }}">
+						</div>
+						<div class="col-lg-5">
+							<input type="tel" name="phone2" class="form-control form-control-lg form-control-solid" placeholder="Secondary Mobile Number" value="{{ $user->mobile_no2 }}">
+						</div>
+					</div>
+
+					<div class="row mb-6">
+						<label class="col-lg-4 col-form-label fw-bold fs-6">
+							<span>Address</span>
+						</label>
+						<div class="col-lg-8">
+							<input type="text" name="address" class="form-control form-control-lg form-control-solid" placeholder="Enter Address" value="{{ $user->address }}">
+						</div>
+					</div>
+
+					@if($user->role_id == 9)
+					<div class="row mb-6">
+						<label class="col-lg-4 col-form-label fw-bold fs-6">
+							<span>Calling Id</span>
+						</label>
+						<div class="col-lg-8">
+							<input type="text" name="call_id" class="form-control form-control-lg form-control-solid" placeholder="Enter Agent Calling Id" value="{{ $user->call_id }}">
+						</div>
+					</div>
+					@endif
+
+					@if(\App\Services\ReferralCodeService::canEdit(auth()->user()))
+						<div class="separator my-6"></div>
+						<h4 class="fw-bolder text-gray-800 mb-5">Referral Settings</h4>
+						@if(in_array((int) $user->role_id, \App\Services\ReferralCodeService::STAFF_EXECUTIVE_ROLE_IDS, true))
+							<div class="row mb-6">
+								<label class="col-lg-4 col-form-label fw-bold fs-6">Executive Prefix (2 chars)</label>
+								<div class="col-lg-8">
+									<input type="text" name="referral_prefix" maxlength="2" class="form-control form-control-lg form-control-solid text-uppercase font-monospace" placeholder="e.g. US" value="{{ $user->referral_prefix }}">
+									<div class="form-text">Exactly 2 letters/digits used as the executive prefix in client codes generated from this executive's conversions.</div>
+								</div>
+							</div>
+						@else
+							<div class="row mb-6">
+								<label class="col-lg-4 col-form-label fw-bold fs-6">Referral Code (5-10 chars)</label>
+								<div class="col-lg-8">
+									<input type="text" name="referral_code" maxlength="10" class="form-control form-control-lg form-control-solid text-uppercase font-monospace" placeholder="Auto-generated on confirmed order" value="{{ $user->referral_code }}">
+									<div class="form-text">Format: User prefix (3) + Executive prefix (2) + Discount (10).</div>
+								</div>
+							</div>
+							<div class="row mb-6">
+								<label class="col-lg-4 col-form-label fw-bold fs-6">Referral Discount (%)</label>
+								<div class="col-lg-4">
+									<input type="number" step="0.01" min="0" max="100" name="referral_discount_percent" class="form-control form-control-lg form-control-solid" value="{{ $user->referral_discount_percent !== null ? number_format((float) $user->referral_discount_percent, 2, '.', '') : '10.00' }}">
+								</div>
+							</div>
+							<div class="row mb-6">
+								<label class="col-lg-4 col-form-label fw-bold fs-6">Marketing Executive</label>
+								<div class="col-lg-8">
+									<select name="referral_executive_id" class="form-select form-select-solid form-select-lg js-referral-exec-select" data-selected-executive="{{ $user->referral_executive_id ?? '' }}">
+										<option value="">System / Default (AI)</option>
+										@if($user->referralExecutive)
+											<option value="{{ $user->referralExecutive->id }}" selected>{{ $user->referralExecutive->name }}@if(!empty($user->referralExecutive->referral_prefix)) ({{ $user->referralExecutive->referral_prefix }})@endif</option>
+										@endif
+									</select>
+								</div>
+							</div>
+						@endif
+					@endif
+				</div>
+				<div class="modal-footer">
+					<button data-bs-dismiss="modal" type="button" class="btn btn-secondary">Close</button>
+					<button type="submit" class="btn btn-primary">Submit</button>
+				</div>
 			</form>
-			</div>
 		</div>
 	</div>
 </div>
-
 <!-- Edit Section End -->
 
 <!-- Delete Section Start -->
 <div class="modal fade" id="kt_modal_create_delete{{$user->id}}" tabindex="-1" aria-hidden="true">
-		<div class="modal-dialog modal-dialog-centered mw-900px">
-			<div class="modal-content">
-
+	<div class="modal-dialog modal-dialog-centered mw-600px">
+		<div class="modal-content">
+			<form method="POST" action="{{ route('user.delete', ['id' => $user->id]) }}">
+				@method('DELETE')
+				@csrf
 				<div class="modal-header">
-					<h2> Delete User </h2>
+					<h2 class="fw-bolder">Delete User</h2>
 					<div class="btn btn-sm btn-icon btn-active-color-primary" data-bs-dismiss="modal">
 						<span class="svg-icon svg-icon-1">
 							<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
@@ -248,18 +233,15 @@
 						</span>
 					</div>
 				</div>
-			    <div class="card-body p-9">
-                     <h3>Are You Sure To Delete User <span style="color:brown">{{ $user->name}}({{ $user->email}})</span> </h3>
-                </div>
-			    <div class="modal-footer">
-					<form method="POST" action="{{ route('user.delete', ['id' => $user->id]) }}">
-						@method('DELETE')
-						@csrf
-						<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-						<button type="submit" class="btn btn-primary">Delete</button>
-					</form>
-			    </div>
-			</div>
+				<div class="modal-body py-8 px-9">
+					<p class="fs-5 mb-0">Are you sure you want to delete user <span class="text-danger fw-bolder">{{ $user->name }} ({{ $user->email }})</span>?</p>
+					<p class="text-muted fs-7 mb-0 mt-2">This action cannot be undone.</p>
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+					<button type="submit" class="btn btn-danger">Delete</button>
+				</div>
+			</form>
 		</div>
 	</div>
 </div>
