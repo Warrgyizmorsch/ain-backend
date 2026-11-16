@@ -1,11 +1,11 @@
 <!-- Edit Section Start -->
 <div class="modal fade" id="kt_modal_create_app{{$user->id}}" tabindex="-1" aria-hidden="true">
-	<div class="modal-dialog modal-dialog-centered modal-dialog-scrollable mw-900px">
-		<div class="modal-content">
-			<form id="edit_user_form_{{$user->id}}" class="form d-flex flex-column flex-grow-1" method="POST" enctype="multipart/form-data" action="{{ route('user.update', ['id' =>  $user->id ]) }}">
+	<div class="modal-dialog modal-dialog-centered mw-900px" style="max-height: 90vh; margin-top: auto; margin-bottom: auto;">
+		<div class="modal-content" style="max-height: 90vh; display: flex; flex-direction: column; overflow: hidden; border-radius: 0.65rem;">
+			<form id="edit_user_form_{{$user->id}}" class="form d-flex flex-column m-0 flex-grow-1" style="display: flex; flex-direction: column; max-height: 90vh; overflow: hidden; margin: 0; width: 100%;" method="POST" enctype="multipart/form-data" action="{{ route('user.update', ['id' =>  $user->id ]) }}">
 				@csrf
-				<div class="modal-header">
-					<h2 class="fw-bolder">User Details</h2>
+				<div class="modal-header py-4 px-9" style="flex-shrink: 0; border-bottom: 1px solid #eff2f5;">
+					<h2 class="fw-bolder m-0">User Details <span class="badge badge-light-primary fs-8 ms-2">#{{ $user->id }}</span></h2>
 					<div class="btn btn-sm btn-icon btn-active-color-primary" data-bs-dismiss="modal">
 						<span class="svg-icon svg-icon-1">
 							<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
@@ -15,7 +15,7 @@
 						</span>
 					</div>
 				</div>
-				<div class="modal-body py-8 px-9">
+				<div class="modal-body py-6 px-9" style="overflow-y: auto !important; max-height: calc(90vh - 130px) !important; -webkit-overflow-scrolling: touch;">
 					<div class="row mb-6">
 						<label class="col-lg-4 col-form-label fw-bold fs-6">Avatar</label>
 						<div class="col-lg-8">
@@ -205,9 +205,9 @@
 						@endif
 					@endif
 				</div>
-				<div class="modal-footer">
+				<div class="modal-footer py-4 px-9" style="flex-shrink: 0; border-top: 1px solid #eff2f5; background: #fff;">
 					<button data-bs-dismiss="modal" type="button" class="btn btn-secondary">Close</button>
-					<button type="submit" class="btn btn-primary">Submit</button>
+					<button type="submit" class="btn btn-primary" style="font-weight: 600;"><i class="fa fa-save me-1"></i> Save Changes</button>
 				</div>
 			</form>
 		</div>
