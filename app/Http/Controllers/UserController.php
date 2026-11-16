@@ -498,22 +498,42 @@ class UserController extends Controller
         try {
             $user = User::findOrFail($id);
 
-            $user->name = $request->input('name');
-            $user->email = $request->input('email');
+            $name = trim((string) $request->input('name'));
+            if ($name !== '') {
+                $user->name = $name;
+            }
+
+            $newEmail = trim((string) $request->input('email'));
+            if (!empty($newEmail) && $newEmail !== $user->email) {
+                $emailExists = User::where('email', $newEmail)->where('id', '!=', $user->id)->exists();
+                if ($emailExists) {
+                    return redirect()->back()->withInput()->with('error', 'The email address ' . $newEmail . ' is already in use by another user.');
+                }
+                $user->email = $newEmail;
+            }
+
             $user->countrycode = $request->input('countrycode');
             $user->mobile_no = $request->input('phone');
             $user->countrycode2 = $request->input('countrycode2');
             $user->mobile_no2 = $request->input('phone2');
+
             $roleId = (int) $request->input('role');
             $teamId = $request->input('team_id');
             if ($roleId === 4 && empty($teamId)) {
                 return redirect()->back()->withInput()->with('error', 'Team selection is mandatory for Marketing Team users.');
             }
-            $user->role_id = $roleId;
+            if ($roleId > 0) {
+                $user->role_id = $roleId;
+            }
             $user->team_id = !empty($teamId) ? $teamId : null;
-            $user->bank_id = $request->input('bank');
+
+            $bankVal = $request->input('bank');
+            $user->bank_id = (!empty($bankVal) && is_numeric($bankVal)) ? (int)$bankVal : null;
+
             $user->address = $request->input('address');
-            $user->call_id = $request->input('call_id');
+            if ($request->has('call_id')) {
+                $user->call_id = $request->input('call_id');
+            }
 
             if ($request->hasFile('photo')) {
                 $uploadedFile = $request->file('photo');
@@ -522,12 +542,12 @@ class UserController extends Controller
                 $destinationPath = public_path('assets/media/avatars');
                 $uploadedFile->move($destinationPath, $fileName);
                 $user->photo = 'assets/media/avatars/' . $fileName;
-            } else {
+            } elseif ($request->input('avatar_remove') === '1') {
                 $user->photo = 'assets/media/avatars/blank.png';
             }
 
             $user->sip = $request->input('sip');
-            if ($request->has('sip_password')) {
+            if ($request->filled('sip_password')) {
                 $user->sip_password = $request->input('sip_password');
             }
 

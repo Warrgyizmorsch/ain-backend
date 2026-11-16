@@ -264,6 +264,34 @@
 
         <div id="kt_content_container" class="container-xxl pt-5">
 
+            @if(session('success'))
+                <div class="alert alert-success d-flex align-items-center p-4 mb-5 shadow-sm">
+                    <i class="fa fa-check-circle fs-2 text-success me-3"></i>
+                    <div class="d-flex flex-column">
+                        <span class="fw-bold">{{ session('success') }}</span>
+                    </div>
+                </div>
+            @endif
+
+            @if(session('error'))
+                <div class="alert alert-danger d-flex align-items-center p-4 mb-5 shadow-sm">
+                    <i class="fa fa-exclamation-triangle fs-2 text-danger me-3"></i>
+                    <div class="d-flex flex-column">
+                        <span class="fw-bold">{{ session('error') }}</span>
+                    </div>
+                </div>
+            @endif
+
+            @if($errors->any())
+                <div class="alert alert-danger p-4 mb-5 shadow-sm">
+                    <ul class="mb-0 fw-bold">
+                        @foreach($errors->all() as $error)
+                            <li>{{ $error }}</li>
+                        @endforeach
+                    </ul>
+                </div>
+            @endif
+
             <!-- Filter Module (Initially Hidden) -->
             <div class="col-xl-12 mb-5" id="filterModuleWrapper" style="{{ $hasActiveFilters ? '' : 'display: none;' }}">
                 <div class="card card-xxl-stretch mb-0 shadow-sm border border-gray-200">
