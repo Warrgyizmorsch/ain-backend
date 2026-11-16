@@ -2,8 +2,11 @@
 <div class="modal fade" id="kt_modal_create_app{{$user->id}}" tabindex="-1" aria-hidden="true">
 	<div class="modal-dialog modal-dialog-centered mw-900px" style="max-height: 90vh; margin-top: auto; margin-bottom: auto;">
 		<div class="modal-content" style="max-height: 90vh; display: flex; flex-direction: column; overflow: hidden; border-radius: 0.65rem;">
-			<form id="edit_user_form_{{$user->id}}" class="form d-flex flex-column m-0 flex-grow-1" style="display: flex; flex-direction: column; max-height: 90vh; overflow: hidden; margin: 0; width: 100%;" method="POST" enctype="multipart/form-data" action="{{ route('user.update', ['id' =>  $user->id ]) }}">
+			<form id="edit_user_form_{{$user->id}}" autocomplete="off" class="form d-flex flex-column m-0 flex-grow-1" style="display: flex; flex-direction: column; max-height: 90vh; overflow: hidden; margin: 0; width: 100%;" method="POST" enctype="multipart/form-data" action="{{ route('user.update', ['id' =>  $user->id ]) }}">
 				@csrf
+				<!-- Anti-autofill dummy traps to prevent Chrome/Edge password managers from overwriting form fields -->
+				<input style="display:none;" type="text" name="fakeusernameremembered" autocomplete="off" />
+				<input style="display:none;" type="password" name="fakepasswordremembered" autocomplete="new-password" />
 				<div class="modal-header py-4 px-9" style="flex-shrink: 0; border-bottom: 1px solid #eff2f5;">
 					<h2 class="fw-bolder m-0">User Details <span class="badge badge-light-primary fs-8 ms-2">#{{ $user->id }}</span></h2>
 					<div class="btn btn-sm btn-icon btn-active-color-primary" data-bs-dismiss="modal">
@@ -44,14 +47,14 @@
 					<div class="row mb-6">
 						<label class="col-lg-4 col-form-label required fw-bold fs-6">Name</label>
 						<div class="col-lg-8">
-							<input type="text" name="name" required class="form-control form-control-lg form-control-solid" placeholder="Name" value="{{ $user->name }}">
+							<input type="text" name="name" required autocomplete="off" class="form-control form-control-lg form-control-solid" placeholder="Name" value="{{ $user->name }}">
 						</div>
 					</div>
 
 					<div class="row mb-6">
 						<label class="col-lg-4 col-form-label required fw-bold fs-6">Email</label>
 						<div class="col-lg-8">
-							<input type="email" name="email" required class="form-control form-control-lg form-control-solid" placeholder="Youremail@gmail.com" value="{{ $user->email }}">
+							<input type="email" name="email" required autocomplete="off" class="form-control form-control-lg form-control-solid" placeholder="Youremail@gmail.com" value="{{ $user->email }}">
 						</div>
 					</div>
 
@@ -99,14 +102,15 @@
 						</div>
 					</div>
 
-					<!-- SIP fields -->
+					<!-- SIP fields (Staff / Agent roles only, excluded for Customer role 2) -->
+					@if((int)$user->role_id !== 2)
 					<div class="row mb-6">
 						<label class="col-lg-4 col-form-label fw-bold fs-6">
 							<span>SIP ID / Extension</span>
 							<i class="fas fa-exclamation-circle ms-1 fs-7" data-bs-toggle="tooltip" title="Next2Call agent extension / SIP ID"></i>
 						</label>
 						<div class="col-lg-8">
-							<input type="text" name="sip" class="form-control form-control-lg form-control-solid" placeholder="e.g. 10101" value="{{ $user->sip }}">
+							<input type="text" inputmode="numeric" pattern="[0-9]*" name="sip" autocomplete="off" class="form-control form-control-lg form-control-solid" placeholder="e.g. 10101" value="{{ $user->sip }}">
 							<div class="text-muted fs-8 mt-1">Agent SIP extension ID for Next2Call softphone calls.</div>
 						</div>
 					</div>
@@ -117,10 +121,11 @@
 							<i class="fas fa-exclamation-circle ms-1 fs-7" data-bs-toggle="tooltip" title="Next2Call agent SIP password (optional)"></i>
 						</label>
 						<div class="col-lg-8">
-							<input type="password" name="sip_password" class="form-control form-control-lg form-control-solid" placeholder="Leave blank to preserve existing password" value="">
+							<input type="password" name="sip_password" autocomplete="new-password" class="form-control form-control-lg form-control-solid" placeholder="Leave blank to preserve existing password" value="">
 							<div class="text-muted fs-8 mt-1">Leave blank to keep existing password or use Next2Call admin default.</div>
 						</div>
 					</div>
+					@endif
 
 					<div class="row mb-6">
 						<label class="col-lg-4 col-form-label fw-bold fs-6">

@@ -546,9 +546,25 @@ class UserController extends Controller
                 $user->photo = 'assets/media/avatars/blank.png';
             }
 
-            $user->sip = $request->input('sip');
-            if ($request->filled('sip_password')) {
-                $user->sip_password = $request->input('sip_password');
+            // Strict sanitization for SIP and SIP password
+            $effectiveRoleId = !empty($roleId) ? (int)$roleId : (int)$user->role_id;
+            if ($effectiveRoleId === 2) {
+                // Customers never have Next2Call softphone extensions
+                $user->sip = null;
+                $user->sip_password = null;
+            } else {
+                $rawSip = $request->input('sip');
+                if ($rawSip !== null && $rawSip !== '' && is_numeric($rawSip)) {
+                    $user->sip = (int)$rawSip;
+                    if ($request->filled('sip_password')) {
+                        $user->sip_password = $request->input('sip_password');
+                    }
+                } elseif ($request->has('sip') && ($rawSip === '' || $rawSip === null || !is_numeric($rawSip))) {
+                    $user->sip = null;
+                    if ($rawSip === '') {
+                        $user->sip_password = null;
+                    }
+                }
             }
 
             if ($hasReferralPayload) {
@@ -786,8 +802,14 @@ class UserController extends Controller
         $user->team_id = !empty($teamId) ? $teamId : null;
         $user->address = $request->input('address');
         $user->password = Hash::make('user@123');
-        $user->sip = $request->input('sip');
-        $user->sip_password = $request->input('sip_password');
+        if ((int)$roleId === 2) {
+            $user->sip = null;
+            $user->sip_password = null;
+        } else {
+            $rawSip = $request->input('sip');
+            $user->sip = (!empty($rawSip) && is_numeric($rawSip)) ? (int)$rawSip : null;
+            $user->sip_password = ($user->sip && $request->filled('sip_password')) ? $request->input('sip_password') : null;
+        }
 
         if ($request->hasFile('photo')) {
             // Handle file upload
