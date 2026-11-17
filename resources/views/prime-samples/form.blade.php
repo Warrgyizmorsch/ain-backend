@@ -46,8 +46,20 @@
                     @endforeach
                 </select>
                 <div class="mt-2">
-                    <input type="text" name="new_category" class="form-control form-control-sm" placeholder="Or type new category name to create...">
+                    <input type="text" name="new_category" class="form-control form-control-sm" value="{{ old('new_category') }}" placeholder="Or type new category name to create...">
                 </div>
+                <a href="{{ route('prime-sample-categories.index') }}" class="form-text">Manage Prime sample categories</a>
+            </div>
+
+            <div class="col-md-4">
+                <label class="form-label">Sample Type</label>
+                <select name="type_id" class="form-select form-select-lg">
+                    <option value="">Select Sample Type</option>
+                    @foreach($types as $type)
+                        <option value="{{ $type->id }}" @selected(old('type_id', $sample->type_id) == $type->id)>{{ $type->name }}</option>
+                    @endforeach
+                </select>
+                <a href="{{ route('prime-sample-types.index') }}" class="form-text">Manage Prime sample types</a>
             </div>
 
             <div class="col-md-6">

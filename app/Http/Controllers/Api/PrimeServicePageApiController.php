@@ -397,78 +397,18 @@ class PrimeServicePageApiController extends Controller
             ];
         }
 
-        // 4. Experts
+        // 4. Prime Writers
         $expertsList = [];
-        $selectedExperts = $page->selectedExperts();
-        if ($selectedExperts->isNotEmpty()) {
-            foreach ($selectedExperts as $exp) {
-                $expertsList[] = [
-                    'name'   => $exp->name ?: 'Academic Specialist',
-                    'degree' => $exp->subject ? "Specialist in {$exp->subject}" : "Postgraduate {$name} Specialist",
-                    'desc'   => $exp->content ?: ($exp->meta_description ?: "Experienced {$name} specialist with 10+ years academic tutoring."),
-                    'rating' => '4.98',
-                    'orders' => ($exp->finish_order ?: 1200) . '+',
-                    'image'  => $exp->image ? url($exp->image) : '/images/home/why-choose/expert-1.webp',
-                ];
-            }
-        }
-        if (empty($expertsList)) {
-            $isLaw = str_contains(strtolower($name), 'law') || str_contains(strtolower($page->slug), 'law');
-            if ($isLaw) {
-                $expertsList = [
-                    [
-                        'name'   => 'Eleanor Vance, LL.M.',
-                        'degree' => 'LL.M. in Corporate & Commercial Law (LSE)',
-                        'desc'   => 'Specialist in Companies Act 2006, Director Duties, Shareholder Remedies & Corporate Insolvency with 10+ years tutoring.',
-                        'rating' => '4.98',
-                        'orders' => '1,420+',
-                        'image'  => '/images/home/why-choose/expert-1.webp',
-                    ],
-                    [
-                        'name'   => 'Marcus Sterling, BCL',
-                        'degree' => 'BCL in Commercial Law (Oxford)',
-                        'desc'   => 'Corporate governance, veil piercing, cross-border M&A and regulatory compliance specialist.',
-                        'rating' => '4.95',
-                        'orders' => '1,180+',
-                        'image'  => '/images/home/why-choose/expert-2.webp',
-                    ],
-                    [
-                        'name'   => 'Rachel Thornton, LL.B. (Hons)',
-                        'degree' => 'Postgraduate Diploma in Legal Practice (BPP London)',
-                        'desc'   => 'Commercial contracts, corporate criminal liability, OSCOLA citation & partnership law specialist.',
-                        'rating' => '4.96',
-                        'orders' => '980+',
-                        'image'  => '/images/home/why-choose/expert-3.webp',
-                    ],
-                ];
-            } else {
-                $expertsList = [
-                    [
-                        'name'   => 'Dr. Alistair Finch',
-                        'degree' => "Ph.D. in {$name} (Warwick)",
-                        'desc'   => "Academic specialist in advanced {$name} coursework and research methodology with 12+ years tutoring.",
-                        'rating' => '4.98',
-                        'orders' => '1,420+',
-                        'image'  => '/images/home/why-choose/expert-1.webp',
-                    ],
-                    [
-                        'name'   => 'Dr. Rebecca Thornton',
-                        'degree' => "Ph.D. in Applied {$name} (Imperial)",
-                        'desc'   => "Modelling, empirical analysis, and dissertation specialist for UK postgraduate courses.",
-                        'rating' => '4.95',
-                        'orders' => '1,180+',
-                        'image'  => '/images/home/why-choose/expert-2.webp',
-                    ],
-                    [
-                        'name'   => 'David Sterling, M.Sc.',
-                        'degree' => "M.Sc. in {$name} (Oxford)",
-                        'desc'   => "Specialist in UK university curriculum standards, data models and coursework problem solutions.",
-                        'rating' => '4.96',
-                        'orders' => '980+',
-                        'image'  => '/images/home/why-choose/expert-3.webp',
-                    ],
-                ];
-            }
+        foreach ($page->selectedPrimeWriters() as $writer) {
+            $expertsList[] = [
+                'id'     => $writer->id,
+                'name'   => $writer->name,
+                'degree' => 'Prime Assignment Writer',
+                'desc'   => null,
+                'rating' => null,
+                'orders' => null,
+                'image'  => null,
+            ];
         }
 
         // 5. Reviews
@@ -516,11 +456,11 @@ class PrimeServicePageApiController extends Controller
         $samplesList = [];
         try {
             if (Schema::hasTable('prime_samples')) {
-                $samples = PrimeSample::with('category')->where('is_published', true)->latest('id')->limit(3)->get();
+                $samples = PrimeSample::with(['category', 'type'])->where('is_published', true)->latest('id')->limit(3)->get();
                 foreach ($samples as $sample) {
                     $samplesList[] = [
                         't'    => $sample->title,
-                        'type' => $sample->category?->name ?: $name,
+                        'type' => $sample->type?->name ?: ($sample->category?->name ?: $name),
                         'w'    => number_format($sample->words_count ?: 3000),
                         'd'    => number_format((int) (($sample->words_count ?: 3000) * 0.75)),
                     ];

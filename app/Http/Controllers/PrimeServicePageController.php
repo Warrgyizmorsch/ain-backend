@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Experts;
 use App\Models\PrimeServicePage;
 use App\Models\PrimeSubject;
+use App\Models\PrimeWriter;
 use App\Models\Review;
 use App\Services\PrimeAssignmentSetupService;
 use Illuminate\Http\Request;
@@ -161,9 +161,9 @@ class PrimeServicePageController extends Controller
         $page = $this->resolvePage($primeServicePage);
 
         return view('prime-service-pages.preview', [
-            'page'    => $page->load('primeSubject'),
-            'experts' => $page->selectedExperts(),
-            'reviews' => $page->selectedReviews(),
+            'page'         => $page->load('primeSubject'),
+            'primeWriters' => $page->selectedPrimeWriters(),
+            'reviews'      => $page->selectedReviews(),
         ]);
     }
 
@@ -194,7 +194,10 @@ class PrimeServicePageController extends Controller
         return view('prime-service-pages.form', [
             'page'     => $page,
             'subjects' => PrimeSubject::where('is_active', true)->orderBy('name')->get(),
-            'experts'  => Experts::orderBy('name')->get(),
+            'primeWriters' => PrimeWriter::where('is_active', true)
+                ->orWhereIn('id', $page->prime_writer_ids ?: [])
+                ->orderBy('name')
+                ->get(),
             'reviews'  => Review::latest()->get(),
         ]);
     }
@@ -240,8 +243,8 @@ class PrimeServicePageController extends Controller
             'cta_button_label'      => ['nullable', 'string', 'max:100'],
             'cta_button_url'        => ['nullable', 'string', 'max:500'],
             'long_content'          => ['nullable', 'string'],
-            'expert_ids'            => ['nullable', 'array'],
-            'expert_ids.*'          => ['nullable'],
+            'prime_writer_ids'      => ['nullable', 'array'],
+            'prime_writer_ids.*'    => ['integer', 'exists:prime_writers,id'],
             'review_ids'            => ['nullable', 'array'],
             'review_ids.*'          => ['nullable'],
             'faqs'                  => ['nullable', 'array'],
@@ -253,8 +256,8 @@ class PrimeServicePageController extends Controller
         $data['type'] = in_array($data['type'] ?? '', ['service', 'subject', 'city']) ? $data['type'] : 'service';
         $data['slug'] = $normalizedSlug;
 
-        $data['expert_ids'] = array_values(array_filter(
-            $data['expert_ids'] ?? [],
+        $data['prime_writer_ids'] = array_values(array_filter(
+            $data['prime_writer_ids'] ?? [],
             fn($id) => filled($id)
         ));
         $data['review_ids'] = array_values(array_filter(
