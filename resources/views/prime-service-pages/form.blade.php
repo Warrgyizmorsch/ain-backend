@@ -112,18 +112,21 @@
     <div class="col-lg-6">
         <div class="card h-100">
             <div class="card-header">
-                <h3 class="card-title">Experts to show</h3>
+                <h3 class="card-title">Prime Writers to show</h3>
             </div>
             <div class="card-body overflow-auto" style="max-height:350px">
-                @forelse($experts as $expert)
+                @forelse($primeWriters as $writer)
                     <label class="form-check form-check-custom form-check-solid mb-3">
-                        <input class="form-check-input" type="checkbox" name="expert_ids[]" value="{{ $expert->id }}" @checked(in_array($expert->id, old('expert_ids', $page->expert_ids ?: [])))>
+                        <input class="form-check-input" type="checkbox" name="prime_writer_ids[]" value="{{ $writer->id }}" @checked(in_array($writer->id, old('prime_writer_ids', $page->prime_writer_ids ?: [])))>
                         <span class="form-check-label">
-                            <strong>{{ $expert->name }}</strong> — {{ $expert->subject ?: 'No subject' }}
+                            <strong>{{ $writer->name }}</strong> — {{ $writer->email }}
+                            @unless($writer->is_active)
+                                <span class="badge badge-light-secondary ms-1">Inactive</span>
+                            @endunless
                         </span>
                     </label>
                 @empty
-                    <p class="text-muted">Add experts in Expert Master first.</p>
+                    <p class="text-muted">Add Prime writers in Prime Writer Master first.</p>
                 @endforelse
             </div>
         </div>
@@ -202,17 +205,17 @@
         <div class="alert alert-light-info d-flex align-items-center p-3 mb-4">
             <i class="fa fa-info-circle text-info fs-4 me-3"></i>
             <div class="fs-7 text-gray-700">
-                Aap <strong>Visual / Direct Text</strong> mode me direct text format kar sakte hain ya <strong>Raw HTML Code</strong> mode me direct HTML code paste/edit kar sakte hain. Dono mode auto-sync honge.
+                In <strong>Visual / Direct Text</strong> mode, you can format text directly. In <strong>Raw HTML Code</strong> mode, you can paste or edit HTML directly. Both modes stay in sync.
             </div>
         </div>
 
         <!-- Raw HTML Code Editor (Monospace Dark Box) -->
         <div id="htmlEditorContainer" style="display: none;">
             <div class="d-flex justify-content-between align-items-center mb-2">
-                <span class="text-muted fs-7"><i class="fa fa-code text-primary me-1"></i> HTML Editor (Paste ya type karein raw HTML code):</span>
+                <span class="text-muted fs-7"><i class="fa fa-code text-primary me-1"></i> HTML Editor (Paste or type raw HTML code):</span>
                 <span class="badge badge-light-primary fs-8">HTML Code View</span>
             </div>
-            <textarea id="long_content_raw" class="form-control" rows="18" style="font-family: Consolas, Monaco, 'Courier New', monospace; font-size: 13.5px; line-height: 1.6; background-color: #1e1e2d; color: #5eead4; border: 1px solid #2d3748; border-radius: 8px; padding: 14px;" placeholder="<h2>Apna Heading</h2><p>Apna HTML content yahan paste karein...</p>"></textarea>
+            <textarea id="long_content_raw" class="form-control" rows="18" style="font-family: Consolas, Monaco, 'Courier New', monospace; font-size: 13.5px; line-height: 1.6; background-color: #1e1e2d; color: #5eead4; border: 1px solid #2d3748; border-radius: 8px; padding: 14px;" placeholder="<h2>Your heading</h2><p>Paste your HTML content here...</p>"></textarea>
         </div>
 
         <!-- Visual Direct Text Editor Area -->
