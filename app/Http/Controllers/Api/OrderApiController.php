@@ -372,6 +372,21 @@ class OrderApiController extends Controller
             }
         }
 
+        // Send push notification to user's registered mobile device(s)
+        try {
+            app(\App\Services\FirebaseNotificationService::class)->sendToUser(
+                $authUser->id,
+                'Order Placed Successfully! 🎓',
+                "Your order #{$newOrderId} has been received. Our expert team is reviewing your requirements.",
+                [
+                    'type' => 'order_placed',
+                    'order_id' => (string) $newOrderId,
+                ]
+            );
+        } catch (\Throwable $fcmEx) {
+            \Log::warning("Order #{$newOrderId} FCM notification skipped: " . $fcmEx->getMessage());
+        }
+
         return response()->json([
             'success'          => true,
             'message'          => 'Order placed successfully!',
