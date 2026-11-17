@@ -517,7 +517,7 @@ class AuthController extends Controller
             return [strtolower($firebaseUser->email), $firebaseUser->displayName];
         } catch (\Throwable $firebaseException) {
             $segments = explode('.', $idToken);
-            if (count($segments) !== 3 || strlen($segments[2]) < 300) {
+            if (count($segments) !== 3 || strlen($segments[2]) < 50) {
                 throw new \RuntimeException('Google ID token is incomplete or truncated.');
             }
 
@@ -528,7 +528,7 @@ class AuthController extends Controller
             $allowedClientIds = config('services.google.client_ids', []);
 
             if (!$audience || !in_array($audience, $allowedClientIds, true)) {
-                throw new \RuntimeException('Google token audience is not allowed.');
+                throw new \RuntimeException("Google token audience is not allowed: {$audience}");
             }
 
             try {
