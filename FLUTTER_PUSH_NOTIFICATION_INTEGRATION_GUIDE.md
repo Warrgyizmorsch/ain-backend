@@ -424,3 +424,117 @@ php artisan fcm:test 14212 --title="Hello User" --body="This is a test notificat
 # Or test directly with the device's FCM token
 php artisan fcm:test "eXample_FCM_Token_From_Device" --title="Test Ping" --body="Test message"
 ```
+
+---
+
+## 8. Google Sign-In Setup & Troubleshooting for Flutter
+
+If Google Login is failing in the Flutter app, check these **4 mandatory requirements**:
+
+### Step 1: Add SHA-1 Fingerprint in Firebase Console (Mandatory for Android)
+Google Sign-In on Android will fail with `ApiException: 10` or `12500` if the signing certificate is not added to Firebase.
+
+1. Generate your debug SHA-1 & SHA-256 fingerprint in terminal:
+   ```bash
+   cd android
+   ./gradlew signingReport
+   ```
+   *(Look for `Variant: debugAndroidTest` or `Task :app:signingReport` -> `SHA1:` and `SHA-256:`).*
+2. Open [Firebase Console](https://console.firebase.google.com/) -> Select project **`assignment-f88ce`**.
+3. Go to **Project Settings (Gear icon)** -> Scroll down to **Your apps** -> Select your Android app (`com.assignmentinneed`).
+4. Click **Add fingerprint** -> Paste your **SHA-1** and click Save. Also paste **SHA-256**.
+5. *(For production/Play Store release, also add the Google Play App Signing SHA-1 from Google Play Console).*
+
+---
+
+### Step 2: Enable Google Provider in Firebase Authentication
+1. In Firebase Console -> Go to **Build** -> **Authentication** -> **Sign-in method**.
+2. Click on **Google**.
+3. Toggle **Enable**.
+4. Set project support email and click **Save**.
+
+---
+
+### Step 3: Download Updated `google-services.json`
+* After adding the SHA-1 fingerprint and enabling Google Sign-In, download the new `google-services.json` from Firebase Console.
+* Replace the file at:
+  ```
+  android/app/google-services.json
+  ```
+* Run in Flutter project root:
+  ```bash
+  flutter clean
+  flutter pub get
+  ```
+
+---
+
+### Step 4: Configure `GoogleSignIn` with `serverClientId` in Flutter
+
+In your Flutter app (`google_sign_in` package):
+
+```dart
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+
+class AuthService {
+  // Web Client ID from Firebase Console -> Authentication -> Sign-in method -> Google -> Web SDK configuration
+  static const String webClientId = '876740242049-r98097ovv704bel16q34ancr5eacr673.apps.googleusercontent.com';
+
+  static final GoogleSignIn _googleSignIn = GoogleSignIn(
+    serverClientId: webClientId, // CRITICAL: Required so Google returns an idToken for backend verification
+    scopes: ['email', 'profile'],
+  );
+
+  static Future<Map<String, dynamic>?> signInWithGoogle({
+    required String backendUrl, // e.g. https://ain.warrgyizmorsch.com/api/app
+  }) async {
+    try {
+      // 1. Trigger Google popup
+      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+      if (googleUser == null) {
+        print("User cancelled Google Sign-In");
+        return null;
+      }
+
+      // 2. Obtain auth details (idToken)
+      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      final String? idToken = googleAuth.idToken;
+
+      if (idToken == null) {
+        print("Error: idToken is null. Ensure serverClientId is set correctly.");
+        return null;
+      }
+
+      // 3. Send idToken to AIN Backend
+      final response = await http.post(
+        Uri.parse('$backendUrl/google-login'),
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'id_token': idToken,
+          'email': googleUser.email,
+          'name': googleUser.displayName,
+        }),
+      );
+
+      final Map<String, dynamic> resData = jsonDecode(response.body);
+
+      if (response.statusCode == 200 && resData['success'] == true) {
+        print("Google Login Success! Token: ${resData['token']}");
+        return resData;
+      } else {
+        print("Google Login Failed on Backend: ${resData['message']} - ${resData['reason'] ?? ''}");
+        return null;
+      }
+    } catch (e) {
+      print("Google Sign-In Exception: $e");
+      return null;
+    }
+  }
+}
+```
+
