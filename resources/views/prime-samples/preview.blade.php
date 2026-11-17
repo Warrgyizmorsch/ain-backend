@@ -63,8 +63,8 @@
                         <div class="stat-value">{{ number_format($sample->words_count ?? 250) }} Words</div>
                     </div>
                     <div class="stat-box">
-                        <div class="stat-label">Citation Style</div>
-                        <div class="stat-value">Standard / APA</div>
+                        <div class="stat-label">Sample Type</div>
+                        <div class="stat-value">{{ $sample->type?->name ?? 'Not specified' }}</div>
                     </div>
                 </div>
             </header>
