@@ -491,7 +491,7 @@ class AuthController extends Controller
                 'message' => 'Invalid Google Token',
             ];
 
-            if (app()->environment('local')) {
+            if (app()->environment('local', 'uat', 'development', 'staging') || config('app.debug')) {
                 $response['reason'] = $e->getMessage();
             }
 
@@ -537,16 +537,13 @@ class AuthController extends Controller
                     'throwException' => true,
                 ]);
             } catch (\Throwable $verificationException) {
-                if (!str_contains(strtolower($verificationException->getMessage()), 'phpseclib')) {
-                    throw $verificationException;
-                }
-
+                // Fallback to Google's official OAuth2 tokeninfo endpoint
                 $response = Http::acceptJson()
                     ->timeout(10)
                     ->get('https://oauth2.googleapis.com/tokeninfo', ['id_token' => $idToken]);
 
                 if (!$response->successful()) {
-                    throw new \RuntimeException('Google rejected the ID token.');
+                    throw new \RuntimeException('Google rejected the ID token: ' . $verificationException->getMessage());
                 }
 
                 $claims = $response->json();
