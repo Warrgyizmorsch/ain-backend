@@ -414,6 +414,11 @@ class User extends Authenticatable
         return $this->belongsTo(User::class, 'referral_updated_by', 'id');
     }
 
+    public function deviceTokens()
+    {
+        return $this->hasMany(UserDeviceToken::class, 'user_id');
+    }
+
     public static function generateUniqueReferralCode(string $clientName = '', string $execPrefix = 'AI', float $discountPercent = 10.00): string
     {
         return app(\App\Services\ReferralCodeService::class)->generateUniqueClientCode($execPrefix, $clientName, $discountPercent);

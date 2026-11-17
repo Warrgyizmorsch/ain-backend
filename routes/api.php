@@ -183,6 +183,7 @@ Route::prefix('app')->group(function () {
 });
 
 use App\Http\Controllers\Api\AdminCouponApiController;
+use App\Http\Controllers\Api\NotificationApiController;
 
 Route::middleware('auth:sanctum')->prefix('app')->group(function () {
     Route::post('/place-order', [OrderApiController::class, 'placeOrder']);
@@ -204,6 +205,8 @@ Route::middleware('auth:sanctum')->prefix('app')->group(function () {
     Route::post('/add-payment', [OrderApiController::class, 'addPayment']);
     Route::get('/total-spent', [OrderApiController::class, 'userSpending']);
     Route::get('/payment-history', [OrderApiController::class, 'paymentHistory']);
+    Route::post('/save-device-token', [NotificationApiController::class, 'saveDeviceToken']);
+    Route::post('/remove-device-token', [NotificationApiController::class, 'removeDeviceToken']);
 });
 
 // Admin Coupon Management APIs
