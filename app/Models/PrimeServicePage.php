@@ -25,7 +25,7 @@ class PrimeServicePage extends Model
         'section_two_content',
         'section_three_heading',
         'section_three_content',
-        'expert_ids',
+        'prime_writer_ids',
         'review_ids',
         'faqs',
         'topics',
@@ -40,7 +40,7 @@ class PrimeServicePage extends Model
     ];
 
     protected $casts = [
-        'expert_ids'   => 'array',
+        'prime_writer_ids' => 'array',
         'review_ids'   => 'array',
         'faqs'         => 'array',
         'topics'       => 'array',
@@ -63,9 +63,9 @@ class PrimeServicePage extends Model
         return $this->belongsTo(PrimeSubject::class, 'prime_subject_id');
     }
 
-    public function selectedExperts()
+    public function selectedPrimeWriters()
     {
-        return Experts::whereIn('id', $this->expert_ids ?: [])->get();
+        return PrimeWriter::whereIn('id', $this->prime_writer_ids ?: [])->get();
     }
 
     public function selectedReviews()

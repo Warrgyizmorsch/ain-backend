@@ -128,18 +128,17 @@
         </div>
     </section>
 
-    @if($experts->isNotEmpty())
+    @if($primeWriters->isNotEmpty())
     <section>
         <div class="wrap">
-            <h2 class="section-title">Our Top Assignment Experts</h2>
+            <h2 class="section-title">Our Prime Writers</h2>
             <div class="cards">
-                @foreach($experts->take(5) as $expert)
+                @foreach($primeWriters->take(5) as $writer)
                     <div class="card">
                         <div class="photo">👤</div>
                         <div class="card-body">
-                            <strong>{{ $expert->name }}</strong>
-                            <p>{{ $expert->subject ?: $page->primeSubject?->name ?? 'Subject' }} Expert</p>
-                            <small>★ 4.9 · {{ $expert->finish_order ?: 800 }}+ Orders</small>
+                            <strong>{{ $writer->name }}</strong>
+                            <p>Prime Assignment Writer</p>
                         </div>
                     </div>
                 @endforeach

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\PrimeSample;
 use App\Models\PrimeSampleCategory;
+use App\Models\PrimeSampleType;
 use App\Services\PrimeAssignmentSetupService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -22,10 +23,15 @@ class PrimeSampleController extends Controller
     public function index(Request $request)
     {
         $query = PrimeSample::query()
-            ->select(['id', 'category_id', 'title', 'slug', 'pages_count', 'words_count', 'is_published', 'created_at'])
-            ->with(['category' => function ($q) {
-                $q->select('id', 'name', 'slug');
-            }]);
+            ->select(['id', 'category_id', 'type_id', 'title', 'slug', 'pages_count', 'words_count', 'is_published', 'created_at'])
+            ->with([
+                'category' => function ($q) {
+                    $q->select('id', 'name', 'slug');
+                },
+                'type' => function ($q) {
+                    $q->select('id', 'name', 'slug');
+                },
+            ]);
 
         // Search by title or slug
         if ($request->filled('search')) {
@@ -41,6 +47,10 @@ class PrimeSampleController extends Controller
             $query->where('category_id', (int) $request->input('category_id'));
         }
 
+        if ($request->filled('type_id')) {
+            $query->where('type_id', (int) $request->input('type_id'));
+        }
+
         // Status filter
         if ($request->filled('status')) {
             $status = $request->input('status');
@@ -54,8 +64,9 @@ class PrimeSampleController extends Controller
         $samples = $query->latest('id')->paginate(25)->withQueryString();
 
         $categories = PrimeSampleCategory::orderBy('name')->get(['id', 'name']);
+        $types = PrimeSampleType::orderBy('name')->get(['id', 'name']);
 
-        return view('prime-samples.index', compact('samples', 'categories'));
+        return view('prime-samples.index', compact('samples', 'categories', 'types'));
     }
 
     public function create()
@@ -95,14 +106,15 @@ class PrimeSampleController extends Controller
 
     public function preview(PrimeSample $primeSample)
     {
-        return view('prime-samples.preview', ['sample' => $primeSample->load('category')]);
+        return view('prime-samples.preview', ['sample' => $primeSample->load(['category', 'type'])]);
     }
 
     private function form(PrimeSample $sample)
     {
         $categories = PrimeSampleCategory::orderBy('name')->get();
+        $types = PrimeSampleType::orderBy('name')->get();
 
-        return view('prime-samples.form', compact('sample', 'categories'));
+        return view('prime-samples.form', compact('sample', 'categories', 'types'));
     }
 
     private function validated(Request $request, ?PrimeSample $sample = null): array
@@ -116,6 +128,7 @@ class PrimeSampleController extends Controller
             'title'            => ['required', 'string', 'max:255'],
             'slug'             => ['required', 'string', 'max:180', $slugRule],
             'category_id'      => ['nullable', 'exists:prime_sample_categories,id'],
+            'type_id'          => ['nullable', 'exists:prime_sample_types,id'],
             'new_category'     => ['nullable', 'string', 'max:120'],
             'content'          => ['required', 'string'],
             'pages_count'      => ['nullable', 'integer', 'min:1'],

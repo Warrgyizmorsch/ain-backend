@@ -20,16 +20,25 @@
 
             <!-- Filter & Search Bar -->
             <form method="GET" action="{{ route('prime-samples.index') }}" class="row g-3 mb-6 align-items-end">
-                <div class="col-md-5">
+                <div class="col-md-4">
                     <label class="form-label fs-7 fw-bold text-muted">Search Title or Slug</label>
                     <input type="text" name="search" class="form-control form-control-solid" placeholder="Search sample title or slug..." value="{{ request('search') }}">
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-2">
                     <label class="form-label fs-7 fw-bold text-muted">Filter by Category</label>
                     <select name="category_id" class="form-select form-select-solid">
                         <option value="">All Categories</option>
                         @foreach($categories as $cat)
                             <option value="{{ $cat->id }}" @selected(request('category_id') == $cat->id)>{{ $cat->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label fs-7 fw-bold text-muted">Filter by Type</label>
+                    <select name="type_id" class="form-select form-select-solid">
+                        <option value="">All Types</option>
+                        @foreach($types as $type)
+                            <option value="{{ $type->id }}" @selected(request('type_id') == $type->id)>{{ $type->name }}</option>
                         @endforeach
                     </select>
                 </div>
@@ -43,7 +52,7 @@
                 </div>
                 <div class="col-md-2 d-flex gap-2">
                     <button type="submit" class="btn btn-primary w-100">Filter</button>
-                    @if(request()->hasAny(['search', 'category_id', 'status']))
+                    @if(request()->hasAny(['search', 'category_id', 'type_id', 'status']))
                         <a href="{{ route('prime-samples.index') }}" class="btn btn-light" title="Reset Filters"><i class="fa fa-undo"></i></a>
                     @endif
                 </div>
@@ -55,6 +64,7 @@
                         <tr class="fw-bold text-muted">
                             <th>Title</th>
                             <th>Category</th>
+                            <th>Type</th>
                             <th>Slug</th>
                             <th>Pages / Words</th>
                             <th>Status</th>
@@ -70,6 +80,11 @@
                             <td>
                                 <span class="badge badge-light-primary fw-semibold">
                                     {{ $sample->category?->name ?? 'General' }}
+                                </span>
+                            </td>
+                            <td>
+                                <span class="badge badge-light-info fw-semibold">
+                                    {{ $sample->type?->name ?? '—' }}
                                 </span>
                             </td>
                             <td>
@@ -101,7 +116,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="6" class="text-center text-muted py-6">
+                            <td colspan="7" class="text-center text-muted py-6">
                                 No prime samples found. Click "Add New Sample" to create one.
                             </td>
                         </tr>
