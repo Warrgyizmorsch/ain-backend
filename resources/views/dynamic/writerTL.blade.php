@@ -5,7 +5,7 @@
 	<div class="toolbar" id="kt_toolbar">
 		<div id="kt_toolbar_container" class="container-fluid d-flex flex-stack">
 			<div data-kt-swapper="true" data-kt-swapper-mode="prepend" data-kt-swapper-parent="{default: '#kt_content_container', 'lg': '#kt_toolbar_container'}" class="page-title d-flex align-items-center flex-wrap me-3 mb-5 mb-lg-0">
-				<h1 class="d-flex align-items-center text-dark fw-bolder fs-3 my-1">Type Of Secvices</h1>
+				<h1 class="d-flex align-items-center text-dark fw-bolder fs-3 my-1">Writer Team Leader</h1>
 				<span class="h-20px border-gray-200 border-start ms-3 mx-2"></span>
 				<small class="text-muted fs-7 fw-bold my-1 ms-1">Assignment In Need</small>
 			</div>
@@ -64,7 +64,7 @@
 		<div class="card card-xxl-stretch mb-5 mb-xl-8">
 			<div class="card-header border-0 pt-5">
 				<h3 class="card-title align-items-start flex-column">
-					<span class="card-label fw-bolder fs-3 mb-1">All Menus</span>
+					<span class="card-label fw-bolder fs-3 mb-1">All Writer Team Leaders</span>
 				</h3>
 			</div>
 			<div class="card-body py-3">

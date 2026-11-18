@@ -69,7 +69,7 @@
 					<div class="card card-xl-stretch mb-5 mb-xl-8">
 						<div class="card-header border-0 pt-5">
 							<h3 class="card-title align-items-start flex-column">
-								<span class="card-label fw-bolder fs-3 mb-1">All User</span>
+								<span class="card-label fw-bolder fs-3 mb-1">All Blogs</span>
 								<span class="text-muted mt-1 fw-bold fs-7"></span>
 							</h3>
 						</div>
@@ -83,7 +83,7 @@
 											<th class="min-w-140px">Title</th>
 											<th class="min-w-100px">Type</th>
 											<th class="min-w-100px">Status</th>
-											<th class="min-w-140px">Create at</th>
+											<th class="min-w-140px">Created At</th>
 											<th class="min-w-100px text-end">Actions</th>
 										</tr>
 									</thead>

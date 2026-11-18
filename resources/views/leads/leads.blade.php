@@ -18,7 +18,7 @@
                         class="page-title d-flex align-items-center flex-wrap me-3 mb-5 mb-lg-0">
                         <h1 class="d-flex align-items-center text-dark fw-bolder fs-3 my-1">Leads
                             <span class="h-20px border-gray-200 border-start ms-3 mx-2"></span>
-                            <small class="text-muted fs-7 fw-bold my-1 ms-1">Assignement In Need</small>
+                            <small class="text-muted fs-7 fw-bold my-1 ms-1">Assignment In Need</small>
                     </div>
                 </div>
             </div>

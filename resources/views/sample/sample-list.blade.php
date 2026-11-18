@@ -90,7 +90,7 @@
 											<th class="min-w-140px">Title</th>
 											<th class="min-w-140px">Category</th>
 											<th class="min-w-140px">Type</th>
-											<th class="min-w-140px">Create at</th>
+											<th class="min-w-140px">Created At</th>
 											<th class="min-w-100px text-end">Actions</th>
 										</tr>
 									</thead>
