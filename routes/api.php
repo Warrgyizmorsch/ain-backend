@@ -23,6 +23,8 @@ use App\Http\Controllers\Api\CityPageApiController;
 use App\Http\Controllers\Api\PrimeServicePageApiController;
 use App\Http\Controllers\Api\PrimeBlogApiController;
 use App\Http\Controllers\Api\PrimeSampleApiController;
+use App\Http\Controllers\Api\PrimeExpertApiController;
+use App\Http\Controllers\Api\PrimeReviewApiController;
 use App\Http\Controllers\Api\EnquiryApiController;
 use App\Http\Controllers\Api\ContactApiController;
 use App\Http\Controllers\PluginController;
@@ -140,6 +142,16 @@ Route::middleware('api.key')->group(function () {
         Route::get('/blog-categories', [PrimeBlogApiController::class, 'categories']);
         Route::get('/blogs/{slug}', [PrimeBlogApiController::class, 'show'])->where('slug', '.*');
         Route::get('/blog/{slug}', [PrimeBlogApiController::class, 'show'])->where('slug', '.*');
+
+        // Prime Experts (Writers)
+        Route::get('/experts', [PrimeExpertApiController::class, 'index']);
+        Route::get('/writers', [PrimeExpertApiController::class, 'index']);
+        Route::get('/experts/{idOrSlug}', [PrimeExpertApiController::class, 'show'])->where('idOrSlug', '.*');
+        Route::get('/writers/{idOrSlug}', [PrimeExpertApiController::class, 'show'])->where('idOrSlug', '.*');
+
+        // Prime Reviews
+        Route::get('/reviews', [PrimeReviewApiController::class, 'index']);
+        Route::get('/reviews/{id}', [PrimeReviewApiController::class, 'show']);
 
         // Prime Samples
         Route::get('/samples', [PrimeSampleApiController::class, 'index']);

@@ -4,8 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\PrimeServicePage;
 use App\Models\PrimeSubject;
-use App\Models\PrimeWriter;
-use App\Models\Review;
+use App\Models\PrimeExpert;
+use App\Models\PrimeReview;
 use App\Services\PrimeAssignmentSetupService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
@@ -194,11 +194,11 @@ class PrimeServicePageController extends Controller
         return view('prime-service-pages.form', [
             'page'     => $page,
             'subjects' => PrimeSubject::where('is_active', true)->orderBy('name')->get(),
-            'primeWriters' => PrimeWriter::where('is_active', true)
+            'primeWriters' => PrimeExpert::where('is_active', true)
                 ->orWhereIn('id', $page->prime_writer_ids ?: [])
                 ->orderBy('name')
                 ->get(),
-            'reviews'  => Review::latest()->get(),
+            'reviews'  => PrimeReview::latest()->get(),
         ]);
     }
 
@@ -244,7 +244,7 @@ class PrimeServicePageController extends Controller
             'cta_button_url'        => ['nullable', 'string', 'max:500'],
             'long_content'          => ['nullable', 'string'],
             'prime_writer_ids'      => ['nullable', 'array'],
-            'prime_writer_ids.*'    => ['integer', 'exists:prime_writers,id'],
+            'prime_writer_ids.*'    => ['integer', 'exists:prime_experts,id'],
             'review_ids'            => ['nullable', 'array'],
             'review_ids.*'          => ['nullable'],
             'faqs'                  => ['nullable', 'array'],

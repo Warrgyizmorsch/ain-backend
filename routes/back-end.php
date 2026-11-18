@@ -35,7 +35,8 @@ use App\Http\Controllers\PrimeBlogController;
 use App\Http\Controllers\PrimeSampleController;
 use App\Http\Controllers\PrimeSampleCategoryController;
 use App\Http\Controllers\PrimeSampleTypeController;
-use App\Http\Controllers\PrimeWriterController;
+use App\Http\Controllers\PrimeExpertController;
+use App\Http\Controllers\PrimeReviewController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\EnquiryController;
 use App\Http\Controllers\ChatbotController;
@@ -82,7 +83,10 @@ Route::middleware(['auth'])->group(function () {
     Route::resource('prime-samples', PrimeSampleController::class)->except(['show']);
     Route::resource('prime-sample-categories', PrimeSampleCategoryController::class)->only(['index', 'store', 'update', 'destroy']);
     Route::resource('prime-sample-types', PrimeSampleTypeController::class)->only(['index', 'store', 'update', 'destroy']);
-    Route::resource('prime-writers', PrimeWriterController::class)->only(['index', 'store', 'update', 'destroy']);
+
+
+      Route::resource('prime-experts', PrimeExpertController::class)->except(['show']);
+    Route::resource('prime-reviews', PrimeReviewController::class)->except(['show']);
 });
 
 Route::any('/order/export', [ExportController::class, 'export'])->name('order.export');
