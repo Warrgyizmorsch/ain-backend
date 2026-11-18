@@ -77,6 +77,8 @@
                     $menus = $menus->sortBy(function ($menu) {
                         return (int) $menu->sort_order;
                     });
+                    $renderedSuperAdminReferralMenu = false;
+                    $isSuperAdminReferralActive = $isActiveRoute('referral-system');
                 @endphp
 
                 <div class="menu-item">
@@ -190,15 +192,15 @@
                                     if (auth()->check() && auth()->user()->role_id == 9) {
                                         $subRoute = trim($submenu->routes, '/');
                                         $currentUserId = auth()->id();
+                                        if ($subRoute == 'my-break-time-report') {
+                                            return false;
+                                        }
                                         if ($currentUserId == 13715) {
-                                            if (
-                                                $subRoute == 'my-break-time-report' ||
-                                                $subRoute == 'my-revoke-payments'
-                                            ) {
+                                            if ($subRoute == 'my-revoke-payments') {
                                                 return false;
                                             }
                                         } else {
-                                            if ($subRoute == 'break-time-report' || $subRoute == 'revoke-payments') {
+                                            if ($subRoute == 'revoke-payments') {
                                                 return false;
                                             }
                                         }
@@ -210,18 +212,19 @@
                                     return $isActiveRoute($submenu->routes);
                                 });
 
+                                $isCustomerDueActive = strtolower($menu['menu_name']) == 'reports' && request()->is('customer-due-report*');
                                 $isReportsPayeeActive =
                                     strtolower($menu['menu_name']) == 'reports' &&
                                     auth()->check() &&
                                     auth()->user()->role_id == 1 &&
                                     $isActiveRoute('payee-report');
 
-                                $isParentActive = $hasActiveChild || $isReportsPayeeActive;
+                                $isParentActive = $hasActiveChild || $isReportsPayeeActive || $isCustomerDueActive;
                             @endphp
 
                             @if (
                                 $visibleSubmenus->isNotEmpty() ||
-                                    (strtolower($menu['menu_name']) == 'reports' && auth()->check() && auth()->user()->role_id == 1))
+                                    (strtolower($menu['menu_name']) == 'reports' && auth()->check() && (int) auth()->user()->role_id === 1))
                                 <div data-kt-menu-trigger="click"
                                     class="menu-item menu-accordion {{ $isParentActive ? 'here show' : '' }}">
                                     <span class="menu-link {{ $isParentActive ? 'active' : '' }}">
@@ -262,7 +265,7 @@
                                                 </a>
                                             </div>
                                         @endforeach
-                                        @if (strtolower($menu['menu_name']) == 'reports' && auth()->check() && auth()->user()->role_id == 1)
+                                        @if (strtolower($menu['menu_name']) == 'reports' && auth()->check() && (int) auth()->user()->role_id === 1)
                                             <div class="menu-item">
                                                 <a class="menu-link {{ $isReportsPayeeActive ? 'active' : '' }}"
                                                     href="{{ url('payee-report') }}">
@@ -313,8 +316,32 @@
                                 </a>
                             </div>
                         @endif
+                        @if (strtolower($menu['menu_name']) == 'reports' && auth()->check() && (int) auth()->user()->role_id === 1 && !$renderedSuperAdminReferralMenu)
+                            @php $renderedSuperAdminReferralMenu = true; @endphp
+                            <div class="menu-item">
+                                <a class="menu-link {{ $isSuperAdminReferralActive ? 'active' : '' }}"
+                                    href="{{ url('referral-system') }}">
+                                    <span class="menu-icon">
+                                        <i class="fa fa-tags"></i>
+                                    </span>
+                                    <span class="menu-title">Referral System</span>
+                                </a>
+                            </div>
+                        @endif
                     @endif
                 @endforeach
+
+                @if (auth()->check() && (int) auth()->user()->role_id === 1 && !$renderedSuperAdminReferralMenu)
+                    <div class="menu-item">
+                        <a class="menu-link {{ $isSuperAdminReferralActive ? 'active' : '' }}"
+                            href="{{ url('referral-system') }}">
+                            <span class="menu-icon">
+                                <i class="fa fa-tags"></i>
+                            </span>
+                            <span class="menu-title">Referral System</span>
+                        </a>
+                    </div>
+                @endif
 
 
 

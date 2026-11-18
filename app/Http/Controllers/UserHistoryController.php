@@ -2349,21 +2349,106 @@ foreach ($countQuery as $count) {
 public function userRetentionReport(Request $request)
 {
     $year = $request->input('year', now()->year);
+    $cohortType = $request->input('cohort_type', 'order'); // 'order' (order placement date / lapsed) or 'registration' (user signup)
 
-        $unconverted = \Illuminate\Support\Facades\Cache::remember('unconverted_leads_filter_set', 300, function() {
-            $leadIds = DB::table('leads')
-                ->where('is_converted', '!=', 1)
-                ->pluck('id')
-                ->all();
-            $orderIds = DB::table('leads')
-                ->where('is_converted', '!=', 1)
-                ->whereNotNull('order_id')
-                ->where('order_id', '!=', '')
-                ->pluck('order_id')
-                ->all();
-            return ['lead_ids' => $leadIds, 'order_ids' => $orderIds];
-        });
+    $unconverted = \Illuminate\Support\Facades\Cache::remember('unconverted_leads_filter_set', 300, function() {
+        $leadIds = DB::table('leads')
+            ->where('is_converted', '!=', 1)
+            ->pluck('id')
+            ->all();
+        $orderIds = DB::table('leads')
+            ->where('is_converted', '!=', 1)
+            ->whereNotNull('order_id')
+            ->where('order_id', '!=', '')
+            ->pluck('order_id')
+            ->all();
+        return ['lead_ids' => $leadIds, 'order_ids' => $orderIds];
+    });
 
+    $months = [];
+    $currentMonth = ($year == now()->year) ? now()->month : 12;
+
+    if ($cohortType === 'order') {
+        for ($m = 1; $m <= $currentMonth; $m++) {
+            $monthStart = \Carbon\Carbon::create($year, $m, 1)->startOfMonth()->toDateString();
+            $monthEnd   = \Carbon\Carbon::create($year, $m, 1)->endOfMonth()->toDateString();
+
+            $baseQuery = DB::table('orders')
+                ->join('users', 'users.id', '=', 'orders.uid')
+                ->whereBetween('orders.order_date', [$monthStart, $monthEnd])
+                ->where('users.role_id', 2)
+                ->where('users.flag', 0);
+
+            if (!empty($unconverted['lead_ids'])) {
+                $baseQuery->whereNotIn('orders.lead_id', $unconverted['lead_ids']);
+            }
+            if (!empty($unconverted['order_ids'])) {
+                $baseQuery->whereNotIn('orders.order_id', $unconverted['order_ids']);
+            }
+
+            if ($request->filled('user')) {
+                $search = $request->user;
+                $baseQuery->where(function ($q) use ($search) {
+                    $q->where('users.name', 'like', '%' . $search . '%')
+                        ->orWhere('users.email', 'like', '%' . $search . '%')
+                        ->orWhere('users.mobile_no', 'like', '%' . $search . '%');
+                });
+            }
+
+            // All ordering users in this month
+            $allOrderingUsers = (clone $baseQuery)
+                ->select(
+                    'users.id',
+                    'users.name',
+                    'users.email',
+                    'users.countrycode',
+                    'users.mobile_no',
+                    'users.created_at',
+                    DB::raw('(SELECT MAX(o_all.order_date) FROM orders o_all WHERE o_all.uid = users.id) as last_order_date'),
+                    DB::raw('(SELECT COUNT(o_all.id) FROM orders o_all WHERE o_all.uid = users.id) as total_orders'),
+                    DB::raw('COUNT(orders.id) as month_orders')
+                )
+                ->groupBy('users.id', 'users.name', 'users.email', 'users.countrycode', 'users.mobile_no', 'users.created_at')
+                ->orderByDesc('last_order_date')
+                ->get();
+
+            // Lapsed: ordered in this month but 0 orders after this month
+            $lapsedUsers = (clone $baseQuery)
+                ->whereNotExists(function($q) use ($monthEnd) {
+                    $q->select(DB::raw(1))
+                      ->from('orders as o2')
+                      ->whereColumn('o2.uid', 'orders.uid')
+                      ->where('o2.order_date', '>', $monthEnd);
+                })
+                ->select(
+                    'users.id',
+                    'users.name',
+                    'users.email',
+                    'users.countrycode',
+                    'users.mobile_no',
+                    'users.created_at',
+                    DB::raw('(SELECT MAX(o_all.order_date) FROM orders o_all WHERE o_all.uid = users.id) as last_order_date'),
+                    DB::raw('(SELECT COUNT(o_all.id) FROM orders o_all WHERE o_all.uid = users.id) as total_orders'),
+                    DB::raw('COUNT(orders.id) as month_orders')
+                )
+                ->groupBy('users.id', 'users.name', 'users.email', 'users.countrycode', 'users.mobile_no', 'users.created_at')
+                ->orderByDesc('last_order_date')
+                ->get();
+
+            $lapsedIds = $lapsedUsers->pluck('id')->all();
+            $retainedUsers = $allOrderingUsers->filter(fn($u) => !in_array($u->id, $lapsedIds))->values();
+
+            $months[] = [
+                'month_no' => $m,
+                'month_name' => \Carbon\Carbon::create($year, $m, 1)->format('F'),
+                'ordering_users' => $allOrderingUsers,
+                'new_users' => $allOrderingUsers, // compatible alias
+                'retain_users' => $retainedUsers,
+                'not_retain_users' => $lapsedUsers,
+            ];
+        }
+    } else {
+        // Registration-based cohort (Original logic)
         $latestOrdersQuery = DB::table('orders')
             ->select(
                 'orders.uid',
@@ -2382,11 +2467,7 @@ public function userRetentionReport(Request $request)
 
         $latestOrders = $latestOrdersQuery->groupBy('orders.uid');
 
-        $months = [];
-
-        $currentMonth = ($year == now()->year) ? now()->month : 12;
         for ($m = 1; $m <= $currentMonth; $m++) {
-
             $monthStart = \Carbon\Carbon::create($year, $m, 1)->startOfMonth();
             $monthEnd   = \Carbon\Carbon::create($year, $m, 1)->endOfMonth();
 
@@ -2465,15 +2546,17 @@ public function userRetentionReport(Request $request)
                 ->orderByDesc('users.created_at')
                 ->get();
 
-        $months[] = [
-            'month_no' => $m,
-            'month_name' => $monthStart->format('F'),
-            'new_users' => $newUsers,
-            'retain_users' => $retainUsers,
-            'not_retain_users' => $notRetainUsers,
-        ];
+            $months[] = [
+                'month_no' => $m,
+                'month_name' => $monthStart->format('F'),
+                'ordering_users' => $newUsers,
+                'new_users' => $newUsers,
+                'retain_users' => $retainUsers,
+                'not_retain_users' => $notRetainUsers,
+            ];
+        }
     }
 
-    return view('back-end.reports.user-retention-report', compact('months', 'year'));
+    return view('back-end.reports.user-retention-report', compact('months', 'year', 'cohortType'));
 }
 }

@@ -54,7 +54,7 @@
                             </span>
                             New Leads
                         </a>
-                        @if(auth()->user()->role_id == 1)
+                        @if(auth()->check() && (int) auth()->user()->role_id === 1)
                             <a onclick="leadsExport()" style="margin-left: 10px;" class="btn btn-sm btn-danger">Export</a>
                         @endif
                     </div>

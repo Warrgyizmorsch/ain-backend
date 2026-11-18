@@ -32,6 +32,11 @@ class User extends Authenticatable
         'team_id',
         'refer_id',
         'referral_code',
+        'referral_discount_percent',
+        'referral_executive_id',
+        'referral_prefix',
+        'referral_code_generated_at',
+        'referral_updated_by',
         'total_referral_earnings',
         'Wallet',
         'verifyed',
@@ -60,6 +65,8 @@ class User extends Authenticatable
     protected $casts = [
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
+        'referral_discount_percent' => 'decimal:2',
+        'referral_code_generated_at' => 'datetime',
     ];
     protected $attributes = [
         'role_id' => 2,
@@ -135,6 +142,35 @@ class User extends Authenticatable
                            ->where('leads.is_converted', 0);
                    });
             });
+    }
+
+    /**
+     * Genuine, placed, converted, non-cancelled orders for this user.
+     */
+    public function genuineOrders()
+    {
+        return $this->hasMany(Order::class, 'uid', 'id')->genuinePlaced('orders');
+    }
+
+    /**
+     * Scope users to genuine active customers matching client order count bounds.
+     */
+    public function scopeFilterByGenuineOrderBounds($query, ?array $bounds, ?string $orderFrom = null, ?string $orderTo = null)
+    {
+        if ($bounds === null) {
+            return $query;
+        }
+
+        return $query
+            ->where('users.role_id', 2)
+            ->where('users.flag', 0)
+            ->joinSub(
+                Order::genuineClientAggregateSubquery($bounds, $orderFrom, $orderTo),
+                'gc_clients',
+                function ($join) {
+                    $join->on('users.id', '=', 'gc_clients.client_uid');
+                }
+            );
     }
 
     public function leads()
@@ -363,13 +399,29 @@ class User extends Authenticatable
         return $this->hasMany(User::class, 'refer_id', 'id');
     }
 
-    public static function generateUniqueReferralCode(): string
+    public function referredOrders()
     {
-        do {
-            $code = 'REF' . strtoupper(\Illuminate\Support\Str::random(6));
-        } while (self::where('referral_code', $code)->exists());
+        return $this->hasMany(Order::class, 'referred_by_user_id', 'id');
+    }
 
-        return $code;
+    public function referralExecutive()
+    {
+        return $this->belongsTo(User::class, 'referral_executive_id', 'id');
+    }
+
+    public function referralUpdatedBy()
+    {
+        return $this->belongsTo(User::class, 'referral_updated_by', 'id');
+    }
+
+    public function deviceTokens()
+    {
+        return $this->hasMany(UserDeviceToken::class, 'user_id');
+    }
+
+    public static function generateUniqueReferralCode(string $clientName = '', string $execPrefix = 'AI', float $discountPercent = 10.00): string
+    {
+        return app(\App\Services\ReferralCodeService::class)->generateUniqueClientCode($execPrefix, $clientName, $discountPercent);
     }
 
     /**

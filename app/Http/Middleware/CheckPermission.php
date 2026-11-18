@@ -17,7 +17,7 @@ class CheckPermission
         'user' => [
             'user', 'usercreate', 'user-logs', 'user-history', 'user/report',
             'user/report-list', 'user-report', 'refer-user-report', 'user-retention-report',
-            'user.update', 'user.delete', 'user.userlogs', 'user.feedbackhistory',
+            'user.update', 'user.referral.executives', 'user/referral-executives', 'user.referral.update', 'user/referral', 'user.delete', 'user.userlogs', 'user.feedbackhistory',
             'postChangePasswordAdmin', 'updateUser'
         ],
         'orders' => [
@@ -145,6 +145,9 @@ class CheckPermission
         'experts' => [
             'experts', 'expert', 'create-expert', 'new-expert'
         ],
+        'customer-due-report' => [
+            'customer-due-report', 'customer-due-orders', 'reports.customer-due', 'reports.customer-due.orders'
+        ],
     ];
 
     /**
@@ -174,6 +177,7 @@ class CheckPermission
         'sample' => ['samples', 'sample_list'], // mk 14 10 26 - sample aliases
         'samples' => ['sample', 'sample_list'],
         'sample_list' => ['sample', 'samples'],
+        'customer-due-report' => ['customer-due-orders'],
     ];
 
     public function handle($request, Closure $next)
@@ -227,6 +231,7 @@ class CheckPermission
             'emails.campaigns.audience-count',
             'emails.campaigns.image',
             'export.orders',
+            'export.leads',
             'order.export',
             'appdialnumber',
             'HangUp',
@@ -258,6 +263,7 @@ class CheckPermission
             'emails/campaigns/audience-count',
             'uploads/campaigns',
             'export',
+            'export-leads',
             'order/export',
             'appdialnumber',
             'HangUp',

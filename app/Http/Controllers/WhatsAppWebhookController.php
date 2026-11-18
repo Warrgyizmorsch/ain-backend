@@ -19,6 +19,19 @@ use Illuminate\Support\Str;
 
 class WhatsAppWebhookController extends Controller
 {
+    public function verify(Request $request)
+    {
+        $mode = $request->query('hub_mode') ?? $request->input('hub.mode');
+        $token = $request->query('hub_verify_token') ?? $request->input('hub.verify_token');
+        $challenge = $request->query('hub_challenge') ?? $request->input('hub.challenge');
+
+        if (($mode === 'subscribe' || ! empty($challenge)) && ! empty($challenge)) {
+            return response($challenge, 200)->header('Content-Type', 'text/plain');
+        }
+
+        return response()->json(['status' => 'verified'], 200);
+    }
+
 
 public function receive(Request $request)
 {
@@ -377,13 +390,21 @@ public function receive(Request $request)
             $waMessageId = $msg['messageId'] 
                 ?? $msg['id'] 
                 ?? $msg['wa_message_id']
+                ?? $msg['msg_id']
+                ?? $msg['message_id']
                 ?? $data['data']['messageId']
                 ?? $data['data']['id']
+                ?? $data['data']['msg_id']
+                ?? $data['data']['message_id']
+                ?? ($data['data']['messages'][0]['id'] ?? null)
+                ?? ($msg['messages'][0]['id'] ?? null)
                 ?? $data['messageId']
+                ?? $data['message_id']
+                ?? $data['msg_id']
                 ?? $data['id']
                 ?? null;
 
-            $rawStatus = strtolower((string) ($msg['status'] ?? $data['data']['status'] ?? $data['status'] ?? ''));
+            $rawStatus = strtolower((string) ($msg['status'] ?? $msg['delivery_status'] ?? $data['data']['status'] ?? $data['data']['delivery_status'] ?? $data['status'] ?? ''));
             if ($rawStatus === '') {
                 if (str_contains($eventName, 'delivered')) $rawStatus = 'delivered';
                 elseif (str_contains($eventName, 'read') || str_contains($eventName, 'seen')) $rawStatus = 'read';
@@ -407,17 +428,46 @@ public function receive(Request $request)
 
                 // Fallback: match by recipient phone if wa_message_id was not matched directly
                 if (! $message) {
-                    $statusPhone = $msg['phone_number'] ?? $msg['phone'] ?? $msg['to'] ?? $msg['recipient'] ?? $msg['recipient_id'] ?? $data['customer']['phone'] ?? null;
+                    $statusPhone = $msg['phone_number'] 
+                        ?? $msg['phone'] 
+                        ?? $msg['to'] 
+                        ?? $msg['recipient'] 
+                        ?? $msg['recipient_id'] 
+                        ?? ($data['data']['to'] ?? null)
+                        ?? ($data['data']['phone'] ?? null)
+                        ?? ($data['data']['recipient'] ?? null)
+                        ?? ($data['customer']['phone'] ?? null)
+                        ?? ($data['customer']['phone_number'] ?? null)
+                        ?? null;
                     if ($statusPhone) {
-                        $cleanStatusPhone = ltrim(preg_replace('/\D+/', '', $statusPhone), '+');
+                        $cleanStatusPhone = ltrim(preg_replace('/\D+/', '', (string) $statusPhone), '+');
                         $last10Status = strlen($cleanStatusPhone) >= 10 ? substr($cleanStatusPhone, -10) : $cleanStatusPhone;
+
+                        // Priority 1: Match outbound message with temporary UUID or in pending/sent status
                         $message = WhatsappMessage::where('direction', 'outbound')
                             ->where(function ($q) use ($cleanStatusPhone, $last10Status) {
                                 $q->where('phone', 'like', "%{$cleanStatusPhone}%")
                                   ->orWhere('phone', 'like', "%{$last10Status}%");
                             })
+                            ->where(function ($q) {
+                                $q->where('wa_message_id', 'like', 'tpl_%')
+                                  ->orWhere('wa_message_id', 'like', 'wa_%')
+                                  ->orWhereNull('wa_message_id')
+                                  ->orWhereIn('status', ['pending', 'sent']);
+                            })
                             ->latest('id')
                             ->first();
+
+                        // Priority 2: Fallback to latest outbound message
+                        if (! $message) {
+                            $message = WhatsappMessage::where('direction', 'outbound')
+                                ->where(function ($q) use ($cleanStatusPhone, $last10Status) {
+                                    $q->where('phone', 'like', "%{$cleanStatusPhone}%")
+                                      ->orWhere('phone', 'like', "%{$last10Status}%");
+                                })
+                                ->latest('id')
+                                ->first();
+                        }
                     }
                 }
 

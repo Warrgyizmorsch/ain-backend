@@ -323,6 +323,21 @@
                         </button>
                     </div><br>
                 @endif
+                @if (\App\Services\ReferralCodeService::canView(auth()->user()) && !empty($effectiveUser->referral_code))
+                    @php
+                        $refPct = rtrim(rtrim(number_format((float) ($effectiveUser->referral_discount_percent ?? 10.00), 2, '.', ''), '0'), '.');
+                    @endphp
+                    <div class="d-inline-flex align-items-center justify-content-center gap-1 mb-1">
+                        <span class="badge badge-light-primary fs-8 fw-bold font-monospace" title="Client Referral Code">
+                            Ref: {{ $effectiveUser->referral_code }} ({{ $refPct }}%)
+                        </span>
+                        <button type="button" class="btn btn-icon btn-sm btn-active-light-primary p-0 flex-shrink-0"
+                            style="width: 18px; height: 18px;" title="Copy Referral Code"
+                            onclick="event.stopPropagation(); crmCopyToClipboard(@js($effectiveUser->referral_code), 'Referral code copied!');">
+                            <i class="fa fa-clone fs-8 text-muted"></i>
+                        </button>
+                    </div><br>
+                @endif
 
                 @if (!empty($effectiveUser->client_review))
                     <span class="duplicate-info-wrapper">
@@ -851,6 +866,33 @@
                     {{ \Carbon\Carbon::parse($order->writer_deadline)->format('d M Y') }}
                 </span><br>
 
+                @if(in_array((int) auth()->user()->role_id, [1, 9]))
+                    @php
+                        $targetWriterIdent = $order->writer_name ?: ($order->swid ?: ($order->wid ?: ($order->writer?->id ?: null)));
+                        if (!$targetWriterIdent && $order->relationLoaded('mulsubwriter') && $order->mulsubwriter && $order->mulsubwriter->isNotEmpty()) {
+                            $targetWriterIdent = $order->mulsubwriter->first()->user_id;
+                        }
+                        $wStats = $targetWriterIdent ? get_writer_monthly_quality_metrics($targetWriterIdent) : null;
+                    @endphp
+                    @if($wStats)
+                        <div class="mt-1 d-inline-flex align-items-center gap-1 flex-wrap justify-content-center" title="Writer Monthly Quality ({{ $wStats['month_name'] }})">
+                            <span class="badge badge-light-primary fs-9 fw-bold" title="Tickets ({{ $wStats['month_name'] }})"><i class="fa fa-ticket-alt fs-9 text-primary me-1"></i>{{ $wStats['tickets'] }}</span>
+                            <span class="badge badge-light-danger fs-9 fw-bold" title="Failed ({{ $wStats['month_name'] }})"><i class="fa fa-times-circle fs-9 text-danger me-1"></i>{{ $wStats['failed'] }}</span>
+                            <span class="badge {{ $wStats['combined'] > 0 ? 'badge-light-warning text-dark' : 'badge-light-success text-success' }} fs-9 fw-bolder" title="Total Issues"><i class="fa fa-exclamation-triangle fs-9 text-warning me-1"></i>{{ $wStats['combined'] }}</span>
+                        </div><br>
+                    @endif
+                    @if($order->is_fail == 1 || $order->feedbackissue == 1 || !empty($order->feedback_ticket))
+                        <div class="mt-1 d-inline-flex align-items-center gap-1 flex-wrap justify-content-center">
+                            @if(!empty($order->feedback_ticket) || $order->feedbackissue == 1)
+                                <span class="badge badge-danger fs-9 fw-bold" style="background-color: #d9214e; color: #fff;">{{ $order->feedback_ticket ?: 'Ticket' }}</span>
+                            @endif
+                            @if($order->is_fail == 1)
+                                <span class="badge badge-danger fs-9 fw-bold" style="background-color: #f1416c; color: #fff;">Failed Job</span>
+                            @endif
+                        </div><br>
+                    @endif
+                @endif
+
                 @if ($order->writerstatus_date)
                     <br>
                     <span class="badge badge-light-warning fs-8 fw-bold mt-1">
@@ -891,6 +933,19 @@
 
                 {{-- @else
             <span class="badge badge-light-danger fs-7 fw-bold">N/A</span>
+                @if(in_array((int) auth()->user()->role_id, [1, 9]))
+                    @if($order->is_fail == 1 || $order->feedbackissue == 1 || !empty($order->feedback_ticket))
+                        <br>
+                        <div class="mt-1 d-inline-flex align-items-center gap-1 flex-wrap justify-content-center">
+                            @if(!empty($order->feedback_ticket) || $order->feedbackissue == 1)
+                                <span class="badge badge-danger fs-9 fw-bold" style="background-color: #d9214e; color: #fff;">{{ $order->feedback_ticket ?: 'Ticket' }}</span>
+                            @endif
+                            @if($order->is_fail == 1)
+                                <span class="badge badge-danger fs-9 fw-bold" style="background-color: #f1416c; color: #fff;">Failed Job</span>
+                            @endif
+                        </div>
+                    @endif
+                @endif
             @endif --}}
             @else
                 <span class="badge badge-light-danger fs-7 fw-bold">N/A</span>

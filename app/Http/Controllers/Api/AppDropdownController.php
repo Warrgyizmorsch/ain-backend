@@ -134,6 +134,11 @@ class AppDropdownController extends Controller
         ]);
     }
 
+    public function workTypes()
+    {
+        return $this->services();
+    }
+
     public function wordCount()
     {
         $wordCounts = [

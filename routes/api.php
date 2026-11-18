@@ -24,6 +24,7 @@ use App\Http\Controllers\Api\PrimeServicePageApiController;
 use App\Http\Controllers\Api\PrimeBlogApiController;
 use App\Http\Controllers\Api\PrimeSampleApiController;
 use App\Http\Controllers\Api\EnquiryApiController;
+use App\Http\Controllers\Api\ContactApiController;
 use App\Http\Controllers\PluginController;
 
 /*
@@ -46,7 +47,7 @@ Route::match(['GET', 'POST'], '/twilio/voice', [PluginController::class, 'handle
 Route::match(['GET', 'POST'], '/twilio/status-callback', [PluginController::class, 'statusCallback'])->name('api.twilio.status.callback');
 Route::match(['GET', 'POST'], '/twilio/recording-callback', [PluginController::class, 'statusCallback'])->name('api.twilio.recording.callback');
 
-// Route::get('/webhooks/whatsapp', [WhatsAppWebhookController::class, 'verify']);
+Route::get('/webhooks/whatsapp', [WhatsAppWebhookController::class, 'verify']);
 Route::post('/webhooks/whatsapp', [WhatsAppWebhookController::class, 'receive']);
 Route::post('/career-applications', [CareerApplicationController::class, 'store']);
 
@@ -54,6 +55,8 @@ Route::prefix('public/leads')->group(function () {
     Route::post('/send-otp', [PublicLeadOtpController::class, 'sendOtpAndCreateLead']);
     Route::post('/verify-otp', [PublicLeadOtpController::class, 'verifyOtp']);
 });
+Route::get('/contact-us', [ContactApiController::class, 'contactDetails']);
+Route::get('/contact-details', [ContactApiController::class, 'contactDetails']);
 Route::post('/submit-feedback', [FeedbackController::class, 'submitFeedback']);
 Route::post('/save-order', [OrderApiController::class, 'store']);
 Route::post('/submit-enquiry', [EnquiryApiController::class, 'store']);
@@ -94,6 +97,7 @@ Route::middleware('api.key')->group(function () {
 
     // Order Dropdown APIs for Web
     Route::get('/services', [AppDropdownController::class, 'services']);
+    Route::get('/work-types', [AppDropdownController::class, 'workTypes']);
     Route::get('/subjects', [AppDropdownController::class, 'subjects']);
     Route::get('/urgencies', [AppDropdownController::class, 'urgencies']);
     Route::get('/word-count', [AppDropdownController::class, 'wordCount']);
@@ -162,8 +166,11 @@ Route::prefix('v1')->group(function () {
 });
 
 Route::prefix('app')->group(function () {
+    Route::get('/contact-us', [ContactApiController::class, 'contactDetails']);
+    Route::get('/contact-details', [ContactApiController::class, 'contactDetails']);
     Route::get('/countries', [AppDropdownController::class, 'countries']);
     Route::get('/services', [AppDropdownController::class, 'services']);
+    Route::get('/work-types', [AppDropdownController::class, 'workTypes']);
     Route::get('/subjects', [AppDropdownController::class, 'subjects']);
     Route::get('/urgencies', [AppDropdownController::class, 'urgencies']);
     Route::get('/word-count', [AppDropdownController::class, 'wordCount']);
@@ -178,6 +185,7 @@ Route::prefix('app')->group(function () {
 });
 
 use App\Http\Controllers\Api\AdminCouponApiController;
+use App\Http\Controllers\Api\NotificationApiController;
 
 Route::middleware('auth:sanctum')->prefix('app')->group(function () {
     Route::post('/place-order', [OrderApiController::class, 'placeOrder']);
@@ -199,6 +207,8 @@ Route::middleware('auth:sanctum')->prefix('app')->group(function () {
     Route::post('/add-payment', [OrderApiController::class, 'addPayment']);
     Route::get('/total-spent', [OrderApiController::class, 'userSpending']);
     Route::get('/payment-history', [OrderApiController::class, 'paymentHistory']);
+    Route::post('/save-device-token', [NotificationApiController::class, 'saveDeviceToken']);
+    Route::post('/remove-device-token', [NotificationApiController::class, 'removeDeviceToken']);
 });
 
 // Admin Coupon Management APIs

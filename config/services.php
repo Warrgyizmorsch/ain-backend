@@ -3,10 +3,13 @@
 return [
 
     'google' => [
-        'client_ids' => array_values(array_filter(array_map('trim', explode(',', env(
-            'GOOGLE_CLIENT_IDS',
-            '876740242049-r98097ovv704bel16q34ancr5eacr673.apps.googleusercontent.com'
-        ))))),
+        'client_ids' => array_values(array_unique(array_filter(array_merge(
+            array_map('trim', explode(',', (string) env('GOOGLE_CLIENT_IDS', ''))),
+            [
+                '82644449094-ve92ap6o7b1ti66mdtvdt5f8f6qi65nu.apps.googleusercontent.com',
+                '876740242049-r98097ovv704bel16q34ancr5eacr673.apps.googleusercontent.com',
+            ]
+        )))),
     ],
 
 
@@ -70,6 +73,12 @@ return [
         'password' => env('SOFTPHONE_PASSWORD', ''),
         'sip_domain' => env('SOFTPHONE_SIP_DOMAIN', ''),
     ],
+    'contact' => [
+        'call_number' => env('APP_CONTACT_CALL_NUMBER', '+44 7917481696'),
+        'whatsapp_number' => env('APP_CONTACT_WHATSAPP_NUMBER', '+44 78262 33106'),
+        'email' => env('APP_CONTACT_EMAIL', 'order@assignnmentinneed.com'),
+    ],
+
    
 
 ];

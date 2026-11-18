@@ -1606,7 +1606,7 @@ class WhatsappController extends Controller
             $cacheKey = 'aisensy_wa_templates_'.$projectId;
             $apiTemplates = Cache::remember($cacheKey, 60, function () use ($projectId, $apiKey) {
                 $url = "https://apis.aisensy.com/project-apis/v1/project/{$projectId}/wa_template/";
-                $res = Http::withHeaders([
+                $res = Http::withoutVerifying()->withHeaders([
                     'Accept' => 'application/json',
                     'X-AiSensy-Project-API-Pwd' => $apiKey,
                 ])->timeout(8)->get($url);
@@ -1813,7 +1813,7 @@ class WhatsappController extends Controller
         }
 
         try {
-            $response = Http::withHeaders([
+            $response = Http::withoutVerifying()->withHeaders([
                 'Accept' => 'application/json',
                 'Content-Type' => 'application/json',
                 'X-AiSensy-Project-API-Pwd' => $apiKey,
@@ -1821,10 +1821,16 @@ class WhatsappController extends Controller
 
             if ($response->successful()) {
                 $resData = $response->json();
-                $waMsgId = $resData['messages'][0]['id']
-                    ?? $resData['messageId']
-                    ?? $resData['id']
+                $waMsgId = $resData['data']['id']
+                    ?? $resData['data']['msg_id']
                     ?? $resData['data']['messageId']
+                    ?? $resData['data']['message_id']
+                    ?? ($resData['data']['messages'][0]['id'] ?? null)
+                    ?? ($resData['messages'][0]['id'] ?? null)
+                    ?? $resData['messageId']
+                    ?? $resData['message_id']
+                    ?? $resData['msg_id']
+                    ?? $resData['id']
                     ?? null;
 
                 $message->update([
@@ -2981,7 +2987,7 @@ class WhatsappController extends Controller
                     ];
                 }
 
-                $response = Http::withHeaders([
+                $response = Http::withoutVerifying()->withHeaders([
                     'Accept' => 'application/json',
                     'Content-Type' => 'application/json',
                     'X-AiSensy-Project-API-Pwd' => $apiKey,
@@ -2989,13 +2995,16 @@ class WhatsappController extends Controller
 
                 if ($response->successful()) {
                     $resData = $response->json();
-                    $waMsgId = $resData['messages'][0]['id']
-                        ?? $resData['messageId']
-                        ?? $resData['id']
+                    $waMsgId = $resData['data']['id']
+                        ?? $resData['data']['msg_id']
                         ?? $resData['data']['messageId']
-                        ?? $resData['data']['id']
-                        ?? $resData['data']['messages'][0]['id']
+                        ?? $resData['data']['message_id']
+                        ?? ($resData['data']['messages'][0]['id'] ?? null)
+                        ?? ($resData['messages'][0]['id'] ?? null)
+                        ?? $resData['messageId']
                         ?? $resData['message_id']
+                        ?? $resData['msg_id']
+                        ?? $resData['id']
                         ?? null;
 
                     $currentStatus = strtolower((string) $message->status);

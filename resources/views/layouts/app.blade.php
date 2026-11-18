@@ -821,6 +821,7 @@
         });
     </script> -->
 
+    @if(auth()->check() && (int) auth()->user()->role_id === 1)
     <script>
         document.addEventListener("DOMContentLoaded", function () {
             const preloader = document.getElementById('export-preloader');
@@ -903,6 +904,10 @@
                                     if (inlinePanel) inlinePanel.style.display = 'none';
                                 }
                                 Swal.fire('Export Failed', data.message || 'Please try again.', 'error');
+                            } else if (data.status === "idle") {
+                                localStorage.removeItem(statusKey);
+                                sessionStorage.removeItem(`${type}ExportProgressDismissed`);
+                                preloader.style.display = 'none';
                             }
                         })
                         .catch(() => {
@@ -925,6 +930,7 @@
             });
         });
     </script>
+    @endif
 
     <script>
         window.currentAlertOrder = null;

@@ -29,6 +29,46 @@
 			</div>
             
 
+				@php
+			$writerMonthlyStats = $data['writerMonthlyStats'] ?? get_writer_monthly_quality_metrics(auth()->id(), 6);
+		@endphp
+		@if(can_view_writer_quality_metrics())
+		<div class="row g-2 mb-3 px-4">
+				<div class="col-md-4">
+					<div class="d-flex align-items-center px-3 py-2 rounded bg-light-primary border border-primary border-dashed shadow-xs" style="min-height: 38px;">
+						<div class="d-flex align-items-center justify-content-center bg-white rounded me-2 flex-shrink-0" style="width: 26px; height: 26px;">
+							<i class="fa fa-ticket-alt text-primary fs-7"></i>
+						</div>
+						<div class="d-flex align-items-baseline gap-2">
+							<span class="fs-4 fw-bolder text-dark">{{ $writerMonthlyStats['tickets'] }}</span>
+							<span class="text-gray-600 fw-bold fs-8">This Month's Tickets ({{ $writerMonthlyStats['month_name'] }})</span>
+						</div>
+					</div>
+				</div>
+				<div class="col-md-4">
+					<div class="d-flex align-items-center px-3 py-2 rounded bg-light-danger border border-danger border-dashed shadow-xs" style="min-height: 38px;">
+						<div class="d-flex align-items-center justify-content-center bg-white rounded me-2 flex-shrink-0" style="width: 26px; height: 26px;">
+							<i class="fa fa-times-circle text-danger fs-7"></i>
+						</div>
+						<div class="d-flex align-items-baseline gap-2">
+							<span class="fs-4 fw-bolder text-dark">{{ $writerMonthlyStats['failed'] }}</span>
+							<span class="text-gray-600 fw-bold fs-8">This Month's Failed Orders</span>
+						</div>
+					</div>
+				</div>
+				<div class="col-md-4">
+					<div class="d-flex align-items-center px-3 py-2 rounded bg-light-warning border border-warning border-dashed shadow-xs" style="min-height: 38px;">
+						<div class="d-flex align-items-center justify-content-center bg-white rounded me-2 flex-shrink-0" style="width: 26px; height: 26px;">
+							<i class="fa fa-exclamation-triangle text-warning fs-7"></i>
+						</div>
+						<div class="d-flex align-items-baseline gap-2">
+							<span class="fs-4 fw-bolder text-dark">{{ $writerMonthlyStats['combined'] }}</span>
+							<span class="text-gray-600 fw-bold fs-8">Total Issues (Tickets + Failed)</span>
+						</div>
+					</div>
+				</div>
+			</div>
+		@endif
 		<div class="card card-xl-stretch  mb-xl-">
 			
 			<div class="card-body py-3">
@@ -48,7 +88,10 @@
 									<!-- <th>Writer Team Leader</th> -->
 									<th>Writer</th>
 									<th class="min-w-60px">Writer Deadline</th>
-									<th class="min-w-50px text-center">Actions</th>
+									@if(can_view_writer_quality_metrics())
+									<th class="min-w-140px text-center">Monthly Quality (Tickets / Fail)</th>
+								@endif
+								<th class="min-w-50px text-center">Actions</th>
 
 								</tr>
 							</thead>
@@ -189,6 +232,9 @@
 
 									
 
+									@if(can_view_writer_quality_metrics())
+										<td class="text-center">{!! render_writer_monthly_quality_cell($writerMonthlyStats, $order) !!}</td>
+									@endif
 									<td class="text-center">
 										<a href="/edit/{{ $order->id }}" 
 											class="btn btn-icon btn-bg-light btn-active-color-primary btn-sm me-1"">

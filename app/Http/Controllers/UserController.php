@@ -13,6 +13,7 @@ use App\Models\UserLog;
 use App\Models\Order;
 use App\Models\GroupMaster;
 use App\Models\Team;
+use App\Services\ReferralCodeService;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
 
@@ -185,8 +186,14 @@ class UserController extends Controller
         $roleId = $request->input('role');
         $countrycode = $request->input('countrycode');
         $orderFilter = $request->input('order_category');
+        $minOrders = $request->input('min_orders');
+        $requestedPeriod = $request->input('order_period');
         $collegeName = $request->input('college_name');
         $groupId = $request->input('group_id');
+        $orderSort = strtolower(trim((string) $request->input('order_sort', 'desc')));
+        if (!in_array($orderSort, ['desc', 'asc', 'latest'], true)) {
+            $orderSort = 'desc';
+        }
         // mk 5 10 26 - Changed perPage from 10 to 20 for infinite scroll
         $perPage = 20;
 
@@ -265,48 +272,71 @@ class UserController extends Controller
             }
         }
 
-        $oneAndHalfYearAgo = \Carbon\Carbon::now()->subMonths(18);
-        $oneYearAgo = \Carbon\Carbon::now()->subYear();
-        $query = User::with('groups:id,name')->withCount([
-            'convertedOrders as total_orders_count',
-            'leads',
-            'convertedOrders as orders_count' => function ($q) use ($oneAndHalfYearAgo) {
-                $q->where('order_date', '>=', $oneAndHalfYearAgo);
-            },
-            'followups' => function ($q) use ($oneYearAgo) {
-                $q->where('created_at', '>=', $oneYearAgo);
+        $clientOrderBounds = Order::resolveClientOrderBounds($orderFilter, $minOrders);
+        $allowedPeriods = ['lifetime', '18_months', 'this_year'];
+        $effectiveOrderPeriod = in_array($requestedPeriod, $allowedPeriods, true)
+            ? $requestedPeriod
+            : ($clientOrderBounds !== null ? 'lifetime' : '18_months');
+
+        [$orderFrom, $orderTo] = Order::resolveOrderPeriodDateRange($effectiveOrderPeriod);
+        $orderPeriodLabel = match ($effectiveOrderPeriod) {
+            'lifetime' => 'Lifetime',
+            'this_year' => 'Year ' . \Carbon\Carbon::now()->year,
+            default => 'Last 1.5 Yrs',
+        };
+
+        $applyOrderPeriodScope = function ($q) use ($orderFrom, $orderTo) {
+            if ($orderFrom && $orderTo) {
+                $q->whereBetween('order_date', [$orderFrom, $orderTo]);
+            } elseif ($orderFrom) {
+                $q->where('order_date', '>=', $orderFrom);
+            } elseif ($orderTo) {
+                $q->where('order_date', '<=', $orderTo);
             }
-        ])->where('flag', 0);
+        };
+
+        $oneYearAgo = \Carbon\Carbon::now()->subYear();
+        $query = User::with(['groups:id,name', 'referralExecutive:id,name,referral_prefix'])
+            ->select('users.*')
+            ->withCount([
+                'genuineOrders as total_orders_count',
+                'leads',
+                'genuineOrders as orders_count' => $applyOrderPeriodScope,
+                'followups' => function ($q) use ($oneYearAgo) {
+                    $q->where('created_at', '>=', $oneYearAgo);
+                }
+            ])->where('users.flag', 0);
 
         // Basic Filters
         if ($searchUserId) {
-            $query->where('id', $searchUserId);
+            $query->where('users.id', $searchUserId);
         } elseif ($userText !== '') {
             $cleanUserText = preg_replace('/\D+/', '', $userText);
             $last10 = strlen($cleanUserText) >= 10 ? substr($cleanUserText, -10) : $cleanUserText;
 
             $query->where(function ($q) use ($userText, $cleanUserText, $last10) {
-                $q->where('name', 'like', '%' . $userText . '%')
-                  ->orWhere('email', 'like', '%' . $userText . '%')
-                  ->orWhere('mobile_no', 'like', '%' . $userText . '%')
-                  ->orWhere('mobile_no2', 'like', '%' . $userText . '%');
+                $q->where('users.name', 'like', '%' . $userText . '%')
+                  ->orWhere('users.email', 'like', '%' . $userText . '%')
+                  ->orWhere('users.mobile_no', 'like', '%' . $userText . '%')
+                  ->orWhere('users.mobile_no2', 'like', '%' . $userText . '%')
+                  ->orWhere('users.referral_code', 'like', '%' . $userText . '%');
                 if (!empty($cleanUserText)) {
-                    $q->orWhere('mobile_no', 'like', '%' . $cleanUserText . '%')
-                      ->orWhereRaw("CONCAT(COALESCE(countrycode, ''), COALESCE(mobile_no, '')) LIKE ?", ["%{$cleanUserText}%"]);
+                    $q->orWhere('users.mobile_no', 'like', '%' . $cleanUserText . '%')
+                      ->orWhereRaw("CONCAT(COALESCE(users.countrycode, ''), COALESCE(users.mobile_no, '')) LIKE ?", ["%{$cleanUserText}%"]);
                 }
                 if (!empty($last10)) {
-                    $q->orWhere('mobile_no', 'like', '%' . $last10 . '%');
+                    $q->orWhere('users.mobile_no', 'like', '%' . $last10 . '%');
                 }
             });
         }
         if ($startDate && !$endDate) {
-            $query->whereDate('created_at', $startDate);
+            $query->whereDate('users.created_at', $startDate);
         }
         if ($startDate && $endDate) {
-            $query->whereBetween('created_at', [$startDate, $endDate]); 
+            $query->whereBetween('users.created_at', [$startDate, $endDate]);
         }
         if ($roleId) {
-            $query->where('role_id', $roleId);
+            $query->where('users.role_id', $roleId);
         }
         if ($groupId) {
             $query->whereHas('groups', fn ($q) => $q->where('group_masters.id', $groupId));
@@ -324,54 +354,41 @@ class UserController extends Controller
             if ($countrycode === 'Other') {
                 $query->where(function ($q) use ($allKnownCodes, $allCodesRegex) {
                     $q->where(function ($subQ) use ($allKnownCodes) {
-                        $subQ->whereNotIn('countrycode', $allKnownCodes)
-                            ->orWhereNull('countrycode')
-                            ->orWhere('countrycode', '');
+                        $subQ->whereNotIn('users.countrycode', $allKnownCodes)
+                            ->orWhereNull('users.countrycode')
+                            ->orWhere('users.countrycode', '');
                     });
                     $q->where(function ($subQ) use ($allCodesRegex) {
-                        $subQ->where('mobile_no', 'NOT REGEXP', $allCodesRegex)
-                            ->orWhereNull('mobile_no')
-                            ->orWhere('mobile_no', '');
+                        $subQ->where('users.mobile_no', 'NOT REGEXP', $allCodesRegex)
+                            ->orWhereNull('users.mobile_no')
+                            ->orWhere('users.mobile_no', '');
                     });
                 });
             } elseif (array_key_exists($countrycode, $globalCountries)) {
                 $selectedCodes = $globalCountries[$countrycode];
-                $escapedSelected = array_map(function ($c) {
-                    return str_replace('+', '\\\\+', $c);
-                }, $selectedCodes);
-                $selectedRegex = '^(' . implode('|', $escapedSelected) . ')';
 
-                $query->where(function ($q) use ($selectedCodes, $selectedRegex) {
-                    $q->whereIn('countrycode', $selectedCodes)
-                        //   ->orWhere('mobile_no', 'REGEXP', $selectedRegex);
-                        ->whereIn('countrycode', $selectedCodes);
+                $query->where(function ($q) use ($selectedCodes) {
+                    $q->whereIn('users.countrycode', $selectedCodes);
                 });
             }
         }
 
         if ($collegeName) {
-    $query->whereHas('orders', function ($q) use ($collegeName) {
-        $q->where('college_name', $collegeName);
-    });
-}
+            $query->whereHas('genuineOrders', function ($q) use ($collegeName) {
+                $q->where('college_name', $collegeName);
+            });
+        }
 
-        if ($orderFilter) {
-            $query->whereHas(
-                'convertedOrders',
-                function ($q) use ($oneAndHalfYearAgo) {
-                    $q->where('order_date', '>=', $oneAndHalfYearAgo);
-                },
-                ($orderFilter == 'loyal' ? '>' : ($orderFilter == 'repeated' ? '>=' : '<=')),
-                ($orderFilter == 'loyal' ? 10 : ($orderFilter == 'repeated' ? 4 : 3))
-            );
+        if ($clientOrderBounds !== null) {
+            $query->filterByGenuineOrderBounds($clientOrderBounds, $orderFrom, $orderTo);
         }
 
         // The three tabs represent customer records only. Keeping the base set
         // to users with either a lead or an order makes the groups exhaustive:
         // All Customers = Confirmed + Not Confirmed.
-        if (!$searchUserId && $userText === '') {
+        if (!$searchUserId && $userText === '' && $clientOrderBounds === null) {
             $query->where(function ($customerQuery) {
-                $customerQuery->whereHas('convertedOrders')->orWhereHas('leads');
+                $customerQuery->whereHas('genuineOrders')->orWhereHas('leads');
             });
         }
 
@@ -381,17 +398,29 @@ class UserController extends Controller
         $tab = $request->get('tab', 'all');
         $tabFilteredQuery = clone $query;
         if ($tab === 'confirmed') {
-            $tabFilteredQuery->whereHas('convertedOrders');
+            $tabFilteredQuery->whereHas('genuineOrders');
         } elseif ($tab === 'not_confirmed') {
-            $tabFilteredQuery->whereHas('leads')->whereDoesntHave('convertedOrders');
+            $tabFilteredQuery->whereHas('leads')->whereDoesntHave('genuineOrders');
         } elseif ($tab === 'dummy_email') {
             $tabFilteredQuery->where(function ($q) {
-                $q->where('email', 'like', 'user%@gmail.com')
-                  ->orWhere('email', 'like', 'next_lead_%');
+                $q->where('users.email', 'like', 'user%@gmail.com')
+                  ->orWhere('users.email', 'like', 'next_lead_%');
             });
         }
 
-        $data['users'] = $tabFilteredQuery->orderBy('id', 'desc')->paginate($perPage);
+        if ($orderSort === 'asc') {
+            $tabFilteredQuery->orderBy('orders_count', 'asc')
+                ->orderBy('total_orders_count', 'asc')
+                ->orderBy('users.id', 'desc');
+        } elseif ($orderSort === 'latest') {
+            $tabFilteredQuery->orderBy('users.id', 'desc');
+        } else {
+            $tabFilteredQuery->orderByDesc('orders_count')
+                ->orderByDesc('total_orders_count')
+                ->orderByDesc('users.id');
+        }
+
+        $data['users'] = $tabFilteredQuery->paginate($perPage);
         $data['role'] = Role::all();
         $data['teams'] = Team::where('is_delete', false)->orderBy('priority', 'asc')->get();
         $data['bank'] = Bank::all();
@@ -415,16 +444,16 @@ class UserController extends Controller
         }
 
         $countAll = (clone $query)->count();
-        $countConfirmed = (clone $query)->whereHas('convertedOrders')->count();
+        $countConfirmed = (clone $query)->whereHas('genuineOrders')->count();
         $countNotConfirmed = (clone $query)
             ->whereHas('leads')
-            ->whereDoesntHave('convertedOrders')
+            ->whereDoesntHave('genuineOrders')
             ->count();
 
         $countDummyEmail = (clone $query)
             ->where(function ($q) {
-                $q->where('email', 'like', 'user%@gmail.com')
-                  ->orWhere('email', 'like', 'next_lead_%');
+                $q->where('users.email', 'like', 'user%@gmail.com')
+                  ->orWhere('users.email', 'like', 'next_lead_%');
             })
             ->count();
 
@@ -439,32 +468,72 @@ class UserController extends Controller
             return Order::whereNotNull('college_name')->where('college_name', '!=', '')->distinct()->orderBy('college_name')->pluck('college_name');
         });
         $data['groups'] = GroupMaster::where('status', 1)->orderBy('name')->get(['id','name']);
+        $data['orderPeriod'] = $effectiveOrderPeriod;
+        $data['orderPeriodLabel'] = $orderPeriodLabel;
+        $data['orderSort'] = $orderSort;
 
         // Compacting tab variables for user_view
-        return view('user.user_view', compact('data', 'countAll', 'countConfirmed', 'countNotConfirmed', 'countDummyEmail', 'tab', 'codeToCountry'));
+        return view('user.user_view', compact('data', 'countAll', 'countConfirmed', 'countNotConfirmed', 'countDummyEmail', 'tab', 'codeToCountry', 'effectiveOrderPeriod', 'orderPeriodLabel', 'orderSort'));
     }
 
     public function EditUser(Request $request, $id)
     {
+        $hasReferralPayload = $request->hasAny([
+            'referral_code',
+            'referral_discount_percent',
+            'referral_prefix',
+            'referral_executive_id',
+        ]);
+
+        if ($hasReferralPayload && ! ReferralCodeService::canEdit(Auth::user())) {
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Only Admin and Sub Admin can edit referral settings.',
+                ], 403);
+            }
+            abort(403, 'Only Admin and Sub Admin can edit referral settings.');
+        }
+
         try {
             $user = User::findOrFail($id);
 
-            $user->name = $request->input('name');
-            $user->email = $request->input('email');
+            $name = trim((string) $request->input('name'));
+            if ($name !== '') {
+                $user->name = $name;
+            }
+
+            $newEmail = trim((string) $request->input('email'));
+            if (!empty($newEmail) && $newEmail !== $user->email) {
+                $emailExists = User::where('email', $newEmail)->where('id', '!=', $user->id)->exists();
+                if ($emailExists) {
+                    return redirect()->back()->withInput()->with('error', 'The email address ' . $newEmail . ' is already in use by another user.');
+                }
+                $user->email = $newEmail;
+            }
+
             $user->countrycode = $request->input('countrycode');
             $user->mobile_no = $request->input('phone');
             $user->countrycode2 = $request->input('countrycode2');
             $user->mobile_no2 = $request->input('phone2');
+
             $roleId = (int) $request->input('role');
             $teamId = $request->input('team_id');
             if ($roleId === 4 && empty($teamId)) {
                 return redirect()->back()->withInput()->with('error', 'Team selection is mandatory for Marketing Team users.');
             }
-            $user->role_id = $roleId;
+            if ($roleId > 0) {
+                $user->role_id = $roleId;
+            }
             $user->team_id = !empty($teamId) ? $teamId : null;
-            $user->bank_id = $request->input('bank');
+
+            $bankVal = $request->input('bank');
+            $user->bank_id = (!empty($bankVal) && is_numeric($bankVal)) ? (int)$bankVal : null;
+
             $user->address = $request->input('address');
-            $user->call_id = $request->input('call_id');
+            if ($request->has('call_id')) {
+                $user->call_id = $request->input('call_id');
+            }
 
             if ($request->hasFile('photo')) {
                 $uploadedFile = $request->file('photo');
@@ -473,22 +542,215 @@ class UserController extends Controller
                 $destinationPath = public_path('assets/media/avatars');
                 $uploadedFile->move($destinationPath, $fileName);
                 $user->photo = 'assets/media/avatars/' . $fileName;
-            } else {
+            } elseif ($request->input('avatar_remove') === '1') {
                 $user->photo = 'assets/media/avatars/blank.png';
             }
-            // dd($user);
-            // Check if the provided old password is correct
 
-            $user->sip = $request->input('sip');
-            if ($request->has('sip_password')) {
-                $user->sip_password = $request->input('sip_password');
+            // Strict sanitization for SIP and SIP password
+            $effectiveRoleId = !empty($roleId) ? (int)$roleId : (int)$user->role_id;
+            if ($effectiveRoleId === 2) {
+                // Customers never have Next2Call softphone extensions
+                $user->sip = null;
+                $user->sip_password = null;
+            } else {
+                $rawSip = $request->input('sip');
+                if ($rawSip !== null && $rawSip !== '' && is_numeric($rawSip)) {
+                    $user->sip = (int)$rawSip;
+                    if ($request->filled('sip_password')) {
+                        $user->sip_password = $request->input('sip_password');
+                    }
+                } elseif ($request->has('sip') && ($rawSip === '' || $rawSip === null || !is_numeric($rawSip))) {
+                    $user->sip = null;
+                    if ($rawSip === '') {
+                        $user->sip_password = null;
+                    }
+                }
             }
+
+            if ($hasReferralPayload) {
+                $referralError = $this->applyReferralSettingsToUser($request, $user, false);
+                if ($referralError !== null) {
+                    return redirect()->back()->withInput()->with('error', $referralError);
+                }
+            }
+
             $user->save();
 
             return redirect()->back()->with('success', 'Profile Updated Successfully');
         } catch (\Exception $e) {
             return redirect()->back()->with('error', 'Error: ' . $e->getMessage());
         }
+    }
+
+    public function referralExecutives(Request $request)
+    {
+        if (! ReferralCodeService::canEdit(Auth::user())) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Only Admin and Sub Admin can view referral executives.',
+            ], 403);
+        }
+
+        $executives = User::where('flag', 0)
+            ->whereIn('role_id', ReferralCodeService::STAFF_EXECUTIVE_ROLE_IDS)
+            ->orderBy('name')
+            ->get(['id', 'name', 'role_id', 'referral_prefix']);
+
+        return response()->json([
+            'success' => true,
+            'data' => $executives,
+        ]);
+    }
+
+    public function updateReferralSettings(Request $request, $id)
+    {
+        if (! ReferralCodeService::canEdit(Auth::user())) {
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Only Admin and Sub Admin can edit referral settings.',
+                ], 403);
+            }
+            abort(403, 'Only Admin and Sub Admin can edit referral settings.');
+        }
+
+        $user = User::findOrFail($id);
+        $error = $this->applyReferralSettingsToUser($request, $user, true);
+
+        if ($error !== null) {
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $error,
+                ], 422);
+            }
+
+            return redirect()->back()->withInput()->with('error', $error);
+        }
+
+        $user->save();
+        $user->load('referralExecutive:id,name,referral_prefix');
+
+        try {
+            if (function_exists('logActivity')) {
+                logActivity('User Referral', [
+                    'type' => 'Referral Settings Updated',
+                    'target_user_id' => $user->id,
+                    'referral_code' => $user->referral_code,
+                    'referral_discount_percent' => $user->referral_discount_percent,
+                    'referral_prefix' => $user->referral_prefix,
+                    'referral_executive_id' => $user->referral_executive_id,
+                    'updated_by' => Auth::user()?->name,
+                ]);
+            }
+        } catch (\Throwable $e) {
+            // Non-blocking audit log
+        }
+
+        $payload = [
+            'id' => $user->id,
+            'role_id' => (int) $user->role_id,
+            'referral_code' => $user->referral_code,
+            'referral_discount_percent' => $user->referral_discount_percent !== null
+                ? number_format((float) $user->referral_discount_percent, 2, '.', '')
+                : '10.00',
+            'referral_discount_display' => rtrim(rtrim(number_format((float) ($user->referral_discount_percent ?? 10.00), 2, '.', ''), '0'), '.'),
+            'referral_executive_id' => $user->referral_executive_id,
+            'referral_executive_name' => $user->referralExecutive?->name,
+            'referral_prefix' => $user->referral_prefix,
+        ];
+
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Referral settings updated successfully.',
+                'data' => $payload,
+            ]);
+        }
+
+        return redirect()->back()->with('success', 'Referral settings updated successfully.');
+    }
+
+    protected function applyReferralSettingsToUser(Request $request, User $user, bool $strictBlankCheck = false): ?string
+    {
+        $service = app(ReferralCodeService::class);
+        $hadCodeBefore = ! empty(trim((string) $user->referral_code));
+
+        if ($request->has('referral_executive_id')) {
+            $execId = $request->input('referral_executive_id');
+            if ($execId === '' || $execId === null) {
+                $user->referral_executive_id = null;
+            } else {
+                $exec = User::where('id', (int) $execId)
+                    ->where('flag', 0)
+                    ->whereIn('role_id', ReferralCodeService::STAFF_EXECUTIVE_ROLE_IDS)
+                    ->first();
+                if (! $exec) {
+                    return 'Selected marketing executive is invalid or inactive.';
+                }
+                $user->referral_executive_id = $exec->id;
+                $user->referral_prefix = $service->ensureExecutivePrefix($exec);
+            }
+        }
+
+        if ($request->has('referral_prefix') && in_array((int) $user->role_id, ReferralCodeService::STAFF_EXECUTIVE_ROLE_IDS, true)) {
+            $rawPrefix = trim((string) $request->input('referral_prefix', ''));
+            if ($rawPrefix === '') {
+                $user->referral_prefix = null;
+            } else {
+                $cleanPrefix = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', $rawPrefix));
+                if (! preg_match('/^[A-Z0-9]{2}$/', $cleanPrefix)) {
+                    return 'Executive referral prefix must be exactly 2 letters or numbers.';
+                }
+                $prefixExists = User::where('id', '!=', $user->id)
+                    ->where('flag', 0)
+                    ->whereIn('role_id', ReferralCodeService::STAFF_EXECUTIVE_ROLE_IDS)
+                    ->whereRaw('UPPER(referral_prefix) = ?', [$cleanPrefix])
+                    ->exists();
+                if ($prefixExists) {
+                    return 'This 2-character prefix is already assigned to another executive.';
+                }
+                $user->referral_prefix = $cleanPrefix;
+            }
+        }
+
+        if ($request->has('referral_code')) {
+            $rawCode = trim((string) $request->input('referral_code', ''));
+            if ($rawCode !== '') {
+                $normalizedCode = ReferralCodeService::normalizeReferralCode($rawCode);
+                if (! preg_match('/^[A-Z0-9]{5,10}$/', $normalizedCode)) {
+                    return 'Referral code must be 5 to 10 letters or numbers.';
+                }
+                if ($service->codeExistsAnywhere($normalizedCode, (int) $user->id)) {
+                    return 'This referral code is already in use by another client or coupon.';
+                }
+                $user->referral_code = $normalizedCode;
+                if (empty($user->referral_code_generated_at)) {
+                    $user->referral_code_generated_at = now();
+                }
+                if ((int) $user->role_id === 2 && ! $request->has('referral_executive_id') && empty($user->referral_prefix)) {
+                    $user->referral_prefix = substr($normalizedCode, ReferralCodeService::CLIENT_PREFIX_LENGTH, ReferralCodeService::EXECUTIVE_PREFIX_LENGTH);
+                }
+            } elseif ($strictBlankCheck && $hadCodeBefore) {
+                return 'Referral code cannot be blank once assigned (use 5 to 10 characters).';
+            }
+        }
+
+        if ($request->has('referral_discount_percent') && $request->input('referral_discount_percent') !== '' && $request->input('referral_discount_percent') !== null) {
+            $rawDiscount = $request->input('referral_discount_percent');
+            if (! is_numeric($rawDiscount)) {
+                return 'Referral discount percentage must be a valid number.';
+            }
+            $pct = (float) $rawDiscount;
+            if ($pct < 0 || $pct > 100) {
+                return 'Referral discount percentage must be between 0 and 100.';
+            }
+            $user->referral_discount_percent = round($pct, 2);
+        }
+
+        $user->referral_updated_by = Auth::id();
+
+        return null;
     }
 
     public function deleteUser($id)
@@ -540,8 +802,14 @@ class UserController extends Controller
         $user->team_id = !empty($teamId) ? $teamId : null;
         $user->address = $request->input('address');
         $user->password = Hash::make('user@123');
-        $user->sip = $request->input('sip');
-        $user->sip_password = $request->input('sip_password');
+        if ((int)$roleId === 2) {
+            $user->sip = null;
+            $user->sip_password = null;
+        } else {
+            $rawSip = $request->input('sip');
+            $user->sip = (!empty($rawSip) && is_numeric($rawSip)) ? (int)$rawSip : null;
+            $user->sip_password = ($user->sip && $request->filled('sip_password')) ? $request->input('sip_password') : null;
+        }
 
         if ($request->hasFile('photo')) {
             // Handle file upload
@@ -802,7 +1070,14 @@ class UserController extends Controller
 
     public function showUserProfile($id) // Ya aapka jo bhi function name ho
     {
-        $user = User::withCount('orders')->findOrFail($id);
+        $user = User::with('referralExecutive:id,name,referral_prefix')->withCount('orders')->findOrFail($id);
+
+        $executives = ReferralCodeService::canEdit(Auth::user())
+            ? User::where('flag', 0)
+                ->whereIn('role_id', ReferralCodeService::STAFF_EXECUTIVE_ROLE_IDS)
+                ->orderBy('name')
+                ->get(['id', 'name', 'role_id', 'referral_prefix'])
+            : collect();
 
         // Revenue (received_amount ka sum)
         $totalRevenue = \App\Models\Order::where('uid', $id)->sum('received_amount');
@@ -822,7 +1097,7 @@ class UserController extends Controller
         $pendingTickets = $totalTickets - $solvedTickets;
 
         // YAHAN DHYAN DEIN: File ka naam userreporting kar diya gaya hai
-        return view('user.userreporting', compact('user', 'totalRevenue', 'totalTickets', 'solvedTickets', 'pendingTickets'));
+        return view('user.userreporting', compact('user', 'executives', 'totalRevenue', 'totalTickets', 'solvedTickets', 'pendingTickets'));
     }
 
     // public function userReportList(Request $request)
@@ -953,108 +1228,141 @@ public function userReportList(Request $request)
     foreach ($globalCountries as $countryName => $codes) {
         foreach ($codes as $code) {
             $codeToCountry[$code] = $countryName;
+            $codeToCountry[ltrim($code, '+')] = $countryName;
         }
     }
 
     // =========================
-    // 2. Base Query
+    // 2. Base Query (Genuine active role 2 customers only)
     // =========================
 
-    $query = \App\Models\User::where('role_id', 2)
-        ->has('orders');
+    $query = \App\Models\User::query()
+        ->where('users.role_id', 2)
+        ->where('users.flag', 0);
 
     // =========================
     // 3. Filters
     // =========================
 
     if ($request->filled('search')) {
+        $search = trim((string) $request->search);
+        $cleanDigits = preg_replace('/\D+/', '', $search);
 
-        $search = $request->search;
-
-        $query->where(function ($q) use ($search) {
-
-            $q->where('name', 'LIKE', "%{$search}%")
-                ->orWhere('email', 'LIKE', "%{$search}%")
-                ->orWhere('mobile_no', 'LIKE', "%{$search}%");
+        $query->where(function ($q) use ($search, $cleanDigits) {
+            $q->where('users.name', 'LIKE', "%{$search}%")
+                ->orWhere('users.email', 'LIKE', "%{$search}%")
+                ->orWhere('users.mobile_no', 'LIKE', "%{$search}%");
+            if (is_numeric($search)) {
+                $q->orWhere('users.id', (int) $search);
+            }
+            if (!empty($cleanDigits)) {
+                $q->orWhere('users.mobile_no', 'LIKE', "%{$cleanDigits}%");
+            }
         });
     }
 
     // Country Filter
     if ($request->filled('country')) {
-
         $selectedCountry = $request->country;
 
         if ($selectedCountry === 'Other') {
-
             $allCodes = array_keys($codeToCountry);
 
             $query->where(function ($q) use ($allCodes) {
-
-                $q->whereNotIn('countrycode', $allCodes)
-                    ->orWhereNull('countrycode')
-                    ->orWhere('countrycode', '');
+                $q->whereNotIn('users.countrycode', $allCodes)
+                    ->orWhereNull('users.countrycode')
+                    ->orWhere('users.countrycode', '');
             });
-
         } elseif (isset($globalCountries[$selectedCountry])) {
-
-            $query->whereIn('countrycode', $globalCountries[$selectedCountry]);
+            $query->whereIn('users.countrycode', $globalCountries[$selectedCountry]);
         }
     }
 
-    // Date Filter
-    if ($request->filled('from_date')) {
-        $query->whereDate('created_at', '>=', $request->from_date);
+    // Date & Order Count Bounds Filter
+    $dateType = $request->input('date_type', 'join_date');
+    $fromDate = $request->input('from_date');
+    $toDate = $request->input('to_date');
+    $orderFrom = null;
+    $orderTo = null;
+
+    if ($dateType === 'order_date') {
+        $orderFrom = $fromDate ?: null;
+        $orderTo = $toDate ?: null;
+    } else {
+        if ($fromDate) {
+            $query->whereDate('users.created_at', '>=', $fromDate);
+        }
+        if ($toDate) {
+            $query->whereDate('users.created_at', '<=', $toDate);
+        }
     }
 
-    if ($request->filled('to_date')) {
-        $query->whereDate('created_at', '<=', $request->to_date);
+    $bounds = Order::resolveClientOrderBounds(
+        $request->input('order_category'),
+        $request->input('min_orders')
+    ) ?? ['min' => 1, 'max' => null];
+
+    $query->filterByGenuineOrderBounds($bounds, $orderFrom, $orderTo);
+
+    // =========================
+    // 4 & 5. GRAND TOTALS (Strictly genuine placed converted non-cancelled orders)
+    // =========================
+
+    $filteredUidSub = (clone $query)->select('users.id as filter_uid');
+    $totalsQuery = \App\Models\Order::query()
+        ->genuinePlaced('orders')
+        ->joinSub($filteredUidSub, 'filtered_users', function ($join) {
+            $join->on('orders.uid', '=', 'filtered_users.filter_uid');
+        });
+
+    if ($orderFrom && $orderTo) {
+        $totalsQuery->whereBetween('orders.order_date', [$orderFrom, $orderTo]);
+    } elseif ($orderFrom) {
+        $totalsQuery->where('orders.order_date', '>=', $orderFrom);
+    } elseif ($orderTo) {
+        $totalsQuery->where('orders.order_date', '<=', $orderTo);
     }
 
-    // =========================
-    // 4. GET FILTERED USER IDS
-    // =========================
+    $aggTotals = $totalsQuery->selectRaw("
+        COUNT(*) as total_orders,
+        COALESCE(SUM(orders.received_amount), 0) as total_revenue,
+        SUM(CASE WHEN orders.feedback_ticket IS NOT NULL AND orders.feedback_ticket != '' THEN 1 ELSE 0 END) as total_tickets,
+        SUM(CASE WHEN orders.is_fail = 1 THEN 1 ELSE 0 END) as total_failed_orders
+    ")->first();
 
-    $filteredUserIds = (clone $query)->pluck('id');
-
-    // =========================
-    // 5. GRAND TOTALS
-    // =========================
-
-    // Total Orders
-    $totalOrders = \App\Models\Order::whereIn('uid', $filteredUserIds)
-        ->count();
-
-    // Total Revenue
-    $totalRevenue = \App\Models\Order::whereIn('uid', $filteredUserIds)
-        ->sum('received_amount');
-
-    // Total Tickets
-    $totalTickets = \App\Models\Order::whereIn('uid', $filteredUserIds)
-        ->whereNotNull('feedback_ticket')
-        ->where('feedback_ticket', '!=', '')
-        ->count();
-
-    // Total Failed Orders
-    $totalFailedOrders = \App\Models\Order::whereIn('uid', $filteredUserIds)
-        ->where('is_fail', 1)
-        ->count();
-
-    $totalTicketsAndFailed = $totalTickets + $totalFailedOrders;    
+    $totalOrders = (int) ($aggTotals->total_orders ?? 0);
+    $totalRevenue = (float) ($aggTotals->total_revenue ?? 0);
+    $totalTickets = (int) ($aggTotals->total_tickets ?? 0);
+    $totalFailedOrders = (int) ($aggTotals->total_failed_orders ?? 0);
+    $totalTicketsAndFailed = $totalTickets + $totalFailedOrders;
 
     // =========================
-    // 6. USER TABLE COUNTS
+    // 6. USER TABLE COUNTS (Strictly genuine orders matching date scope)
     // =========================
 
-    $query->withCount('orders')
-        ->withSum('orders as total_revenue', 'received_amount')
+    $applyOrderDateScope = function ($q) use ($orderFrom, $orderTo) {
+        if ($orderFrom && $orderTo) {
+            $q->whereBetween('orders.order_date', [$orderFrom, $orderTo]);
+        } elseif ($orderFrom) {
+            $q->where('orders.order_date', '>=', $orderFrom);
+        } elseif ($orderTo) {
+            $q->where('orders.order_date', '<=', $orderTo);
+        }
+    };
+
+    $query->select('users.*')
+        ->withCount(['genuineOrders as orders_count' => $applyOrderDateScope])
+        ->withSum(['genuineOrders as total_revenue' => $applyOrderDateScope], 'received_amount')
         ->withCount([
-            'orders as total_tickets' => function ($q) {
+            'genuineOrders as total_tickets' => function ($q) use ($applyOrderDateScope) {
+                $applyOrderDateScope($q);
                 $q->whereNotNull('feedback_ticket')
                     ->where('feedback_ticket', '!=', '');
             }
         ])
         ->withCount([
-            'orders as failed_orders_count' => function ($q) {
+            'genuineOrders as failed_orders_count' => function ($q) use ($applyOrderDateScope) {
+                $applyOrderDateScope($q);
                 $q->where('is_fail', 1);
             }
         ]);

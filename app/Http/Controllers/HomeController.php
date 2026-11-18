@@ -2069,12 +2069,7 @@ class HomeController extends Controller
 
     public function breakTimeReport(Request $request)
     {
-        $allowedSubAdminId = 13715;
-
-        if (
-            auth()->user()->role_id != 1 &&
-            !(auth()->user()->role_id == 9 && auth()->id() == $allowedSubAdminId)
-        ) {
+        if (!in_array((int) auth()->user()->role_id, [1, 9], true)) {
             abort(403, 'Unauthorized access.');
         }
         $query = DB::table('user_break_times')

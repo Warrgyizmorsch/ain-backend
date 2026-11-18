@@ -41,6 +41,7 @@ use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\EnquiryController;
 use App\Http\Controllers\ChatbotController;
 use App\Http\Controllers\PluginController;
+use App\Http\Controllers\ReferralDashboardController;
 use App\Http\Controllers\SpreadsheetController;
 
 Route::middleware(['auth'])->group(function () {
@@ -56,9 +57,12 @@ Route::middleware(['auth'])->group(function () {
         ->name('admin.login-otp-system-ban');
     Route::post('/admin/login-otp-system-unban', [AuthenticatedSessionController::class, 'unbanOtpSystem'])
         ->name('admin.login-otp-system-unban');
+    Route::match(['get', 'post'], '/lead/export', [LeadsController::class, 'export'])->name('lead.export');
+    Route::get('/lead/export/status', [LeadsController::class, 'exportStatus'])->name('lead.export.status');
+    Route::get('/lead/export/download', [LeadsController::class, 'downloadExport'])->name('lead.export.download');
 
 });
-Route::post('/lead/export', [LeadsController::class, 'export'])->name('lead.export');
+
 
 Route::middleware(['auth'])->group(function () {
     Route::resource('subjects', SubjectController::class)->only(['index', 'store', 'update', 'destroy']);
@@ -79,17 +83,19 @@ Route::middleware(['auth'])->group(function () {
     Route::resource('prime-samples', PrimeSampleController::class)->except(['show']);
     Route::resource('prime-sample-categories', PrimeSampleCategoryController::class)->only(['index', 'store', 'update', 'destroy']);
     Route::resource('prime-sample-types', PrimeSampleTypeController::class)->only(['index', 'store', 'update', 'destroy']);
-    Route::resource('prime-experts', PrimeExpertController::class)->except(['show']);
-    Route::resource('prime-reviews', PrimeReviewController::class)->except(['show']);
-    });
-    Route::get('/lead/export/status', [LeadsController::class, 'exportStatus']);
-    Route::any('/order/export', [ExportController::class, 'export'])->name('order.export');
-    Route::post('/lead/assign-type', [LeadsController::class, 'assignType'])
-        ->name('lead.assignType');
-    Route::post('/lead-reason-update', [LeadsController::class, 'updateLeadReason'])
-        ->name('lead-reason-update');
 
-    Route::middleware(['auth', 'check.permission'])->group(function () {
+
+      Route::resource('prime-experts', PrimeExpertController::class)->except(['show']);
+    Route::resource('prime-reviews', PrimeReviewController::class)->except(['show']);
+});
+
+Route::any('/order/export', [ExportController::class, 'export'])->name('order.export');
+Route::post('/lead/assign-type', [LeadsController::class, 'assignType'])
+    ->name('lead.assignType');
+Route::post('/lead-reason-update', [LeadsController::class, 'updateLeadReason'])
+    ->name('lead-reason-update');
+
+Route::middleware(['auth', 'check.permission'])->group(function () {
 
     Route::prefix('whatsapp')->name('whatsapp.')->group(function () {
         Route::get('/settings', [WhatsappController::class, 'settings'])->name('settings');
@@ -189,6 +195,8 @@ Route::middleware(['auth'])->group(function () {
 
     // User Managment
     Route::get('/user', [UserController::class, 'index'])->name('user');
+    Route::get('/user/referral-executives', [UserController::class, 'referralExecutives'])->name('user.referral.executives');
+    Route::post('/user/{id}/referral', [UserController::class, 'updateReferralSettings'])->name('user.referral.update');
     Route::POST('/user/{id}', [UserController::class, 'EditUser'])->name('user.update');
     Route::delete('/user/{id}', [UserController::class, 'DeleteUser'])->name('user.delete');
     Route::get('/usercreate', [UserController::class, 'new_user'])->name('usercreate');
@@ -306,6 +314,9 @@ Route::middleware(['auth'])->group(function () {
     Route::put('/fail/{orderId}', [OrderController::class, 'fail'])->name('update.order');
     Route::put('/update-status/{id}', [OrderController::class, 'updateOrderStatus'])->name('order.update-status');
     route::put('/payment/{id}', [OrderController::class, 'payment'])->name('payment.update');
+    Route::get('/payment/{id}', function ($id) {
+        return redirect()->to('/orders/payment/' . $id);
+    });
     route::get('/search', [OrderController::class, 'search']);
     route::get('/suggestions', [UserController::class, 'search'])->name('suggestions');
     Route::get('/fetch-subwriters', [OrderController::class, 'fetchSubWriters'])->name('fetch-subwriters');
@@ -661,4 +672,16 @@ Route::middleware(['auth'])->group(function () {
 
         Route::get('/payee-report', [OrderController::class, 'payeeReport'])
             ->name('reports.payee');
+
+        Route::get('/customer-due-report', [ReportController::class, 'customerDueReport'])
+            ->name('reports.customer-due');
+
+        Route::get('/customer-due-orders/{userId}', [ReportController::class, 'customerDueOrders'])
+            ->name('reports.customer-due.orders');
+
+        Route::get('/referral-system', [ReferralDashboardController::class, 'index'])
+            ->name('admin.referral.system');
+
+        Route::get('/referral-system/export', [ReferralDashboardController::class, 'export'])
+            ->name('admin.referral.export');
     });

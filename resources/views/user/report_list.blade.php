@@ -11,7 +11,7 @@
 
                 <div class="col-md-3">
                     <label class="form-label fw-bold">Search User</label>
-                    <input type="text" name="search" class="form-control" placeholder="Name, Email or Mobile" value="{{ request('search') }}">
+                    <input type="text" name="search" class="form-control" placeholder="Name, Email, Mobile or ID" value="{{ request('search') }}">
                 </div>
                 <div class="col-md-2">
                     <label class="form-label fw-bold">Country</label>
@@ -21,6 +21,28 @@
                         <option value="{{ $country }}" {{ request('country') == $country ? 'selected' : '' }}>{{ $country }}</option>
                         @endforeach
                         <option value="Other" {{ request('country') == 'Other' ? 'selected' : '' }}>Other / Unknown</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label fw-bold">Client Orders</label>
+                    <select name="order_category" class="form-select">
+                        <option value="">All Confirmed (1+)</option>
+                        <option value="multiple" {{ request('order_category') == 'multiple' ? 'selected' : '' }}>Multiple Orders (2+)</option>
+                        <option value="2_to_3" {{ request('order_category') == '2_to_3' ? 'selected' : '' }}>Repeat (2-3 Orders)</option>
+                        <option value="retainer" {{ in_array(strtolower((string) request('order_category')), ['retainer', 'repeated'], true) ? 'selected' : '' }}>Retainer (4+ Orders)</option>
+                        <option value="loyal" {{ request('order_category') == 'loyal' ? 'selected' : '' }}>Loyal (&gt;10 Orders)</option>
+                        <option value="single" {{ request('order_category') == 'single' ? 'selected' : '' }}>Single Order (1)</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label fw-bold">Min Orders</label>
+                    <input type="number" name="min_orders" min="1" step="1" class="form-control" placeholder="e.g. 2" value="{{ request('min_orders') }}">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label fw-bold">Date Basis</label>
+                    <select name="date_type" class="form-select">
+                        <option value="join_date" {{ request('date_type', 'join_date') == 'join_date' ? 'selected' : '' }}>User Join Date</option>
+                        <option value="order_date" {{ request('date_type') == 'order_date' ? 'selected' : '' }}>Placed Order Date</option>
                     </select>
                 </div>
                 <div class="col-md-2">
@@ -34,10 +56,10 @@
                 <div class="col-md-2">
                     <label class="form-label fw-bold">Show Entries</label>
                     <select name="per_page" class="form-select" onchange="this.form.submit()">
-                        {{-- <option value="20" {{ request('per_page') == 20 ? 'selected' : '' }}>20</option> --}}
-                        <option value="50" {{ request('per_page') == 50 ? 'selected' : '' }}>50</option>
-                        <option value="80" {{ request('per_page') == 80 ? 'selected' : '' }}>80</option>
-                        <option value="100" {{ request('per_page') == 100 ? 'selected' : '' }}>100</option>
+                        <option value="20" {{ (int) request('per_page', 20) === 20 ? 'selected' : '' }}>20</option>
+                        <option value="50" {{ (int) request('per_page') === 50 ? 'selected' : '' }}>50</option>
+                        <option value="80" {{ (int) request('per_page') === 80 ? 'selected' : '' }}>80</option>
+                        <option value="100" {{ (int) request('per_page') === 100 ? 'selected' : '' }}>100</option>
                     </select>
                 </div>
                 <div class="col-md-3 d-flex align-items-end gap-2">
@@ -70,7 +92,19 @@
     </div>
 </div> --}}
 
-<div class="card-body pt-5">
+<div class="card-header border-0 pt-5 pb-0 d-flex align-items-center justify-content-between flex-wrap gap-2">
+    <div>
+        <h3 class="card-title align-items-start flex-column mb-0">
+            <span class="card-label fw-bolder fs-4 text-gray-800">Genuine Confirmed Client Report</span>
+            <span class="text-muted fs-7 fw-bold">Only active clients (role 2) with genuine, placed, converted, non-cancelled orders</span>
+        </h3>
+    </div>
+    <span class="badge badge-light-primary fs-7 fw-bolder px-3 py-2">
+        {{ number_format($users->total()) }} Customers Found
+    </span>
+</div>
+
+<div class="card-body pt-4">
     <div class="table-responsive">
         <table class="table table-row-bordered table-row-dashed gy-4 align-middle fw-bolder text-center">
             <thead class="fs-7 text-gray-400 text-uppercase">
@@ -86,8 +120,8 @@
                         </a>
                     </th>
 
-                    <!-- Total Revenue -->
                     @if(auth()->user()->role_id == 1)
+                    <!-- Total Revenue -->
                     <th class="min-w-125px">
                         @php $revSort = (request('sort_by') == 'total_revenue' && request('order') == 'desc') ? 'asc' : 'desc'; @endphp
                         <a href="{{ request()->fullUrlWithQuery(['sort_by' => 'total_revenue', 'order' => $revSort]) }}" class="text-gray-400 text-hover-primary">
@@ -140,12 +174,12 @@
                 <tr>
                     <td class="text-start">
                         <div class="d-flex flex-column">
-                            <a href="#" class="text-gray-800 text-hover-primary mb-1 fs-5">{{ $user->name ?? 'N/A' }}</a>
+                            <a href="{{ route('orders.index', ['uid' => $user->id, 'user' => $user->name]) }}" target="_blank" class="text-gray-800 text-hover-primary mb-1 fs-5">{{ $user->name ?? 'N/A' }}</a>
                             <span class="text-muted fs-7"><i class="fa fa-envelope text-primary"></i> {{ mask_email_for_display($user->email ?? '') }}</span>
                             <span class="text-muted fs-7"><i class="fa fa-phone text-success"></i> {{ mask_phone_for_display($user->countrycode, $user->mobile_no) }}</span>
                             <span class="text-muted fs-7">
                                 <i class="fa fa-globe text-info"></i>
-                                {{ isset($codeToCountry[$user->countrycode]) ? $codeToCountry[$user->countrycode] : 'Unknown' }}
+                                {{ $codeToCountry[$user->countrycode] ?? ($codeToCountry[ltrim((string) $user->countrycode, '+')] ?? 'Unknown') }}
                             </span>
                             @php
                                 $count = $user->orders_count;
@@ -161,7 +195,11 @@
                             <span class="badge {{ $class }} fw-bold fs-8" style="width: fit-content;">{{ $label }}</span>
                         </div>
                     </td>
-                    <td><span class="badge badge-circle badge-light-primary fw-bold fs-5 px-3 py-2">{{ $user->orders_count ?? 0 }}</span></td>
+                    <td>
+                        <a href="{{ route('orders.index', ['uid' => $user->id, 'user' => $user->name]) }}" target="_blank" title="View Genuine Orders" class="badge badge-circle badge-light-primary fw-bold fs-5 px-3 py-2 text-decoration-none">
+                            {{ $user->orders_count ?? 0 }}
+                        </a>
+                    </td>
                     @if(auth()->user()->role_id == 1)
                     <td><span class="text-success fw-bolder fs-5">£{{ number_format($user->total_revenue ?? 0, 2) }}</span></td>
                     @endif

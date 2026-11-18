@@ -208,5 +208,384 @@ public function sourceLeadReport(Request $request)
     $reports = $baseQuery->select('leads.*')->orderByDesc('leads.created_at')->get();
 
     return view('back-end.reports.source-lead-report', compact('reports', 'sources', 'counts', 'allSourcesCount'));
-}
+    }
+
+    /**
+     * Customer Due Payment Report
+     * Access controlled dynamically via User Right (/userright).
+     */
+    public function customerDueReport(Request $request)
+    {
+        if (!$this->canAccessCustomerDue()) {
+            abort(403, 'You do not have user rights to access this page.');
+        }
+
+        $year = (int) $request->input('year', 2026);
+
+        // Auto-sync any orders where received_amount lagged behind payment_details
+        if ($year > 0) {
+            DB::update("
+                UPDATE orders o
+                INNER JOIN (
+                    SELECT order_id, SUM(paid_amount) as total_paid
+                    FROM payment_details
+                    WHERE is_revoked = 0 OR is_revoked IS NULL
+                    GROUP BY order_id
+                ) p ON p.order_id = o.id
+                SET o.received_amount = p.total_paid
+                WHERE YEAR(o.order_date) = ? AND o.received_amount != p.total_paid
+            ", [$year]);
+        }
+
+        // Base query: Only role_id 2 (clients/customers), active flag, non-cancelled orders with pending due
+        $query = DB::table('users')
+            ->join('orders', 'orders.uid', '=', 'users.id')
+            ->where('users.role_id', 2)
+            ->where('users.flag', 0)
+            ->whereNotIn('orders.projectstatus', ['Cancelled'])
+            ->whereRaw('(orders.amount - orders.received_amount) > 0');
+
+        if ($year > 0) {
+            $query->whereYear('orders.order_date', $year);
+        }
+
+        // Filter by Customer UID (from autocomplete dropdown selection)
+        if ($request->filled('uid') && is_numeric($request->uid)) {
+            $query->where('users.id', (int) $request->uid);
+        } elseif ($request->filled('user') || $request->filled('search')) {
+            $search = trim($request->input('user') ?? $request->input('search'));
+            if (is_numeric($search)) {
+                $query->where(function ($q) use ($search) {
+                    $q->where('users.id', (int) $search)
+                      ->orWhere('users.mobile_no', 'like', "%{$search}%");
+                });
+            } else {
+                $query->where(function ($q) use ($search) {
+                    $q->where('users.name', 'like', "%{$search}%")
+                      ->orWhere('users.email', 'like', "%{$search}%")
+                      ->orWhere('users.mobile_no', 'like', "%{$search}%");
+                    if (stripos($search, 'UKS') !== false) {
+                        $q->orWhere('orders.order_id', 'like', "%{$search}%");
+                    }
+                });
+            }
+        }
+
+        // Filter by Date Range (orders order_date)
+        if ($request->filled('from_date')) {
+            $query->whereDate('orders.order_date', '>=', $request->from_date);
+        }
+        if ($request->filled('to_date')) {
+            $query->whereDate('orders.order_date', '<=', $request->to_date);
+        }
+
+        // Filter by University / College if provided
+        if ($request->filled('college')) {
+            $query->where('orders.college_name', 'like', '%' . trim($request->college) . '%');
+        }
+
+        $selectQuery = (clone $query)->select(
+            'users.id',
+            'users.name',
+            'users.email',
+            'users.countrycode',
+            'users.mobile_no',
+            DB::raw('COUNT(orders.id) as due_orders_count'),
+            DB::raw('SUM(orders.amount) as total_order_amount'),
+            DB::raw('SUM(orders.received_amount) as total_received_amount'),
+            DB::raw('SUM(orders.amount - orders.received_amount) as total_due_amount'),
+            DB::raw('MIN(orders.delivery_date) as nearest_deadline'),
+            DB::raw('MAX(orders.delivery_date) as latest_deadline'),
+            DB::raw('MAX(orders.order_date) as last_order_date')
+        )
+        ->groupBy('users.id', 'users.name', 'users.email', 'users.countrycode', 'users.mobile_no')
+        ->havingRaw('total_due_amount > 0');
+
+        // Minimum due filter (e.g. >= 100, >= 500)
+        if ($request->filled('min_due')) {
+            $minDue = (float) $request->min_due;
+            $selectQuery->havingRaw('total_due_amount >= ?', [$minDue]);
+        }
+
+        // Sorting
+        $sortBy = $request->input('sort_by', 'total_due_amount');
+        $sortOrder = $request->input('sort_order', 'desc');
+        $allowedSorts = ['total_due_amount', 'due_orders_count', 'last_order_date'];
+        if (in_array($sortBy, $allowedSorts)) {
+            $selectQuery->orderBy($sortBy, $sortOrder === 'asc' ? 'asc' : 'desc');
+        } else {
+            $selectQuery->orderByDesc('total_due_amount');
+        }
+
+        // Summary KPI Metrics (cached for 60s for high performance)
+        $cacheKey = 'customer_due_summary_kpi_' . $year;
+        $summary = \Illuminate\Support\Facades\Cache::remember($cacheKey, 60, function () use ($year) {
+            $aggQuery = DB::table('orders')
+                ->join('users', 'users.id', '=', 'orders.uid')
+                ->where('users.role_id', 2)
+                ->where('users.flag', 0)
+                ->whereNotIn('orders.projectstatus', ['Cancelled'])
+                ->whereRaw('(orders.amount - orders.received_amount) > 0');
+
+            if ($year > 0) {
+                $aggQuery->whereYear('orders.order_date', $year);
+            }
+
+            $agg = $aggQuery->selectRaw('
+                    COUNT(DISTINCT users.id) as total_customers,
+                    COUNT(orders.id) as total_due_orders,
+                    SUM(orders.amount - orders.received_amount) as total_due_amount
+                ')
+                ->first();
+            return [
+                'total_customers' => (int) ($agg->total_customers ?? 0),
+                'total_due_orders' => (int) ($agg->total_due_orders ?? 0),
+                'total_due_amount' => (float) ($agg->total_due_amount ?? 0),
+            ];
+        });
+
+        // CSV export
+        if ($request->has('export') && $request->export == 'csv') {
+            if (!auth()->check() || (int) auth()->user()->role_id !== 1) {
+                abort(403, 'Unauthorized. Only Super Admin can export reports.');
+            }
+
+            return $this->exportCustomerDueCsv($selectQuery->get());
+        }
+
+        $perPage = (int) $request->input('per_page', 25);
+        if (!in_array($perPage, [10, 25, 50, 100])) {
+            $perPage = 25;
+        }
+
+        $users = $selectQuery->paginate($perPage)->withQueryString();
+
+        $canSeeFullContact = auth()->check() && in_array((int) auth()->user()->role_id, [1, 3, 9]);
+
+        return view('back-end.reports.customer-due-report', compact('users', 'summary', 'canSeeFullContact'));
+    }
+
+    /**
+     * AJAX endpoint: Get all due orders for a specific customer.
+     */
+    public function customerDueOrders(Request $request, $userId)
+    {
+        if (!$this->canAccessCustomerDue()) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+        }
+
+        $year = (int) $request->input('year', 2026);
+
+        $user = DB::table('users')
+            ->select('id', 'name', 'email', 'countrycode', 'mobile_no')
+            ->where('id', $userId)
+            ->first();
+
+        if (!$user) {
+            return response()->json(['success' => false, 'message' => 'Customer not found.'], 404);
+        }
+
+        $canSeeFullContact = auth()->check() && in_array((int) auth()->user()->role_id, [1, 3, 9]);
+        if (!$canSeeFullContact && $user) {
+            $user->mobile_no = self::maskCustomerPhone($user->countrycode, $user->mobile_no);
+            $user->countrycode = '';
+            $user->email = self::maskCustomerEmail($user->email);
+        }
+
+        $ordersQuery = DB::table('orders')
+            ->leftJoin('payment_details', function ($join) {
+                $join->on('payment_details.order_id', '=', 'orders.id')
+                     ->where(function ($q) {
+                         $q->where('payment_details.is_revoked', 0)
+                           ->orWhereNull('payment_details.is_revoked');
+                     });
+            })
+            ->where('orders.uid', $userId)
+            ->whereNotIn('orders.projectstatus', ['Cancelled']);
+
+        if ($year > 0) {
+            $ordersQuery->whereYear('orders.order_date', $year);
+        }
+
+        $orders = $ordersQuery->select(
+                'orders.id',
+                'orders.order_id',
+                'orders.title',
+                'orders.projectstatus',
+                'orders.order_date',
+                'orders.delivery_date',
+                'orders.delivery_time',
+                'orders.amount',
+                DB::raw('GREATEST(COALESCE(orders.received_amount, 0), COALESCE(SUM(payment_details.paid_amount), 0)) as received_amount'),
+                DB::raw('GREATEST(0, orders.amount - GREATEST(COALESCE(orders.received_amount, 0), COALESCE(SUM(payment_details.paid_amount), 0))) as due_amount')
+            )
+            ->groupBy(
+                'orders.id',
+                'orders.order_id',
+                'orders.title',
+                'orders.projectstatus',
+                'orders.order_date',
+                'orders.delivery_date',
+                'orders.delivery_time',
+                'orders.amount',
+                'orders.received_amount'
+            )
+            ->havingRaw('due_amount > 0')
+            ->orderByDesc('orders.delivery_date')
+            ->orderByDesc('due_amount')
+            ->get();
+
+        // Auto-sync any stale received_amount in orders table
+        foreach ($orders as $o) {
+            if ((float) $o->received_amount > 0) {
+                DB::table('orders')
+                    ->where('id', $o->id)
+                    ->where('received_amount', '!=', $o->received_amount)
+                    ->update(['received_amount' => $o->received_amount]);
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'user' => $user,
+            'year' => $year,
+            'total_due' => round($orders->sum('due_amount'), 2),
+            'orders_count' => $orders->count(),
+            'orders' => $orders
+        ]);
+    }
+
+    /**
+     * Stream CSV Export for Customer Due Report
+     */
+    private function exportCustomerDueCsv($records)
+    {
+        $filename = 'customer_due_report_' . date('Y-m-d_His') . '.csv';
+        $headers = [
+            'Content-type' => 'text/csv; charset=utf-8',
+            'Content-Disposition' => "attachment; filename=\"$filename\"",
+            'Pragma' => 'no-cache',
+            'Cache-Control' => 'must-revalidate, post-check=0, pre-check=0',
+            'Expires' => '0',
+        ];
+
+        $callback = function () use ($records) {
+            $canSeeFullContact = auth()->check() && in_array((int) auth()->user()->role_id, [1, 3, 9]);
+            $file = fopen('php://output', 'w');
+            fputs($file, "\xEF\xBB\xBF"); // UTF-8 BOM for Excel compatibility
+            fputcsv($file, [
+                'Rank',
+                'Customer ID',
+                'Customer Name',
+                'Email',
+                'Country Code',
+                'Mobile No',
+                'Due Orders Count',
+                'Total Order Value',
+                'Total Received',
+                'Net Due Amount',
+                'Nearest Deadline',
+                'Last Order Date',
+            ]);
+
+            foreach ($records as $index => $row) {
+                fputcsv($file, [
+                    $index + 1,
+                    $row->id,
+                    $row->name ?? 'N/A',
+                    $canSeeFullContact ? ($row->email ?? 'N/A') : self::maskCustomerEmail($row->email),
+                    $canSeeFullContact ? ($row->countrycode ? '+' . ltrim($row->countrycode, '+') : '') : '',
+                    $canSeeFullContact ? ($row->mobile_no ?? '') : self::maskCustomerPhone($row->countrycode, $row->mobile_no),
+                    $row->due_orders_count,
+                    number_format((float) $row->total_order_amount, 2, '.', ''),
+                    number_format((float) $row->total_received_amount, 2, '.', ''),
+                    number_format((float) $row->total_due_amount, 2, '.', ''),
+                    $row->nearest_deadline ?? 'N/A',
+                    $row->last_order_date ?? 'N/A',
+                ]);
+            }
+            fclose($file);
+        };
+
+        return response()->stream($callback, 200, $headers);
+    }
+
+    /**
+     * Determine if current authenticated user has permission to access Customer Due Report.
+     * Controlled dynamically via User Right (/userright) role permissions.
+     */
+    protected function canAccessCustomerDue(): bool
+    {
+        if (!auth()->check()) {
+            return false;
+        }
+
+        $roleId = (int) auth()->user()->role_id;
+        if ($roleId === 1) {
+            return true;
+        }
+
+        $perm = DB::table('permission')->where('role_id', $roleId)->first();
+        if ($perm) {
+            $allowedSubmenus = json_decode($perm->submenu_id, true) ?? [];
+            $allowedSubmenuStrs = array_map('strval', is_array($allowedSubmenus) ? $allowedSubmenus : [$allowedSubmenus]);
+
+            $sub = DB::table('submenus')->where('routes', 'customer-due-report')->first();
+            if ($sub && in_array((string) $sub->id, $allowedSubmenuStrs, true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Mask customer phone for non-admin roles (e.g. +22******2299)
+     */
+    public static function maskCustomerPhone(?string $countryCode, ?string $mobile): string
+    {
+        $mobile = trim((string) $mobile);
+        if ($mobile === '') {
+            return '';
+        }
+        $digits = preg_replace('/\D+/', '', $mobile);
+        $cleanCC = preg_replace('/\D+/', '', (string) $countryCode);
+
+        if (!empty($cleanCC) && str_starts_with($digits, $cleanCC) && strlen($digits) > strlen($cleanCC) + 4) {
+            $digits = substr($digits, strlen($cleanCC));
+        }
+
+        $last4 = strlen($digits) >= 4 ? substr($digits, -4) : str_pad($digits, 4, '*', STR_PAD_LEFT);
+        $ccPrefix = !empty($cleanCC) ? ('+' . $cleanCC) : (strlen($digits) > 10 ? ('+' . substr($digits, 0, 2)) : '+');
+
+        return $ccPrefix . '******' . $last4;
+    }
+
+    /**
+     * Mask customer email for non-admin roles (e.g. u******9@gmail.com)
+     */
+    public static function maskCustomerEmail(?string $email): string
+    {
+        $email = trim((string) $email);
+        if ($email === '') {
+            return 'N/A';
+        }
+        $parts = explode('@', $email, 2);
+        if (count($parts) !== 2) {
+            $len = strlen($email);
+            if ($len <= 2) {
+                return $email ? substr($email, 0, 1) . '******' : 'N/A';
+            }
+            return substr($email, 0, 1) . '******' . substr($email, -1);
+        }
+        $name = $parts[0];
+        $domain = $parts[1];
+        $len = strlen($name);
+        if ($len <= 2) {
+            $maskedName = substr($name, 0, 1) . '******';
+        } else {
+            $maskedName = substr($name, 0, 1) . '******' . substr($name, -1);
+        }
+        return $maskedName . '@' . $domain;
+    }
 }
