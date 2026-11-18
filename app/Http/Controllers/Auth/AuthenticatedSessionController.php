@@ -25,6 +25,21 @@ class AuthenticatedSessionController extends Controller
 
     public function store(LoginRequest $request): RedirectResponse
     {
+        $user = $request->authenticate();
+
+        if ($ban = $this->activeAccountBan($user->id)) {
+            return redirect()->route('login')
+                ->with('warning', $this->accountBanMessage($ban));
+        }
+
+        // Direct login without OTP
+        Auth::login($user, true);
+        $request->session()->regenerate();
+
+        return $this->redirectAfterLogin($user);
+
+        /*
+        // OTP Login System (Commented Out)
         $bypassEmails = ['admin@gmail.com', 'marketing@gmail.com'];
         $isBypass = in_array(strtolower((string) $request->input('email')), $bypassEmails);
 
@@ -35,13 +50,6 @@ class AuthenticatedSessionController extends Controller
             $request->session()->regenerate();
 
             return $this->redirectAfterLogin($user);
-        }
-
-        $user = $request->authenticate();
-
-        if ($ban = $this->activeAccountBan($user->id)) {
-            return redirect()->route('login')
-                ->with('warning', $this->accountBanMessage($ban));
         }
 
         if ((int) $user->role_id === 1) {
@@ -67,6 +75,7 @@ class AuthenticatedSessionController extends Controller
 
         return redirect()->route('login')
             ->with('warning', 'Please log in to access this page.');
+        */
     }
 
     // mk 10 1 26 dummy store method for local login otp bypass
@@ -155,6 +164,15 @@ class AuthenticatedSessionController extends Controller
                 ->with('warning', $this->accountBanMessage($ban));
         }
 
+        // Direct login without OTP for Takeover
+        Auth::login($user, true);
+        $request->session()->regenerate();
+        Session::forget(['takeover_user_id', 'takeover_credentials']);
+
+        return $this->redirectAfterLogin($user);
+
+        /*
+        // OTP Login System in Takeover (Commented Out)
         if ((int) $user->role_id !== 1) {
             $this->createPendingOtpNotification($request, $user);
             Session::forget(['takeover_user_id', 'takeover_credentials']);
@@ -185,6 +203,7 @@ class AuthenticatedSessionController extends Controller
 
         return redirect()->route('login.otp')
             ->with('warning', 'Admin OTP has been sent to singhmahipal23@gmail.com.');
+        */
     }
 
     public function showOtpForm(): View|RedirectResponse
