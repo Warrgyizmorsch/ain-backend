@@ -103,6 +103,20 @@ class PrimeAssignmentSetupService
             });
         }
 
+        // Extra testimonial columns: which website page it belongs to, university and course
+        $reviewExtraColumns = [
+            'page'       => fn (Blueprint $t) => $t->string('page', 100)->nullable()->index()->after('name'),
+            'university' => fn (Blueprint $t) => $t->string('university', 255)->nullable()->after('location'),
+            'course'     => fn (Blueprint $t) => $t->string('course', 255)->nullable()->after('university'),
+        ];
+        foreach ($reviewExtraColumns as $column => $definition) {
+            if (!Schema::hasColumn('prime_reviews', $column)) {
+                Schema::table('prime_reviews', function (Blueprint $table) use ($definition) {
+                    $definition($table);
+                });
+            }
+        }
+
         // 3. Prime Dynamic Service Pages
         if (!Schema::hasTable('prime_service_pages')) {
             Schema::create('prime_service_pages', function (Blueprint $table) {
