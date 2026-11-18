@@ -63,14 +63,18 @@ class PrimeServicePage extends Model
         return $this->belongsTo(PrimeSubject::class, 'prime_subject_id');
     }
 
+    /**
+     * prime_writer_ids now stores PrimeExpert ids (Prime Writer Master was removed).
+     */
     public function selectedPrimeWriters()
     {
-        return PrimeWriter::whereIn('id', $this->prime_writer_ids ?: [])->get();
+        return PrimeExpert::whereIn('id', $this->prime_writer_ids ?: [])->get();
     }
 
     public function selectedReviews()
     {
-        return Review::whereIn('id', $this->review_ids ?: [])->get();
+        // review_ids stores PrimeReview ids (Prime reviews are separate from main site reviews).
+        return PrimeReview::whereIn('id', $this->review_ids ?: [])->get();
     }
 }
 
