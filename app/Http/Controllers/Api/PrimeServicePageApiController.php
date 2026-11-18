@@ -8,7 +8,6 @@ use App\Models\PrimeServicePage;
 use App\Models\PrimeSubject;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Str;
 
 class PrimeServicePageApiController extends Controller
 {
@@ -398,21 +397,17 @@ class PrimeServicePageApiController extends Controller
             ];
         }
 
-        // 4. Prime Experts
+        // 4. Prime Writers
         $expertsList = [];
         foreach ($page->selectedPrimeWriters() as $writer) {
-            $reviews = is_array($writer->customer_review) ? $writer->customer_review : [];
-            $ratings = array_filter(array_column($reviews, 'rating'));
             $expertsList[] = [
-                'id'        => $writer->id,
-                'name'      => $writer->name,
-                'slug'      => $writer->slug,
-                'degree'    => $writer->subject ?: ($writer->service ?: 'Prime Assignment Expert'),
-                'desc'      => $writer->content ? Str::limit(strip_tags($writer->content), 200) : null,
-                'rating'    => $ratings ? round(array_sum($ratings) / count($ratings), 1) : null,
-                'orders'    => $writer->finish_order,
-                'image'     => $writer->image ? asset($writer->image) : null,
-                'image_alt' => $writer->image_alt,
+                'id'     => $writer->id,
+                'name'   => $writer->name,
+                'degree' => 'Prime Assignment Writer',
+                'desc'   => null,
+                'rating' => null,
+                'orders' => null,
+                'image'  => null,
             ];
         }
 

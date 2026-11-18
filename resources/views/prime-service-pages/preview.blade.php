@@ -131,20 +131,14 @@
     @if($primeWriters->isNotEmpty())
     <section>
         <div class="wrap">
-            <h2 class="section-title">Our Prime Experts</h2>
+            <h2 class="section-title">Our Prime Writers</h2>
             <div class="cards">
                 @foreach($primeWriters->take(5) as $writer)
                     <div class="card">
-                        <div class="photo">
-                            @if($writer->image)
-                                <img src="{{ asset($writer->image) }}" alt="{{ $writer->image_alt }}" style="width:100%;height:100%;object-fit:cover">
-                            @else
-                                👤
-                            @endif
-                        </div>
+                        <div class="photo">👤</div>
                         <div class="card-body">
                             <strong>{{ $writer->name }}</strong>
-                            <p>{{ $writer->subject ?: ($writer->service ?: 'Prime Assignment Expert') }}</p>
+                            <p>Prime Assignment Writer</p>
                         </div>
                     </div>
                 @endforeach

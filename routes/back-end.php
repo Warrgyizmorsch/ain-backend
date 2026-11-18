@@ -35,8 +35,7 @@ use App\Http\Controllers\PrimeBlogController;
 use App\Http\Controllers\PrimeSampleController;
 use App\Http\Controllers\PrimeSampleCategoryController;
 use App\Http\Controllers\PrimeSampleTypeController;
-use App\Http\Controllers\PrimeExpertController;
-use App\Http\Controllers\PrimeReviewController;
+use App\Http\Controllers\PrimeWriterController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\EnquiryController;
 use App\Http\Controllers\ChatbotController;
@@ -79,17 +78,16 @@ Route::middleware(['auth'])->group(function () {
     Route::resource('prime-samples', PrimeSampleController::class)->except(['show']);
     Route::resource('prime-sample-categories', PrimeSampleCategoryController::class)->only(['index', 'store', 'update', 'destroy']);
     Route::resource('prime-sample-types', PrimeSampleTypeController::class)->only(['index', 'store', 'update', 'destroy']);
-    Route::resource('prime-experts', PrimeExpertController::class)->except(['show']);
-    Route::resource('prime-reviews', PrimeReviewController::class)->except(['show']);
-    });
-    Route::get('/lead/export/status', [LeadsController::class, 'exportStatus']);
-    Route::any('/order/export', [ExportController::class, 'export'])->name('order.export');
-    Route::post('/lead/assign-type', [LeadsController::class, 'assignType'])
-        ->name('lead.assignType');
-    Route::post('/lead-reason-update', [LeadsController::class, 'updateLeadReason'])
-        ->name('lead-reason-update');
+    Route::resource('prime-writers', PrimeWriterController::class)->only(['index', 'store', 'update', 'destroy']);
+});
+Route::get('/lead/export/status', [LeadsController::class, 'exportStatus']);
+Route::any('/order/export', [ExportController::class, 'export'])->name('order.export');
+Route::post('/lead/assign-type', [LeadsController::class, 'assignType'])
+    ->name('lead.assignType');
+Route::post('/lead-reason-update', [LeadsController::class, 'updateLeadReason'])
+    ->name('lead-reason-update');
 
-    Route::middleware(['auth', 'check.permission'])->group(function () {
+Route::middleware(['auth', 'check.permission'])->group(function () {
 
     Route::prefix('whatsapp')->name('whatsapp.')->group(function () {
         Route::get('/settings', [WhatsappController::class, 'settings'])->name('settings');

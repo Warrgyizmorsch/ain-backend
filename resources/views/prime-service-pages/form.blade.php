@@ -112,24 +112,21 @@
     <div class="col-lg-6">
         <div class="card h-100">
             <div class="card-header">
-                <h3 class="card-title">Prime Experts to show</h3>
+                <h3 class="card-title">Prime Writers to show</h3>
             </div>
             <div class="card-body overflow-auto" style="max-height:350px">
                 @forelse($primeWriters as $writer)
                     <label class="form-check form-check-custom form-check-solid mb-3">
                         <input class="form-check-input" type="checkbox" name="prime_writer_ids[]" value="{{ $writer->id }}" @checked(in_array($writer->id, old('prime_writer_ids', $page->prime_writer_ids ?: [])))>
                         <span class="form-check-label">
-                            <strong>{{ $writer->name }}</strong>
-                            @if($writer->subject || $writer->service)
-                                — {{ collect([$writer->subject, $writer->service])->filter()->implode(' / ') }}
-                            @endif
+                            <strong>{{ $writer->name }}</strong> — {{ $writer->email }}
                             @unless($writer->is_active)
                                 <span class="badge badge-light-secondary ms-1">Inactive</span>
                             @endunless
                         </span>
                     </label>
                 @empty
-                    <p class="text-muted">Add Prime experts first in <a href="{{ route('prime-experts.create') }}">Prime Assignment &rarr; Experts</a>.</p>
+                    <p class="text-muted">Add Prime writers in Prime Writer Master first.</p>
                 @endforelse
             </div>
         </div>
@@ -148,7 +145,7 @@
                         </span>
                     </label>
                 @empty
-                    <p class="text-muted">Add Prime reviews first in <a href="{{ route('prime-reviews.create') }}">Prime Assignment &rarr; Reviews</a>.</p>
+                    <p class="text-muted">Add reviews in Review Master first.</p>
                 @endforelse
             </div>
         </div>
