@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\PrimeSample;
 use App\Models\PrimeSampleCategory;
+use App\Models\PrimeSampleType;
 use Illuminate\Http\Request;
 
 class PrimeSampleApiController extends Controller
@@ -22,7 +23,7 @@ class PrimeSampleApiController extends Controller
         $limit = intval($request->query('limit', 10));
         $limit = max(1, min(50, $limit));
 
-        $query = PrimeSample::with('category')->latest('id');
+        $query = PrimeSample::with(['category', 'type'])->latest('id');
 
         // Optional search filtering by title
         if ($request->filled('search')) {
@@ -46,8 +47,20 @@ class PrimeSampleApiController extends Controller
             }
         }
 
+        if ($request->filled('type')) {
+            $type = $request->query('type');
+            if (is_numeric($type)) {
+                $query->where('type_id', (int) $type);
+            } else {
+                $query->whereHas('type', function ($q) use ($type) {
+                    $q->where('name', $type)
+                      ->orWhere('slug', $type);
+                });
+            }
+        }
+
         $samples = $query->paginate($limit, [
-            'id', 'category_id', 'title', 'slug', 'pages_count',
+            'id', 'category_id', 'type_id', 'title', 'slug', 'pages_count',
             'words_count', 'meta_title', 'meta_description', 'created_at',
         ]);
 
@@ -60,7 +73,8 @@ class PrimeSampleApiController extends Controller
                 'category_id'   => $sample->category_id,
                 'category'      => $sample->category_id,
                 'category_name' => $catName,
-                'type_name'     => $catName,
+                'type_id'       => $sample->type_id,
+                'type_name'     => $sample->type?->name ?? 'N/A',
                 'pages_count'   => $sample->pages_count,
                 'words_count'   => $sample->words_count,
                 'meta_title'    => $sample->meta_title,
@@ -83,7 +97,7 @@ class PrimeSampleApiController extends Controller
         $slug = urldecode($slug);
         $cleanSlug = trim($slug, '/');
 
-        $sample = PrimeSample::with('category')
+        $sample = PrimeSample::with(['category', 'type'])
             ->where(function ($query) use ($slug, $cleanSlug) {
                 $query->where('slug', $cleanSlug)
                       ->orWhere('slug', '/' . $cleanSlug)
@@ -97,7 +111,7 @@ class PrimeSampleApiController extends Controller
             ->first();
 
         if (!$sample) {
-            $sample = PrimeSample::with('category')
+            $sample = PrimeSample::with(['category', 'type'])
                 ->where('title', 'like', '%' . $cleanSlug . '%')
                 ->first();
         }
@@ -110,7 +124,7 @@ class PrimeSampleApiController extends Controller
         }
 
         $sample->category_name = $sample->category?->name ?? 'General';
-        $sample->type_name     = $sample->category_name;
+        $sample->type_name     = $sample->type?->name ?? 'N/A';
 
         return response()->json([
             'success' => true,
@@ -138,6 +152,26 @@ class PrimeSampleApiController extends Controller
         return response()->json([
             'success' => true,
             'data'    => $categories,
+        ]);
+    }
+
+    public function types()
+    {
+        $types = PrimeSampleType::withCount('samples')
+            ->orderBy('name', 'asc')
+            ->get()
+            ->map(function ($type) {
+                return [
+                    'id'           => $type->id,
+                    'name'         => $type->name,
+                    'slug'         => $type->slug,
+                    'sample_count' => $type->samples_count,
+                ];
+            });
+
+        return response()->json([
+            'success' => true,
+            'data'    => $types,
         ]);
     }
 }

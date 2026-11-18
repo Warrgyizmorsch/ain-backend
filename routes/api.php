@@ -146,6 +146,8 @@ Route::middleware('api.key')->group(function () {
         Route::get('/sample', [PrimeSampleApiController::class, 'index']);
         Route::get('/samples/categories', [PrimeSampleApiController::class, 'categories']);
         Route::get('/sample-categories', [PrimeSampleApiController::class, 'categories']);
+        Route::get('/samples/types', [PrimeSampleApiController::class, 'types']);
+        Route::get('/sample-types', [PrimeSampleApiController::class, 'types']);
         Route::get('/samples/{slug}', [PrimeSampleApiController::class, 'show'])->where('slug', '.*');
         Route::get('/sample/{slug}', [PrimeSampleApiController::class, 'show'])->where('slug', '.*');
     });

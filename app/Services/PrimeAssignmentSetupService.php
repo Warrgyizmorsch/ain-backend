@@ -46,7 +46,18 @@ class PrimeAssignmentSetupService
             });
         }
 
-        // 2. Prime Dynamic Service Pages
+        // 2. Prime Writer Master
+        if (!Schema::hasTable('prime_writers')) {
+            Schema::create('prime_writers', function (Blueprint $table) {
+                $table->id();
+                $table->string('name', 255);
+                $table->string('email', 191)->unique();
+                $table->boolean('is_active')->default(true)->index();
+                $table->timestamps();
+            });
+        }
+
+        // 3. Prime Dynamic Service Pages
         if (!Schema::hasTable('prime_service_pages')) {
             Schema::create('prime_service_pages', function (Blueprint $table) {
                 $table->id();
@@ -74,6 +85,7 @@ class PrimeAssignmentSetupService
                 $table->string('cta_button_url', 500)->nullable();
                 $table->longText('long_content')->nullable();
                 $table->json('expert_ids')->nullable();
+                $table->json('prime_writer_ids')->nullable();
                 $table->json('review_ids')->nullable();
                 $table->json('faqs')->nullable();
                 $table->json('topics')->nullable();
@@ -84,6 +96,12 @@ class PrimeAssignmentSetupService
                 $table->index(['type', 'is_published']);
             });
         } else {
+            if (!Schema::hasColumn('prime_service_pages', 'prime_writer_ids')) {
+                Schema::table('prime_service_pages', function (Blueprint $table) {
+                    $table->json('prime_writer_ids')->nullable();
+                });
+            }
+
             try {
                 DB::statement('ALTER TABLE `prime_service_pages` MODIFY `prime_subject_id` BIGINT UNSIGNED NULL');
             } catch (\Throwable $e) {}
@@ -176,11 +194,22 @@ class PrimeAssignmentSetupService
             });
         }
 
+        if (!Schema::hasTable('prime_sample_types')) {
+            Schema::create('prime_sample_types', function (Blueprint $table) {
+                $table->id();
+                $table->string('name', 120)->unique();
+                $table->string('slug', 191)->index();
+                $table->text('description')->nullable();
+                $table->timestamps();
+            });
+        }
+
         // 5. Prime Samples
         if (!Schema::hasTable('prime_samples')) {
             Schema::create('prime_samples', function (Blueprint $table) {
                 $table->id();
                 $table->foreignId('category_id')->nullable()->constrained('prime_sample_categories')->nullOnDelete();
+                $table->foreignId('type_id')->nullable()->constrained('prime_sample_types')->nullOnDelete();
                 $table->string('title', 255);
                 $table->string('slug', 191)->unique();
                 $table->longText('content');
@@ -192,6 +221,14 @@ class PrimeAssignmentSetupService
                 $table->timestamps();
 
                 $table->index(['category_id', 'is_published']);
+            });
+        } elseif (!Schema::hasColumn('prime_samples', 'type_id')) {
+            Schema::table('prime_samples', function (Blueprint $table) {
+                $table->foreignId('type_id')
+                    ->nullable()
+                    ->after('category_id')
+                    ->constrained('prime_sample_types')
+                    ->nullOnDelete();
             });
         }
     }

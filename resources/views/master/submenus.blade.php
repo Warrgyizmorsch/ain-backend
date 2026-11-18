@@ -195,7 +195,7 @@
 																		<select name="parent"  data-control="select2"  class="form-select form-select-solid form-select-lg fw-bold select2-hidden-accessible" data-select2-id="select2-data-10-l5lk" tabindex="-1" aria-hidden="true">
 																		<option value="" data-select2-id="select2-data-12-uzxa">Select Parent...</option>
 																		@foreach($data['parent'] as $parent)
-																			<option value="{{ $parent['id'] }}" @if($menu['menus_id'] == $menu['menus_id']) selected @endif>{{ $parent['menu_name']}}</option>
+																			<option value="{{ $parent['id'] }}" @selected($menu['menus_id'] == $parent['id'])>{{ $parent['menu_name']}}</option>
 																		@endforeach
 																		</select>
 																	<div class="fv-plugins-message-container invalid-feedback">

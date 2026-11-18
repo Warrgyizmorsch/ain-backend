@@ -13,6 +13,7 @@ class PrimeSample extends Model
 
     protected $fillable = [
         'category_id',
+        'type_id',
         'title',
         'slug',
         'content',
@@ -32,6 +33,11 @@ class PrimeSample extends Model
     public function category()
     {
         return $this->belongsTo(PrimeSampleCategory::class, 'category_id');
+    }
+
+    public function type()
+    {
+        return $this->belongsTo(PrimeSampleType::class, 'type_id');
     }
 }
 
