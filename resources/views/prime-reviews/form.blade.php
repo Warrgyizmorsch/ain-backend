@@ -79,6 +79,9 @@
                                     @foreach($locations as $loc)
                                         <option value="{{ $loc }}" @selected($selectedLocation === $loc)>{{ $loc }}</option>
                                     @endforeach
+                                    @if($selectedLocation && !in_array($selectedLocation, $locations, true))
+                                        <option value="{{ $selectedLocation }}" selected>{{ $selectedLocation }}</option>
+                                    @endif
                                 </select>
                             </div>
 
@@ -89,6 +92,30 @@
                                         <option value="{{ $i }}" @selected($selectedRating === $i)>{{ str_repeat('⭐', $i) }} ({{ $i }})</option>
                                     @endfor
                                 </select>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-lg-4 mb-3">
+                                <label for="page" class="form-label">Show on Page</label>
+                                <input type="text" class="form-control" id="page" name="page" list="prime-review-pages"
+                                    placeholder="e.g. Homepage, London, Essay Writing Service"
+                                    value="{{ old('page', $review->page ?? '') }}">
+                                <datalist id="prime-review-pages">
+                                    @foreach($pages as $p)
+                                        <option value="{{ $p }}"></option>
+                                    @endforeach
+                                </datalist>
+                            </div>
+                            <div class="col-lg-4 mb-3">
+                                <label for="university" class="form-label">University</label>
+                                <input type="text" class="form-control" id="university" name="university"
+                                    value="{{ old('university', $review->university ?? '') }}">
+                            </div>
+                            <div class="col-lg-4 mb-3">
+                                <label for="course" class="form-label">Course</label>
+                                <input type="text" class="form-control" id="course" name="course"
+                                    value="{{ old('course', $review->course ?? '') }}">
                             </div>
                         </div>
 

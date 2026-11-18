@@ -16,7 +16,7 @@ class PrimeReviewApiController extends Controller
 
     /**
      * GET /api/prime/reviews
-     * Query: limit (1-50, default 10), page, search, service, location, rating
+     * Query: limit (1-50, default 10), page (page number), section (e.g. Homepage, London), search, service, location, rating
      */
     public function index(Request $request)
     {
@@ -30,6 +30,11 @@ class PrimeReviewApiController extends Controller
                 $q->where('name', 'like', "%{$search}%")
                   ->orWhere('description', 'like', "%{$search}%");
             });
+        }
+        // "section" = website page the testimonial belongs to (e.g. Homepage, London).
+        // Not called "page" because ?page= is the pagination page number.
+        if ($request->filled('section')) {
+            $query->where('page', $request->query('section'));
         }
         if ($request->filled('service')) {
             $query->where('services_type', $request->query('service'));
@@ -83,6 +88,9 @@ class PrimeReviewApiController extends Controller
         return [
             'id'              => $review->id,
             'name'            => $review->name,
+            'page'            => $review->page,
+            'university'      => $review->university,
+            'course'          => $review->course,
             'deadline'        => $review->deadline,
             'submission_date' => optional($review->submission_date)->format('Y-m-d'),
             'service'         => $review->services_type,
