@@ -13,9 +13,13 @@ class PrimeExpert extends Model
         'slug',
         'image',
         'image_alt',
+        'gender',
+        'degree',
+        'experience',
         'finish_order',
         'inprogress_order',
         'success',
+        'rating',
         'subject',
         'service',
         'location',
@@ -33,5 +37,6 @@ class PrimeExpert extends Model
         'helpus' => 'array',
         'customer_review' => 'array',
         'is_active' => 'boolean',
+        'rating' => 'float',
     ];
 }

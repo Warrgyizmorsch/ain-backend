@@ -113,6 +113,10 @@ class PrimeExpertController extends Controller
             'finish_order' => 'nullable|string|max:50',
             'inprogress_order' => 'nullable|string|max:50',
             'success' => 'nullable|string|max:50',
+            'rating' => 'nullable|numeric|min:0|max:5',
+            'gender' => 'nullable|string|max:20',
+            'degree' => 'nullable|string|max:255',
+            'experience' => 'nullable|string|max:50',
             'subject' => 'nullable|string|max:255',
             'services' => 'nullable|string|max:255',
             'location' => 'nullable|string|max:255',
@@ -142,6 +146,10 @@ class PrimeExpertController extends Controller
         $expert->finish_order = $request->input('finish_order');
         $expert->inprogress_order = $request->input('inprogress_order');
         $expert->success = $request->filled('success') ? trim($request->input('success')) : null;
+        $expert->rating = $request->filled('rating') ? (float) $request->input('rating') : null;
+        $expert->gender = $request->input('gender');
+        $expert->degree = $request->input('degree');
+        $expert->experience = $request->input('experience');
         $expert->subject = $request->input('subject');
         $expert->service = $request->input('services');
         $expert->location = $request->input('location');

@@ -130,7 +130,36 @@
                             </div>
                         </div>
 
-                        <div class="row">
+                        <div class="row mt-3">
+                            <div class="col-lg-2">
+                                <label for="gender" class="form-label">Gender</label>
+                                <select id="gender" name="gender" class="form-select">
+                                    <option value="">Select</option>
+                                    @foreach(['Male', 'Female', 'Other'] as $g)
+                                        <option value="{{ $g }}" @selected(old('gender', $expert->gender ?? '') === $g)>{{ $g }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="col-lg-5">
+                                <label for="degree" class="form-label">Degree</label>
+                                <input type="text" class="form-control" id="degree" name="degree"
+                                    placeholder="e.g. PhD in Strategic Management, University of Manchester"
+                                    value="{{ old('degree', $expert->degree ?? '') }}">
+                            </div>
+                            <div class="col-lg-3">
+                                <label for="experience" class="form-label">Experience</label>
+                                <input type="text" class="form-control" id="experience" name="experience"
+                                    placeholder="e.g. 10 years"
+                                    value="{{ old('experience', $expert->experience ?? '') }}">
+                            </div>
+                            <div class="col-lg-2">
+                                <label for="rating" class="form-label">Rating (0-5)</label>
+                                <input type="number" step="0.1" min="0" max="5" class="form-control" id="rating" name="rating"
+                                    value="{{ old('rating', $expert->rating ?? '') }}">
+                            </div>
+                        </div>
+
+                        <div class="row mt-3">
                             <div class="mb-3 col-lg-4">
                                 <label for="subject" class="form-label">Subject</label>
                                 <select id="subject" name="subject" class="form-select">
@@ -168,6 +197,9 @@
                                     @foreach($locations as $location)
                                         <option value="{{ $location }}" @selected($selectedLocation === $location)>{{ $location }}</option>
                                     @endforeach
+                                    @if($selectedLocation && !in_array($selectedLocation, $locations, true))
+                                        <option value="{{ $selectedLocation }}" selected>{{ $selectedLocation }}</option>
+                                    @endif
                                 </select>
                             </div>
                         </div>
