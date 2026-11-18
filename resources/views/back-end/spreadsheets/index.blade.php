@@ -557,7 +557,7 @@
                     </div>
                     <div class="excel-title-text">
                         <h4>Excel Sheets</h4>
-                        <span id="excelSheetsCountText">{{ $spreadsheets->count() }} Files</span>
+                        <span id="excelSheetsCountText">{{ $spreadsheets->count() }} {{ $spreadsheets->count() === 1 ? 'File' : 'Files' }}</span>
                     </div>
                 </div>
                 <button type="button" class="excel-new-btn" id="btnCreateNewSheet" title="Create New Spreadsheet">
@@ -1115,7 +1115,7 @@
                 if (res.success && Array.isArray(res.spreadsheets)) {
                     const container = document.getElementById('excelFilesList');
                     const countText = document.getElementById('excelSheetsCountText');
-                    if (countText) countText.innerText = `${res.spreadsheets.length} Files`;
+                    if (countText) countText.innerText = `${res.spreadsheets.length} ${res.spreadsheets.length === 1 ? 'File' : 'Files'}`;
 
                     if (res.spreadsheets.length === 0) {
                         container.innerHTML = `

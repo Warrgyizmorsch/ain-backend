@@ -9,7 +9,7 @@
     		<div class="row mb-3">
                 
 				<div class="col-md-3 fv-row">
-                    <input type="search" name="search" id="search" class="form-control form-control-solid" placeholder="Serach By OrderCode">
+                    <input type="search" name="search" id="search" class="form-control form-control-solid" placeholder="Search By OrderCode">
                 </div>
 
 				<script>
@@ -112,13 +112,13 @@
                     </select>
                 </div>
                 <div class="col-md-3 fv-row mt-3">
-                    <input type="text" name="p_name"  class="form-control form-control-solid" placeholder="Serach By Payee Name">
+                    <input type="text" name="p_name"  class="form-control form-control-solid" placeholder="Search By Payee Name">
                 </div>
 
 				<div class="row">
 					<div class="col-lg-12 fv-row fv-plugins-icon-container mt-2">
 						<button type='submit' class="btn btn-sm btn-primary">Search</button>
-						<a href="/1008/Payments" class="btn btn-sm btn-danger">reset</a>
+						<a href="/1008/Payments" class="btn btn-sm btn-danger">Reset</a>
 					</div>
 				</div>
     		</div>

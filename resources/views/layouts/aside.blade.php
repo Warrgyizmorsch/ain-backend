@@ -79,6 +79,18 @@
                     });
                     $renderedSuperAdminReferralMenu = false;
                     $isSuperAdminReferralActive = $isActiveRoute('referral-system');
+                    $formatMenuLabel = function ($label) {
+                        $trimmed = trim((string) $label);
+                        $map = [
+                            'payment' => 'Payments',
+                            'Delevery Followups' => 'Delivery Followups',
+                            'failedJobs Orders' => 'Failed Job Orders',
+                            'writer Team Leader' => 'Writer Team Leader',
+                            'Rask Review' => 'Task Review',
+                        ];
+
+                        return $map[$trimmed] ?? $label;
+                    };
                 @endphp
 
                 <div class="menu-item">
@@ -134,7 +146,7 @@
                                         <span class="menu-icon">
                                             <i class="{{ $menu['icon_class'] ?: 'fa fa-circle-o' }}"></i>
                                         </span>
-                                        <span class="menu-title">{{ $menu['menu_name'] }}</span>
+                                        <span class="menu-title">{{ $formatMenuLabel($menu['menu_name']) }}</span>
                                         <span class="menu-arrow"></span>
                                     </span>
 
@@ -148,7 +160,7 @@
                                                             <i
                                                                 class="{{ $group['menu']->icon_class ?: 'fa fa-circle-o' }}"></i>
                                                         </span>
-                                                        <span class="menu-title">{{ $group['menu']->menu_name }}</span>
+                                                        <span class="menu-title">{{ $formatMenuLabel($group['menu']->menu_name) }}</span>
                                                         <span class="menu-arrow"></span>
                                                     </span>
                                                     <div class="menu-sub menu-sub-accordion menu-active-bg"
@@ -161,7 +173,7 @@
                                                                     <span class="menu-bullet"><span
                                                                             class="bullet bullet-dot"></span></span>
                                                                     <span
-                                                                        class="menu-title">{{ $submenu->sub_menu_name }}</span>
+                                                                        class="menu-title">{{ $formatMenuLabel($submenu->sub_menu_name) }}</span>
                                                                 </a>
                                                             </div>
                                                         @endforeach
@@ -175,7 +187,7 @@
                                                             <i
                                                                 class="{{ $group['menu']->icon_class ?: 'fa fa-circle-o' }}"></i>
                                                         </span>
-                                                        <span class="menu-title">{{ $group['menu']->menu_name }}</span>
+                                                        <span class="menu-title">{{ $formatMenuLabel($group['menu']->menu_name) }}</span>
                                                     </a>
                                                 </div>
                                             @endif
@@ -231,7 +243,7 @@
                                         <span class="menu-icon">
                                             <i class="{{ $menu['icon_class'] ?: 'fa fa-circle-o' }}"></i>
                                         </span>
-                                        <span class="menu-title">{{ $menu['menu_name'] }}</span>
+                                        <span class="menu-title">{{ $formatMenuLabel($menu['menu_name']) }}</span>
                                         <span class="menu-arrow"></span>
                                     </span>
 
@@ -246,7 +258,7 @@
                                                     <span class="menu-bullet">
                                                         <span class="bullet bullet-dot"></span>
                                                     </span>
-                                                    <span class="menu-title">{{ $submenu->sub_menu_name }}</span>
+                                                    <span class="menu-title">{{ $formatMenuLabel($submenu->sub_menu_name) }}</span>
                                                     @if (trim($submenu->routes, '/') == 'revoke-payments')
                                                         @if (isset($globalRevokeCount) && $globalRevokeCount > 0)
                                                             <span class="menu-badge">
@@ -290,7 +302,7 @@
                                     <span class="menu-icon">
                                         <i class="{{ $menu['icon_class'] ?: 'fa fa-circle-o' }}"></i>
                                     </span>
-                                    <span class="menu-title">{{ $menu['menu_name'] }}</span>
+                                    <span class="menu-title">{{ $formatMenuLabel($menu['menu_name']) }}</span>
                                     @if (trim($menu['routes'], '/') == 'revoke-payments')
                                         @if (isset($globalRevokeCount) && $globalRevokeCount > 0)
                                             <span class="menu-badge">

@@ -18,7 +18,7 @@
 					class="page-title d-flex align-items-center flex-wrap me-3 mb-5 mb-lg-0">
 					<h1 class="d-flex align-items-center text-dark fw-bolder fs-3 my-1">Order
 						<span class="h-20px border-gray-200 border-start ms-3 mx-2"></span>
-						<small class="text-muted fs-7 fw-bold my-1 ms-1">Assignement In Need for Writer-Admin</small>
+						<small class="text-muted fs-7 fw-bold my-1 ms-1">Assignment In Need for Writer-Admin</small>
 					</h1>
 					<span id="orderCount" class="badge bg-primary mx-2"></span>
 					<span id="wordCount" class="badge bg-success mx-2"></span>

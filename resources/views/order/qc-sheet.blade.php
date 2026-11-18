@@ -15,7 +15,7 @@
                     <div data-kt-swapper="true" data-kt-swapper-mode="prepend" data-kt-swapper-parent="{default: '#kt_content_container', 'lg': '#kt_toolbar_container'}" class="page-title d-flex align-items-center flex-wrap me-3 mb-5 mb-lg-0">
                         <h1 class="d-flex align-items-center text-dark fw-bolder fs-3 my-1">Qc-Sheets
                         <span class="h-20px border-gray-200 border-start ms-3 mx-2"></span>
-                        <small class="text-muted fs-7 fw-bold my-1 ms-1">Assignement In Need</small>
+                        <small class="text-muted fs-7 fw-bold my-1 ms-1">Assignment In Need</small>
                     </div>
                     
                 </div>
@@ -32,7 +32,7 @@
                     <form action="{{ route('Qc-Sheets') }}" method="GET">
                         <div class="row mb-3">
                             <div class="col-md-3 fv-row">
-                                <input type="search"   name="search" id="search" class="form-control form-control-solid" placeholder="Serach By OrderCode " >
+                                <input type="search"   name="search" id="search" class="form-control form-control-solid" placeholder="Search By OrderCode" >
                             </div>
                             <!-- <div class="col-lg-3 fv-row fv-plugins-icon-container">
                                 <select name="writer" id="writer"     data-placeholder="Search By writer Name " class="form-select form-select-solid form-select-lg " >

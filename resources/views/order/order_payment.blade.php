@@ -8,7 +8,7 @@
             <div data-kt-swapper="true" data-kt-swapper-mode="prepend" data-kt-swapper-parent="{default: '#kt_content_container', 'lg': '#kt_toolbar_container'}" class="page-title d-flex align-items-center flex-wrap me-3 mb-5 mb-lg-0">
                 <h1 class="d-flex align-items-center text-dark fw-bolder fs-3 my-1">Order Edit
                 <span class="h-20px border-gray-200 border-start ms-3 mx-2"></span>
-                <small class="text-muted fs-7 fw-bold my-1 ms-1">Assignement In Need</small>
+                <small class="text-muted fs-7 fw-bold my-1 ms-1">Assignment In Need</small>
             </div>
             
         </div>
@@ -92,7 +92,7 @@
                                                             </div>
                                                         </div>
                                                         <div class="modal-body scroll-y px-10 px-lg-15 pt-0 pb-15">
-                                                            <h3>Are You Sure To Delete Payment Deatail</h3>
+                                                            <h3>Are You Sure To Delete Payment Detail</h3>
                                                             <table class="table table-row-bordered table-row-gray-100 align-middle gs-0 gy-3">
                                                             <thead class="p-2">
                                                                 <tr class="fw-bolder text-muted bg-light">

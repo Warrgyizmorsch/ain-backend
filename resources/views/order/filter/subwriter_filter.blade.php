@@ -8,7 +8,7 @@
     	<form action="">
     		<div class="row mb-3">
                 <div class="col-md-3 fv-row">
-                	 <input type="search"  name="search" id="search" class="form-control form-control-solid" placeholder="Serach By OrderCode or Title" >
+                	 <input type="search"  name="search" id="search" class="form-control form-control-solid" placeholder="Search By OrderCode or Title" >
                 </div>
                            
     			

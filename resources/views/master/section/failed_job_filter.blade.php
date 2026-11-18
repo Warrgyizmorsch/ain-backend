@@ -18,7 +18,7 @@
     				</select>
     			<div class="fv-plugins-message-container invalid-feedback"></div></div>
                 <div class="col-lg-3 fv-row fv-plugins-icon-container">
-    				<select name="payment_order-id" aria-label="Select a Language" data-control="select2" data-placeholder="Serach By Date" class="form-select form-select-solid form-select-lg " data-select2-id="select2-data-13-mh4q" tabindex="-1" >
+    				<select name="payment_order-id" aria-label="Select a Language" data-control="select2" data-placeholder="Search By Date" class="form-select form-select-solid form-select-lg " data-select2-id="select2-data-13-mh4q" tabindex="-1" >
     					<option value="" ></option>
                            @foreach($order as $order)
                            <option value=""></option>
@@ -31,7 +31,7 @@
     			</div>
     			<div class="col-lg-3 fv-row fv-plugins-icon-container">
     				<button type='submit' class="btn btn-sm btn-primary" >Search</button>
-    				<a href="/failedJobs" class="btn btn-sm btn-danger" >reset</a>
+    				<a href="/failedJobs" class="btn btn-sm btn-danger" >Reset</a>
     			</div>
     		</div>
     	</form>

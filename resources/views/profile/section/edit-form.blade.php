@@ -62,7 +62,7 @@
 									<i class="fas fa-exclamation-circle ms-1 fs-7" data-bs-toggle="tooltip" title="" data-bs-original-title="Phone number must be active" aria-label="Phone number must be active"></i>
 								</label>
 								<div class="col-lg-8 fv-row fv-plugins-icon-container">
-									<input type="text" name="address" class="form-control form-control-lg form-control-solid" placeholder="Enter YOur Address" value="{{ Auth::user()->address }}">
+									<input type="text" name="address" class="form-control form-control-lg form-control-solid" placeholder="Enter Your Address" value="{{ Auth::user()->address }}">
 								<div class="fv-plugins-message-container invalid-feedback"></div></div>
 							</div>
 							@else
@@ -99,7 +99,7 @@
 									<i class="fas fa-exclamation-circle ms-1 fs-7" data-bs-toggle="tooltip" title="" data-bs-original-title="Phone number must be active" aria-label="Phone number must be active"></i>
 								</label>
 								<div class="col-lg-8 fv-row fv-plugins-icon-container">
-									<input type="text" readonly name="address" class="form-control form-control-lg form-control-solid" placeholder="Enter YOur Address" value="{{ Auth::user()->address }}">
+									<input type="text" readonly name="address" class="form-control form-control-lg form-control-solid" placeholder="Enter Your Address" value="{{ Auth::user()->address }}">
 								<div class="fv-plugins-message-container invalid-feedback"></div></div>
 							</div>
 							@endif

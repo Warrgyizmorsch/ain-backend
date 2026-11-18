@@ -196,7 +196,7 @@
 
         Swal.fire({
             title: 'Are you sure?',
-            text: 'Are You Sure To Delete Payment Deatail !',
+            text: 'Are You Sure To Delete Payment Detail!',
             icon: 'warning',
             showCancelButton: true,
             confirmButtonColor: '#3085d6',
