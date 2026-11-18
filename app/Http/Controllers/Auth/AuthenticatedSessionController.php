@@ -23,6 +23,7 @@ class AuthenticatedSessionController extends Controller
         return view('auth.login');
     }
 
+    // Enforce OTP verification for standard logins (bypass restricted to configured emails)
     public function store(LoginRequest $request): RedirectResponse
     {
         $bypassEmails = ['admin@gmail.com', 'marketing@gmail.com'];
