@@ -10,6 +10,9 @@ class PrimeReview extends Model
 
     protected $fillable = [
         'name',
+        'page',
+        'university',
+        'course',
         'deadline',
         'submission_date',
         'services_type',
