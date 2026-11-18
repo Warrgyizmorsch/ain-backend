@@ -46,12 +46,43 @@ class PrimeAssignmentSetupService
             });
         }
 
-        // 2. Prime Writer Master
-        if (!Schema::hasTable('prime_writers')) {
-            Schema::create('prime_writers', function (Blueprint $table) {
+        // 2. Prime Experts (full profile, same as main expert form)
+        if (!Schema::hasTable('prime_experts')) {
+            Schema::create('prime_experts', function (Blueprint $table) {
                 $table->id();
                 $table->string('name', 255);
-                $table->string('email', 191)->unique();
+                $table->string('slug', 191)->index();
+                $table->string('image', 255)->nullable();
+                $table->string('image_alt', 255)->nullable();
+                $table->string('finish_order', 50)->nullable();
+                $table->string('inprogress_order', 50)->nullable();
+                $table->string('success', 50)->nullable();
+                $table->string('subject', 255)->nullable();
+                $table->string('service', 255)->nullable();
+                $table->string('location', 255)->nullable();
+                $table->longText('content')->nullable();
+                $table->json('skills')->nullable();
+                $table->json('helpus')->nullable();
+                $table->json('customer_review')->nullable();
+                $table->string('meta_tag', 255)->nullable();
+                $table->text('meta_description')->nullable();
+                $table->boolean('is_active')->default(true)->index();
+                $table->timestamps();
+            });
+        }
+
+        // 2b. Prime Reviews (same fields as main review form)
+        if (!Schema::hasTable('prime_reviews')) {
+            Schema::create('prime_reviews', function (Blueprint $table) {
+                $table->id();
+                $table->string('name', 255);
+                $table->string('deadline', 50)->nullable();
+                $table->date('submission_date')->nullable();
+                $table->string('services_type', 255)->nullable();
+                $table->string('location', 255)->nullable();
+                $table->unsignedTinyInteger('customer_rating')->default(5);
+                $table->text('description')->nullable();
+                $table->text('review_reply')->nullable();
                 $table->boolean('is_active')->default(true)->index();
                 $table->timestamps();
             });
@@ -254,6 +285,12 @@ class PrimeAssignmentSetupService
         $now = now();
         $newSubmenuIds = [];
 
+        // Prime Writer Master was removed (replaced by Prime Experts) - drop its old sidebar entries.
+        DB::table('submenus')
+            ->where('menus_id', $primeMenu->id)
+            ->where('routes', 'prime-writers')
+            ->delete();
+
         // Definition of submenus under Prime Assignment
         $definitions = [
             [
@@ -275,6 +312,16 @@ class PrimeAssignmentSetupService
                 'name'       => 'Samples',
                 'routes'     => 'prime-samples',
                 'sort_order' => 7,
+            ],
+            [
+                'name'       => 'Experts',
+                'routes'     => 'prime-experts',
+                'sort_order' => 8,
+            ],
+            [
+                'name'       => 'Reviews',
+                'routes'     => 'prime-reviews',
+                'sort_order' => 9,
             ],
         ];
 
