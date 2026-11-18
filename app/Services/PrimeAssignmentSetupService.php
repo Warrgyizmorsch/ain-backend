@@ -51,7 +51,7 @@ class PrimeAssignmentSetupService
             Schema::create('prime_writers', function (Blueprint $table) {
                 $table->id();
                 $table->string('name', 255);
-                $table->string('email', 255)->unique();
+                $table->string('email', 191)->unique();
                 $table->boolean('is_active')->default(true)->index();
                 $table->timestamps();
             });
