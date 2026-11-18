@@ -72,13 +72,19 @@ class PrimeReviewController extends Controller
 
         $locations = self::LOCATIONS;
 
-        return compact('review', 'services', 'locations');
+        // Pages already used by testimonials, offered as suggestions in the form
+        $pages = PrimeReview::whereNotNull('page')->distinct()->orderBy('page')->pluck('page');
+
+        return compact('review', 'services', 'locations', 'pages');
     }
 
     private function validated(Request $request): array
     {
         return $request->validate([
             'name' => ['required', 'string', 'max:255'],
+            'page' => ['nullable', 'string', 'max:100'],
+            'university' => ['nullable', 'string', 'max:255'],
+            'course' => ['nullable', 'string', 'max:255'],
             'deadline' => ['nullable', 'string', 'max:50'],
             'submission_date' => ['nullable', 'date'],
             'services_type' => ['nullable', 'string', 'max:255'],

@@ -33,7 +33,6 @@ class PrimeExpertSeeder extends Seeder
 
             $expert->fill([
                 'name'             => $w['name'],
-                'image_alt'        => $w['name'] . ' - ' . $categoryShort . ' Assignment Writer',
                 'gender'           => $w['gender'],
                 'degree'           => $w['degree'],
                 'experience'       => $w['experience'],
@@ -47,7 +46,18 @@ class PrimeExpertSeeder extends Seeder
                 'meta_description' => Str::limit($w['bio'], 155),
             ]);
 
-            // Keep admin-entered values (image, reviews, etc.) on re-run; only default them for new rows.
+            // Photo + alt come as a pair from the document (matched by exact writer name).
+            // Only set them when the image file is actually present, and never overwrite an image set in admin.
+            $imageFile = !empty($w['image']) ? base_path($w['image']) : null;
+            if ($imageFile && is_file($imageFile) && !empty($w['image_alt']) && empty($expert->image)) {
+                $expert->image = $w['image'];
+                $expert->image_alt = $w['image_alt'];
+            }
+            if (empty($expert->image_alt)) {
+                $expert->image_alt = $w['name'] . ' - ' . $categoryShort . ' Assignment Writer';
+            }
+
+            // Keep admin-entered values (reviews, etc.) on re-run; only default them for new rows.
             if ($isNew) {
                 $expert->helpus = [];
                 $expert->customer_review = [];

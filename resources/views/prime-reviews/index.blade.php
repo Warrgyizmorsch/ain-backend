@@ -22,8 +22,8 @@
                             <thead>
                                 <tr class="fw-bolder text-muted">
                                     <th class="min-w-120px">Name</th>
-                                    <th class="min-w-80px">Deadline</th>
-                                    <th class="min-w-100px">Submission</th>
+                                    <th class="min-w-120px">Page</th>
+                                    <th class="min-w-150px">University / Course</th>
                                     <th class="min-w-120px">Service</th>
                                     <th class="min-w-100px">Location</th>
                                     <th class="min-w-100px">Rating</th>
@@ -35,8 +35,8 @@
                                 @forelse($reviews as $review)
                                     <tr>
                                         <td class="text-dark fw-bolder fs-6">{{ $review->name }}</td>
-                                        <td>{{ $review->deadline }}</td>
-                                        <td>{{ optional($review->submission_date)->format('d-m-Y') }}</td>
+                                        <td>{{ $review->page }}</td>
+                                        <td>{{ collect([$review->university, $review->course])->filter()->implode(', ') }}</td>
                                         <td>{{ $review->services_type }}</td>
                                         <td>{{ $review->location }}</td>
                                         <td>{{ str_repeat('⭐', (int) $review->customer_rating) }}</td>
