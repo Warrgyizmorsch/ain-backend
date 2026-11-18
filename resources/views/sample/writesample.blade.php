@@ -13,7 +13,7 @@
         <div class="toolbar mb-5" id="kt_toolbar">
             <div class="container-fluid d-flex flex-stack" id="kt_toolbar_container">
                 <div class="page-title d-flex align-items-center flex-wrap me-3">
-                    <h1 class="d-flex align-items-center text-dark fw-bolder fs-3 my-1">Type Of Services</h1>
+                    <h1 class="d-flex align-items-center text-dark fw-bolder fs-3 my-1">Write Sample</h1>
                     <span class="h-20px border-gray-200 border-start ms-3 mx-2"></span>
                     <small class="text-muted fs-7 fw-bold my-1 ms-1">Assignment In Need </small>
                 </div>
@@ -46,7 +46,7 @@
                 <div class="card card-xxl-stretch mb-5 mb-xl-8">
                     <div class="card-header border-0 pt-5">
                         <h3 class="card-title align-items-start flex-column">
-                            <span class="card-label fw-bolder fs-3 mb-1">All Categories</span>
+                            <span class="card-label fw-bolder fs-3 mb-1">Sample Details</span>
                         </h3>
                     </div>
                     <div class="card-body py-3">
@@ -133,7 +133,7 @@
 <script src="https://cdn.jsdelivr.net/npm/summernote@0.9.0/dist/summernote-lite.min.js"></script>
 <script>
   $('#summernote').summernote({
-    placeholder: 'Hello stand alone ui',
+    placeholder: 'Write sample content here...',
     tabsize: 2,
     height: 120,
     toolbar: [

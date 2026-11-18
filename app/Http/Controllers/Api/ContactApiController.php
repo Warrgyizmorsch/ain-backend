@@ -16,8 +16,8 @@ class ContactApiController extends Controller
      */
     public function contactDetails(Request $request): JsonResponse
     {
-        $callNumber = config('services.contact.call_number', '+44 7917481696');
-        $whatsappNumber = config('services.contact.whatsapp_number', '+44 78262 33106');
+        $callNumber = config('services.contact.call_number', '+44 78262 33106');
+        $whatsappNumber = config('services.contact.whatsapp_number', '+44 7917481696');
         $email = config('services.contact.email', 'order@assignnmentinneed.com');
 
         return response()->json([
