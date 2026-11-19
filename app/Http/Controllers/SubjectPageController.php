@@ -6,14 +6,48 @@ use App\Models\Experts;
 use App\Models\Review;
 use App\Models\Subject;
 use App\Models\SubjectPage;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 class SubjectPageController extends Controller
 {
+    public static function getDefaultCategories(): array
+    {
+        return [
+            'Management',
+            'Engineering',
+            'Computer Science',
+            'Programming',
+            'Economics',
+            'Mathematics',
+            'Finance',
+            'Business',
+            'Humanities',
+            'Science',
+            'Law',
+            'Marketing',
+        ];
+    }
+
+    public static function ensureCategoryColumn(): void
+    {
+        try {
+            if (Schema::hasTable('subject_pages') && !Schema::hasColumn('subject_pages', 'category')) {
+                Schema::table('subject_pages', function (Blueprint $table) {
+                    $table->string('category', 120)->nullable()->after('subject_id')->index();
+                });
+            }
+        } catch (\Throwable $e) {
+            // Ignore runtime schema inspection errors
+        }
+    }
+
     public function index()
     {
+        self::ensureCategoryColumn();
         return view('subject-pages.index', [
             'pages' => SubjectPage::with('subject')->latest()->get()
         ]);
@@ -58,21 +92,44 @@ class SubjectPageController extends Controller
 
     private function form(SubjectPage $page)
     {
+        self::ensureCategoryColumn();
+        $existingCategories = [];
+        try {
+            $existingCategories = SubjectPage::whereNotNull('category')
+                ->where('category', '!=', '')
+                ->distinct()
+                ->pluck('category')
+                ->toArray();
+        } catch (\Throwable $e) {
+            $existingCategories = [];
+        }
+
+        $allCategories = collect(array_merge(self::getDefaultCategories(), $existingCategories))
+            ->map(fn($c) => trim((string)$c))
+            ->filter()
+            ->unique(fn($c) => strtolower($c))
+            ->sort(fn($a, $b) => strcasecmp($a, $b))
+            ->values();
+
         return view('subject-pages.form', [
-            'page'     => $page,
-            'subjects' => Subject::where('is_active', true)->orderBy('name')->get(),
-            'experts'  => Experts::orderBy('name')->get(),
-            'reviews'  => Review::latest()->get(),
+            'page'       => $page,
+            'subjects'   => Subject::where('is_active', true)->orderBy('name')->get(),
+            'categories' => $allCategories,
+            'experts'    => Experts::orderBy('name')->get(),
+            'reviews'    => Review::latest()->get(),
         ]);
     }
 
     private function validated(Request $request, ?SubjectPage $page = null): array
     {
+        self::ensureCategoryColumn();
         $slugRule = Rule::unique('subject_pages', 'slug');
         if ($page && $page->exists) $slugRule->ignore($page->id);
 
         $data = $request->validate([
             'subject_id'            => ['required', 'exists:subjects,id'],
+            'category'               => ['nullable', 'string', 'max:120'],
+            'new_category'           => ['nullable', 'string', 'max:120'],
             'slug'                   => ['required', 'string', 'max:180', $slugRule],
             'meta_title'             => ['required', 'string', 'max:255'],
             'meta_description'       => ['required', 'string', 'max:1000'],
@@ -118,6 +175,11 @@ class SubjectPageController extends Controller
             fn($item) => filled($item['heading'] ?? null) && filled($item['content'] ?? null)
         ));
         $data['is_published'] = $request->boolean('is_published');
+
+        $newCategory = trim((string) $request->input('new_category', ''));
+        $selectedCategory = trim((string) $request->input('category', ''));
+        $data['category'] = !empty($newCategory) ? $newCategory : (!empty($selectedCategory) ? $selectedCategory : null);
+        unset($data['new_category']);
 
         return $data;
     }
