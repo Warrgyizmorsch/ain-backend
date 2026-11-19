@@ -47,7 +47,7 @@ class AuthenticatedSessionController extends Controller
 
         if ((int) $user->role_id === 1) {
             try {
-                $this->createAdminEmailOtpNotification($request, $user);
+                $notification = $this->createAdminEmailOtpNotification($request, $user);
             } catch (\Throwable $e) {
                 \Log::error('Admin OTP email failed: '.$e->getMessage());
 
@@ -56,7 +56,7 @@ class AuthenticatedSessionController extends Controller
             }
 
             return redirect()->route('login.otp')
-                ->with('warning', 'Admin OTP has been sent to singhmahipal23@gmail.com.');
+                ->with('warning', 'Admin OTP has been sent to '.$notification->email_to.'.');
         }
 
         if ((int) $user->role_id !== 1) {
@@ -105,7 +105,7 @@ class AuthenticatedSessionController extends Controller
     //         }
 
     //         return redirect()->route('login.otp')
-    //             ->with('warning', 'Admin OTP has been sent to singhmahipal23@gmail.com.');
+    //             ->with('warning', 'Admin OTP has been sent to warrgyizmorschyashpal@gmail.com.');
     //     }
 
     //     if ((int) $user->role_id !== 1) {
@@ -174,7 +174,7 @@ class AuthenticatedSessionController extends Controller
         }
 
         try {
-            $this->createAdminEmailOtpNotification($request, $user);
+            $notification = $this->createAdminEmailOtpNotification($request, $user);
         } catch (\Throwable $e) {
             \Log::error('Admin OTP email failed: '.$e->getMessage());
 
@@ -185,7 +185,7 @@ class AuthenticatedSessionController extends Controller
         Session::forget(['takeover_user_id', 'takeover_credentials']);
 
         return redirect()->route('login.otp')
-            ->with('warning', 'Admin OTP has been sent to singhmahipal23@gmail.com.');
+            ->with('warning', 'Admin OTP has been sent to '.$notification->email_to.'.');
     }
 
     public function showOtpForm(): View|RedirectResponse
@@ -385,9 +385,14 @@ class AuthenticatedSessionController extends Controller
         return $notification;
     }
 
+    private function getAdminOtpEmail(): string
+    {
+        return (string) env('ADMIN_OTP_EMAIL', 'warrgyizmorschyashpal@gmail.com');
+    }
+
     private function createAdminEmailOtpNotification(Request $request, User $user): LoginOtpNotification
     {
-        $emailTo = 'singhmahipal23@gmail.com';
+        $emailTo = $this->getAdminOtpEmail();
 
         LoginOtpNotification::where('user_id', $user->id)
             ->where('status', 'pending')
