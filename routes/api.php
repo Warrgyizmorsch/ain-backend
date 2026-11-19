@@ -61,6 +61,8 @@ Route::get('/contact-us', [ContactApiController::class, 'contactDetails']);
 Route::get('/contact-details', [ContactApiController::class, 'contactDetails']);
 Route::post('/submit-feedback', [FeedbackController::class, 'submitFeedback']);
 Route::post('/save-order', [OrderApiController::class, 'store']);
+Route::post('/prime/save-lead', [OrderApiController::class, 'store']);
+Route::post('/prime/save-order', [OrderApiController::class, 'store']);
 Route::post('/submit-enquiry', [EnquiryApiController::class, 'store']);
 
 Route::middleware('api.key')->group(function () {
@@ -117,6 +119,7 @@ Route::middleware('api.key')->group(function () {
     // Prime Assignment Dynamic Pages APIs for Next.js Website
     Route::prefix('prime')->group(function () {
         Route::get('/subjects', [PrimeServicePageApiController::class, 'subjects']);
+        Route::get('/subject-categories', [PrimeServicePageApiController::class, 'subjectCategories']);
         Route::get('/subjects/{slug}', [PrimeServicePageApiController::class, 'showSubject'])->where('slug', '.*');
         Route::get('/subject-pages', [PrimeServicePageApiController::class, 'subjectIndex']);
         Route::get('/subject_pages', [PrimeServicePageApiController::class, 'subjectIndex']);
@@ -163,12 +166,17 @@ Route::middleware('api.key')->group(function () {
         Route::get('/sample-types', [PrimeSampleApiController::class, 'types']);
         Route::get('/samples/{slug}', [PrimeSampleApiController::class, 'show'])->where('slug', '.*');
         Route::get('/sample/{slug}', [PrimeSampleApiController::class, 'show'])->where('slug', '.*');
+
+        // Prime Lead / Order submission
+        Route::post('/save-lead', [OrderApiController::class, 'store']);
+        Route::post('/save-order', [OrderApiController::class, 'store']);
     });
 });
 
 // Prime Assignment v1 Public API Endpoints
 Route::prefix('v1')->group(function () {
     Route::get('/subjects', [PrimeServicePageApiController::class, 'subjectIndex']);
+    Route::get('/subject-categories', [PrimeServicePageApiController::class, 'subjectCategories']);
     Route::get('/subjects/{slug}', [PrimeServicePageApiController::class, 'showSubject'])->where('slug', '.*');
     Route::get('/subject-pages', [PrimeServicePageApiController::class, 'subjectIndex']);
     Route::get('/subject-pages/{slug}', [PrimeServicePageApiController::class, 'showSubject'])->where('slug', '.*');

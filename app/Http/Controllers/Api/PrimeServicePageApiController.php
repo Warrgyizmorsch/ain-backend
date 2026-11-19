@@ -60,16 +60,70 @@ class PrimeServicePageApiController extends Controller
             });
         }
 
+        // Optional category filter query parameter
+        if ($request->filled('category')) {
+            $categoryFilter = $request->query('category');
+            $query->where(function ($q) use ($categoryFilter) {
+                $q->where('category', $categoryFilter)
+                  ->orWhere('category', 'like', '%' . $categoryFilter . '%');
+            });
+        }
+
         $pages = $query->get()
             ->filter(fn (PrimeServicePage $p) => $this->resolveStoredType($p) === $type)
             ->values();
 
-        return response()->json([
+        $formattedPages = $this->formatPages($pages);
+
+        $response = [
             'status'  => 'success',
             'success' => true,
             'type'    => $type,
-            'data'    => $this->formatPages($pages),
-        ]);
+            'data'    => $formattedPages,
+        ];
+
+        if ($type === 'subject') {
+            $categoriesGrouped = [];
+            foreach ($pages as $page) {
+                $catName = trim((string)($page->category ?: 'General'));
+                $catSlug = Str::slug($catName);
+
+                if (!isset($categoriesGrouped[$catSlug])) {
+                    $categoriesGrouped[$catSlug] = [
+                        'id'         => $catSlug,
+                        'name'       => $catName,
+                        'title'      => $catName,
+                        'slug'       => $catSlug,
+                        'hasSubmenu' => true,
+                        'count'      => 0,
+                        'subjects'   => [],
+                        'children'   => [],
+                    ];
+                }
+
+                $subjectItem = [
+                    'id'            => $page->id,
+                    'title'         => $page->hero_heading ?: $page->meta_title,
+                    'slug'          => $page->slug,
+                    'category'      => $catName,
+                    'category_slug' => $catSlug,
+                ];
+
+                $categoriesGrouped[$catSlug]['count']++;
+                $categoriesGrouped[$catSlug]['subjects'][] = $subjectItem;
+                $categoriesGrouped[$catSlug]['children'][] = $subjectItem;
+            }
+
+            $categoriesArray = array_values($categoriesGrouped);
+            usort($categoriesArray, fn($a, $b) => strcasecmp($a['name'], $b['name']));
+            $response['categories'] = $categoriesArray;
+
+            if ($request->boolean('grouped') || $request->query('view') === 'navbar' || $request->query('view') === 'tree') {
+                $response['data'] = $categoriesArray;
+            }
+        }
+
+        return response()->json($response);
     }
 
     /**
@@ -89,33 +143,39 @@ class PrimeServicePageApiController extends Controller
                 // Top-level custom slug e.g. /testing or /assignment-help
                 $parentId = $segments[0];
                 $parents[$parentId] = [
-                    'id'         => $page->id,
-                    'title'      => $page->hero_heading ?: ucwords(str_replace('-', ' ', $parentId)),
-                    'slug'       => $page->slug,
-                    'hasSubmenu' => false,
-                    'children'   => [],
-                    'order'      => $page->id,
+                    'id'            => $page->id,
+                    'title'         => $page->hero_heading ?: ucwords(str_replace('-', ' ', $parentId)),
+                    'slug'          => $page->slug,
+                    'category'      => $page->category ?: 'General',
+                    'category_slug' => Str::slug($page->category ?: 'general'),
+                    'hasSubmenu'    => false,
+                    'children'      => [],
+                    'order'         => $page->id,
                 ];
             } elseif (count($segments) === 2) {
                 // Prefix + slug e.g. /service/accounting-help
                 $parentId = $segments[1];
                 $parents[$parentId] = [
-                    'id'         => $page->id,
-                    'title'      => $page->hero_heading ?: ucwords(str_replace('-', ' ', $parentId)),
-                    'slug'       => $page->slug,
-                    'hasSubmenu' => false,
-                    'children'   => [],
-                    'order'      => $page->id,
+                    'id'            => $page->id,
+                    'title'         => $page->hero_heading ?: ucwords(str_replace('-', ' ', $parentId)),
+                    'slug'          => $page->slug,
+                    'category'      => $page->category ?: 'General',
+                    'category_slug' => Str::slug($page->category ?: 'general'),
+                    'hasSubmenu'    => false,
+                    'children'      => [],
+                    'order'         => $page->id,
                 ];
             } elseif (count($segments) >= 3) {
                 // Sub-page e.g. /service/dissertation/uk
                 $parentId = $segments[1];
 
                 $childrenByParent[$parentId][] = [
-                    'id'    => $page->id,
-                    'title' => $page->hero_heading ?: ucwords(str_replace('-', ' ', $segments[2])),
-                    'slug'  => $page->slug,
-                    'order' => $page->id,
+                    'id'            => $page->id,
+                    'title'         => $page->hero_heading ?: ucwords(str_replace('-', ' ', $segments[2])),
+                    'slug'          => $page->slug,
+                    'category'      => $page->category ?: 'General',
+                    'category_slug' => Str::slug($page->category ?: 'general'),
+                    'order'         => $page->id,
                 ];
             }
         }
@@ -602,6 +662,8 @@ class PrimeServicePageApiController extends Controller
             $data['cityName'] = $name;
         } else {
             $data['subjectName'] = $name;
+            $data['category'] = $page->category ?: 'General';
+            $data['category_slug'] = Str::slug($page->category ?: 'general');
         }
 
         $data['title']              = $page->meta_title ?: $page->hero_heading;
@@ -818,5 +880,44 @@ class PrimeServicePageApiController extends Controller
             'success' => true,
             'data'    => $subjects,
         ]);
+    }
+
+    /**
+     * Get distinct active subject categories list for Prime Assignment.
+     */
+    public function subjectCategories()
+    {
+        try {
+            $existing = PrimeServicePage::whereNotNull('category')
+                ->where('category', '!=', '')
+                ->distinct()
+                ->pluck('category')
+                ->toArray();
+
+            $defaults = \App\Http\Controllers\PrimeServicePageController::getDefaultCategories();
+
+            $categories = collect(array_merge($defaults, $existing))
+                ->map(fn($c) => trim((string)$c))
+                ->filter()
+                ->unique(fn($c) => strtolower($c))
+                ->sort(fn($a, $b) => strcasecmp($a, $b))
+                ->map(fn($c) => [
+                    'name' => $c,
+                    'slug' => Str::slug($c),
+                ])
+                ->values();
+
+            return response()->json([
+                'status'  => 'success',
+                'success' => true,
+                'data'    => $categories,
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status'  => 'error',
+                'success' => false,
+                'message' => 'Failed to retrieve Prime subject categories: ' . $e->getMessage(),
+            ], 500);
+        }
     }
 }

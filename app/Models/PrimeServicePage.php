@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Str;
 
 class PrimeServicePage extends Model
 {
@@ -11,6 +12,7 @@ class PrimeServicePage extends Model
     protected $fillable = [
         'prime_subject_id',
         'type',
+        'category',
         'slug',
         'meta_title',
         'meta_description',
@@ -39,6 +41,8 @@ class PrimeServicePage extends Model
         'is_published',
     ];
 
+    protected $appends = ['category_slug'];
+
     protected $casts = [
         'prime_writer_ids' => 'array',
         'review_ids'   => 'array',
@@ -49,6 +53,11 @@ class PrimeServicePage extends Model
         'why_items'    => 'array',
         'is_published' => 'boolean',
     ];
+
+    public function getCategorySlugAttribute(): string
+    {
+        return Str::slug($this->category ?: 'general');
+    }
 
     public function primeSubject()
     {

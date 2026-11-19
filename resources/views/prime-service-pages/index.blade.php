@@ -64,6 +64,7 @@
                         <tr class="fw-bold text-muted">
                             <th>Prefix</th>
                             <th>Type</th>
+                            <th>Category</th>
                             <th>Page</th>
                             <th>Slug</th>
                             <th>Status</th>
@@ -81,6 +82,15 @@
                                 <span class="badge badge-light-{{ $pageType === 'subject' ? 'primary' : ($pageType === 'city' ? 'warning' : 'info') }} fw-bold">
                                     {{ ucfirst($pageType) }}
                                 </span>
+                            </td>
+                            <td>
+                                @if($page->category)
+                                    <span class="badge badge-light-primary fw-semibold">{{ $page->category }}</span>
+                                @elseif($pageType === 'subject')
+                                    <span class="badge badge-light-dark text-muted">Uncategorized</span>
+                                @else
+                                    <span class="text-muted">—</span>
+                                @endif
                             </td>
                             <td>
                                 <strong>{{ $page->hero_heading }}</strong>
@@ -109,7 +119,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="6" class="text-center text-muted py-6">
+                            <td colspan="7" class="text-center text-muted py-6">
                                 No prime dynamic pages found. Click "Add Dynamic Page" to create one.
                             </td>
                         </tr>
