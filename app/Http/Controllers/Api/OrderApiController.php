@@ -18,45 +18,59 @@ class OrderApiController extends Controller
 {
     public function store(Request $request)
     {
+        $name = trim((string) ($request->input('name') ?: $request->input('full_name') ?: 'Website Lead'));
+        $email = trim((string) ($request->input('email') ?: 'N/A'));
+        $country = trim((string) ($request->input('country') ?: $request->input('countrycode') ?: $request->input('countryCode') ?: ''));
+        $mobileNumber = trim((string) ($request->input('mobile_number') ?: $request->input('phone') ?: $request->input('mobile') ?: ''));
+        $services = trim((string) ($request->input('services') ?: $request->input('service') ?: $request->input('typeofpaper') ?: ''));
+        $subject = trim((string) ($request->input('subject') ?: $request->input('project_title') ?: ''));
+        $workType = trim((string) ($request->input('work_type') ?: $request->input('workType') ?: ''));
+        $selectUrgency = trim((string) ($request->input('select_urgency') ?: $request->input('deadline') ?: $request->input('urgency') ?: ''));
 
-        DB::table('primeassiment')->insert([
+        $wordCount = $request->input('word_count') ?: $request->input('wordCount');
+        if (empty($wordCount) && $request->filled('pages')) {
+            $wordCount = (int) $request->input('pages') * 250;
+        }
 
-            'name' => $request->name,
+        $enterTopic = trim((string) ($request->input('enter_topic') ?: $request->input('topic') ?: ''));
+        $requirements = trim((string) ($request->input('requirements') ?: $request->input('description') ?: $request->input('message') ?: ''));
 
-            'email' => $request->email ?? 'N/A',
+        // Derive source_url, ensuring it defaults to primeassignmenthelp.co.uk if not specified
+        $sourceUrl = trim((string) ($request->input('source_url') ?: $request->input('source_page') ?: ''));
+        if (empty($sourceUrl)) {
+            $referer = (string) ($request->header('referer') ?: $request->header('origin') ?: '');
+            if (!empty($referer) && stripos($referer, 'smartassignmenthelp') !== false) {
+                $sourceUrl = $referer;
+            } elseif (!empty($referer) && stripos($referer, 'primeassignmenthelp') !== false) {
+                $sourceUrl = $referer;
+            } else {
+                $sourceUrl = 'https://primeassignmenthelp.co.uk/';
+            }
+        }
 
-            'country' => $request->country,
-
-            'mobile_number' => $request->mobile_number,
-
-            'services' => $request->services,
-
-            'subject' => $request->subject,
-
-            'work_type' => $request->work_type,
-
-            'select_urgency' => $request->select_urgency,
-
-            'word_count' => $request->word_count,
-
-            'enter_topic' => $request->enter_topic,
-
-            'requirements' => $request->requirements,
-
-            'source_url' => $request->source_url,
-
-            'created_at' => Carbon::now(),
-
-            'updated_at' => Carbon::now()
-
+        $id = DB::table('primeassiment')->insertGetId([
+            'name'           => $name,
+            'email'          => $email,
+            'country'        => $country ?: null,
+            'mobile_number'  => $mobileNumber ?: null,
+            'services'       => $services ?: null,
+            'subject'        => $subject ?: null,
+            'work_type'      => $workType ?: null,
+            'select_urgency' => $selectUrgency ?: null,
+            'word_count'     => !empty($wordCount) ? (int) $wordCount : null,
+            'enter_topic'    => $enterTopic ?: null,
+            'requirements'   => $requirements ?: null,
+            'source_url'     => $sourceUrl,
+            'created_at'     => Carbon::now(),
+            'updated_at'     => Carbon::now()
         ]);
 
         return response()->json([
-
-            'status' => true,
-
-            'message' => 'Order saved successfully'
-
+            'success' => true,
+            'status'  => true,
+            'message' => 'Order saved successfully',
+            'id'      => $id,
+            'lead_id' => $id,
         ], 200);
     }
 

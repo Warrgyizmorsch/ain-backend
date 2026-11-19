@@ -175,6 +175,14 @@ class PrimeAssignmentSetupService
             } catch (\Throwable $e) {}
 
             try {
+                if (!Schema::hasColumn('prime_service_pages', 'category')) {
+                    Schema::table('prime_service_pages', function (Blueprint $table) {
+                        $table->string('category', 120)->nullable()->after('type')->index();
+                    });
+                }
+            } catch (\Throwable $e) {}
+
+            try {
                 if (!Schema::hasColumn('prime_service_pages', 'topics')) {
                     Schema::table('prime_service_pages', function (Blueprint $table) {
                         $table->json('topics')->nullable()->after('faqs');
