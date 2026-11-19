@@ -71,6 +71,21 @@ class PrimeAssignmentSetupService
             });
         }
 
+        // Extra writer-profile columns (degree, experience, rating, gender)
+        $expertExtraColumns = [
+            'gender'     => fn (Blueprint $t) => $t->string('gender', 20)->nullable()->after('image_alt'),
+            'degree'     => fn (Blueprint $t) => $t->string('degree', 255)->nullable()->after('gender'),
+            'experience' => fn (Blueprint $t) => $t->string('experience', 50)->nullable()->after('degree'),
+            'rating'     => fn (Blueprint $t) => $t->decimal('rating', 2, 1)->nullable()->after('success'),
+        ];
+        foreach ($expertExtraColumns as $column => $definition) {
+            if (!Schema::hasColumn('prime_experts', $column)) {
+                Schema::table('prime_experts', function (Blueprint $table) use ($definition) {
+                    $definition($table);
+                });
+            }
+        }
+
         // 2b. Prime Reviews (same fields as main review form)
         if (!Schema::hasTable('prime_reviews')) {
             Schema::create('prime_reviews', function (Blueprint $table) {
@@ -86,6 +101,20 @@ class PrimeAssignmentSetupService
                 $table->boolean('is_active')->default(true)->index();
                 $table->timestamps();
             });
+        }
+
+        // Extra testimonial columns: which website page it belongs to, university and course
+        $reviewExtraColumns = [
+            'page'       => fn (Blueprint $t) => $t->string('page', 100)->nullable()->index()->after('name'),
+            'university' => fn (Blueprint $t) => $t->string('university', 255)->nullable()->after('location'),
+            'course'     => fn (Blueprint $t) => $t->string('course', 255)->nullable()->after('university'),
+        ];
+        foreach ($reviewExtraColumns as $column => $definition) {
+            if (!Schema::hasColumn('prime_reviews', $column)) {
+                Schema::table('prime_reviews', function (Blueprint $table) use ($definition) {
+                    $definition($table);
+                });
+            }
         }
 
         // 3. Prime Dynamic Service Pages
