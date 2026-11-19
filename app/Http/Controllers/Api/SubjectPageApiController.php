@@ -3,8 +3,10 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\SubjectPageController;
 use App\Models\SubjectPage;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 
 class SubjectPageApiController extends Controller
 {
@@ -14,6 +16,8 @@ class SubjectPageApiController extends Controller
     public function index(Request $request)
     {
         try {
+            SubjectPageController::ensureCategoryColumn();
+
             $query = SubjectPage::with('subject')
                 ->whereHas('subject')
                 ->where('is_published', true);
@@ -27,97 +31,127 @@ class SubjectPageApiController extends Controller
                 });
             }
 
+            // Optional category filter query parameter
+            if ($request->filled('category')) {
+                $categoryFilter = $request->query('category');
+                $query->where(function ($q) use ($categoryFilter) {
+                    $q->where('category', $categoryFilter)
+                      ->orWhere('category', 'like', '%' . $categoryFilter . '%');
+                });
+            }
+
             $pages = $query->get();
 
-            $parents = [];
-            $childrenByParent = [];
+            // Build individual subjects list with category details
+            $subjectsList = [];
+            $categoriesGrouped = [];
 
             foreach ($pages as $page) {
-                $slug = trim($page->slug, '/');
-                $segments = explode('/', $slug);
+                $catName = trim((string)($page->category ?: 'General'));
+                $catSlug = Str::slug($catName);
 
-                if (count($segments) === 2) {
-                    $parentId = $segments[1];
-                    $parents[$parentId] = [
-                        'id' => $page->id,
-                        'title' => $page->hero_heading,
-                        'slug' => $page->slug,
-                        'hasSubmenu' => false,
-                        'children' => [],
-                        'order' => $page->id,
-                    ];
-                } elseif (count($segments) === 3) {
-                    $parentId = $segments[1];
-                    $childId = $segments[2];
+                $subjectItem = [
+                    'id'            => $page->id,
+                    'title'         => $page->hero_heading ?: $page->meta_title,
+                    'slug'          => $page->slug,
+                    'category'      => $catName,
+                    'category_slug' => $catSlug,
+                    'hasSubmenu'    => false,
+                    'children'      => [],
+                ];
 
-                    $childrenByParent[$parentId][] = [
-                        'id' => $page->id,
-                        'title' => $page->hero_heading,
-                        'slug' => $page->slug,
-                        'order' => $page->id,
-                    ];
-                }
-            }
+                $subjectsList[] = $subjectItem;
 
-            // Auto-create parents for children that do not have an explicit parent page in DB
-            foreach ($childrenByParent as $parentId => $children) {
-                if (!isset($parents[$parentId])) {
-                    $prefix = 'subject';
-                    if (!empty($children)) {
-                        $childSlug = trim($children[0]['slug'], '/');
-                        $parts = explode('/', $childSlug);
-                        if (count($parts) > 0) {
-                            $prefix = $parts[0];
-                        }
-                    }
-
-                    $parents[$parentId] = [
-                        'id' => $parentId,
-                        'title' => ucwords(str_replace('-', ' ', $parentId)),
-                        'slug' => $parentId,
+                if (!isset($categoriesGrouped[$catSlug])) {
+                    $categoriesGrouped[$catSlug] = [
+                        'id'         => $catSlug,
+                        'name'       => $catName,
+                        'title'      => $catName,
+                        'slug'       => $catSlug,
                         'hasSubmenu' => true,
-                        'children' => [],
-                        'order' => 0,
+                        'count'      => 0,
+                        'subjects'   => [],
+                        'children'   => [],
                     ];
                 }
+
+                $categoriesGrouped[$catSlug]['count']++;
+                $categoriesGrouped[$catSlug]['subjects'][] = $subjectItem;
+                $categoriesGrouped[$catSlug]['children'][] = $subjectItem;
             }
 
-            foreach ($parents as $parentId => &$parent) {
-                if (isset($childrenByParent[$parentId])) {
-                    usort($childrenByParent[$parentId], function($a, $b) {
-                        return $a['order'] <=> $b['order'];
-                    });
+            // Sort subjects list alphabetically by title for /subjects page
+            usort($subjectsList, fn($a, $b) => strcasecmp($a['title'], $b['title']));
 
-                    $parent['children'] = array_map(function($child) {
-                        unset($child['order']);
-                        return $child;
-                    }, $childrenByParent[$parentId]);
+            // Sort grouped categories alphabetically by name
+            $categoriesArray = array_values($categoriesGrouped);
+            usort($categoriesArray, fn($a, $b) => strcasecmp($a['name'], $b['name']));
 
-                    $parent['hasSubmenu'] = true;
-                } else {
-                    $parent['hasSubmenu'] = false;
-                    $parent['children'] = [];
-                }
+            // If client explicitly requests grouped/tree view for navbar
+            if ($request->boolean('grouped') || $request->query('view') === 'navbar' || $request->query('view') === 'tree') {
+                return response()->json([
+                    'status'     => 'success',
+                    'success'    => true,
+                    'data'       => $categoriesArray,
+                    'categories' => $categoriesArray,
+                    'total'      => count($subjectsList),
+                ]);
             }
-            unset($parent);
-
-            usort($parents, function($a, $b) {
-                return $a['order'] <=> $b['order'];
-            });
-
-            $formattedData = array_map(function($parent) {
-                unset($parent['order']);
-                return $parent;
-            }, $parents);
 
             return response()->json([
-                'status' => 'success',
-                'data' => $formattedData
+                'status'     => 'success',
+                'success'    => true,
+                'data'       => $subjectsList,
+                'categories' => $categoriesArray,
+                'total'      => count($subjectsList),
             ]);
         } catch (\Exception $e) {
             return response()->json([
-                'status' => 'error',
+                'status'  => 'error',
+                'success' => false,
                 'message' => 'Failed to retrieve subject pages: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get distinct active subject categories list.
+     */
+    public function categories()
+    {
+        try {
+            SubjectPageController::ensureCategoryColumn();
+
+            $existing = SubjectPage::where('is_published', true)
+                ->whereNotNull('category')
+                ->where('category', '!=', '')
+                ->distinct()
+                ->pluck('category')
+                ->toArray();
+
+            $defaults = SubjectPageController::getDefaultCategories();
+
+            $categories = collect(array_merge($defaults, $existing))
+                ->map(fn($c) => trim((string)$c))
+                ->filter()
+                ->unique(fn($c) => strtolower($c))
+                ->sort(fn($a, $b) => strcasecmp($a, $b))
+                ->map(fn($c) => [
+                    'name' => $c,
+                    'slug' => Str::slug($c),
+                ])
+                ->values();
+
+            return response()->json([
+                'status'  => 'success',
+                'success' => true,
+                'data'    => $categories,
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status'  => 'error',
+                'success' => false,
+                'message' => 'Failed to retrieve categories: ' . $e->getMessage(),
             ], 500);
         }
     }
@@ -129,6 +163,7 @@ class SubjectPageApiController extends Controller
     public function show($slug)  
     {
         try {
+            SubjectPageController::ensureCategoryColumn();
             $slug = urldecode($slug);
 
             $page = SubjectPage::with('subject')
@@ -144,6 +179,10 @@ class SubjectPageApiController extends Controller
                     'success' => false,
                     'message' => 'Subject page not found',
                 ], 404);
+            }
+
+            if (empty($page->category)) {
+                $page->category = 'General';
             }
 
             // Fetch related experts and reviews

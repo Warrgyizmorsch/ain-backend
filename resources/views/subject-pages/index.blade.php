@@ -18,6 +18,7 @@
             <thead class="bg-light">
                 <tr class="fw-bold text-muted">
                     <th class="ps-4">Subject</th>
+                    <th>Category</th>
                     <th>Slug</th>
                     <th>Meta Title</th>
                     <th>Status</th>
@@ -28,6 +29,13 @@
                 @forelse($pages as $page)
                 <tr>
                     <td class="ps-4"><span class="badge badge-light-primary">{{ $page->subject->name ?? '—' }}</span></td>
+                    <td>
+                        @if($page->category)
+                            <span class="badge badge-light-info">{{ $page->category }}</span>
+                        @else
+                            <span class="badge badge-light-dark text-muted">Uncategorized</span>
+                        @endif
+                    </td>
                     <td><code>/{{ $page->slug }}</code></td>
                     <td>{{ Str::limit($page->meta_title, 60) }}</td>
                     <td>
@@ -48,7 +56,7 @@
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="5" class="text-center py-6 text-muted">No dynamic subject pages found. <a href="{{ route('subject-pages.create') }}">Create one</a>.</td>
+                    <td colspan="6" class="text-center py-6 text-muted">No dynamic subject pages found. <a href="{{ route('subject-pages.create') }}">Create one</a>.</td>
                 </tr>
                 @endforelse
             </tbody>

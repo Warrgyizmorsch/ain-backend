@@ -117,6 +117,9 @@
                                         $visibleSubmenus = $childMenu->submenus->filter(function ($submenu) use (
                                             $submenuIdsStr,
                                         ) {
+                                            if (trim((string) $submenu->routes, '/') === 'create_sample') {
+                                                return false;
+                                            }
                                             return $submenu->show == 'Y' &&
                                                 in_array((string) $submenu->id, $submenuIdsStr);
                                         });
@@ -198,6 +201,9 @@
                         @elseif ($menu->submenus->where('show', 'Y')->count() > 0)
                             @php
                                 $visibleSubmenus = $menu->submenus->filter(function ($submenu) use ($submenuIdsStr) {
+                                    if (trim((string) $submenu->routes, '/') === 'create_sample') {
+                                        return false;
+                                    }
                                     if ($submenu->show != 'Y' || !in_array((string) $submenu->id, $submenuIdsStr)) {
                                         return false;
                                     }

@@ -10,8 +10,32 @@
 <div class="card-body">@include('layouts.flash')
 @if($errors->any())<div class="alert alert-danger"><ul class="mb-0">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>@endif
 <div class="row g-5">
- <div class="col-md-6"><label class="form-label required">Subject (Prefix)</label><select name="subject_id" id="subject_id" class="form-select" required><option value="">Select Subject</option>@foreach($subjects as $subject)<option value="{{ $subject->id }}" data-slug="{{ $subject->slug }}" @selected(old('subject_id', $page->subject_id ?? (is_iterable($subjects) ? (collect($subjects)->where('slug', 'subject')->first()->id ?? null) : null)) == $subject->id)>{{ $subject->name }}</option>@endforeach</select></div>
- <div class="col-md-6"><label class="form-label required">SEO Slug</label><div class="input-group"><span class="input-group-text">/</span><input name="slug" id="slug" class="form-control" value="{{ old('slug',$page->slug) }}" placeholder="accounting" required></div></div>
+ <div class="col-md-4">
+     <label class="form-label required">Subject (Prefix)</label>
+     <select name="subject_id" id="subject_id" class="form-select" required>
+         <option value="">Select Subject</option>
+         @foreach($subjects as $subject)
+             <option value="{{ $subject->id }}" data-slug="{{ $subject->slug }}" @selected(old('subject_id', $page->subject_id ?? (is_iterable($subjects) ? (collect($subjects)->where('slug', 'subject')->first()->id ?? null) : null)) == $subject->id)>{{ $subject->name }}</option>
+         @endforeach
+     </select>
+ </div>
+ <div class="col-md-4">
+     <label class="form-label">Subject Category</label>
+     <select name="category" id="category_select" class="form-select">
+         <option value="">Select Category</option>
+         @foreach($categories as $category)
+             <option value="{{ $category }}" @selected(old('category', $page->category) == $category)>{{ $category }}</option>
+         @endforeach
+     </select>
+     <div class="mt-2">
+         <input type="text" name="new_category" id="new_category" class="form-control form-control-sm" value="{{ old('new_category') }}" placeholder="Or type new category name...">
+     </div>
+     <div class="form-text fs-8 text-muted">Select an existing category or type a new one to create it.</div>
+ </div>
+ <div class="col-md-4">
+     <label class="form-label required">SEO Slug</label>
+     <div class="input-group"><span class="input-group-text">/</span><input name="slug" id="slug" class="form-control" value="{{ old('slug',$page->slug) }}" placeholder="accounting" required></div>
+ </div>
  <div class="col-md-6"><label class="form-label required">Meta Title</label><input name="meta_title" class="form-control" maxlength="255" value="{{ old('meta_title',$page->meta_title) }}" required></div>
  <div class="col-md-6"><label class="form-label required">Meta Description</label><textarea name="meta_description" class="form-control" rows="2" required>{{ old('meta_description',$page->meta_description) }}</textarea></div>
 </div></div></div>

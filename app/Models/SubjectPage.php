@@ -3,16 +3,19 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Str;
 
 class SubjectPage extends Model
 {
     protected $fillable = [
-        'subject_id', 'slug', 'meta_title', 'meta_description', 'hero_heading',
+        'subject_id', 'category', 'slug', 'meta_title', 'meta_description', 'hero_heading',
         'hero_highlight', 'hero_content', 'section_two_heading', 'section_two_content',
         'section_three_heading', 'section_three_content', 'why_heading', 'why_subheading',
         'why_items', 'cta_content', 'cta_button_label', 'cta_button_url', 'long_content',
         'expert_ids', 'review_ids', 'faqs', 'is_published',
     ];
+
+    protected $appends = ['category_slug'];
 
     protected $casts = [
         'expert_ids' => 'array',
@@ -21,6 +24,11 @@ class SubjectPage extends Model
         'why_items'  => 'array',
         'is_published' => 'boolean',
     ];
+
+    public function getCategorySlugAttribute(): string
+    {
+        return Str::slug($this->category ?: 'general');
+    }
 
     public function subject()
     {
