@@ -47,7 +47,7 @@
             </div>
         @endif
         <div class="row g-5">
-            <div class="col-md-4">
+            <div class="col-md-3">
                 <label class="form-label required">Page Type</label>
                 <select name="type" id="page_type" class="form-select" required>
                     <option value="service" @selected(old('type', $page->type ?? 'service') === 'service')>Service Page</option>
@@ -56,7 +56,20 @@
                 </select>
                 <div class="form-text fs-8 text-muted">Select type: Service, Subject, or City.</div>
             </div>
-            <div class="col-md-4">
+            <div class="col-md-3" id="subjectCategoryWrapper" style="{{ old('type', $page->type ?? 'service') === 'subject' ? '' : 'display:none;' }}">
+                <label class="form-label">Subject Category</label>
+                <select name="category" id="prime_category_select" class="form-select">
+                    <option value="">Select Category</option>
+                    @foreach($categories as $category)
+                        <option value="{{ $category }}" @selected(old('category', $page->category) == $category)>{{ $category }}</option>
+                    @endforeach
+                </select>
+                <div class="mt-2">
+                    <input type="text" name="new_category" id="new_category" class="form-control form-control-sm" value="{{ old('new_category') }}" placeholder="Or type new category...">
+                </div>
+                <div class="form-text fs-8 text-muted">Select an existing category or type new.</div>
+            </div>
+            <div class="col-md-3">
                 <label class="form-label">Prefix (Optional)</label>
                 <select name="prime_subject_id" id="prime_subject_id" class="form-select">
                     <option value="">None / Manual Prefix</option>
@@ -66,7 +79,7 @@
                 </select>
                 <div class="form-text fs-8 text-muted">Optional: select prefix or enter your slug manually below.</div>
             </div>
-            <div class="col-md-4">
+            <div class="col-md-3">
                 <label class="form-label required">SEO Slug</label>
                 <div class="input-group">
                     <span class="input-group-text">/</span>
@@ -461,6 +474,23 @@ document.addEventListener('DOMContentLoaded', function () {
 
 <script>
 document.addEventListener('DOMContentLoaded', function () {
+    const pageTypeSelect = document.getElementById('page_type');
+    const categoryWrapper = document.getElementById('subjectCategoryWrapper');
+
+    function toggleSubjectCategory() {
+        if (!pageTypeSelect || !categoryWrapper) return;
+        if (pageTypeSelect.value === 'subject') {
+            categoryWrapper.style.display = '';
+        } else {
+            categoryWrapper.style.display = 'none';
+        }
+    }
+
+    if (pageTypeSelect) {
+        pageTypeSelect.addEventListener('change', toggleSubjectCategory);
+        toggleSubjectCategory();
+    }
+
     const rawTextarea = document.getElementById('long_content_raw');
     const visualTextarea = document.getElementById('long_content');
     const visualContainer = document.getElementById('visualEditorContainer');

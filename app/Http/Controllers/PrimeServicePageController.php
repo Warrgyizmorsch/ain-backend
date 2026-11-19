@@ -19,6 +19,24 @@ class PrimeServicePageController extends Controller
         PrimeAssignmentSetupService::ensureSetup();
     }
 
+    public static function getDefaultCategories(): array
+    {
+        return [
+            'Management',
+            'Engineering',
+            'Computer Science',
+            'Programming',
+            'Economics',
+            'Mathematics',
+            'Finance',
+            'Business',
+            'Humanities',
+            'Science',
+            'Law',
+            'Marketing',
+        ];
+    }
+
     /**
      * Highly optimized listing method for 200+ pages.
      * Selects only required columns, eager loads relations, and paginates.
@@ -26,7 +44,7 @@ class PrimeServicePageController extends Controller
     public function index(Request $request)
     {
         $query = PrimeServicePage::query()
-            ->select(['id', 'prime_subject_id', 'type', 'hero_heading', 'slug', 'is_published', 'created_at'])
+            ->select(['id', 'prime_subject_id', 'type', 'category', 'hero_heading', 'slug', 'is_published', 'created_at'])
             ->with(['primeSubject' => function ($q) {
                 $q->select('id', 'name', 'slug');
             }]);
@@ -191,14 +209,31 @@ class PrimeServicePageController extends Controller
 
     private function form(PrimeServicePage $page)
     {
+        $existingCategories = [];
+        try {
+            $existingCategories = PrimeServicePage::whereNotNull('category')
+                ->where('category', '!=', '')
+                ->distinct()
+                ->pluck('category')
+                ->toArray();
+        } catch (\Throwable $e) {}
+
+        $categories = collect(array_merge(self::getDefaultCategories(), $existingCategories))
+            ->map(fn($c) => trim((string)$c))
+            ->filter()
+            ->unique(fn($c) => strtolower($c))
+            ->sort(fn($a, $b) => strcasecmp($a, $b))
+            ->values();
+
         return view('prime-service-pages.form', [
-            'page'     => $page,
-            'subjects' => PrimeSubject::where('is_active', true)->orderBy('name')->get(),
+            'page'         => $page,
+            'subjects'     => PrimeSubject::where('is_active', true)->orderBy('name')->get(),
+            'categories'   => $categories,
             'primeWriters' => PrimeExpert::where('is_active', true)
                 ->orWhereIn('id', $page->prime_writer_ids ?: [])
                 ->orderBy('name')
                 ->get(),
-            'reviews'  => PrimeReview::latest()->get(),
+            'reviews'      => PrimeReview::latest()->get(),
         ]);
     }
 
@@ -223,6 +258,8 @@ class PrimeServicePageController extends Controller
         $data = $request->validate([
             'prime_subject_id'      => ['nullable'],
             'type'                  => ['nullable', 'string', 'in:service,subject,city'],
+            'category'              => ['nullable', 'string', 'max:120'],
+            'new_category'          => ['nullable', 'string', 'max:120'],
             'slug'                  => ['required', 'string', 'max:180', $slugRule],
             'meta_title'            => ['required', 'string', 'max:255'],
             'meta_description'      => ['required', 'string', 'max:1000'],
@@ -273,6 +310,12 @@ class PrimeServicePageController extends Controller
             fn($item) => filled($item['heading'] ?? null) && filled($item['content'] ?? null)
         ));
         $data['is_published'] = $request->boolean('is_published', true);
+
+        $newCategory = trim((string) $request->input('new_category', ''));
+        $selectedCategory = trim((string) $request->input('category', ''));
+        $categoryValue = !empty($newCategory) ? $newCategory : (!empty($selectedCategory) ? $selectedCategory : null);
+        $data['category'] = ($data['type'] === 'subject') ? $categoryValue : null;
+        unset($data['new_category']);
 
         return $data;
     }

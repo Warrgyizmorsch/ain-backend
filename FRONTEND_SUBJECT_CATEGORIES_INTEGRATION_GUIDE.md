@@ -159,6 +159,18 @@ When rendering the Subject Detail page, pass `page.category_slug` to this API to
 
 ---
 
+### Endpoint 5: Prime Assignment Website Endpoints
+For Prime Assignment Next.js applications:
+- **Navbar / All Subjects:** `GET https://ain.warrgyizmorsch.com/api/prime/subject-pages` (or `/api/v1/subject-pages`)
+  - Returns `data` (subjects array with `category` and `category_slug`).
+  - Returns `categories` (pre-grouped by category).
+  - Supports `?grouped=1` to return the category tree directly in `data`.
+- **Subject Detail Page:** `GET https://ain.warrgyizmorsch.com/api/prime/subject-pages/{slug}` (or `/api/v1/subject-pages/{slug}`)
+  - When pageType is `'subject'`, returns `category` and `category_slug` inside `data`.
+- **Prime Categories List:** `GET https://ain.warrgyizmorsch.com/api/prime/subject-categories` (or `/api/v1/subject-categories`)
+
+---
+
 ## 3. Ready-to-Use Frontend Implementation Snippets
 
 ### A. Navbar Dropdown Component (Next.js / React)
