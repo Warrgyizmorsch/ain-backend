@@ -186,6 +186,13 @@ Route::prefix('v1')->group(function () {
     Route::get('/city-pages/{slug}', [PrimeServicePageApiController::class, 'showCity'])->where('slug', '.*');
 });
 
+// Prime Assignment Public Auth APIs
+Route::prefix('prime')->group(function () {
+    Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
+    Route::post('/verify-forgot-password-otp', [AuthController::class, 'verifyForgotPasswordOtp']);
+    Route::post('/reset-password', [AuthController::class, 'resetPassword']);
+});
+
 Route::prefix('app')->group(function () {
     Route::get('/contact-us', [ContactApiController::class, 'contactDetails']);
     Route::get('/contact-details', [ContactApiController::class, 'contactDetails']);
