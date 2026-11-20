@@ -152,7 +152,8 @@ class AuthController extends Controller
                 ]
             );
 
-            $user->notify(new PasswordResetOtpNotification($otp));
+            $brand = $this->resolveBrand($request);
+            $user->notify(new PasswordResetOtpNotification($otp, $brand));
 
             return response()->json([
                 'success' => true,
@@ -258,6 +259,26 @@ class AuthController extends Controller
             'success' => true,
             'message' => 'Password reset successfully. Please login with your new password.',
         ]);
+    }
+
+    private function resolveBrand(Request $request): string
+    {
+        $brand = strtolower(trim((string) ($request->input('brand') ?: '')));
+        if ($brand === 'prime') {
+            return 'prime';
+        }
+
+        $path = $request->path();
+        if (str_starts_with($path, 'api/prime/') || str_starts_with($path, 'prime/')) {
+            return 'prime';
+        }
+
+        $origin = (string) ($request->header('origin') ?: $request->header('referer') ?: '');
+        if (!empty($origin) && stripos($origin, 'primeassignmenthelp') !== false) {
+            return 'prime';
+        }
+
+        return 'ain';
     }
 
     // GET PROFILE API
