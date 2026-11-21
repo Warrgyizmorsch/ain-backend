@@ -430,7 +430,7 @@
                                 <div class="col-lg-3 fv-row fv-plugins-icon-container">
                                     <select name="order_period" class="form-select form-select-solid"
                                         data-control="select2" data-placeholder="Order Period">
-                                        <option value="">Order Period (Auto)</option>
+                                        <option value="">Order Period (Lifetime)</option>
                                         <option value="lifetime"
                                             {{ request('order_period') == 'lifetime' ? 'selected' : '' }}>All Time (Lifetime)
                                         </option>
@@ -555,7 +555,7 @@
                                                     <span>Order Count</span>
                                                     <span class="fw-bolder {{ $currentOrderSort !== 'latest' ? 'text-primary' : 'text-muted' }}">{{ $sortArrow }}</span>
                                                 </a>
-                                                <br><small>({{ $orderPeriodLabel ?? 'Last 1.5 Yrs' }})</small>
+                                                <br><small>({{ $orderPeriodLabel ?? 'Lifetime' }})</small>
                                             </th>
                                             <th class="min-w-100px col-followups">Follow-ups<br><small>(Last 1 Yr)</small></th>
                                             @if ($canViewReferral)
