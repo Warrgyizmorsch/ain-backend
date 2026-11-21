@@ -618,7 +618,7 @@ class ExportController extends Controller
         $allowedPeriods = ['lifetime', '18_months', 'this_year'];
         $effectiveOrderPeriod = in_array($requestedPeriod, $allowedPeriods, true)
             ? $requestedPeriod
-            : ($clientOrderBounds !== null ? 'lifetime' : '18_months');
+            : 'lifetime';
         [$orderFrom, $orderTo] = Order::resolveOrderPeriodDateRange($effectiveOrderPeriod);
 
         // Initialize the user query
