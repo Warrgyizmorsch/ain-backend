@@ -276,13 +276,13 @@ class UserController extends Controller
         $allowedPeriods = ['lifetime', '18_months', 'this_year'];
         $effectiveOrderPeriod = in_array($requestedPeriod, $allowedPeriods, true)
             ? $requestedPeriod
-            : ($clientOrderBounds !== null ? 'lifetime' : '18_months');
+            : 'lifetime';
 
         [$orderFrom, $orderTo] = Order::resolveOrderPeriodDateRange($effectiveOrderPeriod);
         $orderPeriodLabel = match ($effectiveOrderPeriod) {
-            'lifetime' => 'Lifetime',
+            '18_months' => 'Last 1.5 Yrs',
             'this_year' => 'Year ' . \Carbon\Carbon::now()->year,
-            default => 'Last 1.5 Yrs',
+            default => 'Lifetime',
         };
 
         $applyOrderPeriodScope = function ($q) use ($orderFrom, $orderTo) {
@@ -408,15 +408,18 @@ class UserController extends Controller
             });
         }
 
+        $primarySortColumn = ($effectiveOrderPeriod === 'lifetime') ? 'total_orders_count' : 'orders_count';
+        $secondarySortColumn = ($effectiveOrderPeriod === 'lifetime') ? 'orders_count' : 'total_orders_count';
+
         if ($orderSort === 'asc') {
-            $tabFilteredQuery->orderBy('orders_count', 'asc')
-                ->orderBy('total_orders_count', 'asc')
+            $tabFilteredQuery->orderBy($primarySortColumn, 'asc')
+                ->orderBy($secondarySortColumn, 'asc')
                 ->orderBy('users.id', 'desc');
         } elseif ($orderSort === 'latest') {
             $tabFilteredQuery->orderBy('users.id', 'desc');
         } else {
-            $tabFilteredQuery->orderByDesc('orders_count')
-                ->orderByDesc('total_orders_count')
+            $tabFilteredQuery->orderByDesc($primarySortColumn)
+                ->orderByDesc($secondarySortColumn)
                 ->orderByDesc('users.id');
         }
 
